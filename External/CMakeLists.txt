@@ -1,0 +1,29 @@
+cmake_minimum_required (VERSION 3.20)
+
+project (External)
+
+find_package(Vulkan REQUIRED)
+
+set (BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Bin)
+set (LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Lib)
+set (INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Include)
+
+set (DEBUG_LIB_DIR ${LIB_DIR}/Debug)
+set (RELEASE_LIB_DIR ${LIB_DIR}/Release)
+
+add_subdirectory(SDL)
+
+install (TARGETS SDL2
+    CONFIGURATIONS Debug
+        RUNTIME DESTINATION ${BIN_DIR}
+        LIBRARY DESTINATION ${DEBUG_LIB_DIR}
+        ARCHIVE DESTINATION ${DEBUG_LIB_DIR})
+
+install (TARGETS SDL2
+    CONFIGURATIONS Release
+        RUNTIME DESTINATION ${BIN_DIR}
+        LIBRARY DESTINATION ${RELEASE_LIB_DIR}
+        ARCHIVE DESTINATION ${RELEASE_LIB_DIR})
+
+install (DIRECTORY ${SDL2_SOURCE_DIR}/include 
+    DESTINATION ${INCLUDE_DIR}/SDL)

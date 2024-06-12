@@ -23,7 +23,7 @@ target_compile_definitions(Core
     PUBLIC 
         GLM_FORCE_RADIANS)
 
-# TODO
+# <TODO>
 target_compile_definitions(Core 
     PUBLIC 
         VK_USE_PLATFORM_WIN32_KHR)
@@ -37,7 +37,28 @@ target_link_libraries(Core
 
 target_include_directories(Core 
     PUBLIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+        ${PROJECT_SOURCE_DIR}/Source)
+
+target_include_directories(Core 
+    PUBLIC 
+        ${PROJECT_SOURCE_DIR}/External/Output/Include/SDL/include)
+        
+if (MSVC)
+    add_library(SDL SHARED IMPORTED)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set_target_properties(SDL PROPERTIES
+            IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/External/Output/Bin/SDL2d.dll
+            IMPORTED_IMPLIB ${PROJECT_SOURCE_DIR}/External/Output/Lib/Debug/SDL2d.lib)
+    else()
+        set_target_properties(SDL PROPERTIES
+            IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/External/Output/Bin/SDL2.dll
+            IMPORTED_IMPLIB ${PROJECT_SOURCE_DIR}/External/Output/Lib/Release/SDL2.lib)
+    endif()
+endif(MSVC)
+
+target_link_libraries(Core
+    PUBLIC
+        SDL)
 
 target_precompile_headers(Core 
     PUBLIC 
