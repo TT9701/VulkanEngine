@@ -2,11 +2,18 @@ find_package(Vulkan REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_library(Core STATIC
-    VulkanHelper.hpp
+set (CORE_SRC 
+    Utilities/VulkanUtilities.hpp
+    Utilities/VulkanUtilities.cpp
+
+    DbgMemLeak.h
 
     Engine.hpp
     Engine.cpp
+)
+
+add_library(Core STATIC
+    ${CORE_SRC}
 )
 
 if(MSVC AND NOT USE_CLANG)
@@ -17,16 +24,25 @@ endif()
 
 target_compile_definitions(Core 
     PUBLIC 
-        GLM_FORCE_DEPTH_ZERO_TO_ONE)
+        GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_FORCE_RADIANS)
         
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 target_compile_definitions(Core 
     PUBLIC 
-        GLM_FORCE_RADIANS)
+        DEBUG)
+else ()
+target_compile_definitions(Core 
+    PUBLIC 
+        NDEBUG)
+endif()
 
 # <TODO>
 target_compile_definitions(Core 
     PUBLIC 
-        VK_USE_PLATFORM_WIN32_KHR)
+        VK_USE_PLATFORM_WIN32_KHR
+        NOMINMAX)
+
 target_compile_definitions(Core 
     PUBLIC 
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 )
@@ -67,5 +83,6 @@ target_precompile_headers(Core
         <memory> 
         <string> 
         <vector> 
+        <functional>
         <thread>
         <unordered_map>)
