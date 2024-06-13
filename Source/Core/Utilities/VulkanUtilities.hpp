@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include <vma/vk_mem_alloc.h>
 
 namespace Utils {
 

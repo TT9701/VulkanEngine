@@ -76,6 +76,7 @@ void VulkanEngine::Run() {
 }
 
 void VulkanEngine::Cleanup() {
+    vmaDestroyAllocator(mVmaAllocator);
     mDevice.destroy();
     mInstance.destroy(mSurface);
     mInstance.destroy(mDebugUtilsMessenger);
@@ -137,6 +138,7 @@ void VulkanEngine::InitVulkan() {
     CreateSurface();
     PickPhysicalDevice();
     CreateDevice();
+    CreateVmaAllocator();
 }
 
 void VulkanEngine::CreateInstance() {
@@ -292,3 +294,52 @@ void VulkanEngine::CreateDevice() {
     VULKAN_HPP_DEFAULT_DISPATCHER.init(mDevice);
 #endif
 }
+
+void VulkanEngine::CreateVmaAllocator() {
+    const VmaVulkanFunctions vulkanFunctions = {
+        .vkGetInstanceProcAddr               = vk::defaultDispatchLoaderDynamic.vkGetInstanceProcAddr,
+        .vkGetDeviceProcAddr                 = vk::defaultDispatchLoaderDynamic.vkGetDeviceProcAddr,
+        .vkGetPhysicalDeviceProperties       = vk::defaultDispatchLoaderDynamic.vkGetPhysicalDeviceProperties,
+        .vkGetPhysicalDeviceMemoryProperties = vk::defaultDispatchLoaderDynamic.vkGetPhysicalDeviceMemoryProperties,
+        .vkAllocateMemory                    = vk::defaultDispatchLoaderDynamic.vkAllocateMemory,
+        .vkFreeMemory                        = vk::defaultDispatchLoaderDynamic.vkFreeMemory,
+        .vkMapMemory                         = vk::defaultDispatchLoaderDynamic.vkMapMemory,
+        .vkUnmapMemory                       = vk::defaultDispatchLoaderDynamic.vkUnmapMemory,
+        .vkFlushMappedMemoryRanges           = vk::defaultDispatchLoaderDynamic.vkFlushMappedMemoryRanges,
+        .vkInvalidateMappedMemoryRanges      = vk::defaultDispatchLoaderDynamic.vkInvalidateMappedMemoryRanges,
+        .vkBindBufferMemory                  = vk::defaultDispatchLoaderDynamic.vkBindBufferMemory,
+        .vkBindImageMemory                   = vk::defaultDispatchLoaderDynamic.vkBindImageMemory,
+        .vkGetBufferMemoryRequirements       = vk::defaultDispatchLoaderDynamic.vkGetBufferMemoryRequirements,
+        .vkGetImageMemoryRequirements        = vk::defaultDispatchLoaderDynamic.vkGetImageMemoryRequirements,
+        .vkCreateBuffer                      = vk::defaultDispatchLoaderDynamic.vkCreateBuffer,
+        .vkDestroyBuffer                     = vk::defaultDispatchLoaderDynamic.vkDestroyBuffer,
+        .vkCreateImage                       = vk::defaultDispatchLoaderDynamic.vkCreateImage,
+        .vkDestroyImage                      = vk::defaultDispatchLoaderDynamic.vkDestroyImage,
+        .vkCmdCopyBuffer                     = vk::defaultDispatchLoaderDynamic.vkCmdCopyBuffer,
+#if VMA_VULKAN_VERSION >= 1001000
+        .vkGetBufferMemoryRequirements2KHR       = vk::defaultDispatchLoaderDynamic.vkGetBufferMemoryRequirements2,
+        .vkGetImageMemoryRequirements2KHR        = vk::defaultDispatchLoaderDynamic.vkGetImageMemoryRequirements2,
+        .vkBindBufferMemory2KHR                  = vk::defaultDispatchLoaderDynamic.vkBindBufferMemory2,
+        .vkBindImageMemory2KHR                   = vk::defaultDispatchLoaderDynamic.vkBindImageMemory2,
+        .vkGetPhysicalDeviceMemoryProperties2KHR = vk::defaultDispatchLoaderDynamic.vkGetPhysicalDeviceMemoryProperties2,
+#endif
+#if VMA_VULKAN_VERSION >= 1003000
+        .vkGetDeviceBufferMemoryRequirements = vk::defaultDispatchLoaderDynamic.vkGetDeviceBufferMemoryRequirements,
+        .vkGetDeviceImageMemoryRequirements  = vk::defaultDispatchLoaderDynamic.vkGetDeviceImageMemoryRequirements,
+#endif
+    };
+
+    const VmaAllocatorCreateInfo allocInfo = {
+#if defined(VK_KHR_buffer_device_address) && defined(_WIN32)
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+#endif
+        .physicalDevice   = mPhysicalDevice,
+        .device           = mDevice,
+        .pVulkanFunctions = &vulkanFunctions,
+        .instance         = mInstance,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+    };
+    vmaCreateAllocator(&allocInfo, &mVmaAllocator);
+}
+
+void VulkanEngine::CreateSwapchain() {}

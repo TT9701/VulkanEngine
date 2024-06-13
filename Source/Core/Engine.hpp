@@ -2,6 +2,8 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include "Utilities/VulkanUtilities.hpp"
+
 struct SDL_Window;
 
 class VulkanEngine {
@@ -24,6 +26,8 @@ private:
     void PickPhysicalDevice();
     void SetQueueFamily(vk::QueueFlags requestedQueueTypes);
     void CreateDevice();
+    void CreateVmaAllocator();
+    void CreateSwapchain();
 
 private:
     // helper functions
@@ -59,4 +63,12 @@ private:
     ::std::vector<vk::Queue> mGraphicQueues {};
     ::std::vector<vk::Queue> mComputeQueues {};
     ::std::vector<vk::Queue> mTransferQueues {};
+
+    VmaAllocator mVmaAllocator {};
+
+    vk::SwapchainKHR             mSwapchain {};
+    vk::Format                   mSwapchainImageFormat {};
+    ::std::vector<vk::Image>     mSwapchainImages {};
+    ::std::vector<vk::ImageView> mSwapchainImageViews {};
+    vk::Extent2D                 mSwapchainExtent {};
 };
