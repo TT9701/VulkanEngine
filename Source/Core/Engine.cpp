@@ -76,7 +76,13 @@ void VulkanEngine::Run() {
 }
 
 void VulkanEngine::Cleanup() {
+
+    for (auto& view : mSwapchainImageViews) 
+        mDevice.destroy(view);
+    mDevice.destroy(mSwapchain);
+
     vmaDestroyAllocator(mVmaAllocator);
+
     mDevice.destroy();
     mInstance.destroy(mSurface);
     mInstance.destroy(mDebugUtilsMessenger);
@@ -139,6 +145,7 @@ void VulkanEngine::InitVulkan() {
     PickPhysicalDevice();
     CreateDevice();
     CreateVmaAllocator();
+    CreateSwapchain();
 }
 
 void VulkanEngine::CreateInstance() {
@@ -255,6 +262,14 @@ void VulkanEngine::CreateDevice() {
      * TODO: Device layers & extensions
      */
 
+    auto availableLayers = mPhysicalDevice.enumerateDeviceLayerProperties();
+    auto availableExtensions = mPhysicalDevice.enumerateDeviceExtensionProperties();
+
+    ::std::vector<const char*> enabledDeviceLayers {};
+    ::std::vector<const char*> enabledDeivceExtensions {};
+
+    enabledDeivceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
     vk::PhysicalDeviceFeatures origFeatures {};
 
     vk::PhysicalDeviceVulkan13Features vulkan13Features {};
@@ -274,8 +289,15 @@ void VulkanEngine::CreateDevice() {
     if (mTransferFamilyIndex.has_value())
         queueCIs.push_back({{}, mTransferFamilyIndex.value(), mTransferQueueCount, queuePriorities.data()});
 
-    vk::DeviceCreateInfo deviceCreateInfo {
-        {}, (uint32_t)queueCIs.size(), queueCIs.data(), {}, {}, {}, {}, &origFeatures, &vulkan11Features};
+    vk::DeviceCreateInfo deviceCreateInfo {{},
+                                           static_cast<uint32_t>(queueCIs.size()),
+                                           queueCIs.data(),
+                                           static_cast<uint32_t>(enabledDeviceLayers.size()),
+                                           enabledDeviceLayers.data(),
+                                           static_cast<uint32_t>(enabledDeivceExtensions.size()),
+                                           enabledDeivceExtensions.data(),
+                                           &origFeatures,
+                                           &vulkan11Features};
     mDevice = mPhysicalDevice.createDevice(deviceCreateInfo);
 
     mGraphicQueues.resize(mGraphicsQueueCount);
@@ -317,11 +339,12 @@ void VulkanEngine::CreateVmaAllocator() {
         .vkDestroyImage                      = vk::defaultDispatchLoaderDynamic.vkDestroyImage,
         .vkCmdCopyBuffer                     = vk::defaultDispatchLoaderDynamic.vkCmdCopyBuffer,
 #if VMA_VULKAN_VERSION >= 1001000
-        .vkGetBufferMemoryRequirements2KHR       = vk::defaultDispatchLoaderDynamic.vkGetBufferMemoryRequirements2,
-        .vkGetImageMemoryRequirements2KHR        = vk::defaultDispatchLoaderDynamic.vkGetImageMemoryRequirements2,
-        .vkBindBufferMemory2KHR                  = vk::defaultDispatchLoaderDynamic.vkBindBufferMemory2,
-        .vkBindImageMemory2KHR                   = vk::defaultDispatchLoaderDynamic.vkBindImageMemory2,
-        .vkGetPhysicalDeviceMemoryProperties2KHR = vk::defaultDispatchLoaderDynamic.vkGetPhysicalDeviceMemoryProperties2,
+        .vkGetBufferMemoryRequirements2KHR = vk::defaultDispatchLoaderDynamic.vkGetBufferMemoryRequirements2,
+        .vkGetImageMemoryRequirements2KHR  = vk::defaultDispatchLoaderDynamic.vkGetImageMemoryRequirements2,
+        .vkBindBufferMemory2KHR            = vk::defaultDispatchLoaderDynamic.vkBindBufferMemory2,
+        .vkBindImageMemory2KHR             = vk::defaultDispatchLoaderDynamic.vkBindImageMemory2,
+        .vkGetPhysicalDeviceMemoryProperties2KHR =
+            vk::defaultDispatchLoaderDynamic.vkGetPhysicalDeviceMemoryProperties2,
 #endif
 #if VMA_VULKAN_VERSION >= 1003000
         .vkGetDeviceBufferMemoryRequirements = vk::defaultDispatchLoaderDynamic.vkGetDeviceBufferMemoryRequirements,
@@ -342,4 +365,31 @@ void VulkanEngine::CreateVmaAllocator() {
     vmaCreateAllocator(&allocInfo, &mVmaAllocator);
 }
 
-void VulkanEngine::CreateSwapchain() {}
+void VulkanEngine::CreateSwapchain() {
+    mSwapchainImageFormat = vk::Format::eR8G8B8A8Unorm;
+    mSwapchainExtent      = vk::Extent2D {static_cast<uint32_t>(mWindowWidth), static_cast<uint32_t>(mWindowHeight)};
+    vk::SwapchainCreateInfoKHR swapchainCreateInfo {};
+
+    swapchainCreateInfo.setSurface(mSurface)
+        .setMinImageCount(3u)
+        .setImageFormat(mSwapchainImageFormat)
+        .setImageExtent(mSwapchainExtent)
+        .setImageArrayLayers(1u)
+        .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst)
+        .setPresentMode(vk::PresentModeKHR::eMailbox)
+        .setClipped(vk::True)
+        .setOldSwapchain(VK_NULL_HANDLE);
+    mSwapchain = mDevice.createSwapchainKHR(swapchainCreateInfo);
+
+    mSwapchainImages = mDevice.getSwapchainImagesKHR(mSwapchain);
+
+    mSwapchainImageViews.resize(mSwapchainImages.size());
+    for (int i = 0; i < mSwapchainImages.size(); ++i) {
+        vk::ImageViewCreateInfo imgViewCreateInfo {};
+        imgViewCreateInfo.setImage(mSwapchainImages[i])
+            .setViewType(vk::ImageViewType::e2D)
+            .setFormat(mSwapchainImageFormat)
+            .setSubresourceRange(vk::ImageSubresourceRange {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+        mSwapchainImageViews[i] = mDevice.createImageView(imgViewCreateInfo);
+    }
+}
