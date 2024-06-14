@@ -29,7 +29,8 @@ vk::ImageSubresourceRange GetDefaultImageSubresourceRange(
     vk::ImageAspectFlags flags);
 
 void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
-                     vk::ImageLayout currentLayout, vk::ImageLayout newLayout);
+                           vk::ImageLayout currentLayout,
+                           vk::ImageLayout newLayout);
 
 vk::SemaphoreSubmitInfo GetDefaultSemaphoreSubmitInfo(
     vk::PipelineStageFlagBits2 stageMask, vk::Semaphore semaphore);
@@ -41,5 +42,8 @@ vk::SubmitInfo2 SubmitInfo(
     vk::ArrayProxy<vk::CommandBufferSubmitInfo> const& cmd,
     vk::ArrayProxy<vk::SemaphoreSubmitInfo> const&     signalSemaphoreInfo,
     vk::ArrayProxy<vk::SemaphoreSubmitInfo> const&     waitSemaphoreInfo);
+
+bool LoadShaderModule(const ::std::string& filePath, vk::Device device,
+                      vk::ShaderModule* outShaderModule);
 
 }  // namespace Utils

@@ -21,7 +21,8 @@ vk::ImageSubresourceRange GetDefaultImageSubresourceRange(
 }
 
 void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
-                     vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
+                           vk::ImageLayout currentLayout,
+                           vk::ImageLayout newLayout) {
     vk::ImageMemoryBarrier2 imgBarrier {};
     imgBarrier.setSrcStageMask(vk::PipelineStageFlagBits2::eAllCommands)
         .setSrcAccessMask(vk::AccessFlagBits2::eMemoryWrite)
@@ -71,6 +72,30 @@ vk::SubmitInfo2 SubmitInfo(
         .setCommandBufferInfos(cmd);
 
     return info;
+}
+
+bool LoadShaderModule(const std::string& filePath, vk::Device device,
+                      vk::ShaderModule* outShaderModule) {
+    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    size_t fileSize = (size_t)file.tellg();
+
+    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+    file.seekg(0);
+    file.read((char*)buffer.data(), fileSize);
+    file.close();
+
+    vk::ShaderModuleCreateInfo createInfo {};
+    createInfo.setCode(buffer);
+
+    vk::ShaderModule shaderModule = device.createShaderModule(createInfo);
+
+    *outShaderModule = shaderModule;
+    return true;
 }
 
 }  // namespace Utils

@@ -4,6 +4,7 @@
 
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanImage.hpp"
+#include "VulkanDescriptors.hpp"
 
 struct SDL_Window;
 
@@ -52,6 +53,12 @@ private:
     void CreateSwapchain();
     void CreateCommands();
     void CreateSyncStructures();
+    void CreatePipelines();
+
+    // compute
+    void CreateBackgroundComputeDescriptors();
+    void CreateBackgroundComputePipeline();
+
 
     void DrawBackground(vk::CommandBuffer cmd);
 
@@ -103,5 +110,14 @@ private:
 
     AllocatedVulkanImage mDrawImage {};
 
+    ::std::vector<vk::DescriptorSet> mDrawImageDescriptors {};
+    vk::DescriptorSetLayout          mDrawImageDescriptorLayout {};
+
     Utils::DeletionQueue mMainDeletionQueue {};
+
+    DescriptorAllocator mMainDescriptorAllocator {};
+
+    // background compute
+    vk::Pipeline mBackgroundComputePipeline {};
+    vk::PipelineLayout mBackgroundComputePipelineLayout {};
 };

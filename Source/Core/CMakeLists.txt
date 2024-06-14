@@ -12,6 +12,8 @@ set (CORE_SRC
     Engine.cpp
     VulkanImage.hpp
     VulkanImage.cpp
+    VulkanDescriptors.hpp
+    VulkanDescriptors.cpp
 )
 
 add_library(Core STATIC
@@ -116,4 +118,6 @@ target_precompile_headers(Core
         <memory> 
         <string> 
         <thread>
+        <span>
+        <fstream>
         <unordered_map>)

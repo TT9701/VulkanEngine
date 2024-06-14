@@ -238,6 +238,8 @@ void VulkanEngine::InitVulkan() {
     CreateSwapchain();
     CreateCommands();
     CreateSyncStructures();
+    CreateBackgroundComputeDescriptors();
+    CreatePipelines();
 }
 
 void VulkanEngine::CreateInstance() {
@@ -566,9 +568,8 @@ void VulkanEngine::CreateSwapchain() {
 
     mDrawImage.CreateImageView(mDevice, vk::ImageAspectFlagBits::eColor);
 
-    mMainDeletionQueue.push_function([&]() {
-        mDrawImage.Destroy(mDevice, mVmaAllocator);
-    });
+    mMainDeletionQueue.push_function(
+        [&]() { mDrawImage.Destroy(mDevice, mVmaAllocator); });
 }
 
 void VulkanEngine::CreateCommands() {
@@ -607,6 +608,75 @@ void VulkanEngine::CreateSyncStructures() {
     DBG_LOG_INFO("Vulkan Per Frame Fence & Semaphore Created");
 }
 
+void VulkanEngine::CreatePipelines() {
+    CreateBackgroundComputePipeline();
+}
+
+void VulkanEngine::CreateBackgroundComputeDescriptors() {
+    std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
+        {vk::DescriptorType::eStorageImage, 1}};
+
+    mMainDescriptorAllocator.InitPool(mDevice, 10, sizes);
+
+    DescriptorLayoutBuilder builder;
+    builder.AddBinding(0, vk::DescriptorType::eStorageImage);
+    mDrawImageDescriptorLayout =
+        builder.Build(mDevice, vk::ShaderStageFlagBits::eCompute);
+
+    mDrawImageDescriptors =
+        mMainDescriptorAllocator.Allocate(mDevice, mDrawImageDescriptorLayout);
+
+    vk::DescriptorImageInfo imgInfo {};
+    imgInfo.setImageLayout(vk::ImageLayout::eGeneral)
+        .setImageView(mDrawImage.mImageView);
+
+    vk::WriteDescriptorSet drawImageWrite {};
+    drawImageWrite.setDstBinding(0)
+        .setDstSet(mDrawImageDescriptors.front())
+        .setDescriptorCount(1u)
+        .setDescriptorType(vk::DescriptorType::eStorageImage)
+        .setImageInfo(imgInfo);
+
+    mDevice.updateDescriptorSets(drawImageWrite, {});
+
+    mMainDeletionQueue.push_function([&]() {
+        mMainDescriptorAllocator.DestroyPool(mDevice);
+        mDevice.destroy(mDrawImageDescriptorLayout);
+    });
+}
+
+void VulkanEngine::CreateBackgroundComputePipeline() {
+    vk::PipelineLayoutCreateInfo computeLayout {};
+    computeLayout.setSetLayouts(mDrawImageDescriptorLayout);
+
+    mBackgroundComputePipelineLayout =
+        mDevice.createPipelineLayout(computeLayout);
+
+    vk::ShaderModule computeDrawShader {};
+    assert(Utils::LoadShaderModule("../../Shaders/BackGround.comp.spv", mDevice,
+                                   &computeDrawShader),
+           "Error when building the compute shader");
+
+    vk::PipelineShaderStageCreateInfo stageinfo {};
+    stageinfo.setStage(vk::ShaderStageFlagBits::eCompute)
+        .setModule(computeDrawShader)
+        .setPName("main");
+
+    vk::ComputePipelineCreateInfo computePipelineCreateInfo {};
+    computePipelineCreateInfo.setLayout(mBackgroundComputePipelineLayout)
+        .setStage(stageinfo);
+
+    mBackgroundComputePipeline =
+        mDevice.createComputePipeline({}, computePipelineCreateInfo).value;
+
+    mDevice.destroy(computeDrawShader);
+
+    mMainDeletionQueue.push_function([&]() {
+        mDevice.destroy(mBackgroundComputePipelineLayout);
+        mDevice.destroy(mBackgroundComputePipeline);
+    });
+}
+
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     vk::ClearColorValue clearValue {};
     float               flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
@@ -617,4 +687,14 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
 
     cmd.clearColorImage(mDrawImage.mImage, vk::ImageLayout::eGeneral,
                         clearValue, subresource);
+
+    cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
+                     mBackgroundComputePipeline);
+
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
+                           mBackgroundComputePipelineLayout, 0,
+                           mDrawImageDescriptors, {});
+
+    cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
+                 ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
 }
