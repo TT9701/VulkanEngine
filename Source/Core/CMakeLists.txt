@@ -3,13 +3,15 @@ find_package(Vulkan REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
 
 set (CORE_SRC 
+    VulkanHelper.hpp
+
     Utilities/VulkanUtilities.hpp
     Utilities/VulkanUtilities.cpp
 
-    DbgMemLeak.h
-
     Engine.hpp
     Engine.cpp
+    VulkanImage.hpp
+    VulkanImage.cpp
 )
 
 add_library(Core STATIC
@@ -59,30 +61,59 @@ target_include_directories(Core
     PUBLIC 
         ${PROJECT_SOURCE_DIR}/External/Output/Include/SDL/include)
         
+add_library(SDL_DEBUG SHARED IMPORTED)
+add_library(SDL_RELEASE SHARED IMPORTED)
+
 if (MSVC)
-    add_library(SDL SHARED IMPORTED)
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set_target_properties(SDL PROPERTIES
+    set_target_properties(SDL_DEBUG PROPERTIES
             IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/External/Output/Bin/SDL2d.dll
             IMPORTED_IMPLIB ${PROJECT_SOURCE_DIR}/External/Output/Lib/Debug/SDL2d.lib)
-    else()
-        set_target_properties(SDL PROPERTIES
+    set_target_properties(SDL_RELEASE PROPERTIES
             IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/External/Output/Bin/SDL2.dll
             IMPORTED_IMPLIB ${PROJECT_SOURCE_DIR}/External/Output/Lib/Release/SDL2.lib)
-    endif()
 endif(MSVC)
 
 target_link_libraries(Core
     PUBLIC
-        SDL)
+        debug SDL_DEBUG
+        optimized SDL_RELEASE)
+
+
+set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
+
+target_include_directories(Core
+    PUBLIC
+        ${INTELLIGENDESIGN_CODE_PATH}
+)
+
+add_library(INTELLI_DS_MemoryPool_DEBUG STATIC IMPORTED)
+add_library(INTELLI_DS_MemoryPool_RELEASE STATIC IMPORTED)
+
+set (INTELLIGENDESIGN_DEMO_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsDemo/Repository")
+
+if (MSVC)
+    set_target_properties(INTELLI_DS_MemoryPool_DEBUG 
+        PROPERTIES
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib
+            IMPORTED_IMPLIB ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib)
+    set_target_properties(INTELLI_DS_MemoryPool_RELEASE 
+        PROPERTIES
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib
+            IMPORTED_IMPLIB $${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib)
+endif(MSVC)
+
+target_link_libraries(Core
+    PUBLIC
+        debug INTELLI_DS_MemoryPool_DEBUG
+        optimized INTELLI_DS_MemoryPool_RELEASE)
 
 target_precompile_headers(Core 
     PUBLIC 
+        <functional>
+        <deque>
         <optional> 
         <vector> 
         <memory> 
         <string> 
-        <vector> 
-        <functional>
         <thread>
         <unordered_map>)

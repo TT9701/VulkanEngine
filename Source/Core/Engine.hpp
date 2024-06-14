@@ -3,14 +3,36 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Utilities/VulkanUtilities.hpp"
+#include "VulkanImage.hpp"
 
 struct SDL_Window;
+
+struct FrameData {
+    vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
+    vk::Fence     mRenderFence {};
+
+    vk::CommandPool   mCommandPool {};
+    vk::CommandBuffer mCommandBuffer {};
+
+    Utils::DeletionQueue mDeletionQueue {};
+};
+
+constexpr uint32_t FRAME_OVERLAP = 2;
+
+constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
 
 class VulkanEngine {
 public:
     void Init();
     void Run();
     void Cleanup();
+
+public:
+    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas;
+
+    FrameData& GetCurrentFrameData() {
+        return mFrameDatas[mFrameNum % FRAME_OVERLAP];
+    }
 
 private:
     void Draw();
@@ -28,16 +50,23 @@ private:
     void CreateDevice();
     void CreateVmaAllocator();
     void CreateSwapchain();
+    void CreateCommands();
+    void CreateSyncStructures();
+
+    void DrawBackground(vk::CommandBuffer cmd);
 
 private:
     // helper functions
-    void SetInstanceLayers(::std::vector<::std::string> const& requestedLayers = {});
-    void SetInstanceExtensions(::std::vector<::std::string> const& requestedExtensions = {});
+    void SetInstanceLayers(
+        ::std::vector<::std::string> const& requestedLayers = {});
+    void SetInstanceExtensions(
+        ::std::vector<::std::string> const& requestedExtensions = {});
 
     std::vector<std::string> GetSDLRequestedInstanceExtensions() const;
 
 private:
     bool        mStopRendering {false};
+    uint32_t    mFrameNum {0};
     SDL_Window* mWindow {nullptr};
     int         mWindowWidth {1600};
     int         mWindowHeight {900};
@@ -71,4 +100,8 @@ private:
     ::std::vector<vk::Image>     mSwapchainImages {};
     ::std::vector<vk::ImageView> mSwapchainImageViews {};
     vk::Extent2D                 mSwapchainExtent {};
+
+    AllocatedVulkanImage mDrawImage {};
+
+    Utils::DeletionQueue mMainDeletionQueue {};
 };
