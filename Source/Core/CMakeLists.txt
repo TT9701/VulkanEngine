@@ -14,6 +14,8 @@ set (CORE_SRC
     VulkanImage.cpp
     VulkanDescriptors.hpp
     VulkanDescriptors.cpp
+    VulkanPipeline.hpp
+    VulkanPipeline.cpp
 )
 
 add_library(Core STATIC

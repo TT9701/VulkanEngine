@@ -48,24 +48,8 @@ void AllocatedVulkanImage::Destroy(vk::Device device, VmaAllocator allocator) {
 
 void AllocatedVulkanImage::TransitionLayout(vk::CommandBuffer cmd,
                                             vk::ImageLayout   newLayout) {
-    vk::ImageMemoryBarrier2 imgBarrier {};
-    imgBarrier.setSrcStageMask(vk::PipelineStageFlagBits2::eAllCommands)
-        .setSrcAccessMask(vk::AccessFlagBits2::eMemoryWrite)
-        .setDstStageMask(vk::PipelineStageFlagBits2::eAllCommands)
-        .setDstAccessMask(vk::AccessFlagBits2::eMemoryWrite |
-                          vk::AccessFlagBits2::eMemoryRead)
-        .setOldLayout(mLayout)
-        .setNewLayout(newLayout)
-        .setSubresourceRange(Utils::GetDefaultImageSubresourceRange(
-            newLayout == vk::ImageLayout::eDepthAttachmentOptimal
-                ? vk::ImageAspectFlagBits::eDepth
-                : vk::ImageAspectFlagBits::eColor))
-        .setImage(mImage);
-
-    vk::DependencyInfo depInfo {};
-    depInfo.setImageMemoryBarrierCount(1u).setImageMemoryBarriers(imgBarrier);
-
-    cmd.pipelineBarrier2(depInfo);
+    Utils::TransitionImageLayout(cmd, mImage, mLayout, newLayout);
+    mLayout = newLayout;
 }
 
 void AllocatedVulkanImage::CopyToImage(vk::CommandBuffer cmd,

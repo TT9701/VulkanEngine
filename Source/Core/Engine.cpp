@@ -5,6 +5,7 @@
 
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "VulkanHelper.hpp"
+#include "VulkanPipeline.hpp"
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -126,15 +127,15 @@ void VulkanEngine::Draw() {
 
     cmd.begin(cmdBeginInfo);
 
-    Utils::TransitionImageLayout(cmd, mDrawImage.mImage,
-                                 vk::ImageLayout::eUndefined,
-                                 vk::ImageLayout::eGeneral);
+    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eGeneral);
 
     DrawBackground(cmd);
 
-    Utils::TransitionImageLayout(cmd, mDrawImage.mImage,
-                                 vk::ImageLayout::eGeneral,
-                                 vk::ImageLayout::eTransferSrcOptimal);
+    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
+
+    DrawTriangle(cmd);
+
+    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
 
     Utils::TransitionImageLayout(cmd, mSwapchainImages[swapchainImageIndex],
                                  vk::ImageLayout::eUndefined,
@@ -610,6 +611,7 @@ void VulkanEngine::CreateSyncStructures() {
 
 void VulkanEngine::CreatePipelines() {
     CreateBackgroundComputePipeline();
+    CreateTrianglePipeline();
 }
 
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
@@ -643,6 +645,8 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
         mMainDescriptorAllocator.DestroyPool(mDevice);
         mDevice.destroy(mDrawImageDescriptorLayout);
     });
+
+    DBG_LOG_INFO("Vulkan Background Compute Descriptors Created");
 }
 
 void VulkanEngine::CreateBackgroundComputePipeline() {
@@ -675,6 +679,46 @@ void VulkanEngine::CreateBackgroundComputePipeline() {
         mDevice.destroy(mBackgroundComputePipelineLayout);
         mDevice.destroy(mBackgroundComputePipeline);
     });
+
+    DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
+}
+
+void VulkanEngine::CreateTrianglePipeline() {
+    vk::ShaderModule vertexShader {};
+    vk::ShaderModule fragmentShader {};
+
+    assert(Utils::LoadShaderModule("../../Shaders/Triangle.vert.spv", mDevice,
+                                   &vertexShader),
+           "Error when building the triangle vertex shader");
+    assert(Utils::LoadShaderModule("../../Shaders/Triangle.frag.spv", mDevice,
+                                   &fragmentShader),
+           "Error when building the triangle fragment shader");
+
+    vk::PipelineLayoutCreateInfo layoutCreateInfo {};
+    mTrianglePipelieLayout = mDevice.createPipelineLayout(layoutCreateInfo);
+
+    GraphicsPipelineBuilder graphicsPipelineBuilder {};
+    mTrianglePipelie =
+        graphicsPipelineBuilder.SetLayout(mTrianglePipelieLayout)
+            .SetShaders(vertexShader, fragmentShader)
+            .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
+            .SetPolygonMode(vk::PolygonMode::eFill)
+            .SetCullMode(vk::CullModeFlagBits::eNone, vk::FrontFace::eClockwise)
+            .SetMultisampling(vk::SampleCountFlagBits::e1)
+            .SetBlending(vk::False)
+            .SetDepth(vk::False, vk::False)
+            .SetColorAttachmentFormat(mDrawImage.mFormat)
+            .SetDepthStencilFormat(vk::Format::eUndefined)
+            .Build(mDevice);
+
+    mDevice.destroy(vertexShader);
+    mDevice.destroy(fragmentShader);
+
+    mMainDeletionQueue.push_function([&]() {
+        mDevice.destroy(mTrianglePipelieLayout);
+        mDevice.destroy(mTrianglePipelie);
+    });
+    DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
 
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
@@ -697,4 +741,41 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
 
     cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
                  ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
+}
+
+void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
+    vk::RenderingAttachmentInfo colorAttachment {};
+    colorAttachment.setImageView(mDrawImage.mImageView)
+        .setImageLayout(mDrawImage.mLayout)
+        .setLoadOp(vk::AttachmentLoadOp::eLoad)
+        .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+    vk::RenderingInfo renderInfo {};
+    renderInfo
+        .setRenderArea(vk::Rect2D {
+            {0, 0}, {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height}})
+        .setLayerCount(1u)
+        .setColorAttachments(colorAttachment)
+        .setPDepthAttachment(VK_NULL_HANDLE)            // TODO
+        .setPStencilAttachment(VK_NULL_HANDLE);         // TODO
+
+    cmd.beginRendering(renderInfo);
+
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, mTrianglePipelie);
+
+    vk::Viewport viewport {};
+    viewport.setWidth(mDrawImage.mExtent3D.width)
+        .setHeight(mDrawImage.mExtent3D.height)
+        .setMinDepth(0.0f)
+        .setMaxDepth(1.0f);
+    cmd.setViewport(0, viewport);
+
+    vk::Rect2D scissor {};
+    scissor.setExtent(
+        {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height});
+    cmd.setScissor(0, scissor);
+
+    cmd.draw(3, 1, 0, 0);
+
+    cmd.endRendering();
 }

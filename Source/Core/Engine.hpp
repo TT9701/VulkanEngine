@@ -55,12 +55,15 @@ private:
     void CreateSyncStructures();
     void CreatePipelines();
 
-    // compute
+    // Compute
     void CreateBackgroundComputeDescriptors();
     void CreateBackgroundComputePipeline();
 
+    // Graphics
+    void CreateTrianglePipeline();
 
     void DrawBackground(vk::CommandBuffer cmd);
+    void DrawTriangle(vk::CommandBuffer cmd);
 
 private:
     // helper functions
@@ -120,4 +123,8 @@ private:
     // background compute
     vk::Pipeline mBackgroundComputePipeline {};
     vk::PipelineLayout mBackgroundComputePipelineLayout {};
+
+    // graphic pipeline
+    vk::Pipeline mTrianglePipelie {};
+    vk::PipelineLayout mTrianglePipelieLayout {};
 };
