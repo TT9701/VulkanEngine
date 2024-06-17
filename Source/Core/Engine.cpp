@@ -239,7 +239,11 @@ void VulkanEngine::InitVulkan() {
     CreateSwapchain();
     CreateCommands();
     CreateSyncStructures();
-    CreateBackgroundComputeDescriptors();
+
+    CreateErrorCheckTextures();
+    CreateDefaultSamplers();
+
+    CreateDescriptors();
     CreatePipelines();
 
     CreateTriangleData();
@@ -637,6 +641,20 @@ void VulkanEngine::CreatePipelines() {
     CreateTrianglePipeline();
 }
 
+void VulkanEngine::CreateDescriptors() {
+    std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
+        {vk::DescriptorType::eStorageImage, 1},
+        {vk::DescriptorType::eCombinedImageSampler, 1}};
+
+    mMainDescriptorAllocator.InitPool(mDevice, 10, sizes);
+
+    CreateBackgroundComputeDescriptors();
+    CreateTriangleDescriptors();
+
+    mMainDeletionQueue.push_function(
+        [&]() { mMainDescriptorAllocator.DestroyPool(mDevice); });
+}
+
 void VulkanEngine::CreateTriangleData() {
     ::std::array<Vertex, 3> vertices {};
 
@@ -648,6 +666,14 @@ void VulkanEngine::CreateTriangleData() {
     vertices[1].color = {0.0f, 1.0f, 0.0f, 1.0f};
     vertices[2].color = {0.0f, 0.0f, 1.0f, 1.0f};
 
+    vertices[0].uvX = 1.0f;
+    vertices[1].uvX = 0.0f;
+    vertices[2].uvX = 0.5f;
+
+    vertices[0].uvY = 0.0f;
+    vertices[1].uvY = 0.0f;
+    vertices[2].uvY = 1.0f;
+
     ::std::array<uint32_t, 3> indices {0, 1, 2};
 
     mTriangleMesh = UploadMeshData(indices, vertices);
@@ -655,6 +681,42 @@ void VulkanEngine::CreateTriangleData() {
     mMainDeletionQueue.push_function([&]() {
         mTriangleMesh.mVertexBuffer.Destroy(mVmaAllocator);
         mTriangleMesh.mIndexBuffer.Destroy(mVmaAllocator);
+    });
+}
+
+void VulkanEngine::CreateErrorCheckTextures() {
+    uint32_t black   = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+    std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
+    for (int x = 0; x < 16; x++) {
+        for (int y = 0; y < 16; y++) {
+            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+        }
+    }
+    VmaAllocationCreateInfo allocInfo {};
+    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+
+    mErrorCheckImage =
+        CreateTexture(pixels.data(), allocInfo, VkExtent3D {16, 16, 1},
+                      vk::Format::eR8G8B8A8Unorm,
+                      vk::ImageUsageFlagBits::eSampled |
+                          vk::ImageUsageFlagBits::eTransferDst);
+
+    mMainDeletionQueue.push_function(
+        [&]() { DestroyTexture(mErrorCheckImage); });
+}
+
+void VulkanEngine::CreateDefaultSamplers() {
+    vk::SamplerCreateInfo info {};
+    info.setMinFilter(vk::Filter::eNearest).setMagFilter(vk::Filter::eNearest);
+    mDefaultSamplerNearest = mDevice.createSampler(info);
+    info.setMinFilter(vk::Filter::eLinear).setMagFilter(vk::Filter::eLinear);
+    mDefaultSamplerLinear = mDevice.createSampler(info);
+
+    mMainDeletionQueue.push_function([&]() {
+        mDevice.destroy(mDefaultSamplerLinear);
+        mDevice.destroy(mDefaultSamplerNearest);
     });
 }
 
@@ -712,6 +774,49 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     return newMesh;
 }
 
+AllocatedVulkanImage VulkanEngine::CreateTexture(
+    void* data, VmaAllocationCreateInfo allocCreateInfo, vk::Extent3D extent,
+    vk::Format format, vk::ImageUsageFlags usage, vk::ImageType type,
+    bool mipmaped, uint32_t arrayLayers) {
+    size_t dataSize = extent.width * extent.height * extent.depth * 4;
+
+    AllocatedVulkanBuffer uploadBuffer {};
+    uploadBuffer.CreateBuffer(
+        mVmaAllocator, dataSize, vk::BufferUsageFlagBits::eTransferSrc,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    memcpy(uploadBuffer.mInfo.pMappedData, data, dataSize);
+
+    AllocatedVulkanImage newImage {};
+    newImage.CreateImage(mVmaAllocator, allocCreateInfo, extent, format, usage,
+                         type, mipmaped, arrayLayers);
+
+    ImmediateSubmit([&](vk::CommandBuffer cmd) {
+        newImage.TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+        vk::BufferImageCopy copyRegion {};
+        copyRegion
+            .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
+            .setImageExtent(extent);
+
+        cmd.copyBufferToImage(uploadBuffer.mBuffer, newImage.mImage,
+                              vk::ImageLayout::eTransferDstOptimal, copyRegion);
+
+        newImage.TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+    });
+
+    uploadBuffer.Destroy(mVmaAllocator);
+
+    newImage.CreateImageView(mDevice, vk::ImageAspectFlagBits::eColor);
+
+    return newImage;
+}
+
+void VulkanEngine::DestroyTexture(AllocatedVulkanImage const& texture) {
+    mDevice.destroy(texture.mImageView);
+    vmaDestroyImage(mVmaAllocator, texture.mImage, texture.mAllocation);
+}
+
 void VulkanEngine::ImmediateSubmit(
     std::function<void(vk::CommandBuffer cmd)>&& function) {
     mDevice.resetFences(mImmediateSubmit.mFence);
@@ -738,11 +843,6 @@ void VulkanEngine::ImmediateSubmit(
 }
 
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
-    std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
-        {vk::DescriptorType::eStorageImage, 1}};
-
-    mMainDescriptorAllocator.InitPool(mDevice, 10, sizes);
-
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, vk::DescriptorType::eStorageImage);
     mDrawImageDescriptorLayout =
@@ -751,23 +851,15 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
     mDrawImageDescriptors =
         mMainDescriptorAllocator.Allocate(mDevice, mDrawImageDescriptorLayout);
 
-    vk::DescriptorImageInfo imgInfo {};
-    imgInfo.setImageLayout(vk::ImageLayout::eGeneral)
-        .setImageView(mDrawImage.mImageView);
+    DescriptorWriter writer {};
+    writer.WriteImage(
+        0, {VK_NULL_HANDLE, mDrawImage.mImageView, vk::ImageLayout::eGeneral},
+        vk::DescriptorType::eStorageImage);
 
-    vk::WriteDescriptorSet drawImageWrite {};
-    drawImageWrite.setDstBinding(0)
-        .setDstSet(mDrawImageDescriptors.front())
-        .setDescriptorCount(1u)
-        .setDescriptorType(vk::DescriptorType::eStorageImage)
-        .setImageInfo(imgInfo);
+    writer.UpdateSet(mDevice, mDrawImageDescriptors);
 
-    mDevice.updateDescriptorSets(drawImageWrite, {});
-
-    mMainDeletionQueue.push_function([&]() {
-        mMainDescriptorAllocator.DestroyPool(mDevice);
-        mDevice.destroy(mDrawImageDescriptorLayout);
-    });
+    mMainDeletionQueue.push_function(
+        [&]() { mDevice.destroy(mDrawImageDescriptorLayout); });
 
     DBG_LOG_INFO("Vulkan Background Compute Descriptors Created");
 }
@@ -822,7 +914,8 @@ void VulkanEngine::CreateTrianglePipeline() {
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
     vk::PipelineLayoutCreateInfo layoutCreateInfo {};
-    layoutCreateInfo.setPushConstantRanges(pushConstant);
+    layoutCreateInfo.setPushConstantRanges(pushConstant)
+        .setSetLayouts(mTextureTriangleDescriptorLayout);
     mTrianglePipelieLayout = mDevice.createPipelineLayout(layoutCreateInfo);
 
     GraphicsPipelineBuilder graphicsPipelineBuilder {};
@@ -847,6 +940,27 @@ void VulkanEngine::CreateTrianglePipeline() {
         mDevice.destroy(mTrianglePipelie);
     });
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
+}
+
+void VulkanEngine::CreateTriangleDescriptors() {
+    DescriptorLayoutBuilder builder {};
+    builder.AddBinding(0, vk::DescriptorType::eCombinedImageSampler);
+    mTextureTriangleDescriptorLayout =
+        builder.Build(mDevice, vk::ShaderStageFlagBits::eFragment);
+
+    mTextureTriangleDescriptors = mMainDescriptorAllocator.Allocate(
+        mDevice, mTextureTriangleDescriptorLayout);
+
+    DescriptorWriter writer {};
+    writer.WriteImage(0,
+                      {mDefaultSamplerNearest, mErrorCheckImage.mImageView,
+                       vk::ImageLayout::eShaderReadOnlyOptimal},
+                      vk::DescriptorType::eCombinedImageSampler);
+
+    writer.UpdateSet(mDevice, mTextureTriangleDescriptors);
+
+    mMainDeletionQueue.push_function(
+        [&]() { mDevice.destroy(mTextureTriangleDescriptorLayout); });
 }
 
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
@@ -902,6 +1016,10 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     scissor.setExtent(
         {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height});
     cmd.setScissor(0, scissor);
+
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                           mTrianglePipelieLayout, 0,
+                           mTextureTriangleDescriptors, {});
 
     MeshPushConstants pushConstants {};
     pushConstants.mVertexBufferAddress = mTriangleMesh.mVertexBufferAddress;

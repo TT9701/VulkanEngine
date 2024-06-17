@@ -9,7 +9,7 @@ public:
                      vk::Extent3D extent, vk::Format format,
                      vk::ImageUsageFlags usage,
                      vk::ImageType       type = vk::ImageType::e2D,
-                     uint32_t mipLevels = 1, uint32_t arrayLayers = 1);
+                     bool mipmaped = false, uint32_t arrayLayers = 1);
 
     // must executed afer CreateImage()
     void CreateImageView(vk::Device device, vk::ImageAspectFlags aspect,

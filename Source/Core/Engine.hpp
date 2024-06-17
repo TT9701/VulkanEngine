@@ -61,11 +61,23 @@ private:
     void CreateCommands();
     void CreateSyncStructures();
     void CreatePipelines();
+    void CreateDescriptors();
 
     void CreateTriangleData();
+    void CreateErrorCheckTextures();
+    void CreateDefaultSamplers();
 
     GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
                                   ::std::span<Vertex>   vertices);
+
+    AllocatedVulkanImage CreateTexture(void*                   data,
+                                       VmaAllocationCreateInfo allocCreateInfo,
+                                       vk::Extent3D extent, vk::Format format,
+                                       vk::ImageUsageFlags usage,
+                                       vk::ImageType type = vk::ImageType::e2D,
+                                       bool          mipmaped    = false,
+                                       uint32_t      arrayLayers = 1);
+    void                 DestroyTexture(AllocatedVulkanImage const& texture);
 
     void ImmediateSubmit(
         ::std::function<void(vk::CommandBuffer cmd)>&& function);
@@ -76,6 +88,7 @@ private:
 
     // Graphics
     void CreateTrianglePipeline();
+    void CreateTriangleDescriptors();
 
     void DrawBackground(vk::CommandBuffer cmd);
     void DrawTriangle(vk::CommandBuffer cmd);
@@ -128,8 +141,8 @@ private:
 
     AllocatedVulkanImage mDrawImage {};
 
-    ::std::vector<vk::DescriptorSet> mDrawImageDescriptors {};
-    vk::DescriptorSetLayout          mDrawImageDescriptorLayout {};
+    vk::DescriptorSet       mDrawImageDescriptors {};
+    vk::DescriptorSetLayout mDrawImageDescriptorLayout {};
 
     Utils::DeletionQueue mMainDeletionQueue {};
 
@@ -143,4 +156,11 @@ private:
     vk::Pipeline       mTrianglePipelie {};
     vk::PipelineLayout mTrianglePipelieLayout {};
     GPUMeshBuffers     mTriangleMesh {};
+    vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
+    vk::DescriptorSet       mTextureTriangleDescriptors {};
+
+    AllocatedVulkanImage mErrorCheckImage {};
+
+    vk::Sampler mDefaultSamplerLinear;
+    vk::Sampler mDefaultSamplerNearest;
 };

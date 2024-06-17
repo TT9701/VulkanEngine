@@ -1,13 +1,20 @@
 #include "VulkanImage.hpp"
 
+#include "VulkanBuffer.hpp"
+
 void AllocatedVulkanImage::CreateImage(VmaAllocator            allocator,
                                        VmaAllocationCreateInfo allocCreateInfo,
                                        vk::Extent3D extent, vk::Format format,
                                        vk::ImageUsageFlags usage,
-                                       vk::ImageType type, uint32_t mipLevels,
+                                       vk::ImageType type, bool mipmaped,
                                        uint32_t arrayLayers) {
     mExtent3D = extent;
     mFormat   = format;
+
+    uint32_t mipLevels =
+        mipmaped ? static_cast<uint32_t>(1 + ::std::floor(::std::log2(std::max(
+                                                 extent.width, extent.height))))
+                 : 1;
 
     vk::ImageCreateInfo imageCreateInfo {};
     imageCreateInfo.setImageType(type)
