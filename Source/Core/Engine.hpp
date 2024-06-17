@@ -2,9 +2,10 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include "Mesh.hpp"
 #include "Utilities/VulkanUtilities.hpp"
-#include "VulkanImage.hpp"
 #include "VulkanDescriptors.hpp"
+#include "VulkanImage.hpp"
 
 struct SDL_Window;
 
@@ -29,11 +30,17 @@ public:
     void Cleanup();
 
 public:
-    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas;
+    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
 
     FrameData& GetCurrentFrameData() {
         return mFrameDatas[mFrameNum % FRAME_OVERLAP];
     }
+
+    struct ImmediateSubmit {
+        vk::Fence         mFence {};
+        vk::CommandBuffer mCommandBuffer {};
+        vk::CommandPool   mCommandPool {};
+    } mImmediateSubmit;
 
 private:
     void Draw();
@@ -54,6 +61,14 @@ private:
     void CreateCommands();
     void CreateSyncStructures();
     void CreatePipelines();
+
+    void CreateTriangleData();
+
+    GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
+                                  ::std::span<Vertex>   vertices);
+
+    void ImmediateSubmit(
+        ::std::function<void(vk::CommandBuffer cmd)>&& function);
 
     // Compute
     void CreateBackgroundComputeDescriptors();
@@ -121,10 +136,11 @@ private:
     DescriptorAllocator mMainDescriptorAllocator {};
 
     // background compute
-    vk::Pipeline mBackgroundComputePipeline {};
+    vk::Pipeline       mBackgroundComputePipeline {};
     vk::PipelineLayout mBackgroundComputePipelineLayout {};
 
     // graphic pipeline
-    vk::Pipeline mTrianglePipelie {};
+    vk::Pipeline       mTrianglePipelie {};
     vk::PipelineLayout mTrianglePipelieLayout {};
+    GPUMeshBuffers     mTriangleMesh {};
 };

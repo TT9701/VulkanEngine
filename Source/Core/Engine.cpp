@@ -241,6 +241,8 @@ void VulkanEngine::InitVulkan() {
     CreateSyncStructures();
     CreateBackgroundComputeDescriptors();
     CreatePipelines();
+
+    CreateTriangleData();
 }
 
 void VulkanEngine::CreateInstance() {
@@ -559,7 +561,7 @@ void VulkanEngine::CreateSwapchain() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    /*https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html*/
+    /* https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html */
     VmaAllocationCreateInfo imageAllocInfo {};
     imageAllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
     imageAllocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
@@ -592,6 +594,21 @@ void VulkanEngine::CreateCommands() {
     }
 
     DBG_LOG_INFO("Vulkan Per Frame CommandPool & CommandBuffer Created");
+
+    mImmediateSubmit.mCommandPool =
+        mDevice.createCommandPool(cmdPoolCreateInfo);
+
+    vk::CommandBufferAllocateInfo cmdAllocInfo {};
+    cmdAllocInfo.setCommandPool(mImmediateSubmit.mCommandPool)
+        .setLevel(vk::CommandBufferLevel::ePrimary)
+        .setCommandBufferCount(1u);
+    mImmediateSubmit.mCommandBuffer =
+        mDevice.allocateCommandBuffers(cmdAllocInfo)[0];
+
+    mMainDeletionQueue.push_function(
+        [=]() { mDevice.destroy(mImmediateSubmit.mCommandPool); });
+
+    DBG_LOG_INFO("Vulkan Immediate submit CommandPool & CommandBuffer Created");
 }
 
 void VulkanEngine::CreateSyncStructures() {
@@ -607,11 +624,117 @@ void VulkanEngine::CreateSyncStructures() {
     }
 
     DBG_LOG_INFO("Vulkan Per Frame Fence & Semaphore Created");
+
+    mImmediateSubmit.mFence = mDevice.createFence(fenceCreateInfo);
+    mMainDeletionQueue.push_function(
+        [=]() { mDevice.destroy(mImmediateSubmit.mFence); });
+
+    DBG_LOG_INFO("Vulkan Immediate submit Fence & Semaphore Created");
 }
 
 void VulkanEngine::CreatePipelines() {
     CreateBackgroundComputePipeline();
     CreateTrianglePipeline();
+}
+
+void VulkanEngine::CreateTriangleData() {
+    ::std::array<Vertex, 3> vertices {};
+
+    vertices[0].position = {0.5f, 0.5f, 0.0f};
+    vertices[1].position = {-0.5f, 0.5f, 0.0f};
+    vertices[2].position = {0.0f, -0.5f, 0.0f};
+
+    vertices[0].color = {1.0f, 0.0f, 0.0f, 1.0f};
+    vertices[1].color = {0.0f, 1.0f, 0.0f, 1.0f};
+    vertices[2].color = {0.0f, 0.0f, 1.0f, 1.0f};
+
+    ::std::array<uint32_t, 3> indices {0, 1, 2};
+
+    mTriangleMesh = UploadMeshData(indices, vertices);
+
+    mMainDeletionQueue.push_function([&]() {
+        mTriangleMesh.mVertexBuffer.Destroy(mVmaAllocator);
+        mTriangleMesh.mIndexBuffer.Destroy(mVmaAllocator);
+    });
+}
+
+GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
+                                            std::span<Vertex>   vertices) {
+    const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
+    const size_t indexBufferSize  = indices.size() * sizeof(uint32_t);
+
+    AllocatedVulkanBuffer vertexBuffer {}, indexBuffer {};
+    vertexBuffer.CreateBuffer(mVmaAllocator, vertexBufferSize,
+                              vk::BufferUsageFlagBits::eStorageBuffer |
+                                  vk::BufferUsageFlagBits::eTransferDst |
+                                  vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                              VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+    indexBuffer.CreateBuffer(mVmaAllocator, indexBufferSize,
+                             vk::BufferUsageFlagBits::eIndexBuffer |
+                                 vk::BufferUsageFlagBits::eTransferDst,
+                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+    GPUMeshBuffers newMesh {};
+    newMesh.mVertexBuffer = vertexBuffer;
+    newMesh.mIndexBuffer  = indexBuffer;
+
+    vk::BufferDeviceAddressInfo deviceAddrInfo {};
+    deviceAddrInfo.setBuffer(newMesh.mVertexBuffer.mBuffer);
+
+    newMesh.mVertexBufferAddress = mDevice.getBufferAddress(deviceAddrInfo);
+
+    AllocatedVulkanBuffer staging {};
+    staging.CreateBuffer(
+        mVmaAllocator, vertexBufferSize + indexBufferSize,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    void* data = staging.mInfo.pMappedData;
+    memcpy(data, vertices.data(), vertexBufferSize);
+    memcpy((char*)data + vertexBufferSize, indices.data(), indexBufferSize);
+
+    ImmediateSubmit([&](vk::CommandBuffer cmd) {
+        vk::BufferCopy vertexCopy {};
+        vertexCopy.setSize(vertexBufferSize);
+        cmd.copyBuffer(staging.mBuffer, newMesh.mVertexBuffer.mBuffer,
+                       vertexCopy);
+
+        vk::BufferCopy indexCopy {};
+        indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
+        cmd.copyBuffer(staging.mBuffer, newMesh.mIndexBuffer.mBuffer,
+                       indexCopy);
+    });
+
+    staging.Destroy(mVmaAllocator);
+
+    return newMesh;
+}
+
+void VulkanEngine::ImmediateSubmit(
+    std::function<void(vk::CommandBuffer cmd)>&& function) {
+    mDevice.resetFences(mImmediateSubmit.mFence);
+
+    auto cmd = mImmediateSubmit.mCommandBuffer;
+
+    cmd.reset();
+
+    vk::CommandBufferBeginInfo beginInfo {};
+    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+    cmd.begin(beginInfo);
+
+    function(cmd);
+
+    cmd.end();
+
+    auto cmdSubmitInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
+    auto submit        = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
+
+    mGraphicQueues[0].submit2(submit, mImmediateSubmit.mFence);
+    VK_CHECK(mDevice.waitForFences(mImmediateSubmit.mFence, vk::True,
+                                   TIME_OUT_NANO_SECONDS));
 }
 
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
@@ -694,7 +817,12 @@ void VulkanEngine::CreateTrianglePipeline() {
                                    &fragmentShader),
            "Error when building the triangle fragment shader");
 
+    vk::PushConstantRange pushConstant {};
+    pushConstant.setSize(sizeof(MeshPushConstants))
+        .setStageFlags(vk::ShaderStageFlagBits::eVertex);
+
     vk::PipelineLayoutCreateInfo layoutCreateInfo {};
+    layoutCreateInfo.setPushConstantRanges(pushConstant);
     mTrianglePipelieLayout = mDevice.createPipelineLayout(layoutCreateInfo);
 
     GraphicsPipelineBuilder graphicsPipelineBuilder {};
@@ -756,8 +884,8 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
             {0, 0}, {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height}})
         .setLayerCount(1u)
         .setColorAttachments(colorAttachment)
-        .setPDepthAttachment(VK_NULL_HANDLE)            // TODO
-        .setPStencilAttachment(VK_NULL_HANDLE);         // TODO
+        .setPDepthAttachment(VK_NULL_HANDLE)     // TODO
+        .setPStencilAttachment(VK_NULL_HANDLE);  // TODO
 
     cmd.beginRendering(renderInfo);
 
@@ -775,7 +903,16 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
         {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height});
     cmd.setScissor(0, scissor);
 
-    cmd.draw(3, 1, 0, 0);
+    MeshPushConstants pushConstants {};
+    pushConstants.mVertexBufferAddress = mTriangleMesh.mVertexBufferAddress;
+    pushConstants.mModelMatrix         = glm::mat4(1.0f);
+    cmd.pushConstants(mTrianglePipelieLayout, vk::ShaderStageFlagBits::eVertex,
+                      0, sizeof(MeshPushConstants), &pushConstants);
+
+    cmd.bindIndexBuffer(mTriangleMesh.mIndexBuffer.mBuffer, 0,
+                        vk::IndexType::eUint32);
+
+    cmd.drawIndexed(3, 1, 0, 0, 0);
 
     cmd.endRendering();
 }

@@ -16,6 +16,11 @@ set (CORE_SRC
     VulkanDescriptors.cpp
     VulkanPipeline.hpp
     VulkanPipeline.cpp
+    VulkanBuffer.hpp
+    VulkanBuffer.cpp
+
+    Mesh.hpp
+    Mesh.cpp
 )
 
 add_library(Core STATIC
