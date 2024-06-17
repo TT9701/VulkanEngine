@@ -7,6 +7,8 @@ endif()
 
 project (VulkanEngine)
 
+enable_language(CUDA)
+
 find_package (Vulkan REQUIRED)
 
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
