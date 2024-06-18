@@ -1,8 +1,8 @@
 find_package(Vulkan REQUIRED)
 
 set (CUDA_SRC 
-    VulkanCUDAInterop.h
-    VulkanCUDAInterop.cu)
+    CUDAVulkan.h
+    CUDAVulkan.cu)
 
 add_library(CUDA ${CUDA_SRC})
 

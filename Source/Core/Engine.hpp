@@ -64,6 +64,8 @@ private:
     void CreateDescriptors();
 
     void CreateTriangleData();
+    void CreateExternalTriangleData();
+
     void CreateErrorCheckTextures();
     void CreateDefaultSamplers();
 
@@ -160,9 +162,12 @@ private:
     vk::PipelineLayout mBackgroundComputePipelineLayout {};
 
     // graphic pipeline
-    vk::Pipeline            mTrianglePipelie {};
-    vk::PipelineLayout      mTrianglePipelieLayout {};
-    GPUMeshBuffers          mTriangleMesh {};
+    vk::Pipeline       mTrianglePipelie {};
+    vk::PipelineLayout mTrianglePipelieLayout {};
+    GPUMeshBuffers     mTriangleMesh {};
+
+    ExternalGPUMeshBuffers mTriangleExternalMesh {};
+
     vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
     vk::DescriptorSet       mTextureTriangleDescriptors {};
 

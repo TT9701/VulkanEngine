@@ -7,7 +7,7 @@
 #include "VulkanHelper.hpp"
 #include "VulkanPipeline.hpp"
 
-#include "CUDA/VulkanCUDAInterop.h"
+#include "CUDA/CUDAVulkan.h"
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -249,6 +249,7 @@ void VulkanEngine::InitVulkan() {
     CreatePipelines();
 
     CreateTriangleData();
+    CreateExternalTriangleData();
 
     SetCudaInterop();
 }
@@ -544,12 +545,10 @@ void VulkanEngine::CreateVmaAllocators() {
     VmaPoolCreateInfo vmaPoolCreateInfo {};
     vmaPoolCreateInfo.pMemoryAllocateNext = &mExportMemoryAllocateInfo;
 
-    vmaCreatePool(mVmaAllocator, &vmaPoolCreateInfo,
-                  &mVmaExternalMemoryPool);
+    vmaCreatePool(mVmaAllocator, &vmaPoolCreateInfo, &mVmaExternalMemoryPool);
 
-    mMainDeletionQueue.push_function([&]() {
-        vmaDestroyPool(mVmaAllocator, mVmaExternalMemoryPool);
-    });
+    mMainDeletionQueue.push_function(
+        [&]() { vmaDestroyPool(mVmaAllocator, mVmaExternalMemoryPool); });
 
     DBG_LOG_INFO("vma External Resource Pool Created");
 }
@@ -693,9 +692,9 @@ void VulkanEngine::CreateDescriptors() {
 void VulkanEngine::CreateTriangleData() {
     ::std::array<Vertex, 3> vertices {};
 
-    vertices[0].position = {0.5f, 0.5f, 0.0f};
-    vertices[1].position = {-0.5f, 0.5f, 0.0f};
-    vertices[2].position = {0.0f, -0.5f, 0.0f};
+    vertices[0].position = {0.0f, 0.5f, 0.0f};
+    vertices[1].position = {-1.0f, 0.5f, 0.0f};
+    vertices[2].position = {-0.5f, -0.5f, 0.0f};
 
     vertices[0].color = {1.0f, 0.0f, 0.0f, 1.0f};
     vertices[1].color = {0.0f, 1.0f, 0.0f, 1.0f};
@@ -714,8 +713,38 @@ void VulkanEngine::CreateTriangleData() {
     mTriangleMesh = UploadMeshData(indices, vertices);
 
     mMainDeletionQueue.push_function([&]() {
-        mTriangleMesh.mVertexBuffer.Destroy(mVmaAllocator);
-        mTriangleMesh.mIndexBuffer.Destroy(mVmaAllocator);
+        mTriangleMesh.mVertexBuffer.Destroy();
+        mTriangleMesh.mIndexBuffer.Destroy();
+    });
+}
+
+void VulkanEngine::CreateExternalTriangleData() {
+    CUDA::VulkanExternalBuffer vertexBuffer {}, indexBuffer {};
+    vertexBuffer.CreateExternalBuffer(
+        mDevice, mVmaAllocator, 3 * sizeof(Vertex),
+        vk::BufferUsageFlagBits::eStorageBuffer |
+            vk::BufferUsageFlagBits::eTransferDst |
+            vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
+
+    indexBuffer.CreateExternalBuffer(
+        mDevice, mVmaAllocator, 3 * sizeof(uint32_t),
+        vk::BufferUsageFlagBits::eIndexBuffer |
+            vk::BufferUsageFlagBits::eTransferDst,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
+
+    mTriangleExternalMesh.mVertexBuffer = vertexBuffer;
+    mTriangleExternalMesh.mIndexBuffer  = indexBuffer;
+
+    vk::BufferDeviceAddressInfo deviceAddrInfo {};
+    deviceAddrInfo.setBuffer(mTriangleExternalMesh.mVertexBuffer.GetBuffer());
+
+    mTriangleExternalMesh.mVertexBufferAddress =
+        mDevice.getBufferAddress(deviceAddrInfo);
+
+    mMainDeletionQueue.push_function([&]() {
+        mTriangleExternalMesh.mVertexBuffer.Destroy();
+        mTriangleExternalMesh.mIndexBuffer.Destroy();
     });
 }
 
@@ -756,21 +785,13 @@ void VulkanEngine::CreateDefaultSamplers() {
 }
 
 void VulkanEngine::SetCudaInterop() {
-    auto result = CUDA::GetCudaDeviceForVulkanPhysicalDevice(mPhysicalDevice);
+    auto result = CUDA::GetVulkanCUDABindDeviceID(mPhysicalDevice);
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
 
-    vk::MemoryGetWin32HandleInfoKHR memoryWin32HandleInfo {};
-    memoryWin32HandleInfo
-        .setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32)
-        .setMemory(mTriangleMesh.mVertexBuffer.mInfo.deviceMemory);
-    HANDLE memoryWind32Handle =
-        mDevice.getMemoryWin32HandleKHR(memoryWin32HandleInfo);
-    auto cudaExtMem = CUDA::ImportVulkanMemoryObjectFromNtHandle(memoryWind32Handle,
-                                               3 * sizeof(Vertex), true);
-    auto ptr =
-        CUDA::MapBufferOntoExternalMemory(cudaExtMem, 0, 3 * sizeof(Vertex));
-
-    CUDA::SimPoint(ptr, (float)mFrameNum);
+    CUDA::SimPoint(mTriangleExternalMesh.mVertexBuffer
+                       .GetMappedPointer(0, 3 * sizeof(Vertex))
+                       .GetPtr(),
+                   mFrameNum);
 }
 
 GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
@@ -779,30 +800,16 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     const size_t indexBufferSize  = indices.size() * sizeof(uint32_t);
 
     AllocatedVulkanBuffer vertexBuffer {}, indexBuffer {};
-    // vertexBuffer.CreateBuffer(mVmaAllocator, vertexBufferSize,
-    //                           vk::BufferUsageFlagBits::eStorageBuffer |
-    //                               vk::BufferUsageFlagBits::eTransferDst |
-    //                               vk::BufferUsageFlagBits::eShaderDeviceAddress,
-    //                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
-    //
-    // indexBuffer.CreateBuffer(mVmaAllocator, indexBufferSize,
-    //                          vk::BufferUsageFlagBits::eIndexBuffer |
-    //                              vk::BufferUsageFlagBits::eTransferDst,
-    //                          VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    vertexBuffer.CreateBuffer(mVmaAllocator, vertexBufferSize,
+                              vk::BufferUsageFlagBits::eStorageBuffer |
+                                  vk::BufferUsageFlagBits::eTransferDst |
+                                  vk::BufferUsageFlagBits::eShaderDeviceAddress,
+                              VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
-    // external buffer
-    vertexBuffer.CreateExternalBuffer(
-        mVmaAllocator, vertexBufferSize,
-        vk::BufferUsageFlagBits::eStorageBuffer |
-            vk::BufferUsageFlagBits::eTransferDst |
-            vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
-
-    indexBuffer.CreateExternalBuffer(
-        mVmaAllocator, indexBufferSize,
-        vk::BufferUsageFlagBits::eIndexBuffer |
-            vk::BufferUsageFlagBits::eTransferDst,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
+    indexBuffer.CreateBuffer(mVmaAllocator, indexBufferSize,
+                             vk::BufferUsageFlagBits::eIndexBuffer |
+                                 vk::BufferUsageFlagBits::eTransferDst,
+                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
     GPUMeshBuffers newMesh {};
     newMesh.mVertexBuffer = vertexBuffer;
@@ -836,7 +843,7 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
                        indexCopy);
     });
 
-    staging.Destroy(mVmaAllocator);
+    staging.Destroy();
 
     return newMesh;
 }
@@ -872,7 +879,7 @@ AllocatedVulkanImage VulkanEngine::CreateTexture(
         newImage.TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
     });
 
-    uploadBuffer.Destroy(mVmaAllocator);
+    uploadBuffer.Destroy();
 
     newImage.CreateImageView(mDevice, vk::ImageAspectFlagBits::eColor);
 
@@ -1089,7 +1096,7 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
                            mTextureTriangleDescriptors, {});
 
     MeshPushConstants pushConstants {};
-    pushConstants.mVertexBufferAddress = mTriangleMesh.mVertexBufferAddress;
+    pushConstants.mVertexBufferAddress = mTriangleExternalMesh.mVertexBufferAddress;
     pushConstants.mModelMatrix         = glm::mat4(1.0f);
     cmd.pushConstants(mTrianglePipelieLayout, vk::ShaderStageFlagBits::eVertex,
                       0, sizeof(MeshPushConstants), &pushConstants);
