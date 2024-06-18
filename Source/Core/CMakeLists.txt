@@ -19,6 +19,7 @@ set (CORE_SRC
     VulkanBuffer.hpp
     VulkanBuffer.cpp
 
+    MeshType.hpp
     Mesh.hpp
     Mesh.cpp
 )

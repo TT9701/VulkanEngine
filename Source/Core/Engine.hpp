@@ -56,7 +56,7 @@ private:
     void PickPhysicalDevice();
     void SetQueueFamily(vk::QueueFlags requestedQueueTypes);
     void CreateDevice();
-    void CreateVmaAllocator();
+    void CreateVmaAllocators();
     void CreateSwapchain();
     void CreateCommands();
     void CreateSyncStructures();
@@ -66,6 +66,8 @@ private:
     void CreateTriangleData();
     void CreateErrorCheckTextures();
     void CreateDefaultSamplers();
+
+    void SetCudaInterop();
 
     GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
                                   ::std::span<Vertex>   vertices);
@@ -77,7 +79,8 @@ private:
                                        vk::ImageType type = vk::ImageType::e2D,
                                        bool          mipmaped    = false,
                                        uint32_t      arrayLayers = 1);
-    void                 DestroyTexture(AllocatedVulkanImage const& texture);
+
+    void DestroyTexture(AllocatedVulkanImage const& texture);
 
     void ImmediateSubmit(
         ::std::function<void(vk::CommandBuffer cmd)>&& function);
@@ -133,6 +136,10 @@ private:
 
     VmaAllocator mVmaAllocator {};
 
+    vk::ExportMemoryAllocateInfo mExportMemoryAllocateInfo {
+        vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32};
+    VmaPool mVmaExternalMemoryPool {};
+
     vk::SwapchainKHR             mSwapchain {};
     vk::Format                   mSwapchainImageFormat {};
     ::std::vector<vk::Image>     mSwapchainImages {};
@@ -153,9 +160,9 @@ private:
     vk::PipelineLayout mBackgroundComputePipelineLayout {};
 
     // graphic pipeline
-    vk::Pipeline       mTrianglePipelie {};
-    vk::PipelineLayout mTrianglePipelieLayout {};
-    GPUMeshBuffers     mTriangleMesh {};
+    vk::Pipeline            mTrianglePipelie {};
+    vk::PipelineLayout      mTrianglePipelieLayout {};
+    GPUMeshBuffers          mTriangleMesh {};
     vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
     vk::DescriptorSet       mTextureTriangleDescriptors {};
 

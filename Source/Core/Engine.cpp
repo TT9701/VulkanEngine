@@ -7,6 +7,8 @@
 #include "VulkanHelper.hpp"
 #include "VulkanPipeline.hpp"
 
+#include "CUDA/VulkanCUDAInterop.h"
+
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
@@ -235,7 +237,7 @@ void VulkanEngine::InitVulkan() {
     CreateSurface();
     PickPhysicalDevice();
     CreateDevice();
-    CreateVmaAllocator();
+    CreateVmaAllocators();
     CreateSwapchain();
     CreateCommands();
     CreateSyncStructures();
@@ -247,6 +249,8 @@ void VulkanEngine::InitVulkan() {
     CreatePipelines();
 
     CreateTriangleData();
+
+    SetCudaInterop();
 }
 
 void VulkanEngine::CreateInstance() {
@@ -340,6 +344,18 @@ void VulkanEngine::PickPhysicalDevice() {
 
     DBG_LOG_INFO("Physical Device Selected: %s",
                  mPhysicalDevice.getProperties().deviceName.data());
+
+    // vk::PhysicalDeviceExternalBufferInfo externalBufferInfo {};
+    // externalBufferInfo
+    //     .setUsage(vk::BufferUsageFlagBits::eTransferDst |
+    //               vk::BufferUsageFlagBits::eVertexBuffer |
+    //               vk::BufferUsageFlagBits::eIndexBuffer)
+    //     .setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32);
+    // auto externalBufferProps =
+    //     mPhysicalDevice.getExternalBufferProperties(externalBufferInfo);
+    // ::std::cout << vk::to_string(externalBufferProps.externalMemoryProperties
+    //                                  .compatibleHandleTypes)
+    //             << "\n";
 }
 
 void VulkanEngine::SetQueueFamily(vk::QueueFlags requestedQueueTypes) {
@@ -390,10 +406,17 @@ void VulkanEngine::CreateDevice() {
     auto availableExtensions =
         mPhysicalDevice.enumerateDeviceExtensionProperties();
 
+    // for (auto& ext : availableExtensions) {
+    //     ::std::cout << ext.extensionName << "\n";
+    // }
+
     ::std::vector<const char*> enabledDeviceLayers {};
     ::std::vector<const char*> enabledDeivceExtensions {};
 
     enabledDeivceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    enabledDeivceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
+    enabledDeivceExtensions.push_back(
+        VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
 
     vk::PhysicalDeviceFeatures origFeatures {};
 
@@ -452,7 +475,7 @@ void VulkanEngine::CreateDevice() {
     DBG_LOG_INFO("Vulkan Device Created");
 }
 
-void VulkanEngine::CreateVmaAllocator() {
+void VulkanEngine::CreateVmaAllocators() {
     const VmaVulkanFunctions vulkanFunctions = {
         .vkGetInstanceProcAddr =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr,
@@ -501,7 +524,7 @@ void VulkanEngine::CreateVmaAllocator() {
 #endif
     };
 
-    const VmaAllocatorCreateInfo allocInfo = {
+    VmaAllocatorCreateInfo allocInfo = {
 #if defined(VK_KHR_buffer_device_address) && defined(_WIN32)
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 #endif
@@ -517,6 +540,18 @@ void VulkanEngine::CreateVmaAllocator() {
         [&]() { vmaDestroyAllocator(mVmaAllocator); });
 
     DBG_LOG_INFO("vma Allocator Created");
+
+    VmaPoolCreateInfo vmaPoolCreateInfo {};
+    vmaPoolCreateInfo.pMemoryAllocateNext = &mExportMemoryAllocateInfo;
+
+    vmaCreatePool(mVmaAllocator, &vmaPoolCreateInfo,
+                  &mVmaExternalMemoryPool);
+
+    mMainDeletionQueue.push_function([&]() {
+        vmaDestroyPool(mVmaAllocator, mVmaExternalMemoryPool);
+    });
+
+    DBG_LOG_INFO("vma External Resource Pool Created");
 }
 
 void VulkanEngine::CreateSwapchain() {
@@ -720,22 +755,54 @@ void VulkanEngine::CreateDefaultSamplers() {
     });
 }
 
+void VulkanEngine::SetCudaInterop() {
+    auto result = CUDA::GetCudaDeviceForVulkanPhysicalDevice(mPhysicalDevice);
+    DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
+
+    vk::MemoryGetWin32HandleInfoKHR memoryWin32HandleInfo {};
+    memoryWin32HandleInfo
+        .setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32)
+        .setMemory(mTriangleMesh.mVertexBuffer.mInfo.deviceMemory);
+    HANDLE memoryWind32Handle =
+        mDevice.getMemoryWin32HandleKHR(memoryWin32HandleInfo);
+    auto cudaExtMem = CUDA::ImportVulkanMemoryObjectFromNtHandle(memoryWind32Handle,
+                                               3 * sizeof(Vertex), true);
+    auto ptr =
+        CUDA::MapBufferOntoExternalMemory(cudaExtMem, 0, 3 * sizeof(Vertex));
+
+    CUDA::SimPoint(ptr, (float)mFrameNum);
+}
+
 GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
                                             std::span<Vertex>   vertices) {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize  = indices.size() * sizeof(uint32_t);
 
     AllocatedVulkanBuffer vertexBuffer {}, indexBuffer {};
-    vertexBuffer.CreateBuffer(mVmaAllocator, vertexBufferSize,
-                              vk::BufferUsageFlagBits::eStorageBuffer |
-                                  vk::BufferUsageFlagBits::eTransferDst |
-                                  vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                              VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    // vertexBuffer.CreateBuffer(mVmaAllocator, vertexBufferSize,
+    //                           vk::BufferUsageFlagBits::eStorageBuffer |
+    //                               vk::BufferUsageFlagBits::eTransferDst |
+    //                               vk::BufferUsageFlagBits::eShaderDeviceAddress,
+    //                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    //
+    // indexBuffer.CreateBuffer(mVmaAllocator, indexBufferSize,
+    //                          vk::BufferUsageFlagBits::eIndexBuffer |
+    //                              vk::BufferUsageFlagBits::eTransferDst,
+    //                          VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
-    indexBuffer.CreateBuffer(mVmaAllocator, indexBufferSize,
-                             vk::BufferUsageFlagBits::eIndexBuffer |
-                                 vk::BufferUsageFlagBits::eTransferDst,
-                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    // external buffer
+    vertexBuffer.CreateExternalBuffer(
+        mVmaAllocator, vertexBufferSize,
+        vk::BufferUsageFlagBits::eStorageBuffer |
+            vk::BufferUsageFlagBits::eTransferDst |
+            vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
+
+    indexBuffer.CreateExternalBuffer(
+        mVmaAllocator, indexBufferSize,
+        vk::BufferUsageFlagBits::eIndexBuffer |
+            vk::BufferUsageFlagBits::eTransferDst,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
 
     GPUMeshBuffers newMesh {};
     newMesh.mVertexBuffer = vertexBuffer;
