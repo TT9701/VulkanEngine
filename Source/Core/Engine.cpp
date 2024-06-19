@@ -624,12 +624,8 @@ void VulkanEngine::CreateSwapchain() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    /* https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html */
-    VmaAllocationCreateInfo imageAllocInfo {};
-    imageAllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    imageAllocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
-
-    mDrawImage.CreateImage(mDevice, mVmaAllocator, imageAllocInfo,
+    mDrawImage.CreateImage(mDevice, mVmaAllocator,
+                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                            drawImageExtent, vk::Format::eR16G16B16A16Sfloat,
                            drawImageUsage, vk::ImageAspectFlagBits::eColor);
 
@@ -782,6 +778,16 @@ void VulkanEngine::CreateExternalTriangleData() {
         mTriangleExternalMesh.mVertexBuffer.Destroy();
         mTriangleExternalMesh.mIndexBuffer.Destroy();
     });
+
+    CUDA::VulkanExternalImage externalImage {};
+    externalImage.CreateExternalImage(
+        mDevice, mVmaAllocator, mVmaExternalMemoryPool, 0, {16, 16, 1},
+        vk::Format::eR8G8B8A8Uint, vk::ImageUsageFlagBits::eStorage,
+        vk::ImageAspectFlagBits::eColor);
+
+    auto cudaMipmapped = externalImage.GetMapMipmappedArray(0, 1);
+
+    externalImage.Destroy(mDevice, mVmaAllocator);
 }
 
 void VulkanEngine::CreateErrorCheckTextures() {
@@ -793,13 +799,10 @@ void VulkanEngine::CreateErrorCheckTextures() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    VmaAllocationCreateInfo allocInfo {};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
     mErrorCheckImage.CreateImage(
-        pixels.data(), this, allocInfo, VkExtent3D {16, 16, 1},
-        vk::Format::eR8G8B8A8Unorm,
+        pixels.data(), this, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+        VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         vk::ImageAspectFlagBits::eColor);
 

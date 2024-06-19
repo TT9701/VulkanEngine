@@ -42,18 +42,11 @@ public:
 
     vk::Buffer const& GetVkBuffer() const { return mBuffer; }
 
-    cudaExternalMemory_t GetExternalMemory() const {
-        return mExternalMemory;
-    }
+    cudaExternalMemory_t GetExternalMemory() const { return mExternalMemory; }
 
-    VulkanMappedPointer GetMappedPointer(size_t offset, size_t size) const {
-        cudaExternalMemoryBufferDesc desc {offset, size, 0};
-        void*                        ptr = nullptr;
-        cudaExternalMemoryGetMappedBuffer(&ptr, mExternalMemory, &desc);
-        return {ptr};
-    }
+    VulkanMappedPointer GetMappedPointer(size_t offset, size_t size) const;
 
-    void Destroy() { vmaDestroyBuffer(mAllocator, mBuffer, mAllocation); }
+    void Destroy();
 
 private:
     VmaAllocator         mAllocator {};
@@ -65,9 +58,40 @@ private:
 
 class VulkanExternalImage {
 public:
+    void CreateExternalImage(
+        vk::Device device, VmaAllocator allocator, VmaPool pool,
+        VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
+        vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+        bool mipmaped = false, uint32_t arrayLayers = 1,
+        vk::ImageType     type     = vk::ImageType::e2D,
+        vk::ImageViewType viewType = vk::ImageViewType::e2D);
+
+    cudaMipmappedArray_t GetMapMipmappedArray(unsigned long long offset,
+                                              unsigned int       numLevels);
+
+    vk::Image const& GetVkImage() const { return mImage; }
+
+    vk::ImageView const& GetVkImageView() const { return mImageView; }
+
+    VmaAllocationInfo const& GetVmaAllocationInfo() const { return mInfo; }
+
+    vk::Extent3D const& GetExtent3D() const { return mExtent3D; }
+
+    vk::Format const& GetFormat() const { return mFormat; }
+
+    void Destroy(vk::Device device, VmaAllocator allocator);
 
 private:
+    vk::Image            mImage {};
+    vk::ImageView        mImageView {};
+    VmaAllocation        mAllocation {};
+    VmaAllocationInfo    mInfo {};
+    vk::Extent3D         mExtent3D {};
+    vk::Format           mFormat {};
+    vk::ImageLayout      mLayout {vk::ImageLayout::eUndefined};
+    cudaExternalMemory_t mExternalMemory {};
 
+    cudaExternalMemoryMipmappedArrayDesc mArrayDesc {};
 };
 
 class VulkanExternalSemaphore {
@@ -84,28 +108,12 @@ public:
         return mExternalSemaphore;
     }
 
-    void Destroy(vk::Device device) { device.destroy(mSemaphore); }
+    void Destroy(vk::Device device);
 
 private:
     cudaExternalSemaphore_t mExternalSemaphore {};
     vk::Semaphore           mSemaphore {};
 };
-
-cudaMipmappedArray_t MapMipmappedArrayOntoExternalMemory(
-    cudaExternalMemory_t extMem, unsigned long long offset,
-    cudaChannelFormatDesc* formatDesc, cudaExtent* extent, unsigned int flags,
-    unsigned int numLevels);
-
-cudaChannelFormatDesc GetCudaChannelFormatDescForVulkanFormat(
-    vk::Format format);
-
-cudaExtent GetCudaExtentForVulkanExtent(vk::Extent3D      vkExt,
-                                        uint32_t          arrayLayers,
-                                        vk::ImageViewType vkImageViewType);
-
-unsigned int GetCudaMipmappedArrayFlagsForVulkanImage(
-    vk::ImageViewType vkImageViewType, vk::ImageUsageFlags vkImageUsageFlags,
-    bool allowSurfaceLoadStore);
 
 void SimPoint(void* data, float time);
 

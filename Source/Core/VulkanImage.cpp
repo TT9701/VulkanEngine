@@ -4,11 +4,10 @@
 #include "VulkanBuffer.hpp"
 
 void AllocatedVulkanImage::CreateImage(
-    vk::Device device, VmaAllocator allocator,
-    VmaAllocationCreateInfo allocCreateInfo, vk::Extent3D extent,
-    vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
-    bool mipmaped, uint32_t arrayLayers, vk::ImageType type,
-    vk::ImageViewType viewType) {
+    vk::Device device, VmaAllocator allocator, VmaAllocationCreateFlags flags,
+    vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
+    vk::ImageAspectFlags aspect, bool mipmaped, uint32_t arrayLayers,
+    vk::ImageType type, vk::ImageViewType viewType) {
     mExtent3D = extent;
     mFormat   = format;
 
@@ -25,8 +24,15 @@ void AllocatedVulkanImage::CreateImage(
         .setMipLevels(mipLevels)
         .setArrayLayers(arrayLayers);
 
-    vmaCreateImage(allocator, reinterpret_cast<VkImageCreateInfo*>(&imageCreateInfo),
-                   &allocCreateInfo, reinterpret_cast<VkImage*>(&mImage), &mAllocation, nullptr);
+    /* https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html */
+    VmaAllocationCreateInfo allocCreateInfo {};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocCreateInfo.flags = flags;
+
+    vmaCreateImage(allocator,
+                   reinterpret_cast<VkImageCreateInfo*>(&imageCreateInfo),
+                   &allocCreateInfo, reinterpret_cast<VkImage*>(&mImage),
+                   &mAllocation, nullptr);
 
     vk::ImageViewCreateInfo imageViewCreateInfo {};
     imageViewCreateInfo.setViewType(viewType)
@@ -38,7 +44,7 @@ void AllocatedVulkanImage::CreateImage(
 }
 
 void AllocatedVulkanImage::CreateImage(
-    void* data, VulkanEngine* engine, VmaAllocationCreateInfo allocCreateInfo,
+    void* data, VulkanEngine* engine, VmaAllocationCreateFlags flags,
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
     vk::ImageAspectFlags aspect, bool mipmaped, uint32_t arrayLayers,
     vk::ImageType type, vk::ImageViewType viewType) {
@@ -53,9 +59,8 @@ void AllocatedVulkanImage::CreateImage(
 
     memcpy(uploadBuffer.mInfo.pMappedData, data, dataSize);
 
-    CreateImage(engine->GetVkDevice(), engine->GetVmaAllocator(),
-                allocCreateInfo, extent, format, usage, aspect, mipmaped,
-                arrayLayers, type, viewType);
+    CreateImage(engine->GetVkDevice(), engine->GetVmaAllocator(), flags, extent,
+                format, usage, aspect, mipmaped, arrayLayers, type, viewType);
 
     engine->ImmediateSubmit([&](vk::CommandBuffer cmd) {
         TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);

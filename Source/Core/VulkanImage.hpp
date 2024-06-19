@@ -7,7 +7,7 @@ class VulkanEngine;
 class AllocatedVulkanImage {
 public:
     void CreateImage(vk::Device device, VmaAllocator allocator,
-                     VmaAllocationCreateInfo allocCreateInfo,
+                     VmaAllocationCreateFlags flags,
                      vk::Extent3D extent, vk::Format format,
                      vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
                      bool mipmaped = false, uint32_t arrayLayers = 1,
@@ -15,7 +15,7 @@ public:
                      vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
     void CreateImage(void* data, VulkanEngine* engine,
-                     VmaAllocationCreateInfo allocCreateInfo,
+                     VmaAllocationCreateFlags flags,
                      vk::Extent3D extent, vk::Format format,
                      vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
                      bool mipmaped = false, uint32_t arrayLayers = 1,
