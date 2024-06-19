@@ -152,14 +152,25 @@ void VulkanEngine::Draw() {
 
     cmd.end();
 
-    auto cmdInfo  = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
-    auto waitInfo = Utils::GetDefaultSemaphoreSubmitInfo(
+    auto cmdInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
+
+    ::std::vector<vk::SemaphoreSubmitInfo> waitInfos {};
+    waitInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
         vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        GetCurrentFrameData().mReady4RenderSemaphore);
-    auto signalInfo = Utils::GetDefaultSemaphoreSubmitInfo(
+        GetCurrentFrameData().mReady4RenderSemaphore));
+    waitInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
+        vk::PipelineStageFlagBits2::eAllCommands,
+        mCUDASignalSemaphore.GetVkSemaphore()));
+
+    ::std::vector<vk::SemaphoreSubmitInfo> signalInfos {};
+    signalInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
         vk::PipelineStageFlagBits2::eAllGraphics,
-        GetCurrentFrameData().mReady4PresentSemaphore);
-    auto submit = Utils::SubmitInfo(cmdInfo, signalInfo, waitInfo);
+        GetCurrentFrameData().mReady4PresentSemaphore));
+    signalInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
+        vk::PipelineStageFlagBits2::eAllCommands,
+        mCUDAWaitSemaphore.GetVkSemaphore()));
+
+    auto submit = Utils::SubmitInfo(cmdInfo, signalInfos, waitInfos);
 
     mGraphicQueues[0].submit2(submit, GetCurrentFrameData().mRenderFence);
 
@@ -169,6 +180,19 @@ void VulkanEngine::Draw() {
         .setImageIndices(swapchainImageIndex);
 
     VK_CHECK(mGraphicQueues[0].presentKHR(presentInfo));
+
+    cudaExternalSemaphoreWaitParams waitParams {};
+    mCUDAStream.WaitExternalSemaphoresAsync(
+        &mCUDAWaitSemaphore.GetCUDAExternalSemaphore(), &waitParams, 1);
+
+    CUDA::SimPoint(mTriangleExternalMesh.mVertexBuffer
+                       .GetMappedPointer(0, 3 * sizeof(Vertex))
+                       .GetPtr(),
+                   mFrameNum);
+
+    cudaExternalSemaphoreSignalParams signalParams {};
+    mCUDAStream.SignalExternalSemaphoresAsyn(
+        &mCUDASignalSemaphore.GetCUDAExternalSemaphore(), &signalParams, 1);
 
     ++mFrameNum;
 }
@@ -416,6 +440,9 @@ void VulkanEngine::CreateDevice() {
     enabledDeivceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
     enabledDeivceExtensions.push_back(
         VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
+    enabledDeivceExtensions.push_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
+    enabledDeivceExtensions.push_back(
+        VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
 
     vk::PhysicalDeviceFeatures origFeatures {};
 
@@ -602,10 +629,9 @@ void VulkanEngine::CreateSwapchain() {
     imageAllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
     imageAllocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
-    mDrawImage.CreateImage(mVmaAllocator, imageAllocInfo, drawImageExtent,
-                           vk::Format::eR16G16B16A16Sfloat, drawImageUsage);
-
-    mDrawImage.CreateImageView(mDevice, vk::ImageAspectFlagBits::eColor);
+    mDrawImage.CreateImage(mDevice, mVmaAllocator, imageAllocInfo,
+                           drawImageExtent, vk::Format::eR16G16B16A16Sfloat,
+                           drawImageUsage, vk::ImageAspectFlagBits::eColor);
 
     mMainDeletionQueue.push_function(
         [&]() { mDrawImage.Destroy(mDevice, mVmaAllocator); });
@@ -666,6 +692,18 @@ void VulkanEngine::CreateSyncStructures() {
         [=]() { mDevice.destroy(mImmediateSubmit.mFence); });
 
     DBG_LOG_INFO("Vulkan Immediate submit Fence & Semaphore Created");
+
+    mCUDAWaitSemaphore.CreateExternalSemaphore(mDevice);
+    mCUDASignalSemaphore.CreateExternalSemaphore(mDevice);
+
+    // mCUDAWaitSemaphore.InsertSignalToStreamAsync()
+
+    mMainDeletionQueue.push_function([=]() {
+        mCUDASignalSemaphore.Destroy(mDevice);
+        mCUDAWaitSemaphore.Destroy(mDevice);
+    });
+
+    DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }
 
 void VulkanEngine::CreatePipelines() {
@@ -759,14 +797,14 @@ void VulkanEngine::CreateErrorCheckTextures() {
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
-    mErrorCheckImage =
-        CreateTexture(pixels.data(), allocInfo, VkExtent3D {16, 16, 1},
-                      vk::Format::eR8G8B8A8Unorm,
-                      vk::ImageUsageFlagBits::eSampled |
-                          vk::ImageUsageFlagBits::eTransferDst);
+    mErrorCheckImage.CreateImage(
+        pixels.data(), this, allocInfo, VkExtent3D {16, 16, 1},
+        vk::Format::eR8G8B8A8Unorm,
+        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
+        vk::ImageAspectFlagBits::eColor);
 
     mMainDeletionQueue.push_function(
-        [&]() { DestroyTexture(mErrorCheckImage); });
+        [&]() { mErrorCheckImage.Destroy(mDevice, mVmaAllocator); });
 }
 
 void VulkanEngine::CreateDefaultSamplers() {
@@ -785,11 +823,6 @@ void VulkanEngine::CreateDefaultSamplers() {
 void VulkanEngine::SetCudaInterop() {
     auto result = CUDA::GetVulkanCUDABindDeviceID(mPhysicalDevice);
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
-
-    CUDA::SimPoint(mTriangleExternalMesh.mVertexBuffer
-                       .GetMappedPointer(0, 3 * sizeof(Vertex))
-                       .GetPtr(),
-                   mFrameNum);
 }
 
 GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
@@ -844,49 +877,6 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     staging.Destroy();
 
     return newMesh;
-}
-
-AllocatedVulkanImage VulkanEngine::CreateTexture(
-    void* data, VmaAllocationCreateInfo allocCreateInfo, vk::Extent3D extent,
-    vk::Format format, vk::ImageUsageFlags usage, vk::ImageType type,
-    bool mipmaped, uint32_t arrayLayers) {
-    size_t dataSize = extent.width * extent.height * extent.depth * 4;
-
-    AllocatedVulkanBuffer uploadBuffer {};
-    uploadBuffer.CreateBuffer(
-        mVmaAllocator, dataSize, vk::BufferUsageFlagBits::eTransferSrc,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-            VMA_ALLOCATION_CREATE_MAPPED_BIT);
-
-    memcpy(uploadBuffer.mInfo.pMappedData, data, dataSize);
-
-    AllocatedVulkanImage newImage {};
-    newImage.CreateImage(mVmaAllocator, allocCreateInfo, extent, format, usage,
-                         type, mipmaped, arrayLayers);
-
-    ImmediateSubmit([&](vk::CommandBuffer cmd) {
-        newImage.TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-        vk::BufferImageCopy copyRegion {};
-        copyRegion
-            .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
-            .setImageExtent(extent);
-
-        cmd.copyBufferToImage(uploadBuffer.mBuffer, newImage.mImage,
-                              vk::ImageLayout::eTransferDstOptimal, copyRegion);
-
-        newImage.TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
-    });
-
-    uploadBuffer.Destroy();
-
-    newImage.CreateImageView(mDevice, vk::ImageAspectFlagBits::eColor);
-
-    return newImage;
-}
-
-void VulkanEngine::DestroyTexture(AllocatedVulkanImage const& texture) {
-    mDevice.destroy(texture.mImageView);
-    vmaDestroyImage(mVmaAllocator, texture.mImage, texture.mAllocation);
 }
 
 void VulkanEngine::ImmediateSubmit(
@@ -1094,8 +1084,9 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
                            mTextureTriangleDescriptors, {});
 
     MeshPushConstants pushConstants {};
-    pushConstants.mVertexBufferAddress = mTriangleExternalMesh.mVertexBufferAddress;
-    pushConstants.mModelMatrix         = glm::mat4(1.0f);
+    pushConstants.mVertexBufferAddress =
+        mTriangleExternalMesh.mVertexBufferAddress;
+    pushConstants.mModelMatrix = glm::mat4(1.0f);
     cmd.pushConstants(mTrianglePipelieLayout, vk::ShaderStageFlagBits::eVertex,
                       0, sizeof(MeshPushConstants), &pushConstants);
 

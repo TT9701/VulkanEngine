@@ -2,21 +2,26 @@
 
 #include <Core/Utilities/VulkanUtilities.hpp>
 
+class VulkanEngine;
+
 class AllocatedVulkanImage {
 public:
-    void CreateImage(VmaAllocator            allocator,
+    void CreateImage(vk::Device device, VmaAllocator allocator,
                      VmaAllocationCreateInfo allocCreateInfo,
                      vk::Extent3D extent, vk::Format format,
-                     vk::ImageUsageFlags usage,
-                     vk::ImageType       type = vk::ImageType::e2D,
-                     bool mipmaped = false, uint32_t arrayLayers = 1);
+                     vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+                     bool mipmaped = false, uint32_t arrayLayers = 1,
+                     vk::ImageType     type     = vk::ImageType::e2D,
+                     vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
-    // must executed afer CreateImage()
-    void CreateImageView(vk::Device device, vk::ImageAspectFlags aspect,
-                         vk::ImageViewType type = vk::ImageViewType::e2D);
+    void CreateImage(void* data, VulkanEngine* engine,
+                     VmaAllocationCreateInfo allocCreateInfo,
+                     vk::Extent3D extent, vk::Format format,
+                     vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+                     bool mipmaped = false, uint32_t arrayLayers = 1,
+                     vk::ImageType     type     = vk::ImageType::e2D,
+                     vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
-    void DestroyImage(VmaAllocator allocator);
-    void DestroyImageView(vk::Device device);
     void Destroy(vk::Device device, VmaAllocator allocator);
 
     void TransitionLayout(vk::CommandBuffer cmd, vk::ImageLayout newLayout);

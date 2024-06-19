@@ -92,7 +92,7 @@ vk::DescriptorSet DescriptorAllocator::Allocate(vk::Device              device,
 
 vk::DescriptorPool DescriptorAllocator::GetPool(vk::Device device) {
     vk::DescriptorPool newPool;
-    if (mReadyPools.size() != 0) {
+    if (!mReadyPools.empty()) {
         newPool = mReadyPools.back();
         mReadyPools.pop_back();
     } else {
@@ -111,8 +111,7 @@ vk::DescriptorPool DescriptorAllocator::CreatePool(
     vk::Device device, uint32_t setCount, std::span<PoolSizeRatio> poolRatios) {
     std::vector<vk::DescriptorPoolSize> poolSizes;
     for (PoolSizeRatio ratio : poolRatios) {
-        poolSizes.push_back(vk::DescriptorPoolSize {
-            ratio.type, uint32_t(ratio.ratio * setCount)});
+        poolSizes.emplace_back(ratio.type, static_cast<uint32_t>(ratio.ratio * setCount));
     }
     vk::DescriptorPoolCreateInfo poolInfo {};
     poolInfo.setMaxSets(setCount).setPoolSizes(poolSizes);

@@ -8,6 +8,7 @@
 #include "VulkanImage.hpp"
 
 #include "CUDA/CUDAVulkan.h"
+#include "CUDA/CUDAStream.h"
 
 struct SDL_Window;
 
@@ -44,6 +45,17 @@ public:
         vk::CommandPool   mCommandPool {};
     } mImmediateSubmit;
 
+    VmaAllocator const& GetVmaAllocator() const { return mVmaAllocator; }
+
+    vk::Device const& GetVkDevice() const { return mDevice; }
+
+    Utils::DeletionQueue& GetMainDeletionQueue() {
+        return mMainDeletionQueue;
+    }
+
+    void ImmediateSubmit(
+        ::std::function<void(vk::CommandBuffer cmd)>&& function);
+
 private:
     void Draw();
 
@@ -75,19 +87,6 @@ private:
 
     GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
                                   ::std::span<Vertex>   vertices);
-
-    AllocatedVulkanImage CreateTexture(void*                   data,
-                                       VmaAllocationCreateInfo allocCreateInfo,
-                                       vk::Extent3D extent, vk::Format format,
-                                       vk::ImageUsageFlags usage,
-                                       vk::ImageType type = vk::ImageType::e2D,
-                                       bool          mipmaped    = false,
-                                       uint32_t      arrayLayers = 1);
-
-    void DestroyTexture(AllocatedVulkanImage const& texture);
-
-    void ImmediateSubmit(
-        ::std::function<void(vk::CommandBuffer cmd)>&& function);
 
     // Compute
     void CreateBackgroundComputeDescriptors();
@@ -177,4 +176,9 @@ private:
 
     vk::Sampler mDefaultSamplerLinear;
     vk::Sampler mDefaultSamplerNearest;
+
+    CUDA::VulkanExternalSemaphore mCUDAWaitSemaphore {};
+    CUDA::VulkanExternalSemaphore mCUDASignalSemaphore {};
+
+    CUDA::CUDAStream mCUDAStream {};
 };

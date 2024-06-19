@@ -1,6 +1,11 @@
 find_package(Vulkan REQUIRED)
 
 set (CUDA_SRC 
+    CUDAHelper.h
+    
+    CUDAStream.h
+    CUDAStream.cpp
+
     CUDAVulkan.h
     CUDAVulkan.cu)
 

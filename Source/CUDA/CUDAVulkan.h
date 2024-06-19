@@ -40,9 +40,9 @@ public:
 
     VmaAllocationInfo const& GetAllocationInfo() const { return mInfo; }
 
-    vk::Buffer GetVkBuffer() const { return mBuffer; }
+    vk::Buffer const& GetVkBuffer() const { return mBuffer; }
 
-    cudaExternalMemory_t GetCUDAExternalMemory() const {
+    cudaExternalMemory_t GetExternalMemory() const {
         return mExternalMemory;
     }
 
@@ -63,6 +63,13 @@ private:
     cudaExternalMemory_t mExternalMemory {};
 };
 
+class VulkanExternalImage {
+public:
+
+private:
+
+};
+
 class VulkanExternalSemaphore {
 public:
     void CreateExternalSemaphore(vk::Device device);
@@ -71,9 +78,9 @@ public:
 
     void InsertSignalToStreamAsync(cudaStream_t cudaStream);
 
-    vk::Semaphore GetVkSemaphore() const { return mSemaphore; }
+    vk::Semaphore const& GetVkSemaphore() const { return mSemaphore; }
 
-    cudaExternalSemaphore_t GetCUDAExternalSemaphore() const {
+    cudaExternalSemaphore_t const& GetCUDAExternalSemaphore() const {
         return mExternalSemaphore;
     }
 

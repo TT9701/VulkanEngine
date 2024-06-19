@@ -14,9 +14,9 @@ namespace {
 __global__ void SimpleAdd(void* data, float time) {
     auto vertices = static_cast<Vertex*>(data);
 
-    vertices[0].position = {0.0f, 0.5f, 0.0f};
-    vertices[1].position = {1.0f, 0.5f, 0.0f};
-    vertices[2].position = {0.5f, -0.5f, 0.0f};
+    vertices[0].position = {0.0f, 0.0f, 0.0f};
+    vertices[1].position = {1.0f, 0.0f, 0.0f};
+    vertices[2].position = {0.5f, 0.5f * ::std::sin(time / 1000.0f), 0.0f};
 
     vertices[0].color = {1.0f, 0.0f, 0.0f, 1.0f};
     vertices[1].color = {0.0f, 1.0f, 0.0f, 1.0f};
@@ -29,6 +29,47 @@ __global__ void SimpleAdd(void* data, float time) {
     vertices[0].uvY = 0.0f;
     vertices[1].uvY = 0.0f;
     vertices[2].uvY = 1.0f;
+}
+
+cudaExternalMemory_t GetCUDAExternalMemory(VkDevice device, VkDeviceMemory vkDeviceMemory, size_t allocByteSize) {
+    PFN_vkGetMemoryWin32HandleKHR fpGetMemoryWin32HandleKHR =
+        (PFN_vkGetMemoryWin32HandleKHR)vkGetDeviceProcAddr(
+            device, "vkGetMemoryWin32HandleKHR");
+
+    if (!fpGetMemoryWin32HandleKHR) {
+        throw std::runtime_error(
+            "Failed to retrieve vkGetMemoryWin32HandleKHR!");
+    }
+
+    VkMemoryGetWin32HandleInfoKHR memoryWin32HandleInfo {};
+    memoryWin32HandleInfo.sType =
+        VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+    memoryWin32HandleInfo.handleType =
+        VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    memoryWin32HandleInfo.memory = vkDeviceMemory;
+
+    HANDLE handle {};
+
+    if (fpGetMemoryWin32HandleKHR(device, &memoryWin32HandleInfo, &handle) !=
+        VK_SUCCESS) {
+        throw std::runtime_error("Failed to retrieve handle for buffer!");
+    }
+
+    cudaExternalMemoryHandleDesc desc {};
+
+    memset(&desc, 0, sizeof(desc));
+
+    desc.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
+    desc.handle.win32.handle = handle;
+    desc.size                = allocByteSize;
+    desc.flags |= cudaExternalMemoryDedicated;
+
+    cudaExternalMemory_t extMem {};
+    cudaImportExternalMemory(&extMem, &desc);
+
+    CloseHandle(handle);
+
+    return extMem;
 }
 
 }  // namespace
@@ -74,42 +115,8 @@ void VulkanExternalBuffer::CreateExternalBuffer(
     vmaCreateBuffer(allocator, (VkBufferCreateInfo*)&bufferInfo, &vmaAllocInfo,
                     (VkBuffer*)&mBuffer, &mAllocation, &mInfo);
 
-    PFN_vkGetMemoryWin32HandleKHR fpGetMemoryWin32HandleKHR;
-    fpGetMemoryWin32HandleKHR =
-        (PFN_vkGetMemoryWin32HandleKHR)vkGetDeviceProcAddr(
-            device, "vkGetMemoryWin32HandleKHR");
-
-    if (!fpGetMemoryWin32HandleKHR) {
-        throw std::runtime_error(
-            "Failed to retrieve vkGetMemoryWin32HandleKHR!");
-    }
-
-    VkMemoryGetWin32HandleInfoKHR memoryWin32HandleInfo {};
-    memoryWin32HandleInfo.sType =
-        VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
-    memoryWin32HandleInfo.handleType =
-        VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
-    memoryWin32HandleInfo.memory = mInfo.deviceMemory;
-
-    HANDLE handle {};
-
-    if (fpGetMemoryWin32HandleKHR(device, &memoryWin32HandleInfo, &handle) !=
-        VK_SUCCESS) {
-        throw std::runtime_error("Failed to retrieve handle for buffer!");
-    }
-
-    cudaExternalMemoryHandleDesc desc {};
-
-    memset(&desc, 0, sizeof(desc));
-
-    desc.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
-    desc.handle.win32.handle = handle;
-    desc.size                = allocByteSize;
-    desc.flags |= cudaExternalMemoryDedicated;
-
-    cudaImportExternalMemory(&mExternalMemory, &desc);
-
-    CloseHandle(handle);
+    mExternalMemory =
+        GetCUDAExternalMemory(device, mInfo.deviceMemory, allocByteSize);
 
     mAllocator = allocator;
 }

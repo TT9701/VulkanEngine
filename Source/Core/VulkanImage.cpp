@@ -1,13 +1,14 @@
 #include "VulkanImage.hpp"
 
+#include "Engine.hpp"
 #include "VulkanBuffer.hpp"
 
-void AllocatedVulkanImage::CreateImage(VmaAllocator            allocator,
-                                       VmaAllocationCreateInfo allocCreateInfo,
-                                       vk::Extent3D extent, vk::Format format,
-                                       vk::ImageUsageFlags usage,
-                                       vk::ImageType type, bool mipmaped,
-                                       uint32_t arrayLayers) {
+void AllocatedVulkanImage::CreateImage(
+    vk::Device device, VmaAllocator allocator,
+    VmaAllocationCreateInfo allocCreateInfo, vk::Extent3D extent,
+    vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+    bool mipmaped, uint32_t arrayLayers, vk::ImageType type,
+    vk::ImageViewType viewType) {
     mExtent3D = extent;
     mFormat   = format;
 
@@ -24,15 +25,11 @@ void AllocatedVulkanImage::CreateImage(VmaAllocator            allocator,
         .setMipLevels(mipLevels)
         .setArrayLayers(arrayLayers);
 
-    vmaCreateImage(allocator, (VkImageCreateInfo*)&imageCreateInfo,
-                   &allocCreateInfo, (VkImage*)&mImage, &mAllocation, nullptr);
-}
+    vmaCreateImage(allocator, reinterpret_cast<VkImageCreateInfo*>(&imageCreateInfo),
+                   &allocCreateInfo, reinterpret_cast<VkImage*>(&mImage), &mAllocation, nullptr);
 
-void AllocatedVulkanImage::CreateImageView(vk::Device           device,
-                                           vk::ImageAspectFlags aspect,
-                                           vk::ImageViewType    type) {
     vk::ImageViewCreateInfo imageViewCreateInfo {};
-    imageViewCreateInfo.setViewType(type)
+    imageViewCreateInfo.setViewType(viewType)
         .setImage(mImage)
         .setFormat(mFormat)
         .setSubresourceRange(Utils::GetDefaultImageSubresourceRange(aspect));
@@ -40,17 +37,45 @@ void AllocatedVulkanImage::CreateImageView(vk::Device           device,
     mImageView = device.createImageView(imageViewCreateInfo);
 }
 
-void AllocatedVulkanImage::DestroyImage(VmaAllocator allocator) {
-    vmaDestroyImage(allocator, mImage, mAllocation);
-}
+void AllocatedVulkanImage::CreateImage(
+    void* data, VulkanEngine* engine, VmaAllocationCreateInfo allocCreateInfo,
+    vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
+    vk::ImageAspectFlags aspect, bool mipmaped, uint32_t arrayLayers,
+    vk::ImageType type, vk::ImageViewType viewType) {
+    size_t dataSize = extent.width * extent.height * extent.depth * 4;
 
-void AllocatedVulkanImage::DestroyImageView(vk::Device device) {
-    device.destroy(mImageView);
+    AllocatedVulkanBuffer uploadBuffer {};
+    uploadBuffer.CreateBuffer(
+        engine->GetVmaAllocator(), dataSize,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    memcpy(uploadBuffer.mInfo.pMappedData, data, dataSize);
+
+    CreateImage(engine->GetVkDevice(), engine->GetVmaAllocator(),
+                allocCreateInfo, extent, format, usage, aspect, mipmaped,
+                arrayLayers, type, viewType);
+
+    engine->ImmediateSubmit([&](vk::CommandBuffer cmd) {
+        TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+        vk::BufferImageCopy copyRegion {};
+        copyRegion
+            .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
+            .setImageExtent(extent);
+
+        cmd.copyBufferToImage(uploadBuffer.mBuffer, mImage,
+                              vk::ImageLayout::eTransferDstOptimal, copyRegion);
+
+        TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+    });
+
+    uploadBuffer.Destroy();
 }
 
 void AllocatedVulkanImage::Destroy(vk::Device device, VmaAllocator allocator) {
-    DestroyImage(allocator);
-    DestroyImageView(device);
+    vmaDestroyImage(allocator, mImage, mAllocation);
+    device.destroy(mImageView);
 }
 
 void AllocatedVulkanImage::TransitionLayout(vk::CommandBuffer cmd,
