@@ -7,8 +7,6 @@
 #include "VulkanHelper.hpp"
 #include "VulkanPipeline.hpp"
 
-#include "CUDA/CUDAVulkan.h"
-
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
@@ -737,7 +735,7 @@ void VulkanEngine::CreateExternalTriangleData() {
     mTriangleExternalMesh.mIndexBuffer  = indexBuffer;
 
     vk::BufferDeviceAddressInfo deviceAddrInfo {};
-    deviceAddrInfo.setBuffer(mTriangleExternalMesh.mVertexBuffer.GetBuffer());
+    deviceAddrInfo.setBuffer(mTriangleExternalMesh.mVertexBuffer.GetVkBuffer());
 
     mTriangleExternalMesh.mVertexBufferAddress =
         mDevice.getBufferAddress(deviceAddrInfo);

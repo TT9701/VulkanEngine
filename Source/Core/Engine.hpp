@@ -7,6 +7,8 @@
 #include "VulkanDescriptors.hpp"
 #include "VulkanImage.hpp"
 
+#include "CUDA/CUDAVulkan.h"
+
 struct SDL_Window;
 
 struct FrameData {

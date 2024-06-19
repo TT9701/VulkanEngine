@@ -13,10 +13,6 @@
 
 #include <vma/vk_mem_alloc.h>
 
-namespace vk {
-class Device;
-}
-
 namespace CUDA {
 
 int GetVulkanCUDABindDeviceID(vk::PhysicalDevice vkPhysicalDevice);
@@ -44,7 +40,7 @@ public:
 
     VmaAllocationInfo const& GetAllocationInfo() const { return mInfo; }
 
-    vk::Buffer GetBuffer() const { return mBuffer; }
+    vk::Buffer GetVkBuffer() const { return mBuffer; }
 
     cudaExternalMemory_t GetCUDAExternalMemory() const {
         return mExternalMemory;
@@ -67,9 +63,26 @@ private:
     cudaExternalMemory_t mExternalMemory {};
 };
 
-void* MapBufferOntoExternalMemory(cudaExternalMemory_t extMem,
-                                  unsigned long long   offset,
-                                  unsigned long long   size);
+class VulkanExternalSemaphore {
+public:
+    void CreateExternalSemaphore(vk::Device device);
+
+    void InsertWaitToStreamAsync(cudaStream_t cudaStream);
+
+    void InsertSignalToStreamAsync(cudaStream_t cudaStream);
+
+    vk::Semaphore GetVkSemaphore() const { return mSemaphore; }
+
+    cudaExternalSemaphore_t GetCUDAExternalSemaphore() const {
+        return mExternalSemaphore;
+    }
+
+    void Destroy(vk::Device device) { device.destroy(mSemaphore); }
+
+private:
+    cudaExternalSemaphore_t mExternalSemaphore {};
+    vk::Semaphore           mSemaphore {};
+};
 
 cudaMipmappedArray_t MapMipmappedArrayOntoExternalMemory(
     cudaExternalMemory_t extMem, unsigned long long offset,
@@ -86,20 +99,6 @@ cudaExtent GetCudaExtentForVulkanExtent(vk::Extent3D      vkExt,
 unsigned int GetCudaMipmappedArrayFlagsForVulkanImage(
     vk::ImageViewType vkImageViewType, vk::ImageUsageFlags vkImageUsageFlags,
     bool allowSurfaceLoadStore);
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromFileDescriptor(int fd);
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromNtHandle(HANDLE handle);
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromNamedNtHandle(
-    LPCWSTR name);
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromKmtHandle(HANDLE handle);
-
-void SignalExternalSemaphore(cudaExternalSemaphore_t extSem,
-                             cudaStream_t            stream);
-
-void WaitExternalSemaphore(cudaExternalSemaphore_t extSem, cudaStream_t stream);
 
 void SimPoint(void* data, float time);
 

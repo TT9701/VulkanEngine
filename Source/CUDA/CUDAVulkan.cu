@@ -5,6 +5,7 @@
 #include <vulkan/vulkan_win32.h>
 #include <cassert>
 #include <cmath>
+#include <stdexcept>
 
 #include "../Core/MeshType.hpp"
 
@@ -58,13 +59,9 @@ int GetVulkanCUDABindDeviceID(vk::PhysicalDevice vkPhysicalDevice) {
 void VulkanExternalBuffer::CreateExternalBuffer(
     vk::Device device, VmaAllocator allocator, size_t allocByteSize,
     vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags, VmaPool pool) {
-#ifdef _WIN32
     vk::ExternalMemoryBufferCreateInfo externalbuffer {};
     externalbuffer.setHandleTypes(
         vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32);
-#else
-    // TODO: other platform
-#endif
 
     vk::BufferCreateInfo bufferInfo {};
     bufferInfo.setSize(allocByteSize).setUsage(usage).setPNext(&externalbuffer);
@@ -82,6 +79,11 @@ void VulkanExternalBuffer::CreateExternalBuffer(
         (PFN_vkGetMemoryWin32HandleKHR)vkGetDeviceProcAddr(
             device, "vkGetMemoryWin32HandleKHR");
 
+    if (!fpGetMemoryWin32HandleKHR) {
+        throw std::runtime_error(
+            "Failed to retrieve vkGetMemoryWin32HandleKHR!");
+    }
+
     VkMemoryGetWin32HandleInfoKHR memoryWin32HandleInfo {};
     memoryWin32HandleInfo.sType =
         VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
@@ -89,39 +91,90 @@ void VulkanExternalBuffer::CreateExternalBuffer(
         VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
     memoryWin32HandleInfo.memory = mInfo.deviceMemory;
 
-    HANDLE memoryWind32Handle {};
-    fpGetMemoryWin32HandleKHR(device, &memoryWin32HandleInfo,
-                              &memoryWind32Handle);
+    HANDLE handle {};
 
-    cudaExternalMemoryHandleDesc desc = {};
+    if (fpGetMemoryWin32HandleKHR(device, &memoryWin32HandleInfo, &handle) !=
+        VK_SUCCESS) {
+        throw std::runtime_error("Failed to retrieve handle for buffer!");
+    }
+
+    cudaExternalMemoryHandleDesc desc {};
 
     memset(&desc, 0, sizeof(desc));
 
     desc.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
-    desc.handle.win32.handle = memoryWind32Handle;
+    desc.handle.win32.handle = handle;
     desc.size                = allocByteSize;
     desc.flags |= cudaExternalMemoryDedicated;
 
     cudaImportExternalMemory(&mExternalMemory, &desc);
 
-    CloseHandle(memoryWind32Handle);
+    CloseHandle(handle);
 
     mAllocator = allocator;
 }
 
-void* MapBufferOntoExternalMemory(cudaExternalMemory_t extMem,
-                                  unsigned long long   offset,
-                                  unsigned long long   size) {
+void VulkanExternalSemaphore::CreateExternalSemaphore(vk::Device device) {
+    vk::SemaphoreCreateInfo semaphoreInfo {};
 
-    void* ptr = NULL;
+    vk::ExportSemaphoreCreateInfoKHR exportSemaphoreCreateInfo {};
+    exportSemaphoreCreateInfo.setHandleTypes(
+        vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32);
+    semaphoreInfo.setPNext(&exportSemaphoreCreateInfo);
 
-    cudaExternalMemoryBufferDesc desc = {};
+    mSemaphore = device.createSemaphore(semaphoreInfo);
+
+    VkSemaphoreGetWin32HandleInfoKHR semaphoreGetWin32HandleInfoKHR = {};
+    semaphoreGetWin32HandleInfoKHR.sType =
+        VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR;
+    semaphoreGetWin32HandleInfoKHR.pNext     = nullptr;
+    semaphoreGetWin32HandleInfoKHR.semaphore = mSemaphore;
+    semaphoreGetWin32HandleInfoKHR.handleType =
+        VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+
+    PFN_vkGetSemaphoreWin32HandleKHR fpGetSemaphoreWin32HandleKHR;
+    fpGetSemaphoreWin32HandleKHR =
+        (PFN_vkGetSemaphoreWin32HandleKHR)vkGetDeviceProcAddr(
+            device, "vkGetSemaphoreWin32HandleKHR");
+
+    if (!fpGetSemaphoreWin32HandleKHR) {
+        throw std::runtime_error(
+            "Failed to retrieve vkGetSemaphoreWin32HandleKHR!");
+    }
+
+    HANDLE handle;
+
+    if (fpGetSemaphoreWin32HandleKHR(device, &semaphoreGetWin32HandleInfoKHR,
+                                     &handle) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to retrieve handle for Semaphore!");
+    }
+
+    cudaExternalSemaphoreHandleDesc desc = {};
     memset(&desc, 0, sizeof(desc));
-    desc.offset = offset;
-    desc.size   = size;
 
-    cudaExternalMemoryGetMappedBuffer(&ptr, extMem, &desc);
-    return ptr;
+    desc.type                = cudaExternalSemaphoreHandleTypeOpaqueWin32;
+    desc.handle.win32.handle = handle;
+
+    cudaImportExternalSemaphore(&mExternalSemaphore, &desc);
+
+    CloseHandle(handle);
+}
+
+void VulkanExternalSemaphore::InsertWaitToStreamAsync(cudaStream_t cudaStream) {
+    cudaExternalSemaphoreWaitParams params = {};
+
+    memset(&params, 0, sizeof(params));
+
+    cudaWaitExternalSemaphoresAsync(&mExternalSemaphore, &params, 1, cudaStream);
+}
+
+void VulkanExternalSemaphore::InsertSignalToStreamAsync(
+    cudaStream_t cudaStream) {
+    cudaExternalSemaphoreSignalParams params = {};
+
+    memset(&params, 0, sizeof(params));
+
+    cudaSignalExternalSemaphoresAsync(&mExternalSemaphore, &params, 1, cudaStream);
 }
 
 cudaMipmappedArray_t MapMipmappedArrayOntoExternalMemory(
@@ -383,86 +436,6 @@ unsigned int GetCudaMipmappedArrayFlagsForVulkanImage(
         flags |= cudaArraySurfaceLoadStore;
     }
     return flags;
-}
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromFileDescriptor(int fd) {
-    cudaExternalSemaphore_t         extSem = NULL;
-    cudaExternalSemaphoreHandleDesc desc   = {};
-
-    memset(&desc, 0, sizeof(desc));
-
-    desc.type      = cudaExternalSemaphoreHandleTypeOpaqueFd;
-    desc.handle.fd = fd;
-
-    cudaImportExternalSemaphore(&extSem, &desc);
-
-    // Input parameter 'fd' should not be used beyond this point as CUDA has assumed ownership of it
-
-    return extSem;
-}
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromNtHandle(HANDLE handle) {
-    cudaExternalSemaphore_t         extSem = NULL;
-    cudaExternalSemaphoreHandleDesc desc   = {};
-    memset(&desc, 0, sizeof(desc));
-
-    desc.type                = cudaExternalSemaphoreHandleTypeOpaqueWin32;
-    desc.handle.win32.handle = handle;
-
-    cudaImportExternalSemaphore(&extSem, &desc);
-
-    // Input parameter 'handle' should be closed if it's not needed anymore
-    CloseHandle(handle);
-
-    return extSem;
-}
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromNamedNtHandle(
-    LPCWSTR name) {
-    cudaExternalSemaphore_t         extSem = NULL;
-    cudaExternalSemaphoreHandleDesc desc   = {};
-
-    memset(&desc, 0, sizeof(desc));
-
-    desc.type              = cudaExternalSemaphoreHandleTypeOpaqueWin32;
-    desc.handle.win32.name = (void*)name;
-
-    cudaImportExternalSemaphore(&extSem, &desc);
-
-    return extSem;
-}
-
-cudaExternalSemaphore_t ImportVulkanSemaphoreObjectFromKmtHandle(
-    HANDLE handle) {
-    cudaExternalSemaphore_t         extSem = NULL;
-    cudaExternalSemaphoreHandleDesc desc   = {};
-
-    memset(&desc, 0, sizeof(desc));
-
-    desc.type                = cudaExternalSemaphoreHandleTypeOpaqueWin32Kmt;
-    desc.handle.win32.handle = (void*)handle;
-
-    cudaImportExternalSemaphore(&extSem, &desc);
-
-    return extSem;
-}
-
-void SignalExternalSemaphore(cudaExternalSemaphore_t extSem,
-                             cudaStream_t            stream) {
-    cudaExternalSemaphoreSignalParams params = {};
-
-    memset(&params, 0, sizeof(params));
-
-    cudaSignalExternalSemaphoresAsync(&extSem, &params, 1, stream);
-}
-
-void WaitExternalSemaphore(cudaExternalSemaphore_t extSem,
-                           cudaStream_t            stream) {
-    cudaExternalSemaphoreWaitParams params = {};
-
-    memset(&params, 0, sizeof(params));
-
-    cudaWaitExternalSemaphoresAsync(&extSem, &params, 1, stream);
 }
 
 void SimPoint(void* data, float time) {
