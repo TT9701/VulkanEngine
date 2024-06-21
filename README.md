@@ -1,2 +1,2 @@
-# Vulkan Engine for Fun
+# Vulkan Engine
 

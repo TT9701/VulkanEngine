@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-
 #include "Mesh.hpp"
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanDescriptors.hpp"
@@ -181,4 +180,6 @@ private:
     CUDA::VulkanExternalSemaphore mCUDASignalSemaphore {};
 
     CUDA::CUDAStream mCUDAStream {};
+
+    CUDA::VulkanExternalImage mCUDAExternalImage {};
 };

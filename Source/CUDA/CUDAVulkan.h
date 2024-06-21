@@ -8,10 +8,17 @@
 #endif
 
 #include <cstdint>
+#include <memory>
 
 #include "device_launch_parameters.h"
 
 #include <vma/vk_mem_alloc.h>
+
+#include "CUDASurface.h"
+
+namespace vk {
+class Device;
+}
 
 namespace CUDA {
 
@@ -56,6 +63,10 @@ private:
     cudaExternalMemory_t mExternalMemory {};
 };
 
+struct UserType {
+    float a, b, c, d;
+};
+
 class VulkanExternalImage {
 public:
     void CreateExternalImage(
@@ -79,6 +90,8 @@ public:
 
     vk::Format const& GetFormat() const { return mFormat; }
 
+    auto GetSurfaceObjectPtr() { return mSurface2D; }
+
     void Destroy(vk::Device device, VmaAllocator allocator);
 
 private:
@@ -91,7 +104,8 @@ private:
     vk::ImageLayout      mLayout {vk::ImageLayout::eUndefined};
     cudaExternalMemory_t mExternalMemory {};
 
-    cudaExternalMemoryMipmappedArrayDesc mArrayDesc {};
+    cudaExternalMemoryMipmappedArrayDesc                  mArrayDesc {};
+    ::std::shared_ptr<CUDASurface2D<UserType, 1600, 900>> mSurface2D {};
 };
 
 class VulkanExternalSemaphore {
@@ -115,6 +129,29 @@ private:
     vk::Semaphore           mSemaphore {};
 };
 
-void SimPoint(void* data, float time);
+void SimPoint(void* data, float time, cudaStream_t stream);
+
+template <typename UserType, int TexelWidth, int Height>
+__global__ void SimSurfaceKernel(
+    CUDASurface2D<UserType, TexelWidth, Height> surf, float time) {
+    int x                        = threadIdx.x + blockIdx.x * blockDim.x;
+    int y                        = threadIdx.y + blockIdx.y * blockDim.y;
+    using TexelType              = CudaTexelTypeBinder_t<UserType>;
+    constexpr int texelElemCount = sizeof(TexelType) / sizeof(float);
+
+    float color = 0.5f + 0.5f * ::std::sin((float)x / (blockDim.x * gridDim.x) -
+                                           (float)y / (blockDim.y * gridDim.y) +
+                                           time / 300.0f);
+
+    CudaSurfaceArray2D<float, texelElemCount, 1> write {};
+    write.data[0].data[0] = color;
+    write.data[0].data[1] = color;
+    write.data[0].data[2] = color;
+    write.data[0].data[3] = 1.0f;
+    surf.Write2D<0, texelElemCount, 0, 1>(write, x, y);
+}
+
+void SimSurface(CUDASurface2D<UserType, 1600, 900> surf, float time,
+                cudaStream_t stream);
 
 }  // namespace CUDA

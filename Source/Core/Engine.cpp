@@ -188,7 +188,10 @@ void VulkanEngine::Draw() {
     CUDA::SimPoint(mTriangleExternalMesh.mVertexBuffer
                        .GetMappedPointer(0, 3 * sizeof(Vertex))
                        .GetPtr(),
-                   mFrameNum);
+                   mFrameNum, mCUDAStream.Get());
+
+    CUDA::SimSurface(*mCUDAExternalImage.GetSurfaceObjectPtr(), mFrameNum,
+                     mCUDAStream.Get());
 
     cudaExternalSemaphoreSignalParams signalParams {};
     mCUDAStream.SignalExternalSemaphoresAsyn(
@@ -367,18 +370,6 @@ void VulkanEngine::PickPhysicalDevice() {
 
     DBG_LOG_INFO("Physical Device Selected: %s",
                  mPhysicalDevice.getProperties().deviceName.data());
-
-    // vk::PhysicalDeviceExternalBufferInfo externalBufferInfo {};
-    // externalBufferInfo
-    //     .setUsage(vk::BufferUsageFlagBits::eTransferDst |
-    //               vk::BufferUsageFlagBits::eVertexBuffer |
-    //               vk::BufferUsageFlagBits::eIndexBuffer)
-    //     .setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32);
-    // auto externalBufferProps =
-    //     mPhysicalDevice.getExternalBufferProperties(externalBufferInfo);
-    // ::std::cout << vk::to_string(externalBufferProps.externalMemoryProperties
-    //                                  .compatibleHandleTypes)
-    //             << "\n";
 }
 
 void VulkanEngine::SetQueueFamily(vk::QueueFlags requestedQueueTypes) {
@@ -631,6 +622,14 @@ void VulkanEngine::CreateSwapchain() {
 
     mMainDeletionQueue.push_function(
         [&]() { mDrawImage.Destroy(mDevice, mVmaAllocator); });
+
+    mCUDAExternalImage.CreateExternalImage(
+        mDevice, mVmaAllocator, mVmaExternalMemoryPool, 0, drawImageExtent,
+        vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
+        vk::ImageAspectFlagBits::eColor);
+
+    mMainDeletionQueue.push_function(
+        [&]() { mCUDAExternalImage.Destroy(mDevice, mVmaAllocator); });
 }
 
 void VulkanEngine::CreateCommands() {
@@ -1039,15 +1038,53 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     cmd.clearColorImage(mDrawImage.mImage, vk::ImageLayout::eGeneral,
                         clearValue, subresource);
 
-    cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
-                     mBackgroundComputePipeline);
+    // cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
+    //                  mBackgroundComputePipeline);
+    //
+    // cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
+    //                        mBackgroundComputePipelineLayout, 0,
+    //                        mDrawImageDescriptors, {});
+    //
+    // cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
+    //              ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
 
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-                           mBackgroundComputePipelineLayout, 0,
-                           mDrawImageDescriptors, {});
+    auto layout = mDrawImage.mLayout;
 
-    cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
-                 ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
+    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+    Utils::TransitionImageLayout(cmd, mCUDAExternalImage.GetVkImage(),
+                                 vk::ImageLayout::eUndefined,
+                                 vk::ImageLayout::eTransferSrcOptimal);
+
+    vk::ImageBlit2 blitRegion {};
+    blitRegion
+        .setSrcOffsets(
+            {vk::Offset3D {},
+             vk::Offset3D {
+                 static_cast<int32_t>(mCUDAExternalImage.GetExtent3D().width),
+                 static_cast<int32_t>(mCUDAExternalImage.GetExtent3D().height),
+                 1}})
+        .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
+        .setDstOffsets(
+            {vk::Offset3D {},
+             vk::Offset3D {static_cast<int32_t>(mDrawImage.mExtent3D.width),
+                           static_cast<int32_t>(mDrawImage.mExtent3D.height),
+                           1}})
+        .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
+
+    vk::BlitImageInfo2 blitInfo {};
+    blitInfo.setDstImage(mDrawImage.mImage)
+        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setSrcImage(mCUDAExternalImage.GetVkImage())
+        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
+        .setFilter(vk::Filter::eLinear)
+        .setRegions(blitRegion);
+
+    cmd.blitImage2(blitInfo);
+
+    mDrawImage.TransitionLayout(cmd, layout);
+    Utils::TransitionImageLayout(cmd, mCUDAExternalImage.GetVkImage(),
+                                 vk::ImageLayout::eTransferSrcOptimal,
+                                 vk::ImageLayout::eGeneral);
 }
 
 void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {

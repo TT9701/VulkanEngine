@@ -122,6 +122,13 @@ cudaChannelFormatDesc GetCudaChannelFormatDescForVulkanFormat(
             d.w = 16;
             d.f = cudaChannelFormatKindSigned;
             break;
+        case vk::Format::eR16G16B16A16Sfloat:
+            d.x = 16;
+            d.y = 16;
+            d.z = 16;
+            d.w = 16;
+            d.f = cudaChannelFormatKindFloat;
+            break;
         case vk::Format::eR32Uint:
             d.x = 32;
             d.y = 0;
@@ -434,6 +441,17 @@ void VulkanExternalImage::CreateExternalImage(
     mArrayDesc.formatDesc = formatDesc;
     mArrayDesc.extent     = ext;
     mArrayDesc.flags      = descFlags;
+
+    auto        mipmappedArray = GetMapMipmappedArray(0, 1);
+    cudaArray_t cudaMipLevelArray {};
+    cudaGetMipmappedArrayLevel(&cudaMipLevelArray, mipmappedArray, 0);
+
+    cudaResourceDesc surfaceResDesc {};
+    surfaceResDesc.resType         = cudaResourceTypeArray;
+    surfaceResDesc.res.array.array = cudaMipLevelArray;
+
+    mSurface2D =
+        ::std::make_shared<CUDASurface2D<UserType, 1600, 900>>(&surfaceResDesc);
 }
 
 cudaMipmappedArray_t VulkanExternalImage::GetMapMipmappedArray(
@@ -542,8 +560,13 @@ cudaMipmappedArray_t MapMipmappedArrayOntoExternalMemory(
     return mipmap;
 }
 
-void SimPoint(void* data, float time) {
-    SimpleAdd<<<1, 1>>>(data, time);
+void SimPoint(void* data, float time, cudaStream_t stream) {
+    SimpleAdd<<<1, 1, 0, stream>>>(data, time);
+}
+
+void SimSurface(CUDASurface2D<UserType, 1600, 900> surf, float time,
+                cudaStream_t stream) {
+    SimSurfaceKernel<<<{100, 100}, {16, 16}, 0, stream>>>(surf, time);
 }
 
 }  // namespace CUDA
