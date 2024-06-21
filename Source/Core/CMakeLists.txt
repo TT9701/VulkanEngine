@@ -28,6 +28,8 @@ add_library(Core STATIC
     ${CORE_SRC}
 )
 
+set_target_properties(Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})
+
 if(MSVC AND NOT USE_CLANG)
     target_compile_options(Core 
         PUBLIC 

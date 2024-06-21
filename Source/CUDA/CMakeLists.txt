@@ -24,3 +24,5 @@ set_property(TARGET CUDA
 target_link_libraries(CUDA 
     PRIVATE
         Vulkan::Vulkan)
+
+set_target_properties(CUDA PROPERTIES FOLDER ${LIB_FOLDER_NAME})

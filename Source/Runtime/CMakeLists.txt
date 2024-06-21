@@ -9,3 +9,5 @@ set_property(TARGET Runtime
 set_property(TARGET Runtime 
     PROPERTY 
         VS_DEBUGGER_WORKING_DIRECTORY $<TARGET_FILE_DIR:Runtime>)
+
+set_target_properties(Runtime PROPERTIES FOLDER ${EXECUTABLE_FOLDER_NAME})

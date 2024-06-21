@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 3.20)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 if(NOT CMAKE_BUILD_TYPE)
     message("Setting build type to 'Debug' as none was specified.")
     set(CMAKE_BUILD_TYPE Debug)
@@ -13,6 +15,11 @@ find_package (Vulkan REQUIRED)
 
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
+
+set (LIB_FOLDER_NAME "Libs")
+set (DLL_FOLDER_NAME "Dlls")
+set (EXECUTABLE_FOLDER_NAME "Executables")
+set (CUSTOM_FOLDER_NAME "Custom_Projects")
 
 add_subdirectory (Source)
 
@@ -40,6 +47,8 @@ add_custom_target(
     Shaders 
     DEPENDS ${SPIRV_BINARY_FILES}
 )
+
+set_target_properties(Shaders PROPERTIES FOLDER ${CUSTOM_FOLDER_NAME})
 
 set_property (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} 
     PROPERTY 
