@@ -10,7 +10,5 @@ int main() {
 
     engine.Run();
 
-    engine.Cleanup();
-
     return 0;
 }

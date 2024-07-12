@@ -14,10 +14,10 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 namespace {
 #if defined(VK_EXT_debug_utils)
 vk::Bool32 VKAPI_PTR debugMessengerCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT             messageTypes,
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageTypes,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void*                                       pUserData) {
+    void* pUserData) {
     if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         printf("MessageCode is %s & Message is %s \n",
                pCallbackData->pMessageIdName, pCallbackData->pMessage);
@@ -26,8 +26,8 @@ vk::Bool32 VKAPI_PTR debugMessengerCallback(
 #else
         raise(SIGTRAP);
 #endif
-    } else if (messageSeverity &
-               VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+    } else if (messageSeverity
+               & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         printf("MessageCode is %s & Message is %s \n",
                pCallbackData->pMessageIdName, pCallbackData->pMessage);
     } else {
@@ -40,12 +40,39 @@ vk::Bool32 VKAPI_PTR debugMessengerCallback(
 #endif
 }  // namespace
 
-void VulkanEngine::Init() {
-#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-    VULKAN_HPP_DEFAULT_DISPATCHER.init();
-#endif
+VulkanEngine::VulkanEngine()
+    : mPMemPool(CreateGlobalMemoryPool()),
+      mWindow(CreateSDLWindow()),
+      mPInstance(CreateInstance()),
+      mPDebugUtilsMessenger(CreateDebugUtilsMessenger()),
+      mPSurface(CreateSurface()),
+      mPhysicalDevice(PickPhysicalDevice()),
+      mDevice(CreateDevice()),
+      mVmaAllocator(CreateVmaAllocators()),
+      mVmaExternalMemoryPool(CreateVmaExternalMemoryPool()),
+      mDrawImage(CreateDrawImage()),
+      mCUDAExternalImage(CreateExternalImage()),
+      mSwapchain(CreateSwapchain()) {}
 
-    InitSDLWindow();
+VulkanEngine::~VulkanEngine() {
+    mDevice->waitIdle();
+
+    for (int i = 0; i < FRAME_OVERLAP; ++i) {
+        mDevice->destroy(mFrameDatas[i].mCommandPool);
+        mDevice->destroy(mFrameDatas[i].mRenderFence);
+        mDevice->destroy(mFrameDatas[i].mReady4PresentSemaphore);
+        mDevice->destroy(mFrameDatas[i].mReady4RenderSemaphore);
+    }
+
+    for (auto& view : mSwapchainImageViews)
+        mDevice->destroy(view);
+    mDevice->destroy(*mSwapchain);
+
+    mDevice->destroy();
+}
+
+void VulkanEngine::Init() {
+
     InitVulkan();
 }
 
@@ -66,10 +93,8 @@ void VulkanEngine::Run() {
             }
             if (sdlEvent.type == SDL_KEYDOWN) {
                 switch (sdlEvent.key.keysym.sym) {
-                    case SDLK_ESCAPE:
-                        bQuit = true;
-                    default:
-                        break;
+                    case SDLK_ESCAPE: bQuit = true;
+                    default: break;
                 }
             }
         }
@@ -81,40 +106,15 @@ void VulkanEngine::Run() {
     }
 }
 
-void VulkanEngine::Cleanup() {
-    mDevice.waitIdle();
-
-    for (int i = 0; i < FRAME_OVERLAP; ++i) {
-        mDevice.destroy(mFrameDatas[i].mCommandPool);
-        mDevice.destroy(mFrameDatas[i].mRenderFence);
-        mDevice.destroy(mFrameDatas[i].mReady4PresentSemaphore);
-        mDevice.destroy(mFrameDatas[i].mReady4RenderSemaphore);
-
-        mFrameDatas[i].mDeletionQueue.flush();
-    }
-
-    mMainDeletionQueue.flush();
-
-    for (auto& view : mSwapchainImageViews)
-        mDevice.destroy(view);
-    mDevice.destroy(mSwapchain);
-
-    mDevice.destroy();
-    mInstance.destroy(mSurface);
-    mInstance.destroy(mDebugUtilsMessenger);
-    mInstance.destroy();
-}
-
 void VulkanEngine::Draw() {
-    VK_CHECK(mDevice.waitForFences(GetCurrentFrameData().mRenderFence, vk::True,
-                                   TIME_OUT_NANO_SECONDS));
+    VK_CHECK(mDevice->waitForFences(GetCurrentFrameData().mRenderFence,
+                                    vk::True, TIME_OUT_NANO_SECONDS));
 
-    GetCurrentFrameData().mDeletionQueue.flush();
-    mDevice.resetFences(GetCurrentFrameData().mRenderFence);
+    mDevice->resetFences(GetCurrentFrameData().mRenderFence);
 
     uint32_t swapchainImageIndex;
-    VK_CHECK(mDevice.acquireNextImageKHR(
-        mSwapchain, TIME_OUT_NANO_SECONDS,
+    VK_CHECK(mDevice->acquireNextImageKHR(
+        *mSwapchain, TIME_OUT_NANO_SECONDS,
         GetCurrentFrameData().mReady4RenderSemaphore, VK_NULL_HANDLE,
         &swapchainImageIndex));
 
@@ -127,23 +127,23 @@ void VulkanEngine::Draw() {
 
     cmd.begin(cmdBeginInfo);
 
-    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eGeneral);
+    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eGeneral);
 
     DrawBackground(cmd);
 
-    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
+    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
 
     DrawTriangle(cmd);
 
-    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
+    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
 
     Utils::TransitionImageLayout(cmd, mSwapchainImages[swapchainImageIndex],
                                  vk::ImageLayout::eUndefined,
                                  vk::ImageLayout::eTransferDstOptimal);
 
-    mDrawImage.CopyToImage(
+    mDrawImage->CopyToImage(
         cmd, mSwapchainImages[swapchainImageIndex],
-        {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height},
+        {mDrawImage->mExtent3D.width, mDrawImage->mExtent3D.height},
         mSwapchainExtent);
 
     Utils::TransitionImageLayout(cmd, mSwapchainImages[swapchainImageIndex],
@@ -175,7 +175,7 @@ void VulkanEngine::Draw() {
     mGraphicQueues[0].submit2(submit, GetCurrentFrameData().mRenderFence);
 
     vk::PresentInfoKHR presentInfo {};
-    presentInfo.setSwapchains(mSwapchain)
+    presentInfo.setSwapchains(*mSwapchain)
         .setWaitSemaphores(GetCurrentFrameData().mReady4PresentSemaphore)
         .setImageIndices(swapchainImageIndex);
 
@@ -190,7 +190,7 @@ void VulkanEngine::Draw() {
                        .GetPtr(),
                    mFrameNum, mCUDAStream.Get());
 
-    CUDA::SimSurface(*mCUDAExternalImage.GetSurfaceObjectPtr(), mFrameNum,
+    CUDA::SimSurface(*mCUDAExternalImage->GetSurfaceObjectPtr(), mFrameNum,
                      mCUDAStream.Get());
 
     cudaExternalSemaphoreSignalParams signalParams {};
@@ -198,18 +198,6 @@ void VulkanEngine::Draw() {
         &mCUDASignalSemaphore.GetCUDAExternalSemaphore(), &signalParams, 1);
 
     ++mFrameNum;
-}
-
-void VulkanEngine::InitSDLWindow() {
-    SDL_Init(SDL_INIT_VIDEO);
-
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
-
-    mWindow = SDL_CreateWindow("Vulkan Engine", SDL_WINDOWPOS_UNDEFINED,
-                               SDL_WINDOWPOS_UNDEFINED, mWindowWidth,
-                               mWindowHeight, window_flags);
-    DBG_LOG_INFO("SDL_Window Created. Width: %d, Height: %d.", mWindowWidth,
-                 mWindowHeight);
 }
 
 void VulkanEngine::SetInstanceLayers(
@@ -257,13 +245,6 @@ std::vector<std::string> VulkanEngine::GetSDLRequestedInstanceExtensions()
 }
 
 void VulkanEngine::InitVulkan() {
-    CreateInstance();
-    CreateDebugUtilsMessenger();
-    CreateSurface();
-    PickPhysicalDevice();
-    CreateDevice();
-    CreateVmaAllocators();
-    CreateSwapchain();
     CreateCommands();
     CreateSyncStructures();
 
@@ -279,7 +260,28 @@ void VulkanEngine::InitVulkan() {
     SetCudaInterop();
 }
 
-void VulkanEngine::CreateInstance() {
+std::pmr::memory_resource* VulkanEngine::CreateGlobalMemoryPool() {
+    return ::std::pmr::get_default_resource();
+}
+
+SDL_Window* VulkanEngine::CreateSDLWindow() {
+    SDL_Init(SDL_INIT_VIDEO);
+
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+
+    DBG_LOG_INFO("SDL_Window Created. Width: %d, Height: %d.", mWindowWidth,
+                 mWindowHeight);
+
+    return SDL_CreateWindow("Vulkan Engine", SDL_WINDOWPOS_UNDEFINED,
+                            SDL_WINDOWPOS_UNDEFINED, mWindowWidth,
+                            mWindowHeight, window_flags);
+}
+
+VulkanEngine::Type_PInstance<vk::Instance> VulkanEngine::CreateInstance() {
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
+    VULKAN_HPP_DEFAULT_DISPATCHER.init();
+#endif
+
     ::std::vector<::std::string> requestedInstanceLayers {};
 #ifdef DEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
@@ -316,92 +318,112 @@ void VulkanEngine::CreateInstance() {
     instanceCreateInfo.setPApplicationInfo(&appInfo)
         .setPEnabledLayerNames(enabledLayersCStr)
         .setPEnabledExtensionNames(enabledExtensionsCStr);
-    mInstance = vk::createInstance(instanceCreateInfo);
+    auto temp_inst =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<vk::Instance>(mPMemPool);
+    VK_CHECK(vk::createInstance(&instanceCreateInfo, nullptr, temp_inst.get()));
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(mInstance);
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(*temp_inst);
 #endif
 
     DBG_LOG_INFO("Vulkan Instance Created");
+
+    return temp_inst;
 }
 
 #ifdef DEBUG
-void VulkanEngine::CreateDebugUtilsMessenger() {
+VulkanEngine::Type_PInstance<vk::DebugUtilsMessengerEXT>
+VulkanEngine::CreateDebugUtilsMessenger() {
     vk::DebugUtilsMessengerCreateInfoEXT messengerInfo {};
     messengerInfo
-        .setMessageSeverity(vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
-                            vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
-                            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+        .setMessageSeverity(
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
+            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
+            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
         .setMessageType(
-            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
+            | vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
 #if defined(VK_EXT_device_address_binding_report)
             vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
 #endif
             vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
         .setPfnUserCallback(&debugMessengerCallback);
-    mDebugUtilsMessenger =
-        mInstance.createDebugUtilsMessengerEXT(messengerInfo);
 
+    auto temp_messenger = IntelliDesign_NS::Core::MemoryPool::New_Unique<
+        vk::DebugUtilsMessengerEXT>(mPMemPool);
+    VK_CHECK(mPInstance->createDebugUtilsMessengerEXT(&messengerInfo, nullptr,
+                                                      temp_messenger.get()));
     DBG_LOG_INFO("Vulkan Debug Messenger Created");
+
+    return temp_messenger;
 }
 #endif
 
-void VulkanEngine::CreateSurface() {
+VulkanEngine::Type_PInstance<VkSurfaceKHR> VulkanEngine::CreateSurface() {
+    auto temp_surface =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<VkSurfaceKHR>(mPMemPool);
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    SDL_Vulkan_CreateSurface(mWindow, mInstance, &mSurface);
+    SDL_Vulkan_CreateSurface(mWindow, *mPInstance, temp_surface.get());
 #endif
     DBG_LOG_INFO("SDL Vulkan Surface Created");
+    return temp_surface;
 }
 
-void VulkanEngine::PickPhysicalDevice() {
-    auto deviceList = mInstance.enumeratePhysicalDevices();
+vk::PhysicalDevice VulkanEngine::PickPhysicalDevice() {
+    auto deviceList = mPInstance->enumeratePhysicalDevices();
     assert(!deviceList.empty(), "device list is empty");
+
+    vk::PhysicalDevice picked;
 
     for (auto& device : deviceList) {
         std::string devicename(device.getProperties().deviceName.data());
-        const auto  result = devicename.find("NVIDIA");
+        const auto result = devicename.find("NVIDIA");
         if (result != std::string::npos) {
-            mPhysicalDevice = device;
+            picked = device;
             break;
         }
     }
-    SetQueueFamily(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
+    SetQueueFamily(picked,
+                   vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
 
     DBG_LOG_INFO("Physical Device Selected: %s",
-                 mPhysicalDevice.getProperties().deviceName.data());
+                 picked.getProperties().deviceName.data());
+
+    return picked;
 }
 
-void VulkanEngine::SetQueueFamily(vk::QueueFlags requestedQueueTypes) {
-    auto queueFamilyProps = mPhysicalDevice.getQueueFamilyProperties();
+void VulkanEngine::SetQueueFamily(vk::PhysicalDevice physicalDevice,
+                                  vk::QueueFlags requestedQueueTypes) {
+    auto queueFamilyProps = physicalDevice.getQueueFamilyProperties();
+
     for (uint32_t queueFamilyIndex = 0;
-         queueFamilyIndex < queueFamilyProps.size() &&
-         static_cast<uint32_t>(requestedQueueTypes) != 0;
+         queueFamilyIndex < queueFamilyProps.size()
+         && static_cast<uint32_t>(requestedQueueTypes) != 0;
          ++queueFamilyIndex) {
-        if (!mGraphicsFamilyIndex.has_value() &&
-            (requestedQueueTypes &
-             queueFamilyProps[queueFamilyIndex].queueFlags) &
-                vk::QueueFlagBits::eGraphics) {
+        if (!mGraphicsFamilyIndex.has_value()
+            && (requestedQueueTypes
+                & queueFamilyProps[queueFamilyIndex].queueFlags)
+                   & vk::QueueFlagBits::eGraphics) {
             mGraphicsFamilyIndex = queueFamilyIndex;
             mGraphicsQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
             requestedQueueTypes &= ~vk::QueueFlagBits::eGraphics;
             continue;
         }
 
-        if (!mComputeFamilyIndex.has_value() &&
-            (requestedQueueTypes &
-             queueFamilyProps[queueFamilyIndex].queueFlags) &
-                vk::QueueFlagBits::eCompute) {
+        if (!mComputeFamilyIndex.has_value()
+            && (requestedQueueTypes
+                & queueFamilyProps[queueFamilyIndex].queueFlags)
+                   & vk::QueueFlagBits::eCompute) {
             mComputeFamilyIndex = queueFamilyIndex;
-            mComputeQueueCount  = queueFamilyProps[queueFamilyIndex].queueCount;
+            mComputeQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
             requestedQueueTypes &= ~vk::QueueFlagBits::eCompute;
             continue;
         }
 
-        if (!mTransferFamilyIndex.has_value() &&
-            (requestedQueueTypes &
-             queueFamilyProps[queueFamilyIndex].queueFlags) &
-                vk::QueueFlagBits::eTransfer) {
+        if (!mTransferFamilyIndex.has_value()
+            && (requestedQueueTypes
+                & queueFamilyProps[queueFamilyIndex].queueFlags)
+                   & vk::QueueFlagBits::eTransfer) {
             mTransferFamilyIndex = queueFamilyIndex;
             mTransferQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
             requestedQueueTypes &= ~vk::QueueFlagBits::eTransfer;
@@ -409,7 +431,7 @@ void VulkanEngine::SetQueueFamily(vk::QueueFlags requestedQueueTypes) {
     }
 }
 
-void VulkanEngine::CreateDevice() {
+VulkanEngine::Type_PInstance<vk::Device> VulkanEngine::CreateDevice() {
     ::std::vector<float> queuePriorities(16, 1.0f);
 
     /**
@@ -472,27 +494,36 @@ void VulkanEngine::CreateDevice() {
         .setPEnabledExtensionNames(enabledDeivceExtensions)
         .setPEnabledFeatures(&origFeatures)
         .setPNext(&vulkan11Features);
-    mDevice = mPhysicalDevice.createDevice(deviceCreateInfo);
+
+    auto temp_device =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<vk::Device>(mPMemPool);
+    VK_CHECK(mPhysicalDevice.createDevice(&deviceCreateInfo, nullptr,
+                                          temp_device.get()));
 
     mGraphicQueues.resize(mGraphicsQueueCount);
     for (int i = 0; i < mGraphicsQueueCount; ++i)
-        mGraphicQueues[i] = mDevice.getQueue(mGraphicsFamilyIndex.value(), i);
+        mGraphicQueues[i] =
+            temp_device->getQueue(mGraphicsFamilyIndex.value(), i);
 
     mComputeQueues.resize(mComputeQueueCount);
     for (int i = 0; i < mComputeQueueCount; ++i)
-        mComputeQueues[i] = mDevice.getQueue(mComputeFamilyIndex.value(), i);
+        mComputeQueues[i] =
+            temp_device->getQueue(mComputeFamilyIndex.value(), i);
 
     mTransferQueues.resize(mTransferQueueCount);
     for (int i = 0; i < mTransferQueueCount; ++i)
-        mTransferQueues[i] = mDevice.getQueue(mTransferFamilyIndex.value(), i);
+        mTransferQueues[i] =
+            temp_device->getQueue(mTransferFamilyIndex.value(), i);
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(mDevice);
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(*temp_device);
 #endif
     DBG_LOG_INFO("Vulkan Device Created");
+
+    return temp_device;
 }
 
-void VulkanEngine::CreateVmaAllocators() {
+VulkanEngine::Type_PInstance<VmaAllocator> VulkanEngine::CreateVmaAllocators() {
     const VmaVulkanFunctions vulkanFunctions = {
         .vkGetInstanceProcAddr =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr,
@@ -503,23 +534,23 @@ void VulkanEngine::CreateVmaAllocators() {
         .vkGetPhysicalDeviceMemoryProperties =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetPhysicalDeviceMemoryProperties,
         .vkAllocateMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkAllocateMemory,
-        .vkFreeMemory     = VULKAN_HPP_DEFAULT_DISPATCHER.vkFreeMemory,
-        .vkMapMemory      = VULKAN_HPP_DEFAULT_DISPATCHER.vkMapMemory,
-        .vkUnmapMemory    = VULKAN_HPP_DEFAULT_DISPATCHER.vkUnmapMemory,
+        .vkFreeMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkFreeMemory,
+        .vkMapMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkMapMemory,
+        .vkUnmapMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkUnmapMemory,
         .vkFlushMappedMemoryRanges =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkFlushMappedMemoryRanges,
         .vkInvalidateMappedMemoryRanges =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkInvalidateMappedMemoryRanges,
         .vkBindBufferMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkBindBufferMemory,
-        .vkBindImageMemory  = VULKAN_HPP_DEFAULT_DISPATCHER.vkBindImageMemory,
+        .vkBindImageMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkBindImageMemory,
         .vkGetBufferMemoryRequirements =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetBufferMemoryRequirements,
         .vkGetImageMemoryRequirements =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetImageMemoryRequirements,
-        .vkCreateBuffer  = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateBuffer,
+        .vkCreateBuffer = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateBuffer,
         .vkDestroyBuffer = VULKAN_HPP_DEFAULT_DISPATCHER.vkDestroyBuffer,
-        .vkCreateImage   = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateImage,
-        .vkDestroyImage  = VULKAN_HPP_DEFAULT_DISPATCHER.vkDestroyImage,
+        .vkCreateImage = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateImage,
+        .vkDestroyImage = VULKAN_HPP_DEFAULT_DISPATCHER.vkDestroyImage,
         .vkCmdCopyBuffer = VULKAN_HPP_DEFAULT_DISPATCHER.vkCmdCopyBuffer,
 #if VMA_VULKAN_VERSION >= 1001000
         .vkGetBufferMemoryRequirements2KHR =
@@ -545,49 +576,59 @@ void VulkanEngine::CreateVmaAllocators() {
 #if defined(VK_KHR_buffer_device_address) && defined(_WIN32)
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 #endif
-        .physicalDevice   = mPhysicalDevice,
-        .device           = mDevice,
+        .physicalDevice = mPhysicalDevice,
+        .device = *mDevice,
         .pVulkanFunctions = &vulkanFunctions,
-        .instance         = mInstance,
+        .instance = *mPInstance,
         .vulkanApiVersion = VK_API_VERSION_1_3,
     };
-    vmaCreateAllocator(&allocInfo, &mVmaAllocator);
-
-    mMainDeletionQueue.push_function(
-        [&]() { vmaDestroyAllocator(mVmaAllocator); });
+    auto temp_allocator =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<VmaAllocator>(mPMemPool);
+    vmaCreateAllocator(&allocInfo, temp_allocator.get());
 
     DBG_LOG_INFO("vma Allocator Created");
+    return temp_allocator;
+}
 
+VulkanEngine::Type_PInstance<VmaPool_T*>
+VulkanEngine::CreateVmaExternalMemoryPool() {
     VmaPoolCreateInfo vmaPoolCreateInfo {};
     vmaPoolCreateInfo.pMemoryAllocateNext = &mExportMemoryAllocateInfo;
 
-    vmaCreatePool(mVmaAllocator, &vmaPoolCreateInfo, &mVmaExternalMemoryPool);
+    auto temp_pool =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<VmaPool>(mPMemPool);
 
-    mMainDeletionQueue.push_function(
-        [&]() { vmaDestroyPool(mVmaAllocator, mVmaExternalMemoryPool); });
+    vmaCreatePool(*mVmaAllocator, &vmaPoolCreateInfo, temp_pool.get());
 
     DBG_LOG_INFO("vma External Resource Pool Created");
+
+    return temp_pool;
 }
 
-void VulkanEngine::CreateSwapchain() {
+VulkanEngine::Type_PInstance<vk::SwapchainKHR> VulkanEngine::CreateSwapchain() {
     mSwapchainImageFormat = vk::Format::eR8G8B8A8Unorm;
-    mSwapchainExtent      = vk::Extent2D {static_cast<uint32_t>(mWindowWidth),
+    mSwapchainExtent = vk::Extent2D {static_cast<uint32_t>(mWindowWidth),
                                      static_cast<uint32_t>(mWindowHeight)};
 
     vk::SwapchainCreateInfoKHR swapchainCreateInfo {};
-    swapchainCreateInfo.setSurface(mSurface)
+    swapchainCreateInfo.setSurface(*mPSurface)
         .setMinImageCount(3u)
         .setImageFormat(mSwapchainImageFormat)
         .setImageExtent(mSwapchainExtent)
         .setImageArrayLayers(1u)
-        .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment |
-                       vk::ImageUsageFlagBits::eTransferDst)
+        .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment
+                       | vk::ImageUsageFlagBits::eTransferDst)
         .setPresentMode(vk::PresentModeKHR::eMailbox)
         .setClipped(vk::True)
         .setOldSwapchain(VK_NULL_HANDLE);
-    mSwapchain = mDevice.createSwapchainKHR(swapchainCreateInfo);
 
-    mSwapchainImages = mDevice.getSwapchainImagesKHR(mSwapchain);
+    auto temp_swapchain =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<vk::SwapchainKHR>(
+            mPMemPool);
+    VK_CHECK(mDevice->createSwapchainKHR(&swapchainCreateInfo, nullptr,
+                                         temp_swapchain.get()));
+
+    mSwapchainImages = mDevice->getSwapchainImagesKHR(*temp_swapchain);
 
     mSwapchainImageViews.resize(mSwapchainImages.size());
     for (int i = 0; i < mSwapchainImages.size(); ++i) {
@@ -597,7 +638,7 @@ void VulkanEngine::CreateSwapchain() {
             .setFormat(mSwapchainImageFormat)
             .setSubresourceRange(vk::ImageSubresourceRange {
                 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
-        mSwapchainImageViews[i] = mDevice.createImageView(imgViewCreateInfo);
+        mSwapchainImageViews[i] = mDevice->createImageView(imgViewCreateInfo);
     }
 
     DBG_LOG_INFO(
@@ -606,6 +647,30 @@ void VulkanEngine::CreateSwapchain() {
         vk::to_string(swapchainCreateInfo.presentMode).c_str(),
         mSwapchainImages.size());
 
+    // vk::Extent3D drawImageExtent {static_cast<uint32_t>(mWindowWidth),
+    //                               static_cast<uint32_t>(mWindowHeight), 1};
+    //
+    // vk::ImageUsageFlags drawImageUsage {};
+    // drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
+    // drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
+    // drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
+    // drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
+    //
+    // mDrawImage.CreateImage(*mDevice, *mVmaAllocator,
+    //                        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+    //                        drawImageExtent, vk::Format::eR16G16B16A16Sfloat,
+    //                        drawImageUsage, vk::ImageAspectFlagBits::eColor);
+
+    // mCUDAExternalImage.CreateExternalImage(
+    //     *mDevice, *mVmaAllocator, *mVmaExternalMemoryPool, 0, drawImageExtent,
+    //     vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
+    //     vk::ImageAspectFlagBits::eColor);
+
+    return temp_swapchain;
+}
+
+VulkanEngine::Type_PInstance<AllocatedVulkanImage>
+VulkanEngine::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mWindowWidth),
                                   static_cast<uint32_t>(mWindowHeight), 1};
 
@@ -615,21 +680,38 @@ void VulkanEngine::CreateSwapchain() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    mDrawImage.CreateImage(mDevice, mVmaAllocator,
-                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                           drawImageExtent, vk::Format::eR16G16B16A16Sfloat,
-                           drawImageUsage, vk::ImageAspectFlagBits::eColor);
+    auto temp_drawImage =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<AllocatedVulkanImage>(
+            mPMemPool);
 
-    mMainDeletionQueue.push_function(
-        [&]() { mDrawImage.Destroy(mDevice, mVmaAllocator); });
+    temp_drawImage->CreateImage(
+        *mDevice, *mVmaAllocator, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+        drawImageExtent, vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
+        vk::ImageAspectFlagBits::eColor);
 
-    mCUDAExternalImage.CreateExternalImage(
-        mDevice, mVmaAllocator, mVmaExternalMemoryPool, 0, drawImageExtent,
+    return temp_drawImage;
+}
+
+VulkanEngine::Type_PInstance<CUDA::VulkanExternalImage>
+VulkanEngine::CreateExternalImage() {
+    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mWindowWidth),
+                                  static_cast<uint32_t>(mWindowHeight), 1};
+
+    vk::ImageUsageFlags drawImageUsage {};
+    drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
+    drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
+    drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
+    drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
+
+    auto temp_externalImage = IntelliDesign_NS::Core::MemoryPool::New_Unique<
+        CUDA::VulkanExternalImage>(mPMemPool);
+
+    temp_externalImage->CreateExternalImage(
+        *mDevice, *mVmaAllocator, *mVmaExternalMemoryPool, 0, drawImageExtent,
         vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
 
-    mMainDeletionQueue.push_function(
-        [&]() { mCUDAExternalImage.Destroy(mDevice, mVmaAllocator); });
+    return temp_externalImage;
 }
 
 void VulkanEngine::CreateCommands() {
@@ -640,30 +722,27 @@ void VulkanEngine::CreateCommands() {
 
     for (int i = 0; i < FRAME_OVERLAP; ++i) {
         mFrameDatas[i].mCommandPool =
-            mDevice.createCommandPool(cmdPoolCreateInfo);
+            mDevice->createCommandPool(cmdPoolCreateInfo);
 
         vk::CommandBufferAllocateInfo cmdAllocInfo {};
         cmdAllocInfo.setCommandPool(mFrameDatas[i].mCommandPool)
             .setLevel(vk::CommandBufferLevel::ePrimary)
             .setCommandBufferCount(1u);
         mFrameDatas[i].mCommandBuffer =
-            mDevice.allocateCommandBuffers(cmdAllocInfo)[0];
+            mDevice->allocateCommandBuffers(cmdAllocInfo)[0];
     }
 
     DBG_LOG_INFO("Vulkan Per Frame CommandPool & CommandBuffer Created");
 
     mImmediateSubmit.mCommandPool =
-        mDevice.createCommandPool(cmdPoolCreateInfo);
+        mDevice->createCommandPool(cmdPoolCreateInfo);
 
     vk::CommandBufferAllocateInfo cmdAllocInfo {};
     cmdAllocInfo.setCommandPool(mImmediateSubmit.mCommandPool)
         .setLevel(vk::CommandBufferLevel::ePrimary)
         .setCommandBufferCount(1u);
     mImmediateSubmit.mCommandBuffer =
-        mDevice.allocateCommandBuffers(cmdAllocInfo)[0];
-
-    mMainDeletionQueue.push_function(
-        [=]() { mDevice.destroy(mImmediateSubmit.mCommandPool); });
+        mDevice->allocateCommandBuffers(cmdAllocInfo)[0];
 
     DBG_LOG_INFO("Vulkan Immediate submit CommandPool & CommandBuffer Created");
 }
@@ -673,30 +752,21 @@ void VulkanEngine::CreateSyncStructures() {
     vk::SemaphoreCreateInfo semaphoreCreateInfo {};
 
     for (int i = 0; i < FRAME_OVERLAP; ++i) {
-        mFrameDatas[i].mRenderFence = mDevice.createFence(fenceCreateInfo);
+        mFrameDatas[i].mRenderFence = mDevice->createFence(fenceCreateInfo);
         mFrameDatas[i].mReady4PresentSemaphore =
-            mDevice.createSemaphore(semaphoreCreateInfo);
+            mDevice->createSemaphore(semaphoreCreateInfo);
         mFrameDatas[i].mReady4RenderSemaphore =
-            mDevice.createSemaphore(semaphoreCreateInfo);
+            mDevice->createSemaphore(semaphoreCreateInfo);
     }
 
     DBG_LOG_INFO("Vulkan Per Frame Fence & Semaphore Created");
 
-    mImmediateSubmit.mFence = mDevice.createFence(fenceCreateInfo);
-    mMainDeletionQueue.push_function(
-        [=]() { mDevice.destroy(mImmediateSubmit.mFence); });
+    mImmediateSubmit.mFence = mDevice->createFence(fenceCreateInfo);
 
     DBG_LOG_INFO("Vulkan Immediate submit Fence & Semaphore Created");
 
-    mCUDAWaitSemaphore.CreateExternalSemaphore(mDevice);
-    mCUDASignalSemaphore.CreateExternalSemaphore(mDevice);
-
-    // mCUDAWaitSemaphore.InsertSignalToStreamAsync()
-
-    mMainDeletionQueue.push_function([=]() {
-        mCUDASignalSemaphore.Destroy(mDevice);
-        mCUDAWaitSemaphore.Destroy(mDevice);
-    });
+    mCUDAWaitSemaphore.CreateExternalSemaphore(*mDevice);
+    mCUDASignalSemaphore.CreateExternalSemaphore(*mDevice);
 
     DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }
@@ -711,13 +781,10 @@ void VulkanEngine::CreateDescriptors() {
         {vk::DescriptorType::eStorageImage, 1},
         {vk::DescriptorType::eCombinedImageSampler, 1}};
 
-    mMainDescriptorAllocator.InitPool(mDevice, 10, sizes);
+    mMainDescriptorAllocator.InitPool(*mDevice, 10, sizes);
 
     CreateBackgroundComputeDescriptors();
     CreateTriangleDescriptors();
-
-    mMainDeletionQueue.push_function(
-        [&]() { mMainDescriptorAllocator.DestroyPool(mDevice); });
 }
 
 void VulkanEngine::CreateTriangleData() {
@@ -742,55 +809,45 @@ void VulkanEngine::CreateTriangleData() {
     ::std::array<uint32_t, 3> indices {0, 1, 2};
 
     mTriangleMesh = UploadMeshData(indices, vertices);
-
-    mMainDeletionQueue.push_function([&]() {
-        mTriangleMesh.mVertexBuffer.Destroy();
-        mTriangleMesh.mIndexBuffer.Destroy();
-    });
 }
 
 void VulkanEngine::CreateExternalTriangleData() {
     CUDA::VulkanExternalBuffer vertexBuffer {}, indexBuffer {};
     vertexBuffer.CreateExternalBuffer(
-        mDevice, mVmaAllocator, 3 * sizeof(Vertex),
-        vk::BufferUsageFlagBits::eStorageBuffer |
-            vk::BufferUsageFlagBits::eTransferDst |
-            vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
+        *mDevice, *mVmaAllocator, 3 * sizeof(Vertex),
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eTransferDst
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, *mVmaExternalMemoryPool);
 
     indexBuffer.CreateExternalBuffer(
-        mDevice, mVmaAllocator, 3 * sizeof(uint32_t),
-        vk::BufferUsageFlagBits::eIndexBuffer |
-            vk::BufferUsageFlagBits::eTransferDst,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, mVmaExternalMemoryPool);
+        *mDevice, *mVmaAllocator, 3 * sizeof(uint32_t),
+        vk::BufferUsageFlagBits::eIndexBuffer
+            | vk::BufferUsageFlagBits::eTransferDst,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, *mVmaExternalMemoryPool);
 
     mTriangleExternalMesh.mVertexBuffer = vertexBuffer;
-    mTriangleExternalMesh.mIndexBuffer  = indexBuffer;
+    mTriangleExternalMesh.mIndexBuffer = indexBuffer;
 
     vk::BufferDeviceAddressInfo deviceAddrInfo {};
     deviceAddrInfo.setBuffer(mTriangleExternalMesh.mVertexBuffer.GetVkBuffer());
 
     mTriangleExternalMesh.mVertexBufferAddress =
-        mDevice.getBufferAddress(deviceAddrInfo);
-
-    mMainDeletionQueue.push_function([&]() {
-        mTriangleExternalMesh.mVertexBuffer.Destroy();
-        mTriangleExternalMesh.mIndexBuffer.Destroy();
-    });
+        mDevice->getBufferAddress(deviceAddrInfo);
 
     CUDA::VulkanExternalImage externalImage {};
     externalImage.CreateExternalImage(
-        mDevice, mVmaAllocator, mVmaExternalMemoryPool, 0, {16, 16, 1},
+        *mDevice, *mVmaAllocator, *mVmaExternalMemoryPool, 0, {16, 16, 1},
         vk::Format::eR8G8B8A8Uint, vk::ImageUsageFlagBits::eStorage,
         vk::ImageAspectFlagBits::eColor);
 
     auto cudaMipmapped = externalImage.GetMapMipmappedArray(0, 1);
 
-    externalImage.Destroy(mDevice, mVmaAllocator);
+    externalImage.Destroy(*mDevice, *mVmaAllocator);
 }
 
 void VulkanEngine::CreateErrorCheckTextures() {
-    uint32_t black   = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+    uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
     std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
     for (int x = 0; x < 16; x++) {
@@ -804,22 +861,14 @@ void VulkanEngine::CreateErrorCheckTextures() {
         VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         vk::ImageAspectFlagBits::eColor);
-
-    mMainDeletionQueue.push_function(
-        [&]() { mErrorCheckImage.Destroy(mDevice, mVmaAllocator); });
 }
 
 void VulkanEngine::CreateDefaultSamplers() {
     vk::SamplerCreateInfo info {};
     info.setMinFilter(vk::Filter::eNearest).setMagFilter(vk::Filter::eNearest);
-    mDefaultSamplerNearest = mDevice.createSampler(info);
+    mDefaultSamplerNearest = mDevice->createSampler(info);
     info.setMinFilter(vk::Filter::eLinear).setMagFilter(vk::Filter::eLinear);
-    mDefaultSamplerLinear = mDevice.createSampler(info);
-
-    mMainDeletionQueue.push_function([&]() {
-        mDevice.destroy(mDefaultSamplerLinear);
-        mDevice.destroy(mDefaultSamplerNearest);
-    });
+    mDefaultSamplerLinear = mDevice->createSampler(info);
 }
 
 void VulkanEngine::SetCudaInterop() {
@@ -828,37 +877,35 @@ void VulkanEngine::SetCudaInterop() {
 }
 
 GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
-                                            std::span<Vertex>   vertices) {
+                                            std::span<Vertex> vertices) {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
-    const size_t indexBufferSize  = indices.size() * sizeof(uint32_t);
-
-    AllocatedVulkanBuffer vertexBuffer {}, indexBuffer {};
-    vertexBuffer.CreateBuffer(mVmaAllocator, vertexBufferSize,
-                              vk::BufferUsageFlagBits::eStorageBuffer |
-                                  vk::BufferUsageFlagBits::eTransferDst |
-                                  vk::BufferUsageFlagBits::eShaderDeviceAddress,
-                              VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
-
-    indexBuffer.CreateBuffer(mVmaAllocator, indexBufferSize,
-                             vk::BufferUsageFlagBits::eIndexBuffer |
-                                 vk::BufferUsageFlagBits::eTransferDst,
-                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
     GPUMeshBuffers newMesh {};
-    newMesh.mVertexBuffer = vertexBuffer;
-    newMesh.mIndexBuffer  = indexBuffer;
+    newMesh.mVertexBuffer =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<AllocatedVulkanBuffer>(
+            mPMemPool, *mVmaAllocator, vertexBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    newMesh.mIndexBuffer =
+        IntelliDesign_NS::Core::MemoryPool::New_Unique<AllocatedVulkanBuffer>(
+            mPMemPool, *mVmaAllocator, indexBufferSize,
+            vk::BufferUsageFlagBits::eIndexBuffer
+                | vk::BufferUsageFlagBits::eTransferDst,
+            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
     vk::BufferDeviceAddressInfo deviceAddrInfo {};
-    deviceAddrInfo.setBuffer(newMesh.mVertexBuffer.mBuffer);
+    deviceAddrInfo.setBuffer(newMesh.mVertexBuffer->mBuffer);
 
-    newMesh.mVertexBufferAddress = mDevice.getBufferAddress(deviceAddrInfo);
+    newMesh.mVertexBufferAddress = mDevice->getBufferAddress(deviceAddrInfo);
 
-    AllocatedVulkanBuffer staging {};
-    staging.CreateBuffer(
-        mVmaAllocator, vertexBufferSize + indexBufferSize,
+    AllocatedVulkanBuffer staging {
+        *mVmaAllocator, vertexBufferSize + indexBufferSize,
         vk::BufferUsageFlagBits::eTransferSrc,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-            VMA_ALLOCATION_CREATE_MAPPED_BIT);
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            | VMA_ALLOCATION_CREATE_MAPPED_BIT};
 
     void* data = staging.mInfo.pMappedData;
     memcpy(data, vertices.data(), vertexBufferSize);
@@ -867,23 +914,21 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     ImmediateSubmit([&](vk::CommandBuffer cmd) {
         vk::BufferCopy vertexCopy {};
         vertexCopy.setSize(vertexBufferSize);
-        cmd.copyBuffer(staging.mBuffer, newMesh.mVertexBuffer.mBuffer,
+        cmd.copyBuffer(staging.mBuffer, newMesh.mVertexBuffer->mBuffer,
                        vertexCopy);
 
         vk::BufferCopy indexCopy {};
         indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
-        cmd.copyBuffer(staging.mBuffer, newMesh.mIndexBuffer.mBuffer,
+        cmd.copyBuffer(staging.mBuffer, newMesh.mIndexBuffer->mBuffer,
                        indexCopy);
     });
-
-    staging.Destroy();
 
     return newMesh;
 }
 
 void VulkanEngine::ImmediateSubmit(
     std::function<void(vk::CommandBuffer cmd)>&& function) {
-    mDevice.resetFences(mImmediateSubmit.mFence);
+    mDevice->resetFences(mImmediateSubmit.mFence);
 
     auto cmd = mImmediateSubmit.mCommandBuffer;
 
@@ -899,31 +944,28 @@ void VulkanEngine::ImmediateSubmit(
     cmd.end();
 
     auto cmdSubmitInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
-    auto submit        = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
+    auto submit = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
 
     mGraphicQueues[0].submit2(submit, mImmediateSubmit.mFence);
-    VK_CHECK(mDevice.waitForFences(mImmediateSubmit.mFence, vk::True,
-                                   TIME_OUT_NANO_SECONDS));
+    VK_CHECK(mDevice->waitForFences(mImmediateSubmit.mFence, vk::True,
+                                    TIME_OUT_NANO_SECONDS));
 }
 
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, vk::DescriptorType::eStorageImage);
     mDrawImageDescriptorLayout =
-        builder.Build(mDevice, vk::ShaderStageFlagBits::eCompute);
+        builder.Build(*mDevice, vk::ShaderStageFlagBits::eCompute);
 
     mDrawImageDescriptors =
-        mMainDescriptorAllocator.Allocate(mDevice, mDrawImageDescriptorLayout);
+        mMainDescriptorAllocator.Allocate(*mDevice, mDrawImageDescriptorLayout);
 
     DescriptorWriter writer {};
     writer.WriteImage(
-        0, {VK_NULL_HANDLE, mDrawImage.mImageView, vk::ImageLayout::eGeneral},
+        0, {VK_NULL_HANDLE, mDrawImage->mImageView, vk::ImageLayout::eGeneral},
         vk::DescriptorType::eStorageImage);
 
-    writer.UpdateSet(mDevice, mDrawImageDescriptors);
-
-    mMainDeletionQueue.push_function(
-        [&]() { mDevice.destroy(mDrawImageDescriptorLayout); });
+    writer.UpdateSet(*mDevice, mDrawImageDescriptors);
 
     DBG_LOG_INFO("Vulkan Background Compute Descriptors Created");
 }
@@ -933,11 +975,11 @@ void VulkanEngine::CreateBackgroundComputePipeline() {
     computeLayout.setSetLayouts(mDrawImageDescriptorLayout);
 
     mBackgroundComputePipelineLayout =
-        mDevice.createPipelineLayout(computeLayout);
+        mDevice->createPipelineLayout(computeLayout);
 
     vk::ShaderModule computeDrawShader {};
-    assert(Utils::LoadShaderModule("../../Shaders/BackGround.comp.spv", mDevice,
-                                   &computeDrawShader),
+    assert(Utils::LoadShaderModule("../../Shaders/BackGround.comp.spv",
+                                   *mDevice, &computeDrawShader),
            "Error when building the compute shader");
 
     vk::PipelineShaderStageCreateInfo stageinfo {};
@@ -950,14 +992,9 @@ void VulkanEngine::CreateBackgroundComputePipeline() {
         .setStage(stageinfo);
 
     mBackgroundComputePipeline =
-        mDevice.createComputePipeline({}, computePipelineCreateInfo).value;
+        mDevice->createComputePipeline({}, computePipelineCreateInfo).value;
 
-    mDevice.destroy(computeDrawShader);
-
-    mMainDeletionQueue.push_function([&]() {
-        mDevice.destroy(mBackgroundComputePipelineLayout);
-        mDevice.destroy(mBackgroundComputePipeline);
-    });
+    mDevice->destroy(computeDrawShader);
 
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
@@ -966,10 +1003,10 @@ void VulkanEngine::CreateTrianglePipeline() {
     vk::ShaderModule vertexShader {};
     vk::ShaderModule fragmentShader {};
 
-    assert(Utils::LoadShaderModule("../../Shaders/Triangle.vert.spv", mDevice,
+    assert(Utils::LoadShaderModule("../../Shaders/Triangle.vert.spv", *mDevice,
                                    &vertexShader),
            "Error when building the triangle vertex shader");
-    assert(Utils::LoadShaderModule("../../Shaders/Triangle.frag.spv", mDevice,
+    assert(Utils::LoadShaderModule("../../Shaders/Triangle.frag.spv", *mDevice,
                                    &fragmentShader),
            "Error when building the triangle fragment shader");
 
@@ -980,7 +1017,7 @@ void VulkanEngine::CreateTrianglePipeline() {
     vk::PipelineLayoutCreateInfo layoutCreateInfo {};
     layoutCreateInfo.setPushConstantRanges(pushConstant)
         .setSetLayouts(mTextureTriangleDescriptorLayout);
-    mTrianglePipelieLayout = mDevice.createPipelineLayout(layoutCreateInfo);
+    mTrianglePipelieLayout = mDevice->createPipelineLayout(layoutCreateInfo);
 
     GraphicsPipelineBuilder graphicsPipelineBuilder {};
     mTrianglePipelie =
@@ -992,17 +1029,13 @@ void VulkanEngine::CreateTrianglePipeline() {
             .SetMultisampling(vk::SampleCountFlagBits::e1)
             .SetBlending(vk::False)
             .SetDepth(vk::False, vk::False)
-            .SetColorAttachmentFormat(mDrawImage.mFormat)
+            .SetColorAttachmentFormat(mDrawImage->mFormat)
             .SetDepthStencilFormat(vk::Format::eUndefined)
-            .Build(mDevice);
+            .Build(*mDevice);
 
-    mDevice.destroy(vertexShader);
-    mDevice.destroy(fragmentShader);
+    mDevice->destroy(vertexShader);
+    mDevice->destroy(fragmentShader);
 
-    mMainDeletionQueue.push_function([&]() {
-        mDevice.destroy(mTrianglePipelieLayout);
-        mDevice.destroy(mTrianglePipelie);
-    });
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
 
@@ -1010,10 +1043,10 @@ void VulkanEngine::CreateTriangleDescriptors() {
     DescriptorLayoutBuilder builder {};
     builder.AddBinding(0, vk::DescriptorType::eCombinedImageSampler);
     mTextureTriangleDescriptorLayout =
-        builder.Build(mDevice, vk::ShaderStageFlagBits::eFragment);
+        builder.Build(*mDevice, vk::ShaderStageFlagBits::eFragment);
 
     mTextureTriangleDescriptors = mMainDescriptorAllocator.Allocate(
-        mDevice, mTextureTriangleDescriptorLayout);
+        *mDevice, mTextureTriangleDescriptorLayout);
 
     DescriptorWriter writer {};
     writer.WriteImage(0,
@@ -1021,21 +1054,18 @@ void VulkanEngine::CreateTriangleDescriptors() {
                        vk::ImageLayout::eShaderReadOnlyOptimal},
                       vk::DescriptorType::eCombinedImageSampler);
 
-    writer.UpdateSet(mDevice, mTextureTriangleDescriptors);
-
-    mMainDeletionQueue.push_function(
-        [&]() { mDevice.destroy(mTextureTriangleDescriptorLayout); });
+    writer.UpdateSet(*mDevice, mTextureTriangleDescriptors);
 }
 
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     vk::ClearColorValue clearValue {};
-    float               flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
-    clearValue                = {flash, flash, flash, 1.0f};
+    float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
+    clearValue = {flash, flash, flash, 1.0f};
 
     auto subresource =
         Utils::GetDefaultImageSubresourceRange(vk::ImageAspectFlagBits::eColor);
 
-    cmd.clearColorImage(mDrawImage.mImage, vk::ImageLayout::eGeneral,
+    cmd.clearColorImage(mDrawImage->mImage, vk::ImageLayout::eGeneral,
                         clearValue, subresource);
 
     // cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
@@ -1048,10 +1078,10 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     // cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
     //              ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
 
-    auto layout = mDrawImage.mLayout;
+    auto layout = mDrawImage->mLayout;
 
-    mDrawImage.TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-    Utils::TransitionImageLayout(cmd, mCUDAExternalImage.GetVkImage(),
+    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+    Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
                                  vk::ImageLayout::eUndefined,
                                  vk::ImageLayout::eTransferSrcOptimal);
 
@@ -1060,44 +1090,45 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
         .setSrcOffsets(
             {vk::Offset3D {},
              vk::Offset3D {
-                 static_cast<int32_t>(mCUDAExternalImage.GetExtent3D().width),
-                 static_cast<int32_t>(mCUDAExternalImage.GetExtent3D().height),
+                 static_cast<int32_t>(mCUDAExternalImage->GetExtent3D().width),
+                 static_cast<int32_t>(mCUDAExternalImage->GetExtent3D().height),
                  1}})
         .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
         .setDstOffsets(
             {vk::Offset3D {},
-             vk::Offset3D {static_cast<int32_t>(mDrawImage.mExtent3D.width),
-                           static_cast<int32_t>(mDrawImage.mExtent3D.height),
+             vk::Offset3D {static_cast<int32_t>(mDrawImage->mExtent3D.width),
+                           static_cast<int32_t>(mDrawImage->mExtent3D.height),
                            1}})
         .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
 
     vk::BlitImageInfo2 blitInfo {};
-    blitInfo.setDstImage(mDrawImage.mImage)
+    blitInfo.setDstImage(mDrawImage->mImage)
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
-        .setSrcImage(mCUDAExternalImage.GetVkImage())
+        .setSrcImage(mCUDAExternalImage->GetVkImage())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
         .setFilter(vk::Filter::eLinear)
         .setRegions(blitRegion);
 
     cmd.blitImage2(blitInfo);
 
-    mDrawImage.TransitionLayout(cmd, layout);
-    Utils::TransitionImageLayout(cmd, mCUDAExternalImage.GetVkImage(),
+    mDrawImage->TransitionLayout(cmd, layout);
+    Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
                                  vk::ImageLayout::eTransferSrcOptimal,
                                  vk::ImageLayout::eGeneral);
 }
 
 void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment.setImageView(mDrawImage.mImageView)
-        .setImageLayout(mDrawImage.mLayout)
+    colorAttachment.setImageView(mDrawImage->mImageView)
+        .setImageLayout(mDrawImage->mLayout)
         .setLoadOp(vk::AttachmentLoadOp::eLoad)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
 
     vk::RenderingInfo renderInfo {};
     renderInfo
         .setRenderArea(vk::Rect2D {
-            {0, 0}, {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height}})
+            {0, 0},
+            {mDrawImage->mExtent3D.width, mDrawImage->mExtent3D.height}})
         .setLayerCount(1u)
         .setColorAttachments(colorAttachment)
         .setPDepthAttachment(VK_NULL_HANDLE)     // TODO
@@ -1108,15 +1139,15 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, mTrianglePipelie);
 
     vk::Viewport viewport {};
-    viewport.setWidth(mDrawImage.mExtent3D.width)
-        .setHeight(mDrawImage.mExtent3D.height)
+    viewport.setWidth(mDrawImage->mExtent3D.width)
+        .setHeight(mDrawImage->mExtent3D.height)
         .setMinDepth(0.0f)
         .setMaxDepth(1.0f);
     cmd.setViewport(0, viewport);
 
     vk::Rect2D scissor {};
     scissor.setExtent(
-        {mDrawImage.mExtent3D.width, mDrawImage.mExtent3D.height});
+        {mDrawImage->mExtent3D.width, mDrawImage->mExtent3D.height});
     cmd.setScissor(0, scissor);
 
     cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
@@ -1130,7 +1161,7 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     cmd.pushConstants(mTrianglePipelieLayout, vk::ShaderStageFlagBits::eVertex,
                       0, sizeof(MeshPushConstants), &pushConstants);
 
-    cmd.bindIndexBuffer(mTriangleMesh.mIndexBuffer.mBuffer, 0,
+    cmd.bindIndexBuffer(mTriangleMesh.mIndexBuffer->mBuffer, 0,
                         vk::IndexType::eUint32);
 
     cmd.drawIndexed(3, 1, 0, 0, 0);

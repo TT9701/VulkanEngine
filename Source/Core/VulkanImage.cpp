@@ -50,12 +50,11 @@ void AllocatedVulkanImage::CreateImage(
     vk::ImageType type, vk::ImageViewType viewType) {
     size_t dataSize = extent.width * extent.height * extent.depth * 4;
 
-    AllocatedVulkanBuffer uploadBuffer {};
-    uploadBuffer.CreateBuffer(
+    AllocatedVulkanBuffer uploadBuffer {
         engine->GetVmaAllocator(), dataSize,
         vk::BufferUsageFlagBits::eTransferSrc,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-            VMA_ALLOCATION_CREATE_MAPPED_BIT);
+            VMA_ALLOCATION_CREATE_MAPPED_BIT};
 
     memcpy(uploadBuffer.mInfo.pMappedData, data, dataSize);
 
@@ -74,8 +73,6 @@ void AllocatedVulkanImage::CreateImage(
 
         TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
     });
-
-    uploadBuffer.Destroy();
 }
 
 void AllocatedVulkanImage::Destroy(vk::Device device, VmaAllocator allocator) {

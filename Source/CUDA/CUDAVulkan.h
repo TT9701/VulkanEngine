@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <vulkan/vulkan.hpp>
 
-#ifdef _WIN32
+#if _WIN32
 #include <Windows.h>
 #endif
 

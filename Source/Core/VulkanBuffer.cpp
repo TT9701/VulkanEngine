@@ -1,10 +1,10 @@
 #include "VulkanBuffer.hpp"
 
-void AllocatedVulkanBuffer::CreateBuffer(VmaAllocator             allocator,
-                                         size_t                   allocByteSize,
-                                         vk::BufferUsageFlags     usage,
-                                         VmaAllocationCreateFlags flags) {
-
+AllocatedVulkanBuffer::AllocatedVulkanBuffer(VmaAllocator         allocator,
+                                             size_t               allocByteSize,
+                                             vk::BufferUsageFlags usage,
+                                             VmaAllocationCreateFlags flags)
+    : mAllocator(allocator) {
     vk::BufferCreateInfo bufferInfo {};
     bufferInfo.setSize(allocByteSize).setUsage(usage);
 
@@ -13,12 +13,12 @@ void AllocatedVulkanBuffer::CreateBuffer(VmaAllocator             allocator,
     vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     vmaAllocInfo.flags = flags;
 
-    vmaCreateBuffer(allocator, (VkBufferCreateInfo*)&bufferInfo, &vmaAllocInfo,
-                    (VkBuffer*)&mBuffer, &mAllocation, &mInfo);
-
-    mAllocator = allocator;
+    vmaCreateBuffer(allocator,
+                    reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo),
+                    &vmaAllocInfo, reinterpret_cast<VkBuffer*>(&mBuffer),
+                    &mAllocation, &mInfo);
 }
 
-void AllocatedVulkanBuffer::Destroy() {
+AllocatedVulkanBuffer::~AllocatedVulkanBuffer() {
     vmaDestroyBuffer(mAllocator, mBuffer, mAllocation);
 }

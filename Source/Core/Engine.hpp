@@ -1,24 +1,22 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
 #include "Mesh.hpp"
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanDescriptors.hpp"
 #include "VulkanImage.hpp"
 
-#include "CUDA/CUDAVulkan.h"
 #include "CUDA/CUDAStream.h"
+#include "CUDA/CUDAVulkan.h"
 
 struct SDL_Window;
 
 struct FrameData {
     vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
-    vk::Fence     mRenderFence {};
+    vk::Fence mRenderFence {};
 
-    vk::CommandPool   mCommandPool {};
+    vk::CommandPool mCommandPool {};
     vk::CommandBuffer mCommandBuffer {};
-
-    Utils::DeletionQueue mDeletionQueue {};
 };
 
 constexpr uint32_t FRAME_OVERLAP = 2;
@@ -27,30 +25,25 @@ constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
 
 class VulkanEngine {
 public:
-    void Init();
-    void Run();
-    void Cleanup();
+    template <class T>
+    using Type_PInstance =
+        IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>;
 
 public:
-    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
+    VulkanEngine();
+    ~VulkanEngine();
 
+    void Init();
+    void Run();
+
+public:
     FrameData& GetCurrentFrameData() {
         return mFrameDatas[mFrameNum % FRAME_OVERLAP];
     }
 
-    struct ImmediateSubmit {
-        vk::Fence         mFence {};
-        vk::CommandBuffer mCommandBuffer {};
-        vk::CommandPool   mCommandPool {};
-    } mImmediateSubmit;
+    VmaAllocator const& GetVmaAllocator() const { return *mVmaAllocator; }
 
-    VmaAllocator const& GetVmaAllocator() const { return mVmaAllocator; }
-
-    vk::Device const& GetVkDevice() const { return mDevice; }
-
-    Utils::DeletionQueue& GetMainDeletionQueue() {
-        return mMainDeletionQueue;
-    }
+    vk::Device const& GetVkDevice() const { return *mDevice; }
 
     void ImmediateSubmit(
         ::std::function<void(vk::CommandBuffer cmd)>&& function);
@@ -58,22 +51,37 @@ public:
 private:
     void Draw();
 
-    void InitSDLWindow();
     void InitVulkan();
 
-    void CreateInstance();
+    ::std::pmr::memory_resource* CreateGlobalMemoryPool();
+
+    SDL_Window* CreateSDLWindow();
+
+    Type_PInstance<vk::Instance> CreateInstance();
 #ifdef DEBUG
-    void CreateDebugUtilsMessenger();
+    Type_PInstance<vk::DebugUtilsMessengerEXT> CreateDebugUtilsMessenger();
 #endif
-    void CreateSurface();
-    void PickPhysicalDevice();
-    void SetQueueFamily(vk::QueueFlags requestedQueueTypes);
-    void CreateDevice();
-    void CreateVmaAllocators();
-    void CreateSwapchain();
+    Type_PInstance<VkSurfaceKHR> CreateSurface();
+
+    vk::PhysicalDevice PickPhysicalDevice();
+    void SetQueueFamily(vk::PhysicalDevice physicalDevice,
+                        vk::QueueFlags requestedQueueTypes);
+
+    Type_PInstance<vk::Device> CreateDevice();
+
+    Type_PInstance<VmaAllocator> CreateVmaAllocators();
+    Type_PInstance<VmaPool> CreateVmaExternalMemoryPool();
+
+    Type_PInstance<vk::SwapchainKHR> CreateSwapchain();
+    Type_PInstance<AllocatedVulkanImage> CreateDrawImage();
+    Type_PInstance<CUDA::VulkanExternalImage> CreateExternalImage();
+
     void CreateCommands();
+
     void CreateSyncStructures();
+
     void CreatePipelines();
+
     void CreateDescriptors();
 
     void CreateTriangleData();
@@ -85,7 +93,7 @@ private:
     void SetCudaInterop();
 
     GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
-                                  ::std::span<Vertex>   vertices);
+                                  ::std::span<Vertex> vertices);
 
     // Compute
     void CreateBackgroundComputeDescriptors();
@@ -108,68 +116,74 @@ private:
     std::vector<std::string> GetSDLRequestedInstanceExtensions() const;
 
 private:
-    bool        mStopRendering {false};
-    uint32_t    mFrameNum {0};
+    ::std::pmr::memory_resource* mPMemPool {nullptr};
+
+    bool mStopRendering {false};
+    uint32_t mFrameNum {0};
+
+    int mWindowWidth {1600};
+    int mWindowHeight {900};
     SDL_Window* mWindow {nullptr};
-    int         mWindowWidth {1600};
-    int         mWindowHeight {900};
 
     ::std::vector<::std::string> mEnabledInstanceLayers {};
     ::std::vector<::std::string> mEnabledInstanceExtensions {};
 
-    vk::Instance       mInstance {};
-    VkSurfaceKHR       mSurface {};
-    vk::Device         mDevice {};
-    vk::PhysicalDevice mPhysicalDevice {};
+    Type_PInstance<vk::Instance> mPInstance {nullptr};
 #ifdef DEBUG
-    vk::DebugUtilsMessengerEXT mDebugUtilsMessenger {};
+    Type_PInstance<vk::DebugUtilsMessengerEXT> mPDebugUtilsMessenger {nullptr};
 #endif
+    Type_PInstance<VkSurfaceKHR> mPSurface {nullptr};
 
     std::optional<uint32_t> mGraphicsFamilyIndex;
-    uint32_t                mGraphicsQueueCount = 0;
+    uint32_t mGraphicsQueueCount = 0;
     std::optional<uint32_t> mComputeFamilyIndex;
-    uint32_t                mComputeQueueCount = 0;
+    uint32_t mComputeQueueCount = 0;
     std::optional<uint32_t> mTransferFamilyIndex;
-    uint32_t                mTransferQueueCount = 0;
+    uint32_t mTransferQueueCount = 0;
+
+    vk::PhysicalDevice mPhysicalDevice {};
 
     ::std::vector<vk::Queue> mGraphicQueues {};
     ::std::vector<vk::Queue> mComputeQueues {};
     ::std::vector<vk::Queue> mTransferQueues {};
 
-    VmaAllocator mVmaAllocator {};
+    Type_PInstance<vk::Device> mDevice {nullptr};
+
+    Type_PInstance<VmaAllocator> mVmaAllocator {nullptr};
 
     vk::ExportMemoryAllocateInfo mExportMemoryAllocateInfo {
         vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32};
-    VmaPool mVmaExternalMemoryPool {};
+    Type_PInstance<VmaPool> mVmaExternalMemoryPool {nullptr};
 
-    vk::SwapchainKHR             mSwapchain {};
-    vk::Format                   mSwapchainImageFormat {};
-    ::std::vector<vk::Image>     mSwapchainImages {};
+    vk::Format mSwapchainImageFormat {};
+    ::std::vector<vk::Image> mSwapchainImages {};
     ::std::vector<vk::ImageView> mSwapchainImageViews {};
-    vk::Extent2D                 mSwapchainExtent {};
+    vk::Extent2D mSwapchainExtent {};
 
-    AllocatedVulkanImage mDrawImage {};
+    Type_PInstance<AllocatedVulkanImage> mDrawImage {nullptr};
 
-    vk::DescriptorSet       mDrawImageDescriptors {};
+    Type_PInstance<CUDA::VulkanExternalImage> mCUDAExternalImage {nullptr};
+
+    Type_PInstance<vk::SwapchainKHR> mSwapchain {nullptr};
+
+    vk::DescriptorSet mDrawImageDescriptors {};
     vk::DescriptorSetLayout mDrawImageDescriptorLayout {};
-
-    Utils::DeletionQueue mMainDeletionQueue {};
 
     DescriptorAllocator mMainDescriptorAllocator {};
 
     // background compute
-    vk::Pipeline       mBackgroundComputePipeline {};
+    vk::Pipeline mBackgroundComputePipeline {};
     vk::PipelineLayout mBackgroundComputePipelineLayout {};
 
     // graphic pipeline
-    vk::Pipeline       mTrianglePipelie {};
+    vk::Pipeline mTrianglePipelie {};
     vk::PipelineLayout mTrianglePipelieLayout {};
-    GPUMeshBuffers     mTriangleMesh {};
+    GPUMeshBuffers mTriangleMesh {};
 
     ExternalGPUMeshBuffers mTriangleExternalMesh {};
 
     vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
-    vk::DescriptorSet       mTextureTriangleDescriptors {};
+    vk::DescriptorSet mTextureTriangleDescriptors {};
 
     AllocatedVulkanImage mErrorCheckImage {};
 
@@ -181,5 +195,11 @@ private:
 
     CUDA::CUDAStream mCUDAStream {};
 
-    CUDA::VulkanExternalImage mCUDAExternalImage {};
+    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
+
+    struct ImmediateSubmit {
+        vk::Fence mFence {};
+        vk::CommandBuffer mCommandBuffer {};
+        vk::CommandPool mCommandPool {};
+    } mImmediateSubmit;
 };
