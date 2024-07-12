@@ -1,15 +1,24 @@
 #pragma once
 
-#include <vulkan/vulkan_raii.hpp>
+#include <vulkan/vulkan.hpp>
 #include "Mesh.hpp"
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanDescriptors.hpp"
+#include "VulkanHelper.hpp"
 #include "VulkanImage.hpp"
 
 #include "CUDA/CUDAStream.h"
 #include "CUDA/CUDAVulkan.h"
 
-struct SDL_Window;
+class SDLWindow;
+class VulkanInstance;
+class VulkanSurface;
+class VulkanDebugUtils;
+class VulkanPhysicalDevice;
+class VulkanDevice;
+class VulkanMemoryAllocator;
+class VulkanExternalMemoryPool;
+class VulkanSwapchain;
 
 struct FrameData {
     vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
@@ -24,10 +33,7 @@ constexpr uint32_t FRAME_OVERLAP = 2;
 constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
 
 class VulkanEngine {
-public:
-    template <class T>
-    using Type_PInstance =
-        IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>;
+    USING_TEMPLATE_PTR_TYPE(Type_PInstance, Type_SPInstance);
 
 public:
     VulkanEngine();
@@ -41,9 +47,13 @@ public:
         return mFrameDatas[mFrameNum % FRAME_OVERLAP];
     }
 
-    VmaAllocator const& GetVmaAllocator() const { return *mVmaAllocator; }
+    Type_SPInstance<VulkanMemoryAllocator> const& GetVmaAllocator() const {
+        return mSPVmaAllocator;
+    }
 
-    vk::Device const& GetVkDevice() const { return *mDevice; }
+    Type_SPInstance<VulkanDevice> const& GetVulkanDevicePtr() const {
+        return mSPDevice;
+    }
 
     void ImmediateSubmit(
         ::std::function<void(vk::CommandBuffer cmd)>&& function);
@@ -55,25 +65,24 @@ private:
 
     ::std::pmr::memory_resource* CreateGlobalMemoryPool();
 
-    SDL_Window* CreateSDLWindow();
+    Type_SPInstance<SDLWindow> CreateSDLWindow();
 
-    Type_PInstance<vk::Instance> CreateInstance();
+    Type_SPInstance<VulkanInstance> CreateInstance();
 #ifdef DEBUG
-    Type_PInstance<vk::DebugUtilsMessengerEXT> CreateDebugUtilsMessenger();
+    Type_PInstance<VulkanDebugUtils> CreateDebugUtilsMessenger();
 #endif
-    Type_PInstance<VkSurfaceKHR> CreateSurface();
+    Type_SPInstance<VulkanSurface> CreateSurface();
 
-    vk::PhysicalDevice PickPhysicalDevice();
-    void SetQueueFamily(vk::PhysicalDevice physicalDevice,
-                        vk::QueueFlags requestedQueueTypes);
+    Type_SPInstance<VulkanPhysicalDevice> PickPhysicalDevice();
 
-    Type_PInstance<vk::Device> CreateDevice();
+    Type_SPInstance<VulkanDevice> CreateDevice();
 
-    Type_PInstance<VmaAllocator> CreateVmaAllocators();
-    Type_PInstance<VmaPool> CreateVmaExternalMemoryPool();
+    Type_SPInstance<VulkanMemoryAllocator> CreateVmaAllocator();
+    Type_SPInstance<VulkanExternalMemoryPool> CreateVmaExternalMemoryPool();
 
-    Type_PInstance<vk::SwapchainKHR> CreateSwapchain();
-    Type_PInstance<AllocatedVulkanImage> CreateDrawImage();
+    Type_SPInstance<VulkanSwapchain> CreateSwapchain();
+
+    Type_PInstance<VulkanAllocatedImage> CreateDrawImage();
     Type_PInstance<CUDA::VulkanExternalImage> CreateExternalImage();
 
     void CreateCommands();
@@ -107,64 +116,32 @@ private:
     void DrawTriangle(vk::CommandBuffer cmd);
 
 private:
-    // helper functions
-    void SetInstanceLayers(
-        ::std::vector<::std::string> const& requestedLayers = {});
-    void SetInstanceExtensions(
-        ::std::vector<::std::string> const& requestedExtensions = {});
-
-    std::vector<std::string> GetSDLRequestedInstanceExtensions() const;
-
-private:
     ::std::pmr::memory_resource* mPMemPool {nullptr};
 
     bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
-    int mWindowWidth {1600};
-    int mWindowHeight {900};
-    SDL_Window* mWindow {nullptr};
+    Type_SPInstance<SDLWindow> mSPWindow {nullptr};
 
-    ::std::vector<::std::string> mEnabledInstanceLayers {};
-    ::std::vector<::std::string> mEnabledInstanceExtensions {};
-
-    Type_PInstance<vk::Instance> mPInstance {nullptr};
+    Type_SPInstance<VulkanInstance> mSPInstance {nullptr};
 #ifdef DEBUG
-    Type_PInstance<vk::DebugUtilsMessengerEXT> mPDebugUtilsMessenger {nullptr};
+    Type_PInstance<VulkanDebugUtils> mPDebugUtilsMessenger {nullptr};
 #endif
-    Type_PInstance<VkSurfaceKHR> mPSurface {nullptr};
+    Type_SPInstance<VulkanSurface> mSPSurface {nullptr};
 
-    std::optional<uint32_t> mGraphicsFamilyIndex;
-    uint32_t mGraphicsQueueCount = 0;
-    std::optional<uint32_t> mComputeFamilyIndex;
-    uint32_t mComputeQueueCount = 0;
-    std::optional<uint32_t> mTransferFamilyIndex;
-    uint32_t mTransferQueueCount = 0;
+    Type_SPInstance<VulkanPhysicalDevice> mSPPhysicalDevice {nullptr};
 
-    vk::PhysicalDevice mPhysicalDevice {};
+    Type_SPInstance<VulkanDevice> mSPDevice {nullptr};
 
-    ::std::vector<vk::Queue> mGraphicQueues {};
-    ::std::vector<vk::Queue> mComputeQueues {};
-    ::std::vector<vk::Queue> mTransferQueues {};
+    Type_SPInstance<VulkanMemoryAllocator> mSPVmaAllocator {nullptr};
 
-    Type_PInstance<vk::Device> mDevice {nullptr};
+    Type_SPInstance<VulkanExternalMemoryPool> mVmaExternalMemoryPool {nullptr};
 
-    Type_PInstance<VmaAllocator> mVmaAllocator {nullptr};
-
-    vk::ExportMemoryAllocateInfo mExportMemoryAllocateInfo {
-        vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32};
-    Type_PInstance<VmaPool> mVmaExternalMemoryPool {nullptr};
-
-    vk::Format mSwapchainImageFormat {};
-    ::std::vector<vk::Image> mSwapchainImages {};
-    ::std::vector<vk::ImageView> mSwapchainImageViews {};
-    vk::Extent2D mSwapchainExtent {};
-
-    Type_PInstance<AllocatedVulkanImage> mDrawImage {nullptr};
+    Type_PInstance<VulkanAllocatedImage> mDrawImage {nullptr};
 
     Type_PInstance<CUDA::VulkanExternalImage> mCUDAExternalImage {nullptr};
 
-    Type_PInstance<vk::SwapchainKHR> mSwapchain {nullptr};
+    Type_SPInstance<VulkanSwapchain> mSwapchain {nullptr};
 
     vk::DescriptorSet mDrawImageDescriptors {};
     vk::DescriptorSetLayout mDrawImageDescriptorLayout {};
@@ -185,7 +162,7 @@ private:
     vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
     vk::DescriptorSet mTextureTriangleDescriptors {};
 
-    AllocatedVulkanImage mErrorCheckImage {};
+    VulkanAllocatedImage mErrorCheckImage {};
 
     vk::Sampler mDefaultSamplerLinear;
     vk::Sampler mDefaultSamplerNearest;

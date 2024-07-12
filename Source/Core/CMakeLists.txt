@@ -5,11 +5,30 @@ set(CMAKE_CXX_STANDARD 20)
 set (CORE_SRC 
     VulkanHelper.hpp
 
+    Utilities/Logger.hpp
+
     Utilities/VulkanUtilities.hpp
     Utilities/VulkanUtilities.cpp
 
+    Window.hpp
+    Window.cpp
+
     Engine.hpp
     Engine.cpp
+    VulkanInstance.hpp
+    VulkanInstance.cpp
+    VulkanDebugUtils.hpp
+    VulkanDebugUtils.cpp
+    VulkanSurface.hpp
+    VulkanSurface.cpp
+    VulkanPhysicalDevice.hpp
+    VulkanPhysicalDevice.cpp
+    VulkanDevice.hpp
+    VulkanDevice.cpp
+    VulkanMemoryAllocator.hpp
+    VulkanMemoryAllocator.cpp
+    VulkanSwapchain.hpp
+    VulkanSwapchain.cpp
     VulkanImage.hpp
     VulkanImage.cpp
     VulkanDescriptors.hpp

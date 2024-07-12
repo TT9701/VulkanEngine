@@ -6,9 +6,9 @@
 #include "VulkanBuffer.hpp"
 
 struct GPUMeshBuffers {
-    IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<AllocatedVulkanBuffer>
+    IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<VulkanAllocatedBuffer>
         mIndexBuffer{nullptr};
-    IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<AllocatedVulkanBuffer>
+    IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<VulkanAllocatedBuffer>
         mVertexBuffer{nullptr};
     vk::DeviceAddress mVertexBufferAddress{};
 };

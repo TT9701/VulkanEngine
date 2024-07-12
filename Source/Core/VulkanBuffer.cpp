@@ -1,10 +1,21 @@
 #include "VulkanBuffer.hpp"
 
-AllocatedVulkanBuffer::AllocatedVulkanBuffer(VmaAllocator         allocator,
-                                             size_t               allocByteSize,
-                                             vk::BufferUsageFlags usage,
-                                             VmaAllocationCreateFlags flags)
-    : mAllocator(allocator) {
+#include "VulkanMemoryAllocator.hpp"
+
+VulkanAllocatedBuffer::VulkanAllocatedBuffer(
+    Type_SPInstance<VulkanMemoryAllocator> const& allocator,
+    size_t allocByteSize, vk::BufferUsageFlags usage,
+    VmaAllocationCreateFlags flags)
+    : mAllocator(allocator),
+      mBuffer(CreateBuffer(allocByteSize, usage, flags)) {}
+
+VulkanAllocatedBuffer::~VulkanAllocatedBuffer() {
+    vmaDestroyBuffer(mAllocator->GetHandle(), mBuffer, mAllocation);
+}
+
+vk::Buffer VulkanAllocatedBuffer::CreateBuffer(size_t allocByteSize,
+                                               vk::BufferUsageFlags usage,
+                                               VmaAllocationCreateFlags flags) {
     vk::BufferCreateInfo bufferInfo {};
     bufferInfo.setSize(allocByteSize).setUsage(usage);
 
@@ -13,12 +24,11 @@ AllocatedVulkanBuffer::AllocatedVulkanBuffer(VmaAllocator         allocator,
     vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     vmaAllocInfo.flags = flags;
 
-    vmaCreateBuffer(allocator,
-                    reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo),
-                    &vmaAllocInfo, reinterpret_cast<VkBuffer*>(&mBuffer),
-                    &mAllocation, &mInfo);
-}
+    VkBuffer buffer {};
 
-AllocatedVulkanBuffer::~AllocatedVulkanBuffer() {
-    vmaDestroyBuffer(mAllocator, mBuffer, mAllocation);
+    vmaCreateBuffer(mAllocator->GetHandle(),
+                    reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo),
+                    &vmaAllocInfo, &buffer, &mAllocation, &mInfo);
+
+    return buffer;
 }

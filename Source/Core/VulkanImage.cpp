@@ -2,18 +2,24 @@
 
 #include "Engine.hpp"
 #include "VulkanBuffer.hpp"
+#include "VulkanDevice.hpp"
+#include "VulkanMemoryAllocator.hpp"
 
-void AllocatedVulkanImage::CreateImage(
+
+VulkanAllocatedImage::~VulkanAllocatedImage() {}
+
+void VulkanAllocatedImage::CreateImage(
     vk::Device device, VmaAllocator allocator, VmaAllocationCreateFlags flags,
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
     vk::ImageAspectFlags aspect, bool mipmaped, uint32_t arrayLayers,
     vk::ImageType type, vk::ImageViewType viewType) {
     mExtent3D = extent;
-    mFormat   = format;
+    mFormat = format;
 
     uint32_t mipLevels =
-        mipmaped ? static_cast<uint32_t>(1 + ::std::floor(::std::log2(std::max(
-                                                 extent.width, extent.height))))
+        mipmaped ? static_cast<uint32_t>(1
+                                         + ::std::floor(::std::log2(std::max(
+                                             extent.width, extent.height))))
                  : 1;
 
     vk::ImageCreateInfo imageCreateInfo {};
@@ -43,23 +49,24 @@ void AllocatedVulkanImage::CreateImage(
     mImageView = device.createImageView(imageViewCreateInfo);
 }
 
-void AllocatedVulkanImage::CreateImage(
+void VulkanAllocatedImage::CreateImage(
     void* data, VulkanEngine* engine, VmaAllocationCreateFlags flags,
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
     vk::ImageAspectFlags aspect, bool mipmaped, uint32_t arrayLayers,
     vk::ImageType type, vk::ImageViewType viewType) {
     size_t dataSize = extent.width * extent.height * extent.depth * 4;
 
-    AllocatedVulkanBuffer uploadBuffer {
+    VulkanAllocatedBuffer uploadBuffer {
         engine->GetVmaAllocator(), dataSize,
         vk::BufferUsageFlagBits::eTransferSrc,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-            VMA_ALLOCATION_CREATE_MAPPED_BIT};
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            | VMA_ALLOCATION_CREATE_MAPPED_BIT};
 
-    memcpy(uploadBuffer.mInfo.pMappedData, data, dataSize);
+    memcpy(uploadBuffer.GetAllocationInfo().pMappedData, data, dataSize);
 
-    CreateImage(engine->GetVkDevice(), engine->GetVmaAllocator(), flags, extent,
-                format, usage, aspect, mipmaped, arrayLayers, type, viewType);
+    CreateImage(engine->GetVulkanDevicePtr()->GetHandle(),
+                engine->GetVmaAllocator()->GetHandle(), flags, extent, format,
+                usage, aspect, mipmaped, arrayLayers, type, viewType);
 
     engine->ImmediateSubmit([&](vk::CommandBuffer cmd) {
         TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
@@ -68,28 +75,28 @@ void AllocatedVulkanImage::CreateImage(
             .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
             .setImageExtent(extent);
 
-        cmd.copyBufferToImage(uploadBuffer.mBuffer, mImage,
+        cmd.copyBufferToImage(uploadBuffer.GetHandle(), mImage,
                               vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
         TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
     });
 }
 
-void AllocatedVulkanImage::Destroy(vk::Device device, VmaAllocator allocator) {
+void VulkanAllocatedImage::Destroy(vk::Device device, VmaAllocator allocator) {
     vmaDestroyImage(allocator, mImage, mAllocation);
     device.destroy(mImageView);
 }
 
-void AllocatedVulkanImage::TransitionLayout(vk::CommandBuffer cmd,
-                                            vk::ImageLayout   newLayout) {
+void VulkanAllocatedImage::TransitionLayout(vk::CommandBuffer cmd,
+                                            vk::ImageLayout newLayout) {
     Utils::TransitionImageLayout(cmd, mImage, mLayout, newLayout);
     mLayout = newLayout;
 }
 
-void AllocatedVulkanImage::CopyToImage(vk::CommandBuffer cmd,
-                                       vk::Image         dstImage,
-                                       vk::Extent2D      srcExtent,
-                                       vk::Extent2D      dstExtent) {
+void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
+                                       vk::Image dstImage,
+                                       vk::Extent2D srcExtent,
+                                       vk::Extent2D dstExtent) {
     vk::ImageBlit2 blitRegion {};
     blitRegion
         .setSrcOffsets(
@@ -114,9 +121,9 @@ void AllocatedVulkanImage::CopyToImage(vk::CommandBuffer cmd,
     cmd.blitImage2(blitInfo);
 }
 
-void AllocatedVulkanImage::CopyToImage(vk::CommandBuffer    cmd,
-                                       AllocatedVulkanImage dstImage,
-                                       vk::Extent2D         srcExtent,
-                                       vk::Extent2D         dstExtent) {
+void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
+                                       VulkanAllocatedImage dstImage,
+                                       vk::Extent2D srcExtent,
+                                       vk::Extent2D dstExtent) {
     CopyToImage(cmd, dstImage.mImage, srcExtent, dstExtent);
 }

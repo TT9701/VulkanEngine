@@ -1,16 +1,9 @@
 #pragma once
 
 #include <vulkan/vulkan_to_string.hpp>
+#include "Core/System/MemoryPool/MemoryPool.h"
 
 #include <iostream>
-
-#include <Core/System/AP_ErrorLogger.h>
-
-inline IntelliDesign_NS::Core::AP_ErrorLogger* GetLogger() {
-    static ::std::unique_ptr<IntelliDesign_NS::Core::AP_ErrorLogger>
-        pErrorLogger {new IntelliDesign_NS::Core::AP_ErrorLogger};
-    return pErrorLogger.get();
-}
 
 #define VK_CHECK(x)                                                        \
     {                                                                      \
@@ -22,8 +15,26 @@ inline IntelliDesign_NS::Core::AP_ErrorLogger* GetLogger() {
         }                                                                  \
     }
 
-#ifdef DEBUG
-#define DBG_LOG_INFO(...) GetLogger()->Log(__VA_ARGS__)
-#else
-#define DBG_LOG_INFO(...)
-#endif
+#define USING_UNIQUE_PTR_TYPE(name, T) \
+    using name = IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>
+
+#define USING_SHARED_PTR_TYPE(name, T) \
+    using name = IntelliDesign_NS::Core::MemoryPool::Type_SharedPtr<T>
+
+#define USING_PTR_TYPE(uniquePtrName, sharedPtrName, T) \
+    USING_UNIQUE_PTR_TYPE(uniquePtrName, T);            \
+    USING_SHARED_PTR_TYPE(sharedPtrName, T)
+
+#define USING_TEMPLATE_UNIQUE_PTR_TYPE(name) \
+    template <class T>                       \
+    using name = IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>
+
+#define USING_TEMPLATE_SHARED_PTR_TYPE(name) \
+    template <class T>                       \
+    using name = IntelliDesign_NS::Core::MemoryPool::Type_SharedPtr<T>
+
+#define USING_TEMPLATE_PTR_TYPE(uniquePtrName, sharedPtrName) \
+    USING_TEMPLATE_UNIQUE_PTR_TYPE(uniquePtrName);            \
+    USING_TEMPLATE_SHARED_PTR_TYPE(sharedPtrName)
+
+#include "Utilities/Logger.hpp"
