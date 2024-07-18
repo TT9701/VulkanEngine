@@ -31,6 +31,10 @@ set (CORE_SRC
     VulkanSwapchain.cpp
     VulkanImage.hpp
     VulkanImage.cpp
+    VulkanSyncStructures.hpp
+    VulkanSyncStructures.cpp
+    VulkanFrameObjects.hpp
+    VulkanFrameObjects.cpp
     VulkanDescriptors.hpp
     VulkanDescriptors.cpp
     VulkanPipeline.hpp

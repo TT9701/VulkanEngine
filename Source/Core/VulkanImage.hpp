@@ -10,40 +10,67 @@ class VulkanEngine;
 
 class VulkanAllocatedImage {
     USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
+
 public:
-    // VulkanAllocatedImage();
+    VulkanAllocatedImage(
+        Type_SPInstance<VulkanDevice> const& device,
+        Type_SPInstance<VulkanMemoryAllocator> const& allocator,
+        VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
+        vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+        void* data = nullptr, VulkanEngine* engine = nullptr,
+        uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1,
+        vk::ImageType type = vk::ImageType::e2D,
+        vk::ImageViewType viewType = vk::ImageViewType::e2D);
+
     ~VulkanAllocatedImage();
 
 public:
-    void CreateImage(vk::Device device, VmaAllocator allocator,
-                     VmaAllocationCreateFlags flags, vk::Extent3D extent,
-                     vk::Format format, vk::ImageUsageFlags usage,
-                     vk::ImageAspectFlags aspect, bool mipmaped = false,
-                     uint32_t arrayLayers = 1,
-                     vk::ImageType type = vk::ImageType::e2D,
-                     vk::ImageViewType viewType = vk::ImageViewType::e2D);
-
-    void CreateImage(void* data, VulkanEngine* engine,
-                     VmaAllocationCreateFlags flags, vk::Extent3D extent,
-                     vk::Format format, vk::ImageUsageFlags usage,
-                     vk::ImageAspectFlags aspect, bool mipmaped = false,
-                     uint32_t arrayLayers = 1,
-                     vk::ImageType type = vk::ImageType::e2D,
-                     vk::ImageViewType viewType = vk::ImageViewType::e2D);
-
-    void Destroy(vk::Device device, VmaAllocator allocator);
-
     void TransitionLayout(vk::CommandBuffer cmd, vk::ImageLayout newLayout);
 
     void CopyToImage(vk::CommandBuffer cmd, vk::Image dstImage,
                      vk::Extent2D srcExtent, vk::Extent2D dstExtent);
+
     void CopyToImage(vk::CommandBuffer cmd, VulkanAllocatedImage dstImage,
                      vk::Extent2D srcExtent, vk::Extent2D dstExtent);
 
+public:
+    vk::Extent3D const& GetExtent3D() const { return mExtent3D; }
+
+    vk::Format const& GetFormat() const { return mFormat; }
+
+    uint32_t GetMipmapLevel() const { return mMipmapLevel; }
+
+    uint32_t GetArrayLayerCount() const { return mArrayLayerCount; }
+
+    vk::ImageLayout const& GetLayout() const { return mLayout; }
+
+    vk::Image const& GetHandle() const { return mImage; }
+
+    vk::ImageView const& GetImageView() const { return mImageView; }
+
+
+private:
+    vk::Image CreateImage(void* data, VmaAllocationCreateFlags flags,
+                          vk::ImageUsageFlags usage, vk::ImageType type);
+
+    vk::ImageView CreateImageView(vk::ImageAspectFlags aspect,
+                                  vk::ImageViewType viewType);
+
+private:
+    Type_SPInstance<VulkanDevice> pDevice;
+    Type_SPInstance<VulkanMemoryAllocator> pAllocator;
+
+    vk::Extent3D mExtent3D;
+    vk::Format mFormat;
+
+    VulkanEngine* pEngine;
+
+    uint32_t mMipmapLevel;
+    uint32_t mArrayLayerCount;
+    vk::ImageLayout mLayout {vk::ImageLayout::eUndefined};
+
+    VmaAllocation mAllocation {};
+
     vk::Image mImage {};
     vk::ImageView mImageView {};
-    VmaAllocation mAllocation {};
-    vk::Extent3D mExtent3D {};
-    vk::Format mFormat {};
-    vk::ImageLayout mLayout {vk::ImageLayout::eUndefined};
 };

@@ -5,7 +5,6 @@
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanDescriptors.hpp"
 #include "VulkanHelper.hpp"
-#include "VulkanImage.hpp"
 
 #include "CUDA/CUDAStream.h"
 #include "CUDA/CUDAVulkan.h"
@@ -19,6 +18,7 @@ class VulkanDevice;
 class VulkanMemoryAllocator;
 class VulkanExternalMemoryPool;
 class VulkanSwapchain;
+class VulkanAllocatedImage;
 
 struct FrameData {
     vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
@@ -45,14 +45,6 @@ public:
 public:
     FrameData& GetCurrentFrameData() {
         return mFrameDatas[mFrameNum % FRAME_OVERLAP];
-    }
-
-    Type_SPInstance<VulkanMemoryAllocator> const& GetVmaAllocator() const {
-        return mSPVmaAllocator;
-    }
-
-    Type_SPInstance<VulkanDevice> const& GetVulkanDevicePtr() const {
-        return mSPDevice;
     }
 
     void ImmediateSubmit(
@@ -96,7 +88,7 @@ private:
     void CreateTriangleData();
     void CreateExternalTriangleData();
 
-    void CreateErrorCheckTextures();
+    Type_PInstance<VulkanAllocatedImage> CreateErrorCheckTexture();
     void CreateDefaultSamplers();
 
     void SetCudaInterop();
@@ -143,6 +135,10 @@ private:
 
     Type_SPInstance<VulkanSwapchain> mSwapchain {nullptr};
 
+    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
+
+    Type_SPInstance<VulkanAllocatedImage> mErrorCheckImage {nullptr};
+
     vk::DescriptorSet mDrawImageDescriptors {};
     vk::DescriptorSetLayout mDrawImageDescriptorLayout {};
 
@@ -162,7 +158,6 @@ private:
     vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
     vk::DescriptorSet mTextureTriangleDescriptors {};
 
-    VulkanAllocatedImage mErrorCheckImage {};
 
     vk::Sampler mDefaultSamplerLinear;
     vk::Sampler mDefaultSamplerNearest;
@@ -171,8 +166,6 @@ private:
     CUDA::VulkanExternalSemaphore mCUDASignalSemaphore {};
 
     CUDA::CUDAStream mCUDAStream {};
-
-    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
 
     struct ImmediateSubmit {
         vk::Fence mFence {};

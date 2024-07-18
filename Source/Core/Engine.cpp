@@ -7,6 +7,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "VulkanDebugUtils.hpp"
 #include "VulkanDevice.hpp"
+#include "VulkanImage.hpp"
 #include "VulkanInstance.hpp"
 #include "VulkanMemoryAllocator.hpp"
 #include "VulkanPhysicalDevice.hpp"
@@ -27,7 +28,8 @@ VulkanEngine::VulkanEngine()
       mVmaExternalMemoryPool(CreateVmaExternalMemoryPool()),
       mDrawImage(CreateDrawImage()),
       mCUDAExternalImage(CreateExternalImage()),
-      mSwapchain(CreateSwapchain()) {
+      mSwapchain(CreateSwapchain()),
+      mErrorCheckImage(CreateErrorCheckTexture()) {
     SetCudaInterop();
 }
 
@@ -100,7 +102,7 @@ void VulkanEngine::Draw() {
 
     mDrawImage->CopyToImage(
         cmd, mSwapchain->GetImages()[swapchainImageIndex],
-        {mDrawImage->mExtent3D.width, mDrawImage->mExtent3D.height},
+        {mDrawImage->GetExtent3D().width, mDrawImage->GetExtent3D().height},
         mSwapchain->GetExtent2D());
 
     Utils::TransitionImageLayout(
@@ -162,7 +164,7 @@ void VulkanEngine::InitVulkan() {
     CreateCommands();
     CreateSyncStructures();
 
-    CreateErrorCheckTextures();
+    CreateErrorCheckTexture();
     CreateDefaultSamplers();
 
     CreateDescriptors();
@@ -283,17 +285,11 @@ VulkanEngine::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    auto temp_drawImage =
-        IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedImage>(
-            mPMemPool);
-
-    temp_drawImage->CreateImage(
-        mSPDevice->GetHandle(), mSPVmaAllocator->GetHandle(),
+    return IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedImage>(
+        mPMemPool, mSPDevice, mSPVmaAllocator,
         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, drawImageExtent,
         vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
-
-    return temp_drawImage;
 }
 
 VulkanEngine::Type_PInstance<CUDA::VulkanExternalImage>
@@ -460,7 +456,8 @@ void VulkanEngine::CreateExternalTriangleData() {
     externalImage.Destroy(mSPDevice->GetHandle(), mSPVmaAllocator->GetHandle());
 }
 
-void VulkanEngine::CreateErrorCheckTextures() {
+VulkanEngine ::Type_PInstance<VulkanAllocatedImage>
+VulkanEngine::CreateErrorCheckTexture() {
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
     std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
@@ -469,12 +466,12 @@ void VulkanEngine::CreateErrorCheckTextures() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-
-    mErrorCheckImage.CreateImage(
-        pixels.data(), this, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
+    return IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedImage>(
+        mPMemPool, mSPDevice, mSPVmaAllocator,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VkExtent3D {16, 16, 1},
+        vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
-        vk::ImageAspectFlagBits::eColor);
+        vk::ImageAspectFlagBits::eColor, pixels.data(), this);
 }
 
 void VulkanEngine::CreateDefaultSamplers() {
@@ -578,7 +575,8 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
 
     DescriptorWriter writer {};
     writer.WriteImage(
-        0, {VK_NULL_HANDLE, mDrawImage->mImageView, vk::ImageLayout::eGeneral},
+        0,
+        {VK_NULL_HANDLE, mDrawImage->GetImageView(), vk::ImageLayout::eGeneral},
         vk::DescriptorType::eStorageImage);
 
     writer.UpdateSet(mSPDevice->GetHandle(), mDrawImageDescriptors);
@@ -648,7 +646,7 @@ void VulkanEngine::CreateTrianglePipeline() {
             .SetMultisampling(vk::SampleCountFlagBits::e1)
             .SetBlending(vk::False)
             .SetDepth(vk::False, vk::False)
-            .SetColorAttachmentFormat(mDrawImage->mFormat)
+            .SetColorAttachmentFormat(mDrawImage->GetFormat())
             .SetDepthStencilFormat(vk::Format::eUndefined)
             .Build(mSPDevice->GetHandle());
 
@@ -669,7 +667,7 @@ void VulkanEngine::CreateTriangleDescriptors() {
 
     DescriptorWriter writer {};
     writer.WriteImage(0,
-                      {mDefaultSamplerNearest, mErrorCheckImage.mImageView,
+                      {mDefaultSamplerNearest, mErrorCheckImage->GetImageView(),
                        vk::ImageLayout::eShaderReadOnlyOptimal},
                       vk::DescriptorType::eCombinedImageSampler);
 
@@ -684,7 +682,7 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     auto subresource =
         Utils::GetDefaultImageSubresourceRange(vk::ImageAspectFlagBits::eColor);
 
-    cmd.clearColorImage(mDrawImage->mImage, vk::ImageLayout::eGeneral,
+    cmd.clearColorImage(mDrawImage->GetHandle(), vk::ImageLayout::eGeneral,
                         clearValue, subresource);
 
     // cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
@@ -697,7 +695,7 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     // cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
     //              ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
 
-    auto layout = mDrawImage->mLayout;
+    auto layout = mDrawImage->GetLayout();
 
     mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
     Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
@@ -715,13 +713,13 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
         .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
         .setDstOffsets(
             {vk::Offset3D {},
-             vk::Offset3D {static_cast<int32_t>(mDrawImage->mExtent3D.width),
-                           static_cast<int32_t>(mDrawImage->mExtent3D.height),
-                           1}})
+             vk::Offset3D {
+                 static_cast<int32_t>(mDrawImage->GetExtent3D().width),
+                 static_cast<int32_t>(mDrawImage->GetExtent3D().height), 1}})
         .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
 
     vk::BlitImageInfo2 blitInfo {};
-    blitInfo.setDstImage(mDrawImage->mImage)
+    blitInfo.setDstImage(mDrawImage->GetHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setSrcImage(mCUDAExternalImage->GetVkImage())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
@@ -738,16 +736,16 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
 
 void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment.setImageView(mDrawImage->mImageView)
-        .setImageLayout(mDrawImage->mLayout)
+    colorAttachment.setImageView(mDrawImage->GetImageView())
+        .setImageLayout(mDrawImage->GetLayout())
         .setLoadOp(vk::AttachmentLoadOp::eLoad)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
 
     vk::RenderingInfo renderInfo {};
     renderInfo
-        .setRenderArea(vk::Rect2D {
-            {0, 0},
-            {mDrawImage->mExtent3D.width, mDrawImage->mExtent3D.height}})
+        .setRenderArea(vk::Rect2D {{0, 0},
+                                   {mDrawImage->GetExtent3D().width,
+                                    mDrawImage->GetExtent3D().height}})
         .setLayerCount(1u)
         .setColorAttachments(colorAttachment)
         .setPDepthAttachment(VK_NULL_HANDLE)     // TODO
@@ -758,15 +756,15 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, mTrianglePipelie);
 
     vk::Viewport viewport {};
-    viewport.setWidth(mDrawImage->mExtent3D.width)
-        .setHeight(mDrawImage->mExtent3D.height)
+    viewport.setWidth(mDrawImage->GetExtent3D().width)
+        .setHeight(mDrawImage->GetExtent3D().height)
         .setMinDepth(0.0f)
         .setMaxDepth(1.0f);
     cmd.setViewport(0, viewport);
 
     vk::Rect2D scissor {};
     scissor.setExtent(
-        {mDrawImage->mExtent3D.width, mDrawImage->mExtent3D.height});
+        {mDrawImage->GetExtent3D().width, mDrawImage->GetExtent3D().height});
     cmd.setScissor(0, scissor);
 
     cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
