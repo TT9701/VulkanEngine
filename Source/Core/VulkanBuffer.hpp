@@ -3,7 +3,8 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanMemoryAllocator;
 
@@ -15,9 +16,10 @@ public:
         Type_SPInstance<VulkanMemoryAllocator> const& allocator,
         size_t allocByteSize, vk::BufferUsageFlags usage,
         VmaAllocationCreateFlags flags);
-
     ~VulkanAllocatedBuffer();
+    MOVABLE_ONLY(VulkanAllocatedBuffer);
 
+public:
     vk::Buffer const& GetHandle() const { return mBuffer; }
 
     VmaAllocation const& GetAllocation() const { return mAllocation; }

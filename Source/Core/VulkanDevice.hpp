@@ -2,7 +2,8 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanPhysicalDevice;
 
@@ -17,7 +18,9 @@ public:
                  void* pNext = nullptr);
 
     ~VulkanDevice();
+    MOVABLE_ONLY(VulkanDevice);
 
+public:
     vk::Device const& GetHandle() const { return mDevice; }
 
     ::std::vector<vk::Queue> const& GetGraphicQueues() const {

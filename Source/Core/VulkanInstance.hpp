@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 
 class VulkanInstance {
@@ -8,6 +9,7 @@ public:
         ::std::vector<::std::string> const& requestedInstanceLayers,
         ::std::vector<::std::string> const& requestedInstanceExtensions);
     ~VulkanInstance();
+    MOVABLE_ONLY(VulkanInstance);
 
     vk::Instance const& GetHandle() const { return mInstance; }
 

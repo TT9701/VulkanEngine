@@ -1,36 +1,60 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 #include "Mesh.hpp"
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanDescriptors.hpp"
-#include "VulkanHelper.hpp"
 
 #include "CUDA/CUDAStream.h"
 #include "CUDA/CUDAVulkan.h"
 
 class SDLWindow;
-class VulkanInstance;
-class VulkanSurface;
-class VulkanDebugUtils;
-class VulkanPhysicalDevice;
-class VulkanDevice;
+class VulkanContext;
 class VulkanMemoryAllocator;
 class VulkanExternalMemoryPool;
 class VulkanSwapchain;
 class VulkanAllocatedImage;
+class VulkanFence;
+class VulkanCommandBuffer;
+class VulkanCommandPool;
 
 struct FrameData {
-    vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
-    vk::Fence mRenderFence {};
+    // vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
+    // vk::Fence mRenderFence {};
 
     vk::CommandPool mCommandPool {};
     vk::CommandBuffer mCommandBuffer {};
 };
 
-constexpr uint32_t FRAME_OVERLAP = 2;
+class ImmediateSubmitManager {
+    USING_TEMPLATE_PTR_TYPE(Type_PInstance, Type_SPInstance);
 
-constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
+public:
+    ImmediateSubmitManager(Type_SPInstance<VulkanContext> const& ctx,
+                           uint32_t queueFamilyIndex);
+    ~ImmediateSubmitManager() = default;
+    MOVABLE_ONLY(ImmediateSubmitManager);
+
+public:
+    void Submit(::std::function<void(vk::CommandBuffer cmd)>&& function) const;
+
+private:
+    Type_SPInstance<VulkanFence> CreateFence();
+    Type_SPInstance<VulkanCommandBuffer> CreateCommandBuffer();
+    Type_SPInstance<VulkanCommandPool> CreateCommandPool();
+
+private:
+    Type_SPInstance<VulkanContext> pContex;
+    uint32_t mQueueFamilyIndex;
+
+    Type_SPInstance<VulkanFence> mSPFence;
+    Type_SPInstance<VulkanCommandPool> mSPCommandPool;
+    Type_SPInstance<VulkanCommandBuffer> mSPCommandBuffer;
+};
+
+constexpr uint32_t FRAME_OVERLAP = 3;
 
 class VulkanEngine {
     USING_TEMPLATE_PTR_TYPE(Type_PInstance, Type_SPInstance);
@@ -38,7 +62,9 @@ class VulkanEngine {
 public:
     VulkanEngine();
     ~VulkanEngine();
+    MOVABLE_ONLY(VulkanEngine);
 
+public:
     void Init();
     void Run();
 
@@ -47,27 +73,18 @@ public:
         return mFrameDatas[mFrameNum % FRAME_OVERLAP];
     }
 
-    void ImmediateSubmit(
-        ::std::function<void(vk::CommandBuffer cmd)>&& function);
+    Type_SPInstance<ImmediateSubmitManager> GetImmediateSubmitManager() {
+        return mSPImmediateSubmit;
+    }
 
 private:
     void Draw();
 
     void InitVulkan();
 
-    ::std::pmr::memory_resource* CreateGlobalMemoryPool();
-
     Type_SPInstance<SDLWindow> CreateSDLWindow();
 
-    Type_SPInstance<VulkanInstance> CreateInstance();
-#ifdef DEBUG
-    Type_PInstance<VulkanDebugUtils> CreateDebugUtilsMessenger();
-#endif
-    Type_SPInstance<VulkanSurface> CreateSurface();
-
-    Type_SPInstance<VulkanPhysicalDevice> PickPhysicalDevice();
-
-    Type_SPInstance<VulkanDevice> CreateDevice();
+    Type_SPInstance<VulkanContext> CreateContext();
 
     Type_SPInstance<VulkanMemoryAllocator> CreateVmaAllocator();
     Type_SPInstance<VulkanExternalMemoryPool> CreateVmaExternalMemoryPool();
@@ -76,6 +93,8 @@ private:
 
     Type_PInstance<VulkanAllocatedImage> CreateDrawImage();
     Type_PInstance<CUDA::VulkanExternalImage> CreateExternalImage();
+
+    Type_SPInstance<ImmediateSubmitManager> CreateImmediateSubmit();
 
     void CreateCommands();
 
@@ -108,22 +127,12 @@ private:
     void DrawTriangle(vk::CommandBuffer cmd);
 
 private:
-    ::std::pmr::memory_resource* mPMemPool {nullptr};
-
     bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
     Type_SPInstance<SDLWindow> mSPWindow {nullptr};
 
-    Type_SPInstance<VulkanInstance> mSPInstance {nullptr};
-#ifdef DEBUG
-    Type_PInstance<VulkanDebugUtils> mPDebugUtilsMessenger {nullptr};
-#endif
-    Type_SPInstance<VulkanSurface> mSPSurface {nullptr};
-
-    Type_SPInstance<VulkanPhysicalDevice> mSPPhysicalDevice {nullptr};
-
-    Type_SPInstance<VulkanDevice> mSPDevice {nullptr};
+    Type_SPInstance<VulkanContext> mSPContext {nullptr};
 
     Type_SPInstance<VulkanMemoryAllocator> mSPVmaAllocator {nullptr};
 
@@ -133,7 +142,9 @@ private:
 
     Type_PInstance<CUDA::VulkanExternalImage> mCUDAExternalImage {nullptr};
 
-    Type_SPInstance<VulkanSwapchain> mSwapchain {nullptr};
+    Type_SPInstance<VulkanSwapchain> mSPSwapchain {nullptr};
+
+    Type_SPInstance<ImmediateSubmitManager> mSPImmediateSubmit;
 
     ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
 
@@ -158,7 +169,6 @@ private:
     vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
     vk::DescriptorSet mTextureTriangleDescriptors {};
 
-
     vk::Sampler mDefaultSamplerLinear;
     vk::Sampler mDefaultSamplerNearest;
 
@@ -166,10 +176,4 @@ private:
     CUDA::VulkanExternalSemaphore mCUDASignalSemaphore {};
 
     CUDA::CUDAStream mCUDAStream {};
-
-    struct ImmediateSubmit {
-        vk::Fence mFence {};
-        vk::CommandBuffer mCommandBuffer {};
-        vk::CommandPool mCommandPool {};
-    } mImmediateSubmit;
 };

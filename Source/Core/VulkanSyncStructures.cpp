@@ -1,30 +1,30 @@
 #include "VulkanSyncStructures.hpp"
 
-#include "VulkanDevice.hpp"
+#include "VulkanContext.hpp"
 
-VulkanFence::VulkanFence(Type_SPInstance<VulkanDevice> const& device,
+VulkanFence::VulkanFence(Type_SPInstance<VulkanContext> const& ctx,
                          vk::FenceCreateFlags flags)
-    : pDeivce(device), mFence(CreateFence(flags)) {}
+    : pContext(ctx), mFence(CreateFence(flags)) {}
 
 VulkanFence::~VulkanFence() {
-    pDeivce->GetHandle().destroy(mFence);
+    pContext->GetDeviceHandle().destroy(mFence);
 }
 
 vk::Fence VulkanFence::CreateFence(vk::FenceCreateFlags flags) {
     vk::FenceCreateInfo fenceCreateInfo {flags};
 
-    return pDeivce->GetHandle().createFence(fenceCreateInfo);
+    return pContext->GetDeviceHandle().createFence(fenceCreateInfo);
 }
 
-VulkanSemaphore::VulkanSemaphore(Type_SPInstance<VulkanDevice> const& device)
-    : pDevice(device), mSemaphore(CreateSem()) {}
+VulkanSemaphore::VulkanSemaphore(Type_SPInstance<VulkanContext> const& ctx)
+    : pContext(ctx), mSemaphore(CreateSem()) {}
 
 VulkanSemaphore::~VulkanSemaphore() {
-    pDevice->GetHandle().destroy(mSemaphore);
+    pContext->GetDeviceHandle().destroy(mSemaphore);
 }
 
 vk::Semaphore VulkanSemaphore::CreateSem() {
     vk::SemaphoreCreateInfo semaphoreCreateInfo {};
 
-    return pDevice->GetHandle().createSemaphore(semaphoreCreateInfo);
+    return pContext->GetDeviceHandle().createSemaphore(semaphoreCreateInfo);
 }

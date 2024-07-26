@@ -1,7 +1,8 @@
 #pragma once
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanInstance;
 
@@ -12,6 +13,7 @@ public:
     VulkanPhysicalDevice(Type_SPInstance<VulkanInstance> const& instance,
                          vk::QueueFlags requestedQueueTypes);
     ~VulkanPhysicalDevice() = default;
+    MOVABLE_ONLY(VulkanPhysicalDevice);
 
 public:
     vk::PhysicalDevice const& GetHandle() const { return mPhysicalDevice; }

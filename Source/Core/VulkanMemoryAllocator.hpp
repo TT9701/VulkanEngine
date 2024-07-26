@@ -3,7 +3,8 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanPhysicalDevice;
 class VulkanDevice;
@@ -19,6 +20,8 @@ public:
         Type_SPInstance<VulkanInstance> const& instance);
 
     ~VulkanMemoryAllocator();
+
+    MOVABLE_ONLY(VulkanMemoryAllocator);
 
 public:
     VmaAllocator const& GetHandle() const { return mAllocator; }
@@ -41,6 +44,7 @@ public:
     VulkanExternalMemoryPool(
         Type_SPInstance<VulkanMemoryAllocator> const& allocator);
     ~VulkanExternalMemoryPool();
+    MOVABLE_ONLY(VulkanExternalMemoryPool);
 
 public:
     VmaPool const& GetHandle() const { return mPool; }

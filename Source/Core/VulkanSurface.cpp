@@ -2,6 +2,7 @@
 
 #include <SDL2/SDL_vulkan.h>
 
+#include "Utilities/Logger.hpp"
 #include "VulkanInstance.hpp"
 #include "Window.hpp"
 

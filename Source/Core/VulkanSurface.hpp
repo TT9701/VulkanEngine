@@ -2,7 +2,8 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanInstance;
 class SDLWindow;
@@ -14,7 +15,9 @@ public:
     VulkanSurface(const Type_SPInstance<VulkanInstance>& instance,
                   const Type_SPInstance<SDLWindow>& window);
     ~VulkanSurface();
+    MOVABLE_ONLY(VulkanSurface);
 
+public:
     VkSurfaceKHR const& GetHandle() const { return mSurface; }
 
 private:

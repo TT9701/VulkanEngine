@@ -1,18 +1,16 @@
 #include "VulkanSwapchain.hpp"
 
-#include "VulkanDevice.hpp"
-#include "VulkanSurface.hpp"
+#include "Utilities/Logger.hpp"
+#include "VulkanContext.hpp"
+#include "VulkanImage.hpp"
 
-VulkanSwapchain::VulkanSwapchain(Type_SPInstance<VulkanDevice> const& device,
-                                 Type_SPInstance<VulkanSurface> const& surface,
+VulkanSwapchain::VulkanSwapchain(Type_SPInstance<VulkanContext> const& ctx,
                                  vk::Format format, vk::Extent2D extent2D)
-    : pDevice(device),
-      pSurface(surface),
+    : pContex(ctx),
       mFormat(format),
       mExtent2D(extent2D),
-      mSwapchain(RecreateSwapchain(VK_NULL_HANDLE)) {
+      mSwapchain(RecreateSwapchain()) {
     SetSwapchainImages();
-    CreateSwapchainImageViews();
 
     DBG_LOG_INFO(
         "Vulkan Swapchain Created. PresentMode: %s. \n\t\t\t    "
@@ -21,13 +19,34 @@ VulkanSwapchain::VulkanSwapchain(Type_SPInstance<VulkanDevice> const& device,
 }
 
 VulkanSwapchain::~VulkanSwapchain() {
-    for (auto& view : mImageViews)
-        pDevice->GetHandle().destroy(view);
-    pDevice->GetHandle().destroy(mSwapchain);
+    pContex->GetDeviceHandle().destroy(mSwapchain);
+}
+
+vk::Image VulkanSwapchain::AquireNextImageHandle() {
+    VK_CHECK(pContex->GetDeviceHandle().waitForFences(
+        mAquireFence.GetHandle(), vk::True,
+        VulkanFence::TIME_OUT_NANO_SECONDS));
+
+    pContex->GetDeviceHandle().resetFences(mAquireFence.GetHandle());
+
+    VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
+        mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
+        VK_NULL_HANDLE, &mCurrentImageIndex));
+
+    return mImages[mCurrentImageIndex].GetHandle();
+}
+
+void VulkanSwapchain::Present(vk::Queue queue) {
+    vk::PresentInfoKHR presentInfo {};
+    presentInfo.setSwapchains(mSwapchain)
+        .setWaitSemaphores(mReady4Present.GetHandle())
+        .setImageIndices(mCurrentImageIndex);
+
+    VK_CHECK(queue.presentKHR(presentInfo));
 }
 
 vk::SwapchainKHR VulkanSwapchain::RecreateSwapchain(vk::SwapchainKHR old) {
-    mCreateInfo.setSurface(pSurface->GetHandle())
+    mCreateInfo.setSurface(pContex->GetSurfaceHandle())
         .setMinImageCount(3u)
         .setImageFormat(mFormat)
         .setImageExtent(mExtent2D)
@@ -36,25 +55,25 @@ vk::SwapchainKHR VulkanSwapchain::RecreateSwapchain(vk::SwapchainKHR old) {
                        | vk::ImageUsageFlagBits::eTransferDst)
         .setPresentMode(vk::PresentModeKHR::eMailbox)
         .setClipped(vk::True)
-        .setOldSwapchain(VK_NULL_HANDLE);
+        .setOldSwapchain(old);
 
-    return pDevice->GetHandle().createSwapchainKHR(mCreateInfo);
+    return pContex->GetDeviceHandle().createSwapchainKHR(mCreateInfo);
+}
+
+vk::Image const& VulkanSwapchain::GetImageHandle(uint32_t index) const {
+    return mImages[index].GetHandle();
+}
+
+vk::ImageView const& VulkanSwapchain::GetImageViewHandle(uint32_t index) const {
+    return mImages[index].GetViewHandle();
 }
 
 void VulkanSwapchain::SetSwapchainImages() {
-    mImages = pDevice->GetHandle().getSwapchainImagesKHR(mSwapchain);
-}
-
-void VulkanSwapchain::CreateSwapchainImageViews() {
-    mImageViews.resize(mImages.size());
-    for (int i = 0; i < mImages.size(); ++i) {
-        vk::ImageViewCreateInfo imgViewCreateInfo {};
-        imgViewCreateInfo.setImage(mImages[i])
-            .setViewType(vk::ImageViewType::e2D)
-            .setFormat(mFormat)
-            .setSubresourceRange(vk::ImageSubresourceRange {
-                vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
-        mImageViews[i] =
-            pDevice->GetHandle().createImageView(imgViewCreateInfo);
+    auto images = pContex->GetDeviceHandle().getSwapchainImagesKHR(mSwapchain);
+    mImages.reserve(images.size());
+    for (auto& img : images) {
+        mImages.emplace_back(
+            pContex, img, vk::Extent3D {mExtent2D.width, mExtent2D.height, 1},
+            mFormat, vk::ImageAspectFlagBits::eColor);
     }
 }

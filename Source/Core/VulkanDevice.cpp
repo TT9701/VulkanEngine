@@ -1,5 +1,6 @@
 #include "VulkanDevice.hpp"
 
+#include "Utilities/Logger.hpp"
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanPhysicalDevice.hpp"
 

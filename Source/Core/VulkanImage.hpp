@@ -1,10 +1,11 @@
 #pragma once
 
 #include <Core/Utilities/VulkanUtilities.hpp>
+#include "Core/Utilities/Defines.hpp"
 
-#include "VulkanHelper.hpp"
+#include "Utilities/MemoryPool.hpp"
 
-class VulkanDevice;
+class VulkanContext;
 class VulkanMemoryAllocator;
 class VulkanEngine;
 
@@ -13,7 +14,7 @@ class VulkanAllocatedImage {
 
 public:
     VulkanAllocatedImage(
-        Type_SPInstance<VulkanDevice> const& device,
+        Type_SPInstance<VulkanContext> const& ctx,
         Type_SPInstance<VulkanMemoryAllocator> const& allocator,
         VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
@@ -22,7 +23,15 @@ public:
         vk::ImageType type = vk::ImageType::e2D,
         vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
+    VulkanAllocatedImage(Type_SPInstance<VulkanContext> const& ctx,
+                         vk::Image image, vk::Extent3D extent,
+                         vk::Format format, vk::ImageAspectFlags aspect,
+                         uint32_t arrayLayers = 1,
+                         vk::ImageViewType viewType = vk::ImageViewType::e2D);
+
     ~VulkanAllocatedImage();
+
+    MOVABLE_ONLY(VulkanAllocatedImage);
 
 public:
     void TransitionLayout(vk::CommandBuffer cmd, vk::ImageLayout newLayout);
@@ -32,6 +41,8 @@ public:
 
     void CopyToImage(vk::CommandBuffer cmd, VulkanAllocatedImage dstImage,
                      vk::Extent2D srcExtent, vk::Extent2D dstExtent);
+
+    void UploadData(void* data);
 
 public:
     vk::Extent3D const& GetExtent3D() const { return mExtent3D; }
@@ -46,8 +57,7 @@ public:
 
     vk::Image const& GetHandle() const { return mImage; }
 
-    vk::ImageView const& GetImageView() const { return mImageView; }
-
+    vk::ImageView const& GetViewHandle() const { return mImageView; }
 
 private:
     vk::Image CreateImage(void* data, VmaAllocationCreateFlags flags,
@@ -57,11 +67,13 @@ private:
                                   vk::ImageViewType viewType);
 
 private:
-    Type_SPInstance<VulkanDevice> pDevice;
+    Type_SPInstance<VulkanContext> pContex;
     Type_SPInstance<VulkanMemoryAllocator> pAllocator;
 
     vk::Extent3D mExtent3D;
     vk::Format mFormat;
+
+    bool mOwnsImage;
 
     VulkanEngine* pEngine;
 

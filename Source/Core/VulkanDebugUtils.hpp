@@ -2,7 +2,8 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanInstance;
 
@@ -12,9 +13,10 @@ class VulkanDebugUtils {
 public:
     VulkanDebugUtils(Type_SPInstance<VulkanInstance> const& instance);
     ~VulkanDebugUtils();
+    MOVABLE_ONLY(VulkanDebugUtils);
 
 public:
-    vk::DebugUtilsMessengerEXT const& GetDebugMessenger() const {
+    vk::DebugUtilsMessengerEXT const& GetHandle() const {
         return mDebugMessenger;
     }
 

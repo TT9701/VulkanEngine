@@ -2,7 +2,8 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanDevice;
 class VulkanFence;
@@ -14,6 +15,7 @@ class VulkanFrameObjects {
 public:
     VulkanFrameObjects(Type_SPInstance<VulkanDevice> const& device);
     ~VulkanFrameObjects() = default;
+    MOVABLE_ONLY(VulkanFrameObjects);
 
 private:
     Type_SPInstance<VulkanDevice> pDevice;

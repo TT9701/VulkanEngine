@@ -2,25 +2,31 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Utilities/MemoryPool.hpp"
 
-class VulkanDevice;
+class VulkanContext;
 
 class VulkanFence {
     USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
 
 public:
-    VulkanFence(Type_SPInstance<VulkanDevice> const& device,
-                vk::FenceCreateFlags flags);
+    VulkanFence(
+        Type_SPInstance<VulkanContext> const& ctx,
+        vk::FenceCreateFlags flags = vk::FenceCreateFlagBits::eSignaled);
     ~VulkanFence();
+    MOVABLE_ONLY(VulkanFence);
 
-    vk::Fence GetHandle() const { return mFence; }
+public:
+    vk::Fence const& GetHandle() const { return mFence; }
+
+    static constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
 
 private:
     vk::Fence CreateFence(vk::FenceCreateFlags flags);
 
 private:
-    Type_SPInstance<VulkanDevice> pDeivce;
+    Type_SPInstance<VulkanContext> pContext;
 
     vk::Fence mFence;
 };
@@ -29,16 +35,18 @@ class VulkanSemaphore {
     USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
 
 public:
-    VulkanSemaphore(Type_SPInstance<VulkanDevice> const& device);
+    VulkanSemaphore(Type_SPInstance<VulkanContext> const& ctx);
     ~VulkanSemaphore();
+    MOVABLE_ONLY(VulkanSemaphore);
 
-    vk::Semaphore GetHandle() const { return mSemaphore; }
+public:
+    vk::Semaphore const& GetHandle() const { return mSemaphore; }
 
 private:
     vk::Semaphore CreateSem();
 
 private:
-    Type_SPInstance<VulkanDevice> pDevice;
+    Type_SPInstance<VulkanContext> pContext;
 
     vk::Semaphore mSemaphore;
 };

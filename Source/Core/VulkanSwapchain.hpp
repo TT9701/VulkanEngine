@@ -2,43 +2,66 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
+#include "VulkanSyncStructures.hpp"
 
-class VulkanSurface;
-class VulkanDevice;
+class VulkanContext;
+class VulkanSemaphore;
+class VulkanFence;
+class VulkanAllocatedImage;
 
 class VulkanSwapchain {
     USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
 
 public:
-    VulkanSwapchain(Type_SPInstance<VulkanDevice> const& device,
-                    Type_SPInstance<VulkanSurface> const& surface,
+    VulkanSwapchain(Type_SPInstance<VulkanContext> const& ctx,
                     vk::Format format, vk::Extent2D extent2D);
     ~VulkanSwapchain();
+    MOVABLE_ONLY(VulkanSwapchain);
 
-    vk::SwapchainKHR RecreateSwapchain(vk::SwapchainKHR old);
+public:
+    static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
+
+    vk::Image AquireNextImageHandle();
+
+    void Present(vk::Queue queue);
+
+    vk::SwapchainKHR RecreateSwapchain(vk::SwapchainKHR old = VK_NULL_HANDLE);
 
 public:
     vk::SwapchainKHR const& GetHandle() const { return mSwapchain; }
 
-    ::std::vector<vk::Image> const& GetImages() const { return mImages; }
+    vk::Image const& GetImageHandle(uint32_t index) const;
 
-    ::std::vector<vk::ImageView> const& GetImageViews() const {
-        return mImageViews;
-    }
+    vk::ImageView const& GetImageViewHandle(uint32_t index) const;
 
     vk::Format const& GetFormat() const { return mFormat; }
 
     vk::Extent2D const& GetExtent2D() const { return mExtent2D; }
 
+    uint32_t GetImageCount() const { return mImages.size(); }
+
+    uint32_t GetCurrentImageIndex() const { return mCurrentImageIndex; }
+
+    vk::Fence const& GetAquireFenceHandle() const {
+        return mAquireFence.GetHandle();
+    }
+
+    vk::Semaphore const& GetReady4PresentSemHandle() const {
+        return mReady4Present.GetHandle();
+    }
+
+    vk::Semaphore const& GetReady4RenderSemHandle() const {
+        return mReady4Render.GetHandle();
+    }
+
 private:
     // TODO: resize window
     void SetSwapchainImages();
-    void CreateSwapchainImageViews();
 
 private:
-    Type_SPInstance<VulkanDevice> pDevice;
-    Type_SPInstance<VulkanSurface> pSurface;
+    Type_SPInstance<VulkanContext> pContex;
 
     vk::Format mFormat;
     vk::Extent2D mExtent2D;
@@ -46,6 +69,10 @@ private:
     vk::SwapchainCreateInfoKHR mCreateInfo {};
     vk::SwapchainKHR mSwapchain;
 
-    ::std::vector<vk::Image> mImages {};
-    ::std::vector<vk::ImageView> mImageViews {};
+    VulkanSemaphore mReady4Present {pContex};
+    VulkanSemaphore mReady4Render {pContex};
+    VulkanFence mAquireFence {pContex};
+
+    ::std::vector<VulkanAllocatedImage> mImages {};
+    uint32_t mCurrentImageIndex {0};
 };

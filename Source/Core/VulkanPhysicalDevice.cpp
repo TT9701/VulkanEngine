@@ -1,5 +1,7 @@
 #include "VulkanPhysicalDevice.hpp"
 
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/Logger.hpp"
 #include "VulkanInstance.hpp"
 
 VulkanPhysicalDevice::VulkanPhysicalDevice(
@@ -16,7 +18,7 @@ VulkanPhysicalDevice::VulkanPhysicalDevice(
 vk::PhysicalDevice VulkanPhysicalDevice::PickPhysicalDevice(
     vk::QueueFlags requestedQueueTypes) {
     auto deviceList = pInstance->GetHandle().enumeratePhysicalDevices();
-    assert(!deviceList.empty(), "device list is empty");
+    VE_ASSERT(!deviceList.empty(), "device list is empty");
 
     vk::PhysicalDevice picked;
 

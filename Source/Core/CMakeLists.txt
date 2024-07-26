@@ -9,6 +9,9 @@ set (CORE_SRC
 
     Utilities/VulkanUtilities.hpp
     Utilities/VulkanUtilities.cpp
+    Utilities/MemoryPool.hpp
+    Utilities/MemoryPool.cpp
+    Utilities/Defines.hpp
 
     Window.hpp
     Window.cpp
@@ -25,6 +28,8 @@ set (CORE_SRC
     VulkanPhysicalDevice.cpp
     VulkanDevice.hpp
     VulkanDevice.cpp
+    VulkanContext.hpp
+    VulkanContext.cpp
     VulkanMemoryAllocator.hpp
     VulkanMemoryAllocator.cpp
     VulkanSwapchain.hpp
@@ -33,6 +38,8 @@ set (CORE_SRC
     VulkanImage.cpp
     VulkanSyncStructures.hpp
     VulkanSyncStructures.cpp
+    VulkanCommands.hpp
+    VulkanCommands.cpp
     VulkanFrameObjects.hpp
     VulkanFrameObjects.cpp
     VulkanDescriptors.hpp
