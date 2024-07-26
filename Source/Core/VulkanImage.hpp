@@ -15,7 +15,6 @@ class VulkanAllocatedImage {
 public:
     VulkanAllocatedImage(
         Type_SPInstance<VulkanContext> const& ctx,
-        Type_SPInstance<VulkanMemoryAllocator> const& allocator,
         VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
         void* data = nullptr, VulkanEngine* engine = nullptr,
@@ -68,7 +67,6 @@ private:
 
 private:
     Type_SPInstance<VulkanContext> pContex;
-    Type_SPInstance<VulkanMemoryAllocator> pAllocator;
 
     vk::Extent3D mExtent3D;
     vk::Format mFormat;

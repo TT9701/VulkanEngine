@@ -4,37 +4,34 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
 
-#include "Core/Utilities/VulkanUtilities.hpp"
 #include "VulkanCommands.hpp"
 #include "VulkanContext.hpp"
-#include "VulkanDevice.hpp"
 #include "VulkanHelper.hpp"
 #include "VulkanImage.hpp"
-#include "VulkanMemoryAllocator.hpp"
-#include "VulkanPhysicalDevice.hpp"
 #include "VulkanPipeline.hpp"
 #include "VulkanSwapchain.hpp"
-#include "VulkanSyncStructures.hpp"
 #include "Window.hpp"
+
+using IntelliDesign_NS::Core::MemoryPool::New_Shared;
+using IntelliDesign_NS::Core::MemoryPool::New_Unique;
 
 VulkanEngine::VulkanEngine()
     : mSPWindow(CreateSDLWindow()),
       mSPContext(CreateContext()),
-      mSPVmaAllocator(CreateVmaAllocator()),
-      mVmaExternalMemoryPool(CreateVmaExternalMemoryPool()),
+      mSPSwapchain(CreateSwapchain()),
       mDrawImage(CreateDrawImage()),
       mCUDAExternalImage(CreateExternalImage()),
-      mSPSwapchain(CreateSwapchain()),
-      mSPImmediateSubmit(CreateImmediateSubmit()),
+      mSPImmediateSubmitManager(CreateImmediateSubmitManager()),
       mErrorCheckImage(CreateErrorCheckTexture()) {
     SetCudaInterop();
 }
 
 VulkanEngine::~VulkanEngine() {
-    mSPContext->GetDeviceHandle().waitIdle();
+    mSPContext->GetDevice()->GetHandle().waitIdle();
 
     for (int i = 0; i < FRAME_OVERLAP; ++i) {
-        mSPContext->GetDeviceHandle().destroy(mFrameDatas[i].mCommandPool);
+        mSPContext->GetDevice()->GetHandle().destroy(
+            mFrameDatas[i].mCommandPool);
     }
 }
 
@@ -44,8 +41,6 @@ void VulkanEngine::Init() {
 }
 
 void VulkanEngine::Run() {
-    SDL_Event sdlEvent;
-
     bool bQuit = false;
 
     while (!bQuit) {
@@ -116,17 +111,17 @@ void VulkanEngine::Draw() {
 
     auto submit = Utils::SubmitInfo(cmdInfo, signalInfos, waitInfos);
 
-    mSPContext->GetDevicePtr()->GetGraphicQueues()[0].submit2(
+    mSPContext->GetDevice()->GetGraphicQueues()[0].submit2(
         submit, mSPSwapchain->GetAquireFenceHandle());
 
-    mSPSwapchain->Present(mSPContext->GetDevicePtr()->GetGraphicQueues()[0]);
+    mSPSwapchain->Present(mSPContext->GetDevice()->GetGraphicQueues()[0]);
 
     cudaExternalSemaphoreWaitParams waitParams {};
     mCUDAStream.WaitExternalSemaphoresAsync(
         &mCUDAWaitSemaphore.GetCUDAExternalSemaphore(), &waitParams, 1);
 
     CUDA::SimPoint(mTriangleExternalMesh.mVertexBuffer
-                       .GetMappedPointer(0, 3 * sizeof(Vertex))
+                       ->GetMappedPointer(0, 3 * sizeof(Vertex))
                        .GetPtr(),
                    mFrameNum, mCUDAStream.Get());
 
@@ -155,13 +150,13 @@ void VulkanEngine::InitVulkan() {
 }
 
 VulkanEngine::Type_SPInstance<SDLWindow> VulkanEngine::CreateSDLWindow() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<SDLWindow>(
+    return New_Shared<SDLWindow>(
         MemoryPoolInstance::Get()->GetMemPoolResource());
 }
 
 VulkanEngine::Type_SPInstance<VulkanContext> VulkanEngine::CreateContext() {
     ::std::vector<::std::string> requestedInstanceLayers {};
-#ifdef DEBUG
+#ifndef NDEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
 #endif
 
@@ -171,7 +166,7 @@ VulkanEngine::Type_SPInstance<VulkanContext> VulkanEngine::CreateContext() {
     requestedInstanceExtensions.insert(requestedInstanceExtensions.end(),
                                        sdlRequestedInstanceExtensions.begin(),
                                        sdlRequestedInstanceExtensions.end());
-#ifdef DEBUG
+#ifndef NDEBUG
     requestedInstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
@@ -188,31 +183,15 @@ VulkanEngine::Type_SPInstance<VulkanContext> VulkanEngine::CreateContext() {
 
     VulkanContext::EnableDefaultFeatures();
 
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanContext>(
+    return New_Shared<VulkanContext>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), mSPWindow,
         vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
         requestedInstanceLayers, requestedInstanceExtensions,
         enabledDeivceExtensions);
 }
 
-VulkanEngine::Type_SPInstance<VulkanMemoryAllocator>
-VulkanEngine::CreateVmaAllocator() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
-        VulkanMemoryAllocator>(MemoryPoolInstance::Get()->GetMemPoolResource(),
-                               mSPContext->GetPhysicalDevicePtr(),
-                               mSPContext->GetDevicePtr(),
-                               mSPContext->GetInstancePtr());
-}
-
-VulkanEngine::Type_SPInstance<VulkanExternalMemoryPool>
-VulkanEngine::CreateVmaExternalMemoryPool() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
-        VulkanExternalMemoryPool>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPVmaAllocator);
-}
-
 VulkanEngine::Type_SPInstance<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanSwapchain>(
+    return New_Shared<VulkanSwapchain>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
         vk::Format::eR8G8B8A8Unorm,
         vk::Extent2D {static_cast<uint32_t>(mSPWindow->GetWidth()),
@@ -231,10 +210,10 @@ VulkanEngine::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedImage>(
+    return New_Unique<VulkanAllocatedImage>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
-        mSPVmaAllocator, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        drawImageExtent, vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, drawImageExtent,
+        vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
 }
 
@@ -250,47 +229,41 @@ VulkanEngine::CreateExternalImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    auto temp_externalImage = IntelliDesign_NS::Core::MemoryPool::New_Unique<
-        CUDA::VulkanExternalImage>(
-        MemoryPoolInstance::Get()->GetMemPoolResource());
-
-    temp_externalImage->CreateExternalImage(
-        mSPContext->GetDeviceHandle(), mSPVmaAllocator->GetHandle(),
-        mVmaExternalMemoryPool->GetHandle(), 0, drawImageExtent,
+    return New_Unique<CUDA::VulkanExternalImage>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(),
+        mSPContext->GetDevice()->GetHandle(),
+        mSPContext->GetVmaAllocator()->GetHandle(),
+        mSPContext->GetExternalMemoryPool()->GetHandle(), 0, drawImageExtent,
         vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
-
-    return temp_externalImage;
 }
 
 VulkanEngine::Type_SPInstance<ImmediateSubmitManager>
-VulkanEngine::CreateImmediateSubmit() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
-        ImmediateSubmitManager>(MemoryPoolInstance::Get()->GetMemPoolResource(),
-                                mSPContext,
-                                mSPContext->GetPhysicalDevicePtr()
-                                    ->GetGraphicsQueueFamilyIndex()
-                                    .value());
+VulkanEngine::CreateImmediateSubmitManager() {
+    return New_Shared<ImmediateSubmitManager>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
+        mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
 }
 
 void VulkanEngine::CreateCommands() {
     vk::CommandPoolCreateInfo cmdPoolCreateInfo {};
     cmdPoolCreateInfo
         .setFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
-        .setQueueFamilyIndex(mSPContext->GetPhysicalDevicePtr()
+        .setQueueFamilyIndex(mSPContext->GetPhysicalDevice()
                                  ->GetGraphicsQueueFamilyIndex()
                                  .value());
 
     for (int i = 0; i < FRAME_OVERLAP; ++i) {
         mFrameDatas[i].mCommandPool =
-            mSPContext->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
+            mSPContext->GetDevice()->GetHandle().createCommandPool(
+                cmdPoolCreateInfo);
 
         vk::CommandBufferAllocateInfo cmdAllocInfo {};
         cmdAllocInfo.setCommandPool(mFrameDatas[i].mCommandPool)
             .setLevel(vk::CommandBufferLevel::ePrimary)
             .setCommandBufferCount(1u);
         mFrameDatas[i].mCommandBuffer =
-            mSPContext->GetDeviceHandle().allocateCommandBuffers(
+            mSPContext->GetDevice()->GetHandle().allocateCommandBuffers(
                 cmdAllocInfo)[0];
     }
 
@@ -298,11 +271,10 @@ void VulkanEngine::CreateCommands() {
 }
 
 void VulkanEngine::CreateSyncStructures() {
-    vk::FenceCreateInfo fenceCreateInfo {vk::FenceCreateFlagBits::eSignaled};
-    vk::SemaphoreCreateInfo semaphoreCreateInfo {};
-
-    mCUDAWaitSemaphore.CreateExternalSemaphore(mSPContext->GetDeviceHandle());
-    mCUDASignalSemaphore.CreateExternalSemaphore(mSPContext->GetDeviceHandle());
+    mCUDAWaitSemaphore.CreateExternalSemaphore(
+        mSPContext->GetDevice()->GetHandle());
+    mCUDASignalSemaphore.CreateExternalSemaphore(
+        mSPContext->GetDevice()->GetHandle());
 
     DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }
@@ -317,7 +289,8 @@ void VulkanEngine::CreateDescriptors() {
         {vk::DescriptorType::eStorageImage, 1},
         {vk::DescriptorType::eCombinedImageSampler, 1}};
 
-    mMainDescriptorAllocator.InitPool(mSPContext->GetDeviceHandle(), 10, sizes);
+    mMainDescriptorAllocator.InitPool(mSPContext->GetDevice()->GetHandle(), 10,
+                                      sizes);
 
     CreateBackgroundComputeDescriptors();
     CreateTriangleDescriptors();
@@ -348,44 +321,44 @@ void VulkanEngine::CreateTriangleData() {
 }
 
 void VulkanEngine::CreateExternalTriangleData() {
-    CUDA::VulkanExternalBuffer vertexBuffer {}, indexBuffer {};
-    vertexBuffer.CreateExternalBuffer(
-        mSPContext->GetDeviceHandle(), mSPVmaAllocator->GetHandle(),
-        3 * sizeof(Vertex),
-        vk::BufferUsageFlagBits::eStorageBuffer
-            | vk::BufferUsageFlagBits::eTransferDst
-            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        mVmaExternalMemoryPool->GetHandle());
+    mTriangleExternalMesh.mVertexBuffer =
+        New_Unique<CUDA::VulkanExternalBuffer>(
+            MemoryPoolInstance::Get()->GetMemPoolResource(),
+            mSPContext->GetDevice()->GetHandle(),
+            mSPContext->GetVmaAllocator()->GetHandle(), 3 * sizeof(Vertex),
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+            mSPContext->GetExternalMemoryPool()->GetHandle());
 
-    indexBuffer.CreateExternalBuffer(
-        mSPContext->GetDeviceHandle(), mSPVmaAllocator->GetHandle(),
-        3 * sizeof(uint32_t),
+    mTriangleExternalMesh.mIndexBuffer = New_Unique<CUDA::VulkanExternalBuffer>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(),
+        mSPContext->GetDevice()->GetHandle(),
+        mSPContext->GetVmaAllocator()->GetHandle(), 3 * sizeof(uint32_t),
         vk::BufferUsageFlagBits::eIndexBuffer
             | vk::BufferUsageFlagBits::eTransferDst,
         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        mVmaExternalMemoryPool->GetHandle());
-
-    mTriangleExternalMesh.mVertexBuffer = vertexBuffer;
-    mTriangleExternalMesh.mIndexBuffer = indexBuffer;
+        mSPContext->GetExternalMemoryPool()->GetHandle());
 
     vk::BufferDeviceAddressInfo deviceAddrInfo {};
-    deviceAddrInfo.setBuffer(mTriangleExternalMesh.mVertexBuffer.GetVkBuffer());
+    deviceAddrInfo.setBuffer(
+        mTriangleExternalMesh.mVertexBuffer->GetVkBuffer());
 
     mTriangleExternalMesh.mVertexBufferAddress =
-        mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+        mSPContext->GetDevice()->GetHandle().getBufferAddress(deviceAddrInfo);
 
-    CUDA::VulkanExternalImage externalImage {};
-    externalImage.CreateExternalImage(
-        mSPContext->GetDeviceHandle(), mSPVmaAllocator->GetHandle(),
-        mVmaExternalMemoryPool->GetHandle(), 0, {16, 16, 1},
-        vk::Format::eR8G8B8A8Uint, vk::ImageUsageFlagBits::eStorage,
-        vk::ImageAspectFlagBits::eColor);
+    CUDA::VulkanExternalImage externalImage {
+        mSPContext->GetDevice()->GetHandle(),
+        mSPContext->GetVmaAllocator()->GetHandle(),
+        mSPContext->GetExternalMemoryPool()->GetHandle(),
+        0,
+        {16, 16, 1},
+        vk::Format::eR8G8B8A8Uint,
+        vk::ImageUsageFlagBits::eStorage,
+        vk::ImageAspectFlagBits::eColor};
 
     auto cudaMipmapped = externalImage.GetMapMipmappedArray(0, 1);
-
-    externalImage.Destroy(mSPContext->GetDeviceHandle(),
-                          mSPVmaAllocator->GetHandle());
 }
 
 VulkanEngine ::Type_PInstance<VulkanAllocatedImage>
@@ -398,10 +371,10 @@ VulkanEngine::CreateErrorCheckTexture() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    return IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedImage>(
+    return New_Unique<VulkanAllocatedImage>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
-        mSPVmaAllocator, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VkExtent3D {16, 16, 1},
+        vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         vk::ImageAspectFlagBits::eColor, pixels.data(), this);
 }
@@ -409,14 +382,16 @@ VulkanEngine::CreateErrorCheckTexture() {
 void VulkanEngine::CreateDefaultSamplers() {
     vk::SamplerCreateInfo info {};
     info.setMinFilter(vk::Filter::eNearest).setMagFilter(vk::Filter::eNearest);
-    mDefaultSamplerNearest = mSPContext->GetDeviceHandle().createSampler(info);
+    mDefaultSamplerNearest =
+        mSPContext->GetDevice()->GetHandle().createSampler(info);
     info.setMinFilter(vk::Filter::eLinear).setMagFilter(vk::Filter::eLinear);
-    mDefaultSamplerLinear = mSPContext->GetDeviceHandle().createSampler(info);
+    mDefaultSamplerLinear =
+        mSPContext->GetDevice()->GetHandle().createSampler(info);
 }
 
 void VulkanEngine::SetCudaInterop() {
-    auto result =
-        CUDA::GetVulkanCUDABindDeviceID(mSPContext->GetPhysicalDeviceHandle());
+    auto result = CUDA::GetVulkanCUDABindDeviceID(
+        mSPContext->GetPhysicalDevice()->GetHandle());
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
 }
 
@@ -426,30 +401,29 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
     GPUMeshBuffers newMesh {};
-    newMesh.mVertexBuffer =
-        IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedBuffer>(
-            MemoryPoolInstance::Get()->GetMemPoolResource(), mSPVmaAllocator,
-            vertexBufferSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
-                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
-    newMesh.mIndexBuffer =
-        IntelliDesign_NS::Core::MemoryPool::New_Unique<VulkanAllocatedBuffer>(
-            MemoryPoolInstance::Get()->GetMemPoolResource(), mSPVmaAllocator,
-            indexBufferSize,
-            vk::BufferUsageFlagBits::eIndexBuffer
-                | vk::BufferUsageFlagBits::eTransferDst,
-            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    newMesh.mVertexBuffer = New_Unique<VulkanAllocatedBuffer>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(),
+        mSPContext->GetVmaAllocator(), vertexBufferSize,
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eTransferDst
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+
+    newMesh.mIndexBuffer = New_Unique<VulkanAllocatedBuffer>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(),
+        mSPContext->GetVmaAllocator(), indexBufferSize,
+        vk::BufferUsageFlagBits::eIndexBuffer
+            | vk::BufferUsageFlagBits::eTransferDst,
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
     vk::BufferDeviceAddressInfo deviceAddrInfo {};
     deviceAddrInfo.setBuffer(newMesh.mVertexBuffer->GetHandle());
 
     newMesh.mVertexBufferAddress =
-        mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+        mSPContext->GetDevice()->GetHandle().getBufferAddress(deviceAddrInfo);
 
     VulkanAllocatedBuffer staging {
-        mSPVmaAllocator, vertexBufferSize + indexBufferSize,
+        mSPContext->GetVmaAllocator(), vertexBufferSize + indexBufferSize,
         vk::BufferUsageFlagBits::eTransferSrc,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
             | VMA_ALLOCATION_CREATE_MAPPED_BIT};
@@ -458,7 +432,7 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     memcpy(data, vertices.data(), vertexBufferSize);
     memcpy((char*)data + vertexBufferSize, indices.data(), indexBufferSize);
 
-    mSPImmediateSubmit->Submit([&](vk::CommandBuffer cmd) {
+    mSPImmediateSubmitManager->Submit([&](vk::CommandBuffer cmd) {
         vk::BufferCopy vertexCopy {};
         vertexCopy.setSize(vertexBufferSize);
         cmd.copyBuffer(staging.GetHandle(), newMesh.mVertexBuffer->GetHandle(),
@@ -473,73 +447,15 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     return newMesh;
 }
 
-ImmediateSubmitManager::ImmediateSubmitManager(
-    Type_SPInstance<VulkanContext> const& ctx, uint32_t queueFamilyIndex)
-    : pContex(ctx),
-      mQueueFamilyIndex(queueFamilyIndex),
-      mSPFence(CreateFence()),
-      mSPCommandPool(CreateCommandPool()),
-      mSPCommandBuffer(CreateCommandBuffer()) {
-    DBG_LOG_INFO("Vulkan Immediate submit CommandPool & CommandBuffer Created");
-}
-
-void ImmediateSubmitManager::Submit(
-    std::function<void(vk::CommandBuffer cmd)>&& function) const {
-    auto func =
-        ::std::forward<std::function<void(vk::CommandBuffer cmd)>>(function);
-
-    pContex->GetDeviceHandle().resetFences(mSPFence->GetHandle());
-
-    auto cmd = mSPCommandBuffer->GetHandle();
-
-    cmd.reset();
-
-    vk::CommandBufferBeginInfo beginInfo {};
-    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-    cmd.begin(beginInfo);
-
-    func(cmd);
-
-    cmd.end();
-
-    auto cmdSubmitInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
-    auto submit = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
-
-    pContex->GetDevicePtr()->GetGraphicQueues()[0].submit2(
-        submit, mSPFence->GetHandle());
-    VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mSPFence->GetHandle(), vk::True, VulkanFence::TIME_OUT_NANO_SECONDS));
-}
-
-ImmediateSubmitManager::Type_SPInstance<VulkanFence>
-ImmediateSubmitManager::CreateFence() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanFence>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), pContex);
-}
-
-ImmediateSubmitManager::Type_SPInstance<VulkanCommandBuffer>
-ImmediateSubmitManager::CreateCommandBuffer() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanCommandBuffer>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), pContex,
-        mSPCommandPool);
-}
-
-ImmediateSubmitManager::Type_SPInstance<VulkanCommandPool>
-ImmediateSubmitManager::CreateCommandPool() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanCommandPool>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), pContex,
-        mQueueFamilyIndex);
-}
-
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, vk::DescriptorType::eStorageImage);
-    mDrawImageDescriptorLayout = builder.Build(
-        mSPContext->GetDeviceHandle(), vk::ShaderStageFlagBits::eCompute);
+    mDrawImageDescriptorLayout =
+        builder.Build(mSPContext->GetDevice()->GetHandle(),
+                      vk::ShaderStageFlagBits::eCompute);
 
     mDrawImageDescriptors = mMainDescriptorAllocator.Allocate(
-        mSPContext->GetDeviceHandle(), mDrawImageDescriptorLayout);
+        mSPContext->GetDevice()->GetHandle(), mDrawImageDescriptorLayout);
 
     DescriptorWriter writer {};
     writer.WriteImage(0,
@@ -547,7 +463,8 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
                        vk::ImageLayout::eGeneral},
                       vk::DescriptorType::eStorageImage);
 
-    writer.UpdateSet(mSPContext->GetDeviceHandle(), mDrawImageDescriptors);
+    writer.UpdateSet(mSPContext->GetDevice()->GetHandle(),
+                     mDrawImageDescriptors);
 
     DBG_LOG_INFO("Vulkan Background Compute Descriptors Created");
 }
@@ -557,11 +474,12 @@ void VulkanEngine::CreateBackgroundComputePipeline() {
     computeLayout.setSetLayouts(mDrawImageDescriptorLayout);
 
     mBackgroundComputePipelineLayout =
-        mSPContext->GetDeviceHandle().createPipelineLayout(computeLayout);
+        mSPContext->GetDevice()->GetHandle().createPipelineLayout(
+            computeLayout);
 
     vk::ShaderModule computeDrawShader {};
     VE_ASSERT(Utils::LoadShaderModule("../../Shaders/BackGround.comp.spv",
-                                      mSPContext->GetDeviceHandle(),
+                                      mSPContext->GetDevice()->GetHandle(),
                                       &computeDrawShader),
               "Error when building the compute shader");
 
@@ -575,11 +493,12 @@ void VulkanEngine::CreateBackgroundComputePipeline() {
         .setStage(stageinfo);
 
     mBackgroundComputePipeline =
-        mSPContext->GetDeviceHandle()
+        mSPContext->GetDevice()
+            ->GetHandle()
             .createComputePipeline({}, computePipelineCreateInfo)
             .value;
 
-    mSPContext->GetDeviceHandle().destroy(computeDrawShader);
+    mSPContext->GetDevice()->GetHandle().destroy(computeDrawShader);
 
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
@@ -588,14 +507,14 @@ void VulkanEngine::CreateTrianglePipeline() {
     vk::ShaderModule vertexShader {};
     vk::ShaderModule fragmentShader {};
 
-    VE_ASSERT(
-        Utils::LoadShaderModule("../../Shaders/Triangle.vert.spv",
-                                mSPContext->GetDeviceHandle(), &vertexShader),
-        "Error when building the triangle vertex shader");
-    VE_ASSERT(
-        Utils::LoadShaderModule("../../Shaders/Triangle.frag.spv",
-                                mSPContext->GetDeviceHandle(), &fragmentShader),
-        "Error when building the triangle fragment shader");
+    VE_ASSERT(Utils::LoadShaderModule("../../Shaders/Triangle.vert.spv",
+                                      mSPContext->GetDevice()->GetHandle(),
+                                      &vertexShader),
+              "Error when building the triangle vertex shader");
+    VE_ASSERT(Utils::LoadShaderModule("../../Shaders/Triangle.frag.spv",
+                                      mSPContext->GetDevice()->GetHandle(),
+                                      &fragmentShader),
+              "Error when building the triangle fragment shader");
 
     vk::PushConstantRange pushConstant {};
     pushConstant.setSize(sizeof(MeshPushConstants))
@@ -605,7 +524,8 @@ void VulkanEngine::CreateTrianglePipeline() {
     layoutCreateInfo.setPushConstantRanges(pushConstant)
         .setSetLayouts(mTextureTriangleDescriptorLayout);
     mTrianglePipelieLayout =
-        mSPContext->GetDeviceHandle().createPipelineLayout(layoutCreateInfo);
+        mSPContext->GetDevice()->GetHandle().createPipelineLayout(
+            layoutCreateInfo);
 
     GraphicsPipelineBuilder graphicsPipelineBuilder {};
     mTrianglePipelie =
@@ -619,10 +539,10 @@ void VulkanEngine::CreateTrianglePipeline() {
             .SetDepth(vk::False, vk::False)
             .SetColorAttachmentFormat(mDrawImage->GetFormat())
             .SetDepthStencilFormat(vk::Format::eUndefined)
-            .Build(mSPContext->GetDeviceHandle());
+            .Build(mSPContext->GetDevice()->GetHandle());
 
-    mSPContext->GetDeviceHandle().destroy(vertexShader);
-    mSPContext->GetDeviceHandle().destroy(fragmentShader);
+    mSPContext->GetDevice()->GetHandle().destroy(vertexShader);
+    mSPContext->GetDevice()->GetHandle().destroy(fragmentShader);
 
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
@@ -630,11 +550,12 @@ void VulkanEngine::CreateTrianglePipeline() {
 void VulkanEngine::CreateTriangleDescriptors() {
     DescriptorLayoutBuilder builder {};
     builder.AddBinding(0, vk::DescriptorType::eCombinedImageSampler);
-    mTextureTriangleDescriptorLayout = builder.Build(
-        mSPContext->GetDeviceHandle(), vk::ShaderStageFlagBits::eFragment);
+    mTextureTriangleDescriptorLayout =
+        builder.Build(mSPContext->GetDevice()->GetHandle(),
+                      vk::ShaderStageFlagBits::eFragment);
 
     mTextureTriangleDescriptors = mMainDescriptorAllocator.Allocate(
-        mSPContext->GetDeviceHandle(), mTextureTriangleDescriptorLayout);
+        mSPContext->GetDevice()->GetHandle(), mTextureTriangleDescriptorLayout);
 
     DescriptorWriter writer {};
     writer.WriteImage(
@@ -643,7 +564,7 @@ void VulkanEngine::CreateTriangleDescriptors() {
          vk::ImageLayout::eShaderReadOnlyOptimal},
         vk::DescriptorType::eCombinedImageSampler);
 
-    writer.UpdateSet(mSPContext->GetDeviceHandle(),
+    writer.UpdateSet(mSPContext->GetDevice()->GetHandle(),
                      mTextureTriangleDescriptors);
 }
 

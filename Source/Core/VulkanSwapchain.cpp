@@ -19,17 +19,17 @@ VulkanSwapchain::VulkanSwapchain(Type_SPInstance<VulkanContext> const& ctx,
 }
 
 VulkanSwapchain::~VulkanSwapchain() {
-    pContex->GetDeviceHandle().destroy(mSwapchain);
+    pContex->GetDevice()->GetHandle().destroy(mSwapchain);
 }
 
 vk::Image VulkanSwapchain::AquireNextImageHandle() {
-    VK_CHECK(pContex->GetDeviceHandle().waitForFences(
+    VK_CHECK(pContex->GetDevice()->GetHandle().waitForFences(
         mAquireFence.GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS));
 
-    pContex->GetDeviceHandle().resetFences(mAquireFence.GetHandle());
+    pContex->GetDevice()->GetHandle().resetFences(mAquireFence.GetHandle());
 
-    VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
+    VK_CHECK(pContex->GetDevice()->GetHandle().acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
         VK_NULL_HANDLE, &mCurrentImageIndex));
 
@@ -46,7 +46,7 @@ void VulkanSwapchain::Present(vk::Queue queue) {
 }
 
 vk::SwapchainKHR VulkanSwapchain::RecreateSwapchain(vk::SwapchainKHR old) {
-    mCreateInfo.setSurface(pContex->GetSurfaceHandle())
+    mCreateInfo.setSurface(pContex->GetSurface()->GetHandle())
         .setMinImageCount(3u)
         .setImageFormat(mFormat)
         .setImageExtent(mExtent2D)
@@ -57,7 +57,7 @@ vk::SwapchainKHR VulkanSwapchain::RecreateSwapchain(vk::SwapchainKHR old) {
         .setClipped(vk::True)
         .setOldSwapchain(old);
 
-    return pContex->GetDeviceHandle().createSwapchainKHR(mCreateInfo);
+    return pContex->GetDevice()->GetHandle().createSwapchainKHR(mCreateInfo);
 }
 
 vk::Image const& VulkanSwapchain::GetImageHandle(uint32_t index) const {
@@ -69,7 +69,8 @@ vk::ImageView const& VulkanSwapchain::GetImageViewHandle(uint32_t index) const {
 }
 
 void VulkanSwapchain::SetSwapchainImages() {
-    auto images = pContex->GetDeviceHandle().getSwapchainImagesKHR(mSwapchain);
+    auto images =
+        pContex->GetDevice()->GetHandle().getSwapchainImagesKHR(mSwapchain);
     mImages.reserve(images.size());
     for (auto& img : images) {
         mImages.emplace_back(

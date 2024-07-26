@@ -14,8 +14,10 @@ struct GPUMeshBuffers {
 };
 
 struct ExternalGPUMeshBuffers {
-    CUDA::VulkanExternalBuffer mIndexBuffer {};
-    CUDA::VulkanExternalBuffer mVertexBuffer {};
+    USING_TEMPLATE_UNIQUE_PTR_TYPE(Type_PInstance);
+
+    Type_PInstance<CUDA::VulkanExternalBuffer> mIndexBuffer {};
+    Type_PInstance<CUDA::VulkanExternalBuffer> mVertexBuffer {};
     vk::DeviceAddress mVertexBufferAddress {};
 };
 

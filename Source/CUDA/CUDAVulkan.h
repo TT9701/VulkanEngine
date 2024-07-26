@@ -41,9 +41,10 @@ private:
 
 class VulkanExternalBuffer {
 public:
-    void CreateExternalBuffer(vk::Device device, VmaAllocator allocator,
-                              size_t allocByteSize, vk::BufferUsageFlags usage,
-                              VmaAllocationCreateFlags flags, VmaPool pool);
+    VulkanExternalBuffer(vk::Device device, VmaAllocator allocator,
+                         size_t allocByteSize, vk::BufferUsageFlags usage,
+                         VmaAllocationCreateFlags flags, VmaPool pool);
+    ~VulkanExternalBuffer();
 
     VmaAllocationInfo const& GetAllocationInfo() const { return mInfo; }
 
@@ -53,13 +54,12 @@ public:
 
     VulkanMappedPointer GetMappedPointer(size_t offset, size_t size) const;
 
-    void Destroy();
-
 private:
-    VmaAllocator         mAllocator {};
-    vk::Buffer           mBuffer {};
-    VmaAllocation        mAllocation {};
-    VmaAllocationInfo    mInfo {};
+    VmaAllocator mAllocator;
+
+    vk::Buffer mBuffer {};
+    VmaAllocation mAllocation {};
+    VmaAllocationInfo mInfo {};
     cudaExternalMemory_t mExternalMemory {};
 };
 
@@ -69,16 +69,25 @@ struct UserType {
 
 class VulkanExternalImage {
 public:
+    VulkanExternalImage(vk::Device device, VmaAllocator allocator, VmaPool pool,
+                        VmaAllocationCreateFlags flags, vk::Extent3D extent,
+                        vk::Format format, vk::ImageUsageFlags usage,
+                        vk::ImageAspectFlags aspect, bool mipmaped = false,
+                        uint32_t arrayLayers = 1,
+                        vk::ImageType type = vk::ImageType::e2D,
+                        vk::ImageViewType viewType = vk::ImageViewType::e2D);
+    ~VulkanExternalImage();
+
     void CreateExternalImage(
         vk::Device device, VmaAllocator allocator, VmaPool pool,
         VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
         bool mipmaped = false, uint32_t arrayLayers = 1,
-        vk::ImageType     type     = vk::ImageType::e2D,
+        vk::ImageType type = vk::ImageType::e2D,
         vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
     cudaMipmappedArray_t GetMapMipmappedArray(unsigned long long offset,
-                                              unsigned int       numLevels);
+                                              unsigned int numLevels);
 
     vk::Image const& GetVkImage() const { return mImage; }
 
@@ -95,16 +104,19 @@ public:
     void Destroy(vk::Device device, VmaAllocator allocator);
 
 private:
-    vk::Image            mImage {};
-    vk::ImageView        mImageView {};
-    VmaAllocation        mAllocation {};
-    VmaAllocationInfo    mInfo {};
-    vk::Extent3D         mExtent3D {};
-    vk::Format           mFormat {};
-    vk::ImageLayout      mLayout {vk::ImageLayout::eUndefined};
+    vk::Device mDevice;
+    VmaAllocator mAllocator;
+
+    vk::Image mImage {};
+    vk::ImageView mImageView {};
+    VmaAllocation mAllocation {};
+    VmaAllocationInfo mInfo {};
+    vk::Extent3D mExtent3D {};
+    vk::Format mFormat {};
+    vk::ImageLayout mLayout {vk::ImageLayout::eUndefined};
     cudaExternalMemory_t mExternalMemory {};
 
-    cudaExternalMemoryMipmappedArrayDesc                  mArrayDesc {};
+    cudaExternalMemoryMipmappedArrayDesc mArrayDesc {};
     ::std::shared_ptr<CUDASurface2D<UserType, 1600, 900>> mSurface2D {};
 };
 
@@ -126,7 +138,7 @@ public:
 
 private:
     cudaExternalSemaphore_t mExternalSemaphore {};
-    vk::Semaphore           mSemaphore {};
+    vk::Semaphore mSemaphore {};
 };
 
 void SimPoint(void* data, float time, cudaStream_t stream);
@@ -134,14 +146,16 @@ void SimPoint(void* data, float time, cudaStream_t stream);
 template <typename UserType, int TexelWidth, int Height>
 __global__ void SimSurfaceKernel(
     CUDASurface2D<UserType, TexelWidth, Height> surf, float time) {
-    int x                        = threadIdx.x + blockIdx.x * blockDim.x;
-    int y                        = threadIdx.y + blockIdx.y * blockDim.y;
-    using TexelType              = CudaTexelTypeBinder_t<UserType>;
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    using TexelType = CudaTexelTypeBinder_t<UserType>;
     constexpr int texelElemCount = sizeof(TexelType) / sizeof(float);
 
-    float color = 0.5f + 0.5f * ::std::sin((float)x / (blockDim.x * gridDim.x) -
-                                           (float)y / (blockDim.y * gridDim.y) +
-                                           time / 300.0f);
+    float color = 0.5f
+                + 0.5f
+                      * ::std::sin((float)x / (blockDim.x * gridDim.x)
+                                   - (float)y / (blockDim.y * gridDim.y)
+                                   + time / 300.0f);
 
     CudaSurfaceArray2D<float, texelElemCount, 1> write {};
     write.data[0].data[0] = color;

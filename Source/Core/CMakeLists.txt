@@ -40,6 +40,8 @@ set (CORE_SRC
     VulkanSyncStructures.cpp
     VulkanCommands.hpp
     VulkanCommands.cpp
+    VulkanCommandManager.cpp
+    VulkanCommandManager.hpp
     VulkanFrameObjects.hpp
     VulkanFrameObjects.cpp
     VulkanDescriptors.hpp
@@ -70,16 +72,6 @@ target_compile_definitions(Core
     PUBLIC 
         GLM_FORCE_DEPTH_ZERO_TO_ONE
         GLM_FORCE_RADIANS)
-        
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-target_compile_definitions(Core 
-    PUBLIC 
-        DEBUG)
-else ()
-target_compile_definitions(Core 
-    PUBLIC 
-        NDEBUG)
-endif()
 
 # <TODO>
 target_compile_definitions(Core 

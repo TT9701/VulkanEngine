@@ -13,14 +13,14 @@ VulkanCommandPool::VulkanCommandPool(Type_SPInstance<VulkanContext> ctx,
       mCmdPool(CreateCommandPool()) {}
 
 VulkanCommandPool::~VulkanCommandPool() {
-    pCtx->GetDeviceHandle().destroy(mCmdPool);
+    pCtx->GetDevice()->GetHandle().destroy(mCmdPool);
 }
 
 vk::CommandPool VulkanCommandPool::CreateCommandPool() {
     vk::CommandPoolCreateInfo cmdPoolCreateInfo {};
     cmdPoolCreateInfo.setFlags(mFlags).setQueueFamilyIndex(mQueueFamilysIndex);
 
-    return pCtx->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
+    return pCtx->GetDevice()->GetHandle().createCommandPool(cmdPoolCreateInfo);
 }
 
 VulkanCommandBuffer::VulkanCommandBuffer(
@@ -38,5 +38,5 @@ VulkanCommandBuffer::VulkanCommandBuffer(
         .setLevel(mLevel)
         .setCommandBufferCount(count);
 
-    return pCtx->GetDeviceHandle().allocateCommandBuffers(cmdAllocInfo);
+    return pCtx->GetDevice()->GetHandle().allocateCommandBuffers(cmdAllocInfo);
 }

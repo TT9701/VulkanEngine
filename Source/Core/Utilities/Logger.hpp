@@ -8,7 +8,7 @@ inline IntelliDesign_NS::Core::AP_ErrorLogger* GetLogger() {
     return pErrorLogger.get();
 }
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #define DBG_LOG_INFO(...) GetLogger()->Log(__VA_ARGS__)
 #else
 #define DBG_LOG_INFO(...)

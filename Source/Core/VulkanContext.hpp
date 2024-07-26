@@ -4,13 +4,16 @@
 
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
+#include "VulkanDevice.hpp"
 #include "VulkanHelper.hpp"
+#ifndef NDEBUG
+#include "VulkanDebugUtils.hpp"
+#endif
+#include "VulkanInstance.hpp"
+#include "VulkanMemoryAllocator.hpp"
+#include "VulkanPhysicalDevice.hpp"
+#include "VulkanSurface.hpp"
 
-class VulkanInstance;
-class VulkanDebugUtils;
-class VulkanSurface;
-class VulkanPhysicalDevice;
-class VulkanDevice;
 class SDLWindow;
 
 class VulkanContext {
@@ -27,43 +30,38 @@ public:
     MOVABLE_ONLY(VulkanContext);
 
 public:
-    Type_SPInstance<VulkanInstance> GetInstancePtr() const {
-        return mSPInstance;
-    }
+    Type_SPInstance<VulkanInstance> GetInstance() const { return mSPInstance; }
 
-#ifdef DEBUG
-    Type_SPInstance<VulkanDebugUtils> GetDebugMessengerPtr() const {
+#ifndef NDEBUG
+    Type_SPInstance<VulkanDebugUtils> GetDebugMessenger() const {
         return mSPDebugUtilsMessenger;
     }
 #endif
 
-    Type_SPInstance<VulkanSurface> GetSurfacePtr() const { return mSPSurface; }
+    Type_SPInstance<VulkanSurface> GetSurface() const { return mSPSurface; }
 
-    Type_SPInstance<VulkanPhysicalDevice> GetPhysicalDevicePtr() const {
+    Type_SPInstance<VulkanPhysicalDevice> GetPhysicalDevice() const {
         return mSPPhysicalDevice;
     }
 
-    Type_SPInstance<VulkanDevice> GetDevicePtr() const { return mSPDevice; }
+    Type_SPInstance<VulkanDevice> GetDevice() const { return mSPDevice; }
 
-    vk::Instance const& GetInstanceHandle() const;
+    Type_SPInstance<VulkanMemoryAllocator> GetVmaAllocator() const {
+        return mSPAllocator;
+    }
 
-#ifdef DEBUG
-    vk::DebugUtilsMessengerEXT const& GetDebugMessengerHandle() const;
+#ifdef CUDA_VULKAN_INTEROP
+    Type_SPInstance<VulkanExternalMemoryPool> GetExternalMemoryPool() const {
+        return mSPExternalMemoryPool;
+    }
 #endif
 
-    VkSurfaceKHR const& GetSurfaceHandle() const;
-
-    vk::PhysicalDevice const& GetPhysicalDeviceHandle() const;
-
-    vk::Device const& GetDeviceHandle() const;
-
-public:
 private:
     Type_SPInstance<VulkanInstance> CreateInstance(
         ::std::vector<::std::string> const& requestedLayers,
         ::std::vector<::std::string> const& requestedExtensions);
 
-#ifdef DEBUG
+#ifndef NDEBUG
     Type_SPInstance<VulkanDebugUtils> CreateDebugUtilsMessenger();
 #endif
 
@@ -75,6 +73,12 @@ private:
 
     Type_SPInstance<VulkanDevice> CreateDevice(
         ::std::vector<::std::string> const& requestedExtensions);
+
+    Type_SPInstance<VulkanMemoryAllocator> CreateVmaAllocator();
+
+#ifdef CUDA_VULKAN_INTEROP
+    Type_SPInstance<VulkanExternalMemoryPool> CreateExternalMemoryPool();
+#endif
 
 public:
     static void EnableDefaultFeatures();
@@ -95,10 +99,14 @@ private:
 
 private:
     Type_SPInstance<VulkanInstance> mSPInstance;
-#ifdef DEBUG
+#ifndef NDEBUG
     Type_SPInstance<VulkanDebugUtils> mSPDebugUtilsMessenger;
 #endif
     Type_SPInstance<VulkanSurface> mSPSurface;
     Type_SPInstance<VulkanPhysicalDevice> mSPPhysicalDevice;
     Type_SPInstance<VulkanDevice> mSPDevice;
+    Type_SPInstance<VulkanMemoryAllocator> mSPAllocator;
+#ifdef CUDA_VULKAN_INTEROP
+    Type_SPInstance<VulkanExternalMemoryPool> mSPExternalMemoryPool;
+#endif
 };

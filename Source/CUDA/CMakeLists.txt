@@ -26,3 +26,7 @@ target_link_libraries(CUDA
         Vulkan::Vulkan)
 
 set_target_properties(CUDA PROPERTIES FOLDER ${LIB_FOLDER_NAME})
+
+target_compile_definitions(CUDA 
+    PUBLIC 
+        CUDA_VULKAN_INTEROP) 

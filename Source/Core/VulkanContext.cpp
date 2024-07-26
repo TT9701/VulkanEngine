@@ -1,12 +1,5 @@
 #include "VulkanContext.hpp"
 
-#include "Core/Utilities/MemoryPool.hpp"
-#include "VulkanDebugUtils.hpp"
-#include "VulkanDevice.hpp"
-#include "VulkanInstance.hpp"
-#include "VulkanPhysicalDevice.hpp"
-#include "VulkanSurface.hpp"
-
 vk::PhysicalDeviceFeatures VulkanContext::sPhysicalDeviceFeatures {};
 vk::PhysicalDeviceVulkan11Features VulkanContext::sEnable11Features {};
 vk::PhysicalDeviceVulkan12Features VulkanContext::sEnable12Features {};
@@ -20,33 +13,17 @@ VulkanContext::VulkanContext(
     ::std::vector<::std::string> const& requestedDeviceExtensions)
     : mSPInstance(
           CreateInstance(requestedInstanceLayers, requestedInstanceExtensions)),
-#ifdef DEBUG
+#ifndef NDEBUG
       mSPDebugUtilsMessenger(CreateDebugUtilsMessenger()),
 #endif
       mSPSurface(CreateSurface(window)),
       mSPPhysicalDevice(PickPhysicalDevice(requestedQueueFlags)),
-      mSPDevice(CreateDevice(requestedDeviceExtensions)) {
-}
-
-vk::Instance const& VulkanContext::GetInstanceHandle() const {
-    return mSPInstance->GetHandle();
-}
-
-vk::DebugUtilsMessengerEXT const& VulkanContext::GetDebugMessengerHandle()
-    const {
-    return mSPDebugUtilsMessenger->GetHandle();
-}
-
-VkSurfaceKHR const& VulkanContext::GetSurfaceHandle() const {
-    return mSPSurface->GetHandle();
-}
-
-vk::PhysicalDevice const& VulkanContext::GetPhysicalDeviceHandle() const {
-    return mSPPhysicalDevice->GetHandle();
-}
-
-vk::Device const& VulkanContext::GetDeviceHandle() const {
-    return mSPDevice->GetHandle();
+      mSPDevice(CreateDevice(requestedDeviceExtensions)),
+      mSPAllocator(CreateVmaAllocator()),
+#ifdef CUDA_VULKAN_INTEROP
+      mSPExternalMemoryPool(CreateExternalMemoryPool())
+#endif
+{
 }
 
 VulkanContext::Type_SPInstance<VulkanInstance> VulkanContext::CreateInstance(
@@ -57,7 +34,7 @@ VulkanContext::Type_SPInstance<VulkanInstance> VulkanContext::CreateInstance(
         requestedExtensions);
 }
 
-#ifdef DEBUG
+#ifndef NDEBUG
 VulkanContext::Type_SPInstance<VulkanDebugUtils>
 VulkanContext::CreateDebugUtilsMessenger() {
     return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanDebugUtils>(
@@ -84,6 +61,22 @@ VulkanContext::Type_SPInstance<VulkanDevice> VulkanContext::CreateDevice(
         ::std::vector<::std::string> {}, requestedExtensions,
         &sPhysicalDeviceFeatures, &sEnable11Features);
 }
+
+VulkanContext::Type_SPInstance<VulkanMemoryAllocator>
+VulkanContext::CreateVmaAllocator() {
+    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
+        VulkanMemoryAllocator>(MemoryPoolInstance::Get()->GetMemPoolResource(),
+                               mSPPhysicalDevice, mSPDevice, mSPInstance);
+}
+
+#ifdef CUDA_VULKAN_INTEROP
+VulkanContext::Type_SPInstance<VulkanExternalMemoryPool>
+VulkanContext::CreateExternalMemoryPool() {
+    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
+        VulkanExternalMemoryPool>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPAllocator);
+}
+#endif
 
 void VulkanContext::EnableDefaultFeatures() {
     EnableDynamicRendering();
