@@ -11,7 +11,7 @@ public:
     ~VulkanInstance();
     MOVABLE_ONLY(VulkanInstance);
 
-    vk::Instance const& GetHandle() const { return mInstance; }
+    vk::Instance GetHandle() const { return mInstance; }
 
 private:
     vk::Instance CreateInstance();

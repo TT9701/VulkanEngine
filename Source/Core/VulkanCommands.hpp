@@ -2,15 +2,13 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Utilities/Defines.hpp"
 
 class VulkanContext;
 
 class VulkanCommandPool {
 public:
-    VulkanCommandPool(SharedPtr<VulkanContext> ctx,
-                      uint32_t queueFamilysIndex,
+    VulkanCommandPool(VulkanContext* ctx, uint32_t queueFamilysIndex,
                       vk::CommandPoolCreateFlags flags =
                           vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
     ~VulkanCommandPool();
@@ -23,33 +21,36 @@ private:
     vk::CommandPool CreateCommandPool();
 
 private:
-    SharedPtr<VulkanContext> pCtx;
+    VulkanContext* pCtx;
     vk::CommandPoolCreateFlags mFlags;
     uint32_t mQueueFamilysIndex;
 
     vk::CommandPool mCmdPool;
 };
 
-class VulkanCommandBuffer {
+class VulkanCommandBuffers {
 public:
-    VulkanCommandBuffer(
-        SharedPtr<VulkanContext> ctx,
-        SharedPtr<VulkanCommandPool> pool,
-        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary,
-        uint32_t count = 1u);
-    ~VulkanCommandBuffer() = default;
+    VulkanCommandBuffers(
+        VulkanContext* ctx, VulkanCommandPool* pool, uint32_t count = 1u,
+        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary);
+    ~VulkanCommandBuffers() = default;
+    MOVABLE_ONLY(VulkanCommandBuffers);
 
 public:
     vk::CommandBuffer GetHandle(uint32_t index = 0) const {
         return mCmdBuffer[index];
     }
 
-private:
-    ::std::vector<vk::CommandBuffer> CreateCommandBuffer(uint32_t count);
+    uint32_t GetBufferCount() const {
+        return static_cast<uint32_t>(mCmdBuffer.size());
+    }
 
 private:
-    SharedPtr<VulkanContext> pCtx;
-    SharedPtr<VulkanCommandPool> pCmdPool;
+    ::std::vector<vk::CommandBuffer> CreateCommandBuffers(uint32_t count);
+
+private:
+    VulkanContext* pContex;
+    VulkanCommandPool* pCmdPool;
     vk::CommandBufferLevel mLevel;
 
     ::std::vector<vk::CommandBuffer> mCmdBuffer;

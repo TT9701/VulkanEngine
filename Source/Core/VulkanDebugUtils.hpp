@@ -3,18 +3,17 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
-#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanInstance;
 
 class VulkanDebugUtils {
 public:
-    VulkanDebugUtils(SharedPtr<VulkanInstance> const& instance);
+    VulkanDebugUtils(VulkanInstance* instance);
     ~VulkanDebugUtils();
     MOVABLE_ONLY(VulkanDebugUtils);
 
 public:
-    vk::DebugUtilsMessengerEXT const& GetHandle() const {
+    vk::DebugUtilsMessengerEXT GetHandle() const {
         return mDebugMessenger;
     }
 
@@ -22,6 +21,6 @@ private:
     vk::DebugUtilsMessengerEXT CreateDebugMessenger();
 
 private:
-    SharedPtr<VulkanInstance> pInstance;
+    VulkanInstance* pInstance;
     vk::DebugUtilsMessengerEXT mDebugMessenger;
 };

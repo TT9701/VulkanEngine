@@ -50,6 +50,8 @@ set (CORE_SRC
     VulkanPipeline.cpp
     VulkanBuffer.hpp
     VulkanBuffer.cpp
+    VulkanSampler.hpp
+    VulkanSampler.cpp
 
     MeshType.hpp
     Mesh.hpp

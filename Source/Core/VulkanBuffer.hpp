@@ -4,23 +4,22 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
-#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanMemoryAllocator;
 
 class VulkanAllocatedBuffer {
 public:
     VulkanAllocatedBuffer(
-        SharedPtr<VulkanMemoryAllocator> const& allocator,
+        VulkanMemoryAllocator* allocator,
         size_t allocByteSize, vk::BufferUsageFlags usage,
         VmaAllocationCreateFlags flags);
     ~VulkanAllocatedBuffer();
     MOVABLE_ONLY(VulkanAllocatedBuffer);
 
 public:
-    vk::Buffer const& GetHandle() const { return mBuffer; }
+    vk::Buffer GetHandle() const { return mBuffer; }
 
-    VmaAllocation const& GetAllocation() const { return mAllocation; }
+    VmaAllocation GetAllocation() const { return mAllocation; }
 
     VmaAllocationInfo const& GetAllocationInfo() const { return mInfo; }
 
@@ -29,7 +28,7 @@ private:
                             VmaAllocationCreateFlags flags);
 
 private:
-    SharedPtr<VulkanMemoryAllocator> mAllocator;
+    VulkanMemoryAllocator* mAllocator;
 
     VmaAllocation mAllocation {};
     VmaAllocationInfo mInfo {};

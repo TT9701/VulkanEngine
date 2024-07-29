@@ -2,10 +2,10 @@
 
 #include "VulkanMemoryAllocator.hpp"
 
-VulkanAllocatedBuffer::VulkanAllocatedBuffer(
-    SharedPtr<VulkanMemoryAllocator> const& allocator,
-    size_t allocByteSize, vk::BufferUsageFlags usage,
-    VmaAllocationCreateFlags flags)
+VulkanAllocatedBuffer::VulkanAllocatedBuffer(VulkanMemoryAllocator* allocator,
+                                             size_t allocByteSize,
+                                             vk::BufferUsageFlags usage,
+                                             VmaAllocationCreateFlags flags)
     : mAllocator(allocator),
       mBuffer(CreateBuffer(allocByteSize, usage, flags)) {}
 

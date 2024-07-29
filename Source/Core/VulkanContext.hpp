@@ -19,8 +19,7 @@ class SDLWindow;
 class VulkanContext {
 public:
     VulkanContext(
-        const SharedPtr<SDLWindow>& window,
-        vk::QueueFlags requestedQueueFlags,
+        const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
         ::std::vector<::std::string> const& requestedInstanceLayers = {},
         ::std::vector<::std::string> const& requestedInstanceExtensions = {},
         ::std::vector<::std::string> const& requestedDeviceExtensions = {});
@@ -28,29 +27,55 @@ public:
     MOVABLE_ONLY(VulkanContext);
 
 public:
-    SharedPtr<VulkanInstance> GetInstance() const { return mSPInstance; }
+    VulkanInstance* GetInstance() const { return mSPInstance.get(); }
 
 #ifndef NDEBUG
-    SharedPtr<VulkanDebugUtils> GetDebugMessenger() const {
-        return mSPDebugUtilsMessenger;
+    VulkanDebugUtils* GetDebugMessenger() const {
+        return mSPDebugUtilsMessenger.get();
     }
 #endif
 
-    SharedPtr<VulkanSurface> GetSurface() const { return mSPSurface; }
+    VulkanSurface* GetSurface() const { return mSPSurface.get(); }
 
-    SharedPtr<VulkanPhysicalDevice> GetPhysicalDevice() const {
-        return mSPPhysicalDevice;
+    VulkanPhysicalDevice* GetPhysicalDevice() const {
+        return mSPPhysicalDevice.get();
     }
 
-    SharedPtr<VulkanDevice> GetDevice() const { return mSPDevice; }
+    VulkanDevice* GetDevice() const { return mSPDevice.get(); }
 
-    SharedPtr<VulkanMemoryAllocator> GetVmaAllocator() const {
-        return mSPAllocator;
+    VulkanMemoryAllocator* GetVmaAllocator() const {
+        return mSPAllocator.get();
     }
 
 #ifdef CUDA_VULKAN_INTEROP
-    SharedPtr<VulkanExternalMemoryPool> GetExternalMemoryPool() const {
-        return mSPExternalMemoryPool;
+    VulkanExternalMemoryPool* GetExternalMemoryPool() const {
+        return mSPExternalMemoryPool.get();
+    }
+#endif
+
+    vk::Instance GetInstanceHandle() const { return mSPInstance->GetHandle(); }
+
+#ifndef NDEBUG
+    vk::DebugUtilsMessengerEXT GetDebugMessengerHandle() const {
+        return mSPDebugUtilsMessenger->GetHandle();
+    }
+#endif
+
+    vk::SurfaceKHR GetSurfaceHandle() const { return mSPSurface->GetHandle(); }
+
+    vk::PhysicalDevice GetPhysicalDeviceHandle() const {
+        return mSPPhysicalDevice->GetHandle();
+    }
+
+    vk::Device GetDeviceHandle() const { return mSPDevice->GetHandle(); }
+
+    VmaAllocator GetVmaAllocatorHandle() const {
+        return mSPAllocator->GetHandle();
+    }
+
+#ifdef CUDA_VULKAN_INTEROP
+    VmaPool GetExternalMemoryPoolHandle() const {
+        return mSPExternalMemoryPool->GetHandle();
     }
 #endif
 
@@ -63,11 +88,9 @@ private:
     SharedPtr<VulkanDebugUtils> CreateDebugUtilsMessenger();
 #endif
 
-    SharedPtr<VulkanSurface> CreateSurface(
-        SharedPtr<SDLWindow> const& window);
+    SharedPtr<VulkanSurface> CreateSurface(const SDLWindow* window);
 
-    SharedPtr<VulkanPhysicalDevice> PickPhysicalDevice(
-        vk::QueueFlags flags);
+    SharedPtr<VulkanPhysicalDevice> PickPhysicalDevice(vk::QueueFlags flags);
 
     SharedPtr<VulkanDevice> CreateDevice(
         ::std::vector<::std::string> const& requestedExtensions);

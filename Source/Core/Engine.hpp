@@ -18,16 +18,8 @@ class VulkanExternalMemoryPool;
 class VulkanSwapchain;
 class VulkanAllocatedImage;
 class VulkanFence;
-class VulkanCommandBuffer;
+class VulkanCommandBuffers;
 class VulkanCommandPool;
-
-struct FrameData {
-    // vk::Semaphore mReady4RenderSemaphore {}, mReady4PresentSemaphore {};
-    // vk::Fence mRenderFence {};
-
-    vk::CommandPool mCommandPool {};
-    vk::CommandBuffer mCommandBuffer {};
-};
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -38,22 +30,15 @@ public:
     MOVABLE_ONLY(VulkanEngine);
 
 public:
-    void Init();
     void Run();
 
 public:
-    FrameData& GetCurrentFrameData() {
-        return mFrameDatas[mFrameNum % FRAME_OVERLAP];
-    }
-
     SharedPtr<ImmediateSubmitManager> GetImmediateSubmitManager() {
         return mSPImmediateSubmitManager;
     }
 
 private:
     void Draw();
-
-    void InitVulkan();
 
     SharedPtr<SDLWindow> CreateSDLWindow();
 
@@ -67,7 +52,7 @@ private:
 
     SharedPtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
 
-    void CreateCommands();
+    SharedPtr<VulkanCommandManager> CreateCommandManager();
 
     void CreateSyncStructures();
 
@@ -79,6 +64,7 @@ private:
     void CreateExternalTriangleData();
 
     UniquePtr<VulkanAllocatedImage> CreateErrorCheckTexture();
+
     void CreateDefaultSamplers();
 
     void SetCudaInterop();
@@ -111,9 +97,9 @@ private:
 
     UniquePtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 
-    SharedPtr<ImmediateSubmitManager> mSPImmediateSubmitManager;
+    SharedPtr<VulkanCommandManager> mSPCmdManager;
 
-    ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
+    SharedPtr<ImmediateSubmitManager> mSPImmediateSubmitManager;
 
     SharedPtr<VulkanAllocatedImage> mErrorCheckImage;
 

@@ -3,27 +3,23 @@
 #include <Core/Utilities/VulkanUtilities.hpp>
 #include "Core/Utilities/Defines.hpp"
 
-#include "Utilities/MemoryPool.hpp"
-
 class VulkanContext;
 class VulkanMemoryAllocator;
 class VulkanEngine;
 
 class VulkanAllocatedImage {
 public:
-    VulkanAllocatedImage(
-        SharedPtr<VulkanContext> const& ctx,
-        VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
-        vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
-        void* data = nullptr, VulkanEngine* engine = nullptr,
-        uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1,
-        vk::ImageType type = vk::ImageType::e2D,
-        vk::ImageViewType viewType = vk::ImageViewType::e2D);
+    VulkanAllocatedImage(VulkanContext* ctx, VmaAllocationCreateFlags flags,
+                         vk::Extent3D extent, vk::Format format,
+                         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+                         void* data = nullptr, VulkanEngine* engine = nullptr,
+                         uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1,
+                         vk::ImageType type = vk::ImageType::e2D,
+                         vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
-    VulkanAllocatedImage(SharedPtr<VulkanContext> const& ctx,
-                         vk::Image image, vk::Extent3D extent,
-                         vk::Format format, vk::ImageAspectFlags aspect,
-                         uint32_t arrayLayers = 1,
+    VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
+                         vk::Extent3D extent, vk::Format format,
+                         vk::ImageAspectFlags aspect, uint32_t arrayLayers = 1,
                          vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
     ~VulkanAllocatedImage();
@@ -42,19 +38,19 @@ public:
     void UploadData(void* data);
 
 public:
-    vk::Extent3D const& GetExtent3D() const { return mExtent3D; }
+    vk::Extent3D GetExtent3D() const { return mExtent3D; }
 
-    vk::Format const& GetFormat() const { return mFormat; }
+    vk::Format GetFormat() const { return mFormat; }
 
     uint32_t GetMipmapLevel() const { return mMipmapLevel; }
 
     uint32_t GetArrayLayerCount() const { return mArrayLayerCount; }
 
-    vk::ImageLayout const& GetLayout() const { return mLayout; }
+    vk::ImageLayout GetLayout() const { return mLayout; }
 
-    vk::Image const& GetHandle() const { return mImage; }
+    vk::Image GetHandle() const { return mImage; }
 
-    vk::ImageView const& GetViewHandle() const { return mImageView; }
+    vk::ImageView GetViewHandle() const { return mImageView; }
 
 private:
     vk::Image CreateImage(void* data, VmaAllocationCreateFlags flags,
@@ -64,7 +60,7 @@ private:
                                   vk::ImageViewType viewType);
 
 private:
-    SharedPtr<VulkanContext> pContex;
+    VulkanContext* pContex;
 
     vk::Extent3D mExtent3D;
     vk::Format mFormat;

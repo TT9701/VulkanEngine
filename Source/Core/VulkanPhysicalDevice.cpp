@@ -4,9 +4,8 @@
 #include "Core/Utilities/Logger.hpp"
 #include "VulkanInstance.hpp"
 
-VulkanPhysicalDevice::VulkanPhysicalDevice(
-    const SharedPtr<VulkanInstance>& instance,
-    vk::QueueFlags requestedQueueTypes)
+VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanInstance* instance,
+                                           vk::QueueFlags requestedQueueTypes)
     : pInstance(instance),
       mPhysicalDevice(PickPhysicalDevice(requestedQueueTypes)) {
     DBG_LOG_INFO("Physical Device Selected: %s",

@@ -4,7 +4,7 @@
 
 #include "VulkanContext.hpp"
 
-VulkanCommandPool::VulkanCommandPool(SharedPtr<VulkanContext> ctx,
+VulkanCommandPool::VulkanCommandPool(VulkanContext* ctx,
                                      uint32_t queueFamilysIndex,
                                      vk::CommandPoolCreateFlags flags)
     : pCtx(std::move(ctx)),
@@ -13,30 +13,31 @@ VulkanCommandPool::VulkanCommandPool(SharedPtr<VulkanContext> ctx,
       mCmdPool(CreateCommandPool()) {}
 
 VulkanCommandPool::~VulkanCommandPool() {
-    pCtx->GetDevice()->GetHandle().destroy(mCmdPool);
+    pCtx->GetDeviceHandle().destroy(mCmdPool);
 }
 
 vk::CommandPool VulkanCommandPool::CreateCommandPool() {
     vk::CommandPoolCreateInfo cmdPoolCreateInfo {};
     cmdPoolCreateInfo.setFlags(mFlags).setQueueFamilyIndex(mQueueFamilysIndex);
 
-    return pCtx->GetDevice()->GetHandle().createCommandPool(cmdPoolCreateInfo);
+    return pCtx->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
 }
 
-VulkanCommandBuffer::VulkanCommandBuffer(
-    SharedPtr<VulkanContext> ctx, SharedPtr<VulkanCommandPool> pool,
-    vk::CommandBufferLevel level, uint32_t count)
-    : pCtx(std::move(ctx)),
-      pCmdPool(std::move(pool)),
+VulkanCommandBuffers::VulkanCommandBuffers(VulkanContext* ctx,
+                                           VulkanCommandPool* pool,
+                                           uint32_t count,
+                                           vk::CommandBufferLevel level)
+    : pContex(ctx),
+      pCmdPool(pool),
       mLevel(level),
-      mCmdBuffer(CreateCommandBuffer(count)) {}
+      mCmdBuffer(CreateCommandBuffers(count)) {}
 
-::std::vector<vk::CommandBuffer> VulkanCommandBuffer::CreateCommandBuffer(
+::std::vector<vk::CommandBuffer> VulkanCommandBuffers::CreateCommandBuffers(
     uint32_t count) {
     vk::CommandBufferAllocateInfo cmdAllocInfo {};
     cmdAllocInfo.setCommandPool(pCmdPool->GetHandle())
         .setLevel(mLevel)
         .setCommandBufferCount(count);
 
-    return pCtx->GetDevice()->GetHandle().allocateCommandBuffers(cmdAllocInfo);
+    return pContex->GetDeviceHandle().allocateCommandBuffers(cmdAllocInfo);
 }

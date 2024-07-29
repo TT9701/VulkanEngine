@@ -6,8 +6,6 @@ int main() {
 
     VulkanEngine engine {};
 
-    engine.Init();
-
     engine.Run();
 
     return 0;

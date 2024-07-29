@@ -11,12 +11,12 @@ class VulkanSemaphore;
 
 class VulkanFrameObjects {
 public:
-    VulkanFrameObjects(SharedPtr<VulkanDevice> const& device);
+    VulkanFrameObjects(VulkanDevice* device);
     ~VulkanFrameObjects() = default;
     MOVABLE_ONLY(VulkanFrameObjects);
 
 private:
-    SharedPtr<VulkanDevice> pDevice;
+    VulkanDevice* pDevice;
 
     SharedPtr<VulkanFence> mRenderFence;
     SharedPtr<VulkanSemaphore> mReady4RenderSemaphore;

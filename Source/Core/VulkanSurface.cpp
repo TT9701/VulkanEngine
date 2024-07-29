@@ -6,9 +6,9 @@
 #include "VulkanInstance.hpp"
 #include "Window.hpp"
 
-VulkanSurface::VulkanSurface(const SharedPtr<VulkanInstance>& instance,
-                             const SharedPtr<SDLWindow>& window)
-    : pInstance(instance), pWindow(window), mSurface(CreateSurface()) {
+VulkanSurface::VulkanSurface(VulkanInstance* instance,
+                             const SDLWindow* window)
+    : pInstance(instance), mSurface(CreateSurface(window)) {
     DBG_LOG_INFO("SDL Vulkan Surface Created");
 }
 
@@ -16,10 +16,10 @@ VulkanSurface::~VulkanSurface() {
     pInstance->GetHandle().destroy(mSurface);
 }
 
-VkSurfaceKHR VulkanSurface::CreateSurface() {
+VkSurfaceKHR VulkanSurface::CreateSurface(const SDLWindow* window) const {
     VkSurfaceKHR surface;
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    SDL_Vulkan_CreateSurface(pWindow->GetPtr(), pInstance->GetHandle(),
+    SDL_Vulkan_CreateSurface(window->GetPtr(), pInstance->GetHandle(),
                              &surface);
 #endif
 

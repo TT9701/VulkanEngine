@@ -6,7 +6,7 @@ vk::PhysicalDeviceVulkan12Features VulkanContext::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features VulkanContext::sEnable13Features {};
 
 VulkanContext::VulkanContext(
-    SharedPtr<SDLWindow> const& window, vk::QueueFlags requestedQueueFlags,
+    const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
     ::std::vector<::std::string> const& requestedInstanceLayers,
     ::std::vector<::std::string> const& requestedInstanceExtensions,
     ::std::vector<::std::string> const& requestedDeviceExtensions)
@@ -33,35 +33,34 @@ SharedPtr<VulkanInstance> VulkanContext::CreateInstance(
 
 #ifndef NDEBUG
 SharedPtr<VulkanDebugUtils> VulkanContext::CreateDebugUtilsMessenger() {
-    return MakeShared<VulkanDebugUtils>(mSPInstance);
+    return MakeShared<VulkanDebugUtils>(mSPInstance.get());
 }
 #endif
 
-SharedPtr<VulkanSurface> VulkanContext::CreateSurface(
-    SharedPtr<SDLWindow> const& window) {
-    return MakeShared<VulkanSurface>(mSPInstance, window);
+SharedPtr<VulkanSurface> VulkanContext::CreateSurface(const SDLWindow* window) {
+    return MakeShared<VulkanSurface>(mSPInstance.get(), window);
 }
 
 SharedPtr<VulkanPhysicalDevice> VulkanContext::PickPhysicalDevice(
     vk::QueueFlags flags) {
-    return MakeShared<VulkanPhysicalDevice>(mSPInstance, flags);
+    return MakeShared<VulkanPhysicalDevice>(mSPInstance.get(), flags);
 }
 
 SharedPtr<VulkanDevice> VulkanContext::CreateDevice(
     ::std::vector<::std::string> const& requestedExtensions) {
     return MakeShared<VulkanDevice>(
-        mSPPhysicalDevice, ::std::vector<::std::string> {}, requestedExtensions,
-        &sPhysicalDeviceFeatures, &sEnable11Features);
+        mSPPhysicalDevice.get(), ::std::vector<::std::string> {},
+        requestedExtensions, &sPhysicalDeviceFeatures, &sEnable11Features);
 }
 
 SharedPtr<VulkanMemoryAllocator> VulkanContext::CreateVmaAllocator() {
-    return MakeShared<VulkanMemoryAllocator>(mSPPhysicalDevice, mSPDevice,
-                                             mSPInstance);
+    return MakeShared<VulkanMemoryAllocator>(
+        mSPPhysicalDevice.get(), mSPDevice.get(), mSPInstance.get());
 }
 
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<VulkanExternalMemoryPool> VulkanContext::CreateExternalMemoryPool() {
-    return MakeShared<VulkanExternalMemoryPool>(mSPAllocator);
+    return MakeShared<VulkanExternalMemoryPool>(mSPAllocator.get());
 }
 #endif
 

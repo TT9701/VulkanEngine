@@ -6,11 +6,10 @@
 #include "VulkanMemoryAllocator.hpp"
 
 VulkanAllocatedImage::VulkanAllocatedImage(
-    SharedPtr<VulkanContext> const& ctx, VmaAllocationCreateFlags flags,
-    vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
-    vk::ImageAspectFlags aspect, void* data, VulkanEngine* engine,
-    uint32_t mipmapLevel, uint32_t arrayLayers, vk::ImageType type,
-    vk::ImageViewType viewType)
+    VulkanContext* ctx, VmaAllocationCreateFlags flags, vk::Extent3D extent,
+    vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+    void* data, VulkanEngine* engine, uint32_t mipmapLevel,
+    uint32_t arrayLayers, vk::ImageType type, vk::ImageViewType viewType)
     : pContex(ctx),
       mExtent3D(extent),
       mFormat(format),
@@ -23,10 +22,12 @@ VulkanAllocatedImage::VulkanAllocatedImage(
     UploadData(data);
 }
 
-VulkanAllocatedImage::VulkanAllocatedImage(
-    SharedPtr<VulkanContext> const& ctx, vk::Image image,
-    vk::Extent3D extent, vk::Format format, vk::ImageAspectFlags aspect,
-    uint32_t arrayLayers, vk::ImageViewType viewType)
+VulkanAllocatedImage::VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
+                                           vk::Extent3D extent,
+                                           vk::Format format,
+                                           vk::ImageAspectFlags aspect,
+                                           uint32_t arrayLayers,
+                                           vk::ImageViewType viewType)
     : pContex(ctx),
       mExtent3D(extent),
       mFormat(format),
@@ -39,8 +40,9 @@ VulkanAllocatedImage::VulkanAllocatedImage(
 
 VulkanAllocatedImage::~VulkanAllocatedImage() {
     if (mOwnsImage)
-        vmaDestroyImage(pContex->GetVmaAllocator()->GetHandle(), mImage, mAllocation);
-    pContex->GetDevice()->GetHandle().destroy(mImageView);
+        vmaDestroyImage(pContex->GetVmaAllocator()->GetHandle(), mImage,
+                        mAllocation);
+    pContex->GetDeviceHandle().destroy(mImageView);
 }
 
 void VulkanAllocatedImage::TransitionLayout(vk::CommandBuffer cmd,
@@ -150,6 +152,5 @@ vk::ImageView VulkanAllocatedImage::CreateImageView(
         .setFormat(mFormat)
         .setSubresourceRange(Utils::GetDefaultImageSubresourceRange(aspect));
 
-    return pContex->GetDevice()->GetHandle().createImageView(
-        imageViewCreateInfo);
+    return pContex->GetDeviceHandle().createImageView(imageViewCreateInfo);
 }

@@ -4,8 +4,7 @@
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanPhysicalDevice.hpp"
 
-VulkanDevice::VulkanDevice(
-    SharedPtr<VulkanPhysicalDevice> const& physicalDevice,
+VulkanDevice::VulkanDevice(VulkanPhysicalDevice* physicalDevice,
     std::vector<std::string> const& requestedLayers,
     std::vector<std::string> const& requestedExtensions,
     vk::PhysicalDeviceFeatures* pFeatures, void* pNext)

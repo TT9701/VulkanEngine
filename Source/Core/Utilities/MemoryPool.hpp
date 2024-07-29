@@ -30,6 +30,8 @@ using UniquePtr = IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>;
 template <typename T>
 using SharedPtr = IntelliDesign_NS::Core::MemoryPool::Type_SharedPtr<T>;
 
+namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
+
 template <typename T, typename... Types>
 UniquePtr<T> MakeUnique(Types&&... val) {
     return IntelliDesign_NS::Core::MemoryPool::New_Unique<T>(

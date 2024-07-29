@@ -3,13 +3,12 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
-#include "Core/Utilities/MemoryPool.hpp"
 
 class VulkanPhysicalDevice;
 
 class VulkanDevice {
 public:
-    VulkanDevice(SharedPtr<VulkanPhysicalDevice> const& physicalDevice,
+    VulkanDevice(VulkanPhysicalDevice* physicalDevice,
                  ::std::vector<::std::string> const& requestedLayers = {},
                  ::std::vector<::std::string> const& requestedExtensions = {},
                  vk::PhysicalDeviceFeatures* pFeatures = {},
@@ -19,18 +18,18 @@ public:
     MOVABLE_ONLY(VulkanDevice);
 
 public:
-    vk::Device const& GetHandle() const { return mDevice; }
+    vk::Device GetHandle() const { return mDevice; }
 
-    ::std::vector<vk::Queue> const& GetGraphicQueues() const {
-        return mGraphicQueues;
+    vk::Queue GetGraphicQueue(uint32_t index = 0) const {
+        return mGraphicQueues[index];
     }
 
-    ::std::vector<vk::Queue> const& GetComputeQueues() const {
-        return mComputeQueues;
+    vk::Queue GetComputeQueue(uint32_t index = 0) const {
+        return mComputeQueues[index];
     }
 
-    ::std::vector<vk::Queue> const& GetTransferQueues() const {
-        return mTransferQueues;
+    vk::Queue GetTransferQueue(uint32_t index = 0) const {
+        return mTransferQueues[index];
     }
 
 private:
@@ -41,7 +40,7 @@ private:
     void SetQueues();
 
 private:
-    SharedPtr<VulkanPhysicalDevice> pPhysicalDevice;
+    VulkanPhysicalDevice* pPhysicalDevice;
 
     ::std::vector<::std::string> enabledLayers {};
     ::std::vector<::std::string> enabledExtensions {};
