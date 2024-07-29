@@ -8,10 +8,8 @@
 class VulkanPhysicalDevice;
 
 class VulkanDevice {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
-    VulkanDevice(Type_SPInstance<VulkanPhysicalDevice> const& physicalDevice,
+    VulkanDevice(SharedPtr<VulkanPhysicalDevice> const& physicalDevice,
                  ::std::vector<::std::string> const& requestedLayers = {},
                  ::std::vector<::std::string> const& requestedExtensions = {},
                  vk::PhysicalDeviceFeatures* pFeatures = {},
@@ -43,7 +41,7 @@ private:
     void SetQueues();
 
 private:
-    Type_SPInstance<VulkanPhysicalDevice> pPhysicalDevice;
+    SharedPtr<VulkanPhysicalDevice> pPhysicalDevice;
 
     ::std::vector<::std::string> enabledLayers {};
     ::std::vector<::std::string> enabledExtensions {};

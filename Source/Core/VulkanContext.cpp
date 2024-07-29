@@ -6,8 +6,7 @@ vk::PhysicalDeviceVulkan12Features VulkanContext::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features VulkanContext::sEnable13Features {};
 
 VulkanContext::VulkanContext(
-    Type_SPInstance<SDLWindow> const& window,
-    vk::QueueFlags requestedQueueFlags,
+    SharedPtr<SDLWindow> const& window, vk::QueueFlags requestedQueueFlags,
     ::std::vector<::std::string> const& requestedInstanceLayers,
     ::std::vector<::std::string> const& requestedInstanceExtensions,
     ::std::vector<::std::string> const& requestedDeviceExtensions)
@@ -26,55 +25,43 @@ VulkanContext::VulkanContext(
 {
 }
 
-VulkanContext::Type_SPInstance<VulkanInstance> VulkanContext::CreateInstance(
+SharedPtr<VulkanInstance> VulkanContext::CreateInstance(
     ::std::vector<::std::string> const& requestedLayers,
     ::std::vector<::std::string> const& requestedExtensions) {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanInstance>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), requestedLayers,
-        requestedExtensions);
+    return MakeShared<VulkanInstance>(requestedLayers, requestedExtensions);
 }
 
 #ifndef NDEBUG
-VulkanContext::Type_SPInstance<VulkanDebugUtils>
-VulkanContext::CreateDebugUtilsMessenger() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanDebugUtils>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPInstance);
+SharedPtr<VulkanDebugUtils> VulkanContext::CreateDebugUtilsMessenger() {
+    return MakeShared<VulkanDebugUtils>(mSPInstance);
 }
 #endif
 
-VulkanContext::Type_SPInstance<VulkanSurface> VulkanContext::CreateSurface(
-    Type_SPInstance<SDLWindow> const& window) {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanSurface>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPInstance, window);
+SharedPtr<VulkanSurface> VulkanContext::CreateSurface(
+    SharedPtr<SDLWindow> const& window) {
+    return MakeShared<VulkanSurface>(mSPInstance, window);
 }
 
-VulkanContext::Type_SPInstance<VulkanPhysicalDevice>
-VulkanContext::PickPhysicalDevice(vk::QueueFlags flags) {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanPhysicalDevice>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPInstance, flags);
+SharedPtr<VulkanPhysicalDevice> VulkanContext::PickPhysicalDevice(
+    vk::QueueFlags flags) {
+    return MakeShared<VulkanPhysicalDevice>(mSPInstance, flags);
 }
 
-VulkanContext::Type_SPInstance<VulkanDevice> VulkanContext::CreateDevice(
+SharedPtr<VulkanDevice> VulkanContext::CreateDevice(
     ::std::vector<::std::string> const& requestedExtensions) {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<VulkanDevice>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPPhysicalDevice,
-        ::std::vector<::std::string> {}, requestedExtensions,
+    return MakeShared<VulkanDevice>(
+        mSPPhysicalDevice, ::std::vector<::std::string> {}, requestedExtensions,
         &sPhysicalDeviceFeatures, &sEnable11Features);
 }
 
-VulkanContext::Type_SPInstance<VulkanMemoryAllocator>
-VulkanContext::CreateVmaAllocator() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
-        VulkanMemoryAllocator>(MemoryPoolInstance::Get()->GetMemPoolResource(),
-                               mSPPhysicalDevice, mSPDevice, mSPInstance);
+SharedPtr<VulkanMemoryAllocator> VulkanContext::CreateVmaAllocator() {
+    return MakeShared<VulkanMemoryAllocator>(mSPPhysicalDevice, mSPDevice,
+                                             mSPInstance);
 }
 
 #ifdef CUDA_VULKAN_INTEROP
-VulkanContext::Type_SPInstance<VulkanExternalMemoryPool>
-VulkanContext::CreateExternalMemoryPool() {
-    return IntelliDesign_NS::Core::MemoryPool::New_Shared<
-        VulkanExternalMemoryPool>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPAllocator);
+SharedPtr<VulkanExternalMemoryPool> VulkanContext::CreateExternalMemoryPool() {
+    return MakeShared<VulkanExternalMemoryPool>(mSPAllocator);
 }
 #endif
 

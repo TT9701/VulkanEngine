@@ -8,10 +8,8 @@
 class VulkanContext;
 
 class VulkanCommandPool {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
-    VulkanCommandPool(Type_SPInstance<VulkanContext> ctx,
+    VulkanCommandPool(SharedPtr<VulkanContext> ctx,
                       uint32_t queueFamilysIndex,
                       vk::CommandPoolCreateFlags flags =
                           vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
@@ -25,7 +23,7 @@ private:
     vk::CommandPool CreateCommandPool();
 
 private:
-    Type_SPInstance<VulkanContext> pCtx;
+    SharedPtr<VulkanContext> pCtx;
     vk::CommandPoolCreateFlags mFlags;
     uint32_t mQueueFamilysIndex;
 
@@ -33,12 +31,10 @@ private:
 };
 
 class VulkanCommandBuffer {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
     VulkanCommandBuffer(
-        Type_SPInstance<VulkanContext> ctx,
-        Type_SPInstance<VulkanCommandPool> pool,
+        SharedPtr<VulkanContext> ctx,
+        SharedPtr<VulkanCommandPool> pool,
         vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary,
         uint32_t count = 1u);
     ~VulkanCommandBuffer() = default;
@@ -52,8 +48,8 @@ private:
     ::std::vector<vk::CommandBuffer> CreateCommandBuffer(uint32_t count);
 
 private:
-    Type_SPInstance<VulkanContext> pCtx;
-    Type_SPInstance<VulkanCommandPool> pCmdPool;
+    SharedPtr<VulkanContext> pCtx;
+    SharedPtr<VulkanCommandPool> pCmdPool;
     vk::CommandBufferLevel mLevel;
 
     ::std::vector<vk::CommandBuffer> mCmdBuffer;

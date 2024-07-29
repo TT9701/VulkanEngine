@@ -3,7 +3,7 @@
 #include "VulkanMemoryAllocator.hpp"
 
 VulkanAllocatedBuffer::VulkanAllocatedBuffer(
-    Type_SPInstance<VulkanMemoryAllocator> const& allocator,
+    SharedPtr<VulkanMemoryAllocator> const& allocator,
     size_t allocByteSize, vk::BufferUsageFlags usage,
     VmaAllocationCreateFlags flags)
     : mAllocator(allocator),

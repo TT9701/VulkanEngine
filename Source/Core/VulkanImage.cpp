@@ -6,7 +6,7 @@
 #include "VulkanMemoryAllocator.hpp"
 
 VulkanAllocatedImage::VulkanAllocatedImage(
-    Type_SPInstance<VulkanContext> const& ctx, VmaAllocationCreateFlags flags,
+    SharedPtr<VulkanContext> const& ctx, VmaAllocationCreateFlags flags,
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
     vk::ImageAspectFlags aspect, void* data, VulkanEngine* engine,
     uint32_t mipmapLevel, uint32_t arrayLayers, vk::ImageType type,
@@ -24,7 +24,7 @@ VulkanAllocatedImage::VulkanAllocatedImage(
 }
 
 VulkanAllocatedImage::VulkanAllocatedImage(
-    Type_SPInstance<VulkanContext> const& ctx, vk::Image image,
+    SharedPtr<VulkanContext> const& ctx, vk::Image image,
     vk::Extent3D extent, vk::Format format, vk::ImageAspectFlags aspect,
     uint32_t arrayLayers, vk::ImageViewType viewType)
     : pContex(ctx),

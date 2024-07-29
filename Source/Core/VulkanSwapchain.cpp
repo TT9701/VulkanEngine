@@ -4,7 +4,7 @@
 #include "VulkanContext.hpp"
 #include "VulkanImage.hpp"
 
-VulkanSwapchain::VulkanSwapchain(Type_SPInstance<VulkanContext> const& ctx,
+VulkanSwapchain::VulkanSwapchain(SharedPtr<VulkanContext> const& ctx,
                                  vk::Format format, vk::Extent2D extent2D)
     : pContex(ctx),
       mFormat(format),

@@ -24,24 +24,22 @@ private:
     ::std::pmr::memory_resource* mResource;
 };
 
-#define USING_UNIQUE_PTR_TYPE(name, T) \
-    using name = IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>
+template <typename T>
+using UniquePtr = IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>;
 
-#define USING_SHARED_PTR_TYPE(name, T) \
-    using name = IntelliDesign_NS::Core::MemoryPool::Type_SharedPtr<T>
+template <typename T>
+using SharedPtr = IntelliDesign_NS::Core::MemoryPool::Type_SharedPtr<T>;
 
-#define USING_PTR_TYPE(uniquePtrName, sharedPtrName, T) \
-    USING_UNIQUE_PTR_TYPE(uniquePtrName, T);            \
-    USING_SHARED_PTR_TYPE(sharedPtrName, T)
+template <typename T, typename... Types>
+UniquePtr<T> MakeUnique(Types&&... val) {
+    return IntelliDesign_NS::Core::MemoryPool::New_Unique<T>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(),
+        ::std::forward<Types>(val)...);
+}
 
-#define USING_TEMPLATE_UNIQUE_PTR_TYPE(name) \
-    template <class T>                       \
-    using name = IntelliDesign_NS::Core::MemoryPool::Type_UniquePtr<T>
-
-#define USING_TEMPLATE_SHARED_PTR_TYPE(name) \
-    template <class T>                       \
-    using name = IntelliDesign_NS::Core::MemoryPool::Type_SharedPtr<T>
-
-#define USING_TEMPLATE_PTR_TYPE(uniquePtrName, sharedPtrName) \
-    USING_TEMPLATE_UNIQUE_PTR_TYPE(uniquePtrName);            \
-    USING_TEMPLATE_SHARED_PTR_TYPE(sharedPtrName)
+template <typename T, typename... Types>
+SharedPtr<T> MakeShared(Types&&... val) {
+    return IntelliDesign_NS::Core::MemoryPool::New_Shared<T>(
+        MemoryPoolInstance::Get()->GetMemPoolResource(),
+        ::std::forward<Types>(val)...);
+}

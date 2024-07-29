@@ -8,11 +8,9 @@
 class VulkanContext;
 
 class VulkanFence {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
     VulkanFence(
-        Type_SPInstance<VulkanContext> const& ctx,
+        SharedPtr<VulkanContext> const& ctx,
         vk::FenceCreateFlags flags = vk::FenceCreateFlagBits::eSignaled);
     ~VulkanFence();
     MOVABLE_ONLY(VulkanFence);
@@ -26,16 +24,14 @@ private:
     vk::Fence CreateFence(vk::FenceCreateFlags flags);
 
 private:
-    Type_SPInstance<VulkanContext> pContext;
+    SharedPtr<VulkanContext> pContext;
 
     vk::Fence mFence;
 };
 
 class VulkanSemaphore {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
-    VulkanSemaphore(Type_SPInstance<VulkanContext> const& ctx);
+    VulkanSemaphore(SharedPtr<VulkanContext> const& ctx);
     ~VulkanSemaphore();
     MOVABLE_ONLY(VulkanSemaphore);
 
@@ -46,7 +42,7 @@ private:
     vk::Semaphore CreateSem();
 
 private:
-    Type_SPInstance<VulkanContext> pContext;
+    SharedPtr<VulkanContext> pContext;
 
     vk::Semaphore mSemaphore;
 };

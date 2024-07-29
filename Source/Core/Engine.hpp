@@ -32,8 +32,6 @@ struct FrameData {
 constexpr uint32_t FRAME_OVERLAP = 3;
 
 class VulkanEngine {
-    USING_TEMPLATE_PTR_TYPE(Type_PInstance, Type_SPInstance);
-
 public:
     VulkanEngine();
     ~VulkanEngine();
@@ -48,7 +46,7 @@ public:
         return mFrameDatas[mFrameNum % FRAME_OVERLAP];
     }
 
-    Type_SPInstance<ImmediateSubmitManager> GetImmediateSubmitManager() {
+    SharedPtr<ImmediateSubmitManager> GetImmediateSubmitManager() {
         return mSPImmediateSubmitManager;
     }
 
@@ -57,17 +55,17 @@ private:
 
     void InitVulkan();
 
-    Type_SPInstance<SDLWindow> CreateSDLWindow();
+    SharedPtr<SDLWindow> CreateSDLWindow();
 
-    Type_SPInstance<VulkanContext> CreateContext();
+    SharedPtr<VulkanContext> CreateContext();
 
-    Type_SPInstance<VulkanSwapchain> CreateSwapchain();
+    SharedPtr<VulkanSwapchain> CreateSwapchain();
 
-    Type_PInstance<VulkanAllocatedImage> CreateDrawImage();
+    UniquePtr<VulkanAllocatedImage> CreateDrawImage();
 
-    Type_PInstance<CUDA::VulkanExternalImage> CreateExternalImage();
+    UniquePtr<CUDA::VulkanExternalImage> CreateExternalImage();
 
-    Type_SPInstance<ImmediateSubmitManager> CreateImmediateSubmitManager();
+    SharedPtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
 
     void CreateCommands();
 
@@ -80,7 +78,7 @@ private:
     void CreateTriangleData();
     void CreateExternalTriangleData();
 
-    Type_PInstance<VulkanAllocatedImage> CreateErrorCheckTexture();
+    UniquePtr<VulkanAllocatedImage> CreateErrorCheckTexture();
     void CreateDefaultSamplers();
 
     void SetCudaInterop();
@@ -103,21 +101,21 @@ private:
     bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
-    Type_SPInstance<SDLWindow> mSPWindow;
+    SharedPtr<SDLWindow> mSPWindow;
 
-    Type_SPInstance<VulkanContext> mSPContext;
+    SharedPtr<VulkanContext> mSPContext;
 
-    Type_SPInstance<VulkanSwapchain> mSPSwapchain;
+    SharedPtr<VulkanSwapchain> mSPSwapchain;
 
-    Type_PInstance<VulkanAllocatedImage> mDrawImage;
+    UniquePtr<VulkanAllocatedImage> mDrawImage;
 
-    Type_PInstance<CUDA::VulkanExternalImage> mCUDAExternalImage;
+    UniquePtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 
-    Type_SPInstance<ImmediateSubmitManager> mSPImmediateSubmitManager;
+    SharedPtr<ImmediateSubmitManager> mSPImmediateSubmitManager;
 
     ::std::array<FrameData, FRAME_OVERLAP> mFrameDatas {};
 
-    Type_SPInstance<VulkanAllocatedImage> mErrorCheckImage;
+    SharedPtr<VulkanAllocatedImage> mErrorCheckImage;
 
     vk::DescriptorSet mDrawImageDescriptors {};
     vk::DescriptorSetLayout mDrawImageDescriptorLayout {};

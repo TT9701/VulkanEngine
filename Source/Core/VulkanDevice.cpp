@@ -5,7 +5,7 @@
 #include "VulkanPhysicalDevice.hpp"
 
 VulkanDevice::VulkanDevice(
-    Type_SPInstance<VulkanPhysicalDevice> const& physicalDevice,
+    SharedPtr<VulkanPhysicalDevice> const& physicalDevice,
     std::vector<std::string> const& requestedLayers,
     std::vector<std::string> const& requestedExtensions,
     vk::PhysicalDeviceFeatures* pFeatures, void* pNext)

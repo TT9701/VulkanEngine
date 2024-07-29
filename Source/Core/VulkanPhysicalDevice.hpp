@@ -7,10 +7,8 @@
 class VulkanInstance;
 
 class VulkanPhysicalDevice {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
-    VulkanPhysicalDevice(Type_SPInstance<VulkanInstance> const& instance,
+    VulkanPhysicalDevice(SharedPtr<VulkanInstance> const& instance,
                          vk::QueueFlags requestedQueueTypes);
     ~VulkanPhysicalDevice() = default;
     MOVABLE_ONLY(VulkanPhysicalDevice);
@@ -41,7 +39,7 @@ private:
     void SetQueueFamlies(vk::QueueFlags requestedQueueTypes);
 
 private:
-    Type_SPInstance<VulkanInstance> pInstance;
+    SharedPtr<VulkanInstance> pInstance;
 
     vk::PhysicalDevice mPhysicalDevice;
 

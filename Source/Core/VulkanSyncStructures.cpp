@@ -2,7 +2,7 @@
 
 #include "VulkanContext.hpp"
 
-VulkanFence::VulkanFence(Type_SPInstance<VulkanContext> const& ctx,
+VulkanFence::VulkanFence(SharedPtr<VulkanContext> const& ctx,
                          vk::FenceCreateFlags flags)
     : pContext(ctx), mFence(CreateFence(flags)) {}
 
@@ -16,7 +16,7 @@ vk::Fence VulkanFence::CreateFence(vk::FenceCreateFlags flags) {
     return pContext->GetDevice()->GetHandle().createFence(fenceCreateInfo);
 }
 
-VulkanSemaphore::VulkanSemaphore(Type_SPInstance<VulkanContext> const& ctx)
+VulkanSemaphore::VulkanSemaphore(SharedPtr<VulkanContext> const& ctx)
     : pContext(ctx), mSemaphore(CreateSem()) {}
 
 VulkanSemaphore::~VulkanSemaphore() {

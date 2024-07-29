@@ -5,7 +5,7 @@
 #include "VulkanInstance.hpp"
 
 VulkanPhysicalDevice::VulkanPhysicalDevice(
-    const Type_SPInstance<VulkanInstance>& instance,
+    const SharedPtr<VulkanInstance>& instance,
     vk::QueueFlags requestedQueueTypes)
     : pInstance(instance),
       mPhysicalDevice(PickPhysicalDevice(requestedQueueTypes)) {

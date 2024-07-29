@@ -35,7 +35,7 @@ vk::Bool32 VKAPI_PTR debugMessengerCallback(
 }  // namespace
 
 VulkanDebugUtils::VulkanDebugUtils(
-    Type_SPInstance<VulkanInstance> const& instance)
+    SharedPtr<VulkanInstance> const& instance)
     : pInstance(instance) {
     DBG_LOG_INFO("Vulkan Debug Messenger Created");
 }

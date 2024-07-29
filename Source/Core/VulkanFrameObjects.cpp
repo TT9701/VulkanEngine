@@ -1,5 +1,5 @@
 #include "VulkanFrameObjects.hpp"
 
 VulkanFrameObjects::VulkanFrameObjects(
-    Type_SPInstance<VulkanDevice> const& device)
+    SharedPtr<VulkanDevice> const& device)
     : pDevice(device) {}

@@ -10,11 +10,9 @@ class VulkanMemoryAllocator;
 class VulkanEngine;
 
 class VulkanAllocatedImage {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
     VulkanAllocatedImage(
-        Type_SPInstance<VulkanContext> const& ctx,
+        SharedPtr<VulkanContext> const& ctx,
         VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
         void* data = nullptr, VulkanEngine* engine = nullptr,
@@ -22,7 +20,7 @@ public:
         vk::ImageType type = vk::ImageType::e2D,
         vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
-    VulkanAllocatedImage(Type_SPInstance<VulkanContext> const& ctx,
+    VulkanAllocatedImage(SharedPtr<VulkanContext> const& ctx,
                          vk::Image image, vk::Extent3D extent,
                          vk::Format format, vk::ImageAspectFlags aspect,
                          uint32_t arrayLayers = 1,
@@ -66,7 +64,7 @@ private:
                                   vk::ImageViewType viewType);
 
 private:
-    Type_SPInstance<VulkanContext> pContex;
+    SharedPtr<VulkanContext> pContex;
 
     vk::Extent3D mExtent3D;
     vk::Format mFormat;

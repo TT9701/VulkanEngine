@@ -6,9 +6,9 @@
 #include "VulkanPhysicalDevice.hpp"
 
 VulkanMemoryAllocator::VulkanMemoryAllocator(
-    Type_SPInstance<VulkanPhysicalDevice> const& physicalDevice,
-    Type_SPInstance<VulkanDevice> const& device,
-    Type_SPInstance<VulkanInstance> const& instance)
+    SharedPtr<VulkanPhysicalDevice> const& physicalDevice,
+    SharedPtr<VulkanDevice> const& device,
+    SharedPtr<VulkanInstance> const& instance)
     : pPhysicalDevice(physicalDevice),
       pDevice(device),
       pInstance(instance),
@@ -86,7 +86,7 @@ VmaAllocator VulkanMemoryAllocator::CreateAllocator() {
 }
 
 VulkanExternalMemoryPool::VulkanExternalMemoryPool(
-    Type_SPInstance<VulkanMemoryAllocator> const& allocator)
+    SharedPtr<VulkanMemoryAllocator> const& allocator)
     : pAllocator(allocator), mPool(CreatePool()) {
     DBG_LOG_INFO("vma External Resource Pool Created");
 }

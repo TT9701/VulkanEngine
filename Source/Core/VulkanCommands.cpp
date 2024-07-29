@@ -4,7 +4,7 @@
 
 #include "VulkanContext.hpp"
 
-VulkanCommandPool::VulkanCommandPool(Type_SPInstance<VulkanContext> ctx,
+VulkanCommandPool::VulkanCommandPool(SharedPtr<VulkanContext> ctx,
                                      uint32_t queueFamilysIndex,
                                      vk::CommandPoolCreateFlags flags)
     : pCtx(std::move(ctx)),
@@ -24,7 +24,7 @@ vk::CommandPool VulkanCommandPool::CreateCommandPool() {
 }
 
 VulkanCommandBuffer::VulkanCommandBuffer(
-    Type_SPInstance<VulkanContext> ctx, Type_SPInstance<VulkanCommandPool> pool,
+    SharedPtr<VulkanContext> ctx, SharedPtr<VulkanCommandPool> pool,
     vk::CommandBufferLevel level, uint32_t count)
     : pCtx(std::move(ctx)),
       pCmdPool(std::move(pool)),

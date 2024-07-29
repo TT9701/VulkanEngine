@@ -12,10 +12,8 @@ class VulkanFence;
 class VulkanAllocatedImage;
 
 class VulkanSwapchain {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
-    VulkanSwapchain(Type_SPInstance<VulkanContext> const& ctx,
+    VulkanSwapchain(SharedPtr<VulkanContext> const& ctx,
                     vk::Format format, vk::Extent2D extent2D);
     ~VulkanSwapchain();
     MOVABLE_ONLY(VulkanSwapchain);
@@ -61,7 +59,7 @@ private:
     void SetSwapchainImages();
 
 private:
-    Type_SPInstance<VulkanContext> pContex;
+    SharedPtr<VulkanContext> pContex;
 
     vk::Format mFormat;
     vk::Extent2D mExtent2D;

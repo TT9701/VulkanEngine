@@ -8,7 +8,7 @@
 using IntelliDesign_NS::Core::MemoryPool::New_Shared;
 
 ImmediateSubmitManager::ImmediateSubmitManager(
-    Type_SPInstance<VulkanContext> const& ctx, uint32_t queueFamilyIndex)
+    SharedPtr<VulkanContext> const& ctx, uint32_t queueFamilyIndex)
     : pContex(ctx),
       mQueueFamilyIndex(queueFamilyIndex),
       mSPFence(CreateFence()),
@@ -46,21 +46,19 @@ void ImmediateSubmitManager::Submit(
         mSPFence->GetHandle(), vk::True, VulkanFence::TIME_OUT_NANO_SECONDS));
 }
 
-ImmediateSubmitManager::Type_SPInstance<VulkanFence>
-ImmediateSubmitManager::CreateFence() {
+SharedPtr<VulkanFence> ImmediateSubmitManager::CreateFence() {
     return New_Shared<VulkanFence>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), pContex);
 }
 
-ImmediateSubmitManager::Type_SPInstance<VulkanCommandBuffer>
+SharedPtr<VulkanCommandBuffer>
 ImmediateSubmitManager::CreateCommandBuffer() {
     return New_Shared<VulkanCommandBuffer>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), pContex,
         mSPCommandPool);
 }
 
-ImmediateSubmitManager::Type_SPInstance<VulkanCommandPool>
-ImmediateSubmitManager::CreateCommandPool() {
+SharedPtr<VulkanCommandPool> ImmediateSubmitManager::CreateCommandPool() {
     return New_Shared<VulkanCommandPool>(
         MemoryPoolInstance::Get()->GetMemPoolResource(), pContex,
         mQueueFamilyIndex);

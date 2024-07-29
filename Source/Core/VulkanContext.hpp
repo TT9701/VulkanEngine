@@ -17,11 +17,9 @@
 class SDLWindow;
 
 class VulkanContext {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
     VulkanContext(
-        const Type_SPInstance<SDLWindow>& window,
+        const SharedPtr<SDLWindow>& window,
         vk::QueueFlags requestedQueueFlags,
         ::std::vector<::std::string> const& requestedInstanceLayers = {},
         ::std::vector<::std::string> const& requestedInstanceExtensions = {},
@@ -30,54 +28,54 @@ public:
     MOVABLE_ONLY(VulkanContext);
 
 public:
-    Type_SPInstance<VulkanInstance> GetInstance() const { return mSPInstance; }
+    SharedPtr<VulkanInstance> GetInstance() const { return mSPInstance; }
 
 #ifndef NDEBUG
-    Type_SPInstance<VulkanDebugUtils> GetDebugMessenger() const {
+    SharedPtr<VulkanDebugUtils> GetDebugMessenger() const {
         return mSPDebugUtilsMessenger;
     }
 #endif
 
-    Type_SPInstance<VulkanSurface> GetSurface() const { return mSPSurface; }
+    SharedPtr<VulkanSurface> GetSurface() const { return mSPSurface; }
 
-    Type_SPInstance<VulkanPhysicalDevice> GetPhysicalDevice() const {
+    SharedPtr<VulkanPhysicalDevice> GetPhysicalDevice() const {
         return mSPPhysicalDevice;
     }
 
-    Type_SPInstance<VulkanDevice> GetDevice() const { return mSPDevice; }
+    SharedPtr<VulkanDevice> GetDevice() const { return mSPDevice; }
 
-    Type_SPInstance<VulkanMemoryAllocator> GetVmaAllocator() const {
+    SharedPtr<VulkanMemoryAllocator> GetVmaAllocator() const {
         return mSPAllocator;
     }
 
 #ifdef CUDA_VULKAN_INTEROP
-    Type_SPInstance<VulkanExternalMemoryPool> GetExternalMemoryPool() const {
+    SharedPtr<VulkanExternalMemoryPool> GetExternalMemoryPool() const {
         return mSPExternalMemoryPool;
     }
 #endif
 
 private:
-    Type_SPInstance<VulkanInstance> CreateInstance(
+    SharedPtr<VulkanInstance> CreateInstance(
         ::std::vector<::std::string> const& requestedLayers,
         ::std::vector<::std::string> const& requestedExtensions);
 
 #ifndef NDEBUG
-    Type_SPInstance<VulkanDebugUtils> CreateDebugUtilsMessenger();
+    SharedPtr<VulkanDebugUtils> CreateDebugUtilsMessenger();
 #endif
 
-    Type_SPInstance<VulkanSurface> CreateSurface(
-        Type_SPInstance<SDLWindow> const& window);
+    SharedPtr<VulkanSurface> CreateSurface(
+        SharedPtr<SDLWindow> const& window);
 
-    Type_SPInstance<VulkanPhysicalDevice> PickPhysicalDevice(
+    SharedPtr<VulkanPhysicalDevice> PickPhysicalDevice(
         vk::QueueFlags flags);
 
-    Type_SPInstance<VulkanDevice> CreateDevice(
+    SharedPtr<VulkanDevice> CreateDevice(
         ::std::vector<::std::string> const& requestedExtensions);
 
-    Type_SPInstance<VulkanMemoryAllocator> CreateVmaAllocator();
+    SharedPtr<VulkanMemoryAllocator> CreateVmaAllocator();
 
 #ifdef CUDA_VULKAN_INTEROP
-    Type_SPInstance<VulkanExternalMemoryPool> CreateExternalMemoryPool();
+    SharedPtr<VulkanExternalMemoryPool> CreateExternalMemoryPool();
 #endif
 
 public:
@@ -98,15 +96,15 @@ private:
     static vk::PhysicalDeviceVulkan13Features sEnable13Features;
 
 private:
-    Type_SPInstance<VulkanInstance> mSPInstance;
+    SharedPtr<VulkanInstance> mSPInstance;
 #ifndef NDEBUG
-    Type_SPInstance<VulkanDebugUtils> mSPDebugUtilsMessenger;
+    SharedPtr<VulkanDebugUtils> mSPDebugUtilsMessenger;
 #endif
-    Type_SPInstance<VulkanSurface> mSPSurface;
-    Type_SPInstance<VulkanPhysicalDevice> mSPPhysicalDevice;
-    Type_SPInstance<VulkanDevice> mSPDevice;
-    Type_SPInstance<VulkanMemoryAllocator> mSPAllocator;
+    SharedPtr<VulkanSurface> mSPSurface;
+    SharedPtr<VulkanPhysicalDevice> mSPPhysicalDevice;
+    SharedPtr<VulkanDevice> mSPDevice;
+    SharedPtr<VulkanMemoryAllocator> mSPAllocator;
 #ifdef CUDA_VULKAN_INTEROP
-    Type_SPInstance<VulkanExternalMemoryPool> mSPExternalMemoryPool;
+    SharedPtr<VulkanExternalMemoryPool> mSPExternalMemoryPool;
 #endif
 };

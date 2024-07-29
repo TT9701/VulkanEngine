@@ -9,11 +9,9 @@
 class VulkanMemoryAllocator;
 
 class VulkanAllocatedBuffer {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
     VulkanAllocatedBuffer(
-        Type_SPInstance<VulkanMemoryAllocator> const& allocator,
+        SharedPtr<VulkanMemoryAllocator> const& allocator,
         size_t allocByteSize, vk::BufferUsageFlags usage,
         VmaAllocationCreateFlags flags);
     ~VulkanAllocatedBuffer();
@@ -31,7 +29,7 @@ private:
                             VmaAllocationCreateFlags flags);
 
 private:
-    Type_SPInstance<VulkanMemoryAllocator> mAllocator;
+    SharedPtr<VulkanMemoryAllocator> mAllocator;
 
     VmaAllocation mAllocation {};
     VmaAllocationInfo mInfo {};

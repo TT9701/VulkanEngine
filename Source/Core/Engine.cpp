@@ -12,9 +12,6 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "VulkanSwapchain.hpp"
 #include "Window.hpp"
 
-using IntelliDesign_NS::Core::MemoryPool::New_Shared;
-using IntelliDesign_NS::Core::MemoryPool::New_Unique;
-
 VulkanEngine::VulkanEngine()
     : mSPWindow(CreateSDLWindow()),
       mSPContext(CreateContext()),
@@ -149,12 +146,11 @@ void VulkanEngine::InitVulkan() {
     CreateExternalTriangleData();
 }
 
-VulkanEngine::Type_SPInstance<SDLWindow> VulkanEngine::CreateSDLWindow() {
-    return New_Shared<SDLWindow>(
-        MemoryPoolInstance::Get()->GetMemPoolResource());
+SharedPtr<SDLWindow> VulkanEngine::CreateSDLWindow() {
+    return MakeShared<SDLWindow>();
 }
 
-VulkanEngine::Type_SPInstance<VulkanContext> VulkanEngine::CreateContext() {
+SharedPtr<VulkanContext> VulkanEngine::CreateContext() {
     ::std::vector<::std::string> requestedInstanceLayers {};
 #ifndef NDEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
@@ -183,23 +179,20 @@ VulkanEngine::Type_SPInstance<VulkanContext> VulkanEngine::CreateContext() {
 
     VulkanContext::EnableDefaultFeatures();
 
-    return New_Shared<VulkanContext>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPWindow,
-        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
+    return MakeShared<VulkanContext>(
+        mSPWindow, vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
         requestedInstanceLayers, requestedInstanceExtensions,
         enabledDeivceExtensions);
 }
 
-VulkanEngine::Type_SPInstance<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
-    return New_Shared<VulkanSwapchain>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
-        vk::Format::eR8G8B8A8Unorm,
+SharedPtr<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
+    return MakeShared<VulkanSwapchain>(
+        mSPContext, vk::Format::eR8G8B8A8Unorm,
         vk::Extent2D {static_cast<uint32_t>(mSPWindow->GetWidth()),
                       static_cast<uint32_t>(mSPWindow->GetHeight())});
 }
 
-VulkanEngine::Type_PInstance<VulkanAllocatedImage>
-VulkanEngine::CreateDrawImage() {
+UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
                                   static_cast<uint32_t>(mSPWindow->GetHeight()),
                                   1};
@@ -210,15 +203,13 @@ VulkanEngine::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return New_Unique<VulkanAllocatedImage>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, drawImageExtent,
+    return MakeUnique<VulkanAllocatedImage>(
+        mSPContext, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, drawImageExtent,
         vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
 }
 
-VulkanEngine::Type_PInstance<CUDA::VulkanExternalImage>
-VulkanEngine::CreateExternalImage() {
+UniquePtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
                                   static_cast<uint32_t>(mSPWindow->GetHeight()),
                                   1};
@@ -229,8 +220,7 @@ VulkanEngine::CreateExternalImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return New_Unique<CUDA::VulkanExternalImage>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(),
+    return MakeUnique<CUDA::VulkanExternalImage>(
         mSPContext->GetDevice()->GetHandle(),
         mSPContext->GetVmaAllocator()->GetHandle(),
         mSPContext->GetExternalMemoryPool()->GetHandle(), 0, drawImageExtent,
@@ -238,10 +228,9 @@ VulkanEngine::CreateExternalImage() {
         vk::ImageAspectFlagBits::eColor);
 }
 
-VulkanEngine::Type_SPInstance<ImmediateSubmitManager>
-VulkanEngine::CreateImmediateSubmitManager() {
-    return New_Shared<ImmediateSubmitManager>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
+SharedPtr<ImmediateSubmitManager> VulkanEngine::CreateImmediateSubmitManager() {
+    return MakeShared<ImmediateSubmitManager>(
+        mSPContext,
         mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
 }
 
@@ -322,8 +311,7 @@ void VulkanEngine::CreateTriangleData() {
 
 void VulkanEngine::CreateExternalTriangleData() {
     mTriangleExternalMesh.mVertexBuffer =
-        New_Unique<CUDA::VulkanExternalBuffer>(
-            MemoryPoolInstance::Get()->GetMemPoolResource(),
+        MakeUnique<CUDA::VulkanExternalBuffer>(
             mSPContext->GetDevice()->GetHandle(),
             mSPContext->GetVmaAllocator()->GetHandle(), 3 * sizeof(Vertex),
             vk::BufferUsageFlagBits::eStorageBuffer
@@ -332,8 +320,7 @@ void VulkanEngine::CreateExternalTriangleData() {
             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
             mSPContext->GetExternalMemoryPool()->GetHandle());
 
-    mTriangleExternalMesh.mIndexBuffer = New_Unique<CUDA::VulkanExternalBuffer>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(),
+    mTriangleExternalMesh.mIndexBuffer = MakeUnique<CUDA::VulkanExternalBuffer>(
         mSPContext->GetDevice()->GetHandle(),
         mSPContext->GetVmaAllocator()->GetHandle(), 3 * sizeof(uint32_t),
         vk::BufferUsageFlagBits::eIndexBuffer
@@ -361,8 +348,7 @@ void VulkanEngine::CreateExternalTriangleData() {
     auto cudaMipmapped = externalImage.GetMapMipmappedArray(0, 1);
 }
 
-VulkanEngine ::Type_PInstance<VulkanAllocatedImage>
-VulkanEngine::CreateErrorCheckTexture() {
+UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
     std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
@@ -371,10 +357,9 @@ VulkanEngine::CreateErrorCheckTexture() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    return New_Unique<VulkanAllocatedImage>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(), mSPContext,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VkExtent3D {16, 16, 1},
-        vk::Format::eR8G8B8A8Unorm,
+    return MakeUnique<VulkanAllocatedImage>(
+        mSPContext, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+        VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         vk::ImageAspectFlagBits::eColor, pixels.data(), this);
 }
@@ -401,16 +386,14 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
     GPUMeshBuffers newMesh {};
-    newMesh.mVertexBuffer = New_Unique<VulkanAllocatedBuffer>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(),
+    newMesh.mVertexBuffer = MakeUnique<VulkanAllocatedBuffer>(
         mSPContext->GetVmaAllocator(), vertexBufferSize,
         vk::BufferUsageFlagBits::eStorageBuffer
             | vk::BufferUsageFlagBits::eTransferDst
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
-    newMesh.mIndexBuffer = New_Unique<VulkanAllocatedBuffer>(
-        MemoryPoolInstance::Get()->GetMemPoolResource(),
+    newMesh.mIndexBuffer = MakeUnique<VulkanAllocatedBuffer>(
         mSPContext->GetVmaAllocator(), indexBufferSize,
         vk::BufferUsageFlagBits::eIndexBuffer
             | vk::BufferUsageFlagBits::eTransferDst,

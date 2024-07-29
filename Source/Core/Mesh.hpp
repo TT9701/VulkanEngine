@@ -6,18 +6,14 @@
 #include "VulkanBuffer.hpp"
 
 struct GPUMeshBuffers {
-    USING_TEMPLATE_UNIQUE_PTR_TYPE(Type_PInstance);
-
-    Type_PInstance<VulkanAllocatedBuffer> mIndexBuffer {nullptr};
-    Type_PInstance<VulkanAllocatedBuffer> mVertexBuffer {nullptr};
+    UniquePtr<VulkanAllocatedBuffer> mIndexBuffer {nullptr};
+    UniquePtr<VulkanAllocatedBuffer> mVertexBuffer {nullptr};
     vk::DeviceAddress mVertexBufferAddress {};
 };
 
 struct ExternalGPUMeshBuffers {
-    USING_TEMPLATE_UNIQUE_PTR_TYPE(Type_PInstance);
-
-    Type_PInstance<CUDA::VulkanExternalBuffer> mIndexBuffer {};
-    Type_PInstance<CUDA::VulkanExternalBuffer> mVertexBuffer {};
+    UniquePtr<CUDA::VulkanExternalBuffer> mIndexBuffer {};
+    UniquePtr<CUDA::VulkanExternalBuffer> mVertexBuffer {};
     vk::DeviceAddress mVertexBufferAddress {};
 };
 

@@ -6,8 +6,8 @@
 #include "VulkanInstance.hpp"
 #include "Window.hpp"
 
-VulkanSurface::VulkanSurface(const Type_SPInstance<VulkanInstance>& instance,
-                             const Type_SPInstance<SDLWindow>& window)
+VulkanSurface::VulkanSurface(const SharedPtr<VulkanInstance>& instance,
+                             const SharedPtr<SDLWindow>& window)
     : pInstance(instance), pWindow(window), mSurface(CreateSurface()) {
     DBG_LOG_INFO("SDL Vulkan Surface Created");
 }

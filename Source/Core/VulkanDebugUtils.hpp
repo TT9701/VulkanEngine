@@ -8,10 +8,8 @@
 class VulkanInstance;
 
 class VulkanDebugUtils {
-    USING_TEMPLATE_SHARED_PTR_TYPE(Type_SPInstance);
-
 public:
-    VulkanDebugUtils(Type_SPInstance<VulkanInstance> const& instance);
+    VulkanDebugUtils(SharedPtr<VulkanInstance> const& instance);
     ~VulkanDebugUtils();
     MOVABLE_ONLY(VulkanDebugUtils);
 
@@ -24,6 +22,6 @@ private:
     vk::DebugUtilsMessengerEXT CreateDebugMessenger();
 
 private:
-    Type_SPInstance<VulkanInstance> pInstance;
+    SharedPtr<VulkanInstance> pInstance;
     vk::DebugUtilsMessengerEXT mDebugMessenger;
 };
