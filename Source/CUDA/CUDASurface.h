@@ -49,8 +49,8 @@ __device__ constexpr auto EffectiveIOPolicy() {
 }
 
 template <int TexelElemCount, int StartIdx, int ComponentCount>
-    requires(StartIdx >= 0 && ComponentCount > 0 &&
-             StartIdx + ComponentCount <= TexelElemCount)
+    requires(StartIdx >= 0 && ComponentCount > 0
+             && StartIdx + ComponentCount <= TexelElemCount)
 struct IO32Bits {
     // for 1D surface
     template <IOType type>
@@ -343,8 +343,8 @@ __device__ constexpr void IOLoop(cudaSurfaceObject_t surf, int texelStartIndex,
             NDim > TexelElemCount - texelCompStartIdx
                 ? TexelElemCount - texelCompStartIdx
                 : NDim;
-        if (texelStartIndex < 0 || texelStartIndex >= TexelWidth || y < 0 ||
-            y >= Height) {
+        if (texelStartIndex < 0 || texelStartIndex >= TexelWidth || y < 0
+            || y >= Height) {
             if constexpr (ioType == _Surface::IOType::Read) {
                 constexpr ::std::array bv {FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX};
                 memcpy(array, &bv, sizeof(float) * texelCompLength);
@@ -375,8 +375,8 @@ __device__ constexpr void IOLoop(cudaSurfaceObject_t surf, int texelStartIndex,
             NDim > TexelElemCount - texelCompStartIdx
                 ? TexelElemCount - texelCompStartIdx
                 : NDim;
-        if (texelStartIndex < 0 || texelStartIndex >= TexelWidth || y < 0 ||
-            y >= Height || z < 0 || z >= Depth) {
+        if (texelStartIndex < 0 || texelStartIndex >= TexelWidth || y < 0
+            || y >= Height || z < 0 || z >= Depth) {
             if constexpr (ioType == _Surface::IOType::Read) {
                 constexpr ::std::array bv {FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX};
                 memcpy(array, &bv, sizeof(float) * texelCompLength);
@@ -450,8 +450,8 @@ template <int Offset, int NDim>
 __device__ constexpr void CudaSurface1D<UserType, TexelWidth>::Read1D(
     CudaSurfaceArray<Bit32_t, NDim>* array, int x) {
     constexpr int texelOffset =
-        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1)) /
-        Base::mTexelElemCount;
+        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1))
+        / Base::mTexelElemCount;
     int texelStartIndex = x + texelOffset;
     _Surface::IOLoop<TexelWidth, Base::mTexelElemCount, _Surface::IOType::Read,
                      NDim, Offset, NDim>(
@@ -464,8 +464,8 @@ template <int Offset, int NDim>
 __device__ constexpr void CudaSurface1D<UserType, TexelWidth>::Write1D(
     CudaSurfaceArray<Bit32_t, NDim>& array, int x) {
     constexpr int texelOffset =
-        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1)) /
-        Base::mTexelElemCount;
+        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1))
+        / Base::mTexelElemCount;
     int texelStartIndex = x + texelOffset;
     _Surface::IOLoop<TexelWidth, Base::mTexelElemCount, _Surface::IOType::Write,
                      NDim, Offset, NDim>(
@@ -512,8 +512,8 @@ template <int Offset, int NDim>
 __device__ constexpr void CUDASurface2D<UserType, TexelWidth, Height>::Read1D(
     CudaSurfaceArray<Bit32_t, NDim>* array, int x, int y) {
     constexpr int texelOffset =
-        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1)) /
-        Base::mTexelElemCount;
+        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1))
+        / Base::mTexelElemCount;
     int texelStartIndex = x + texelOffset;
     _Surface::IOLoop<TexelWidth, Height, Base::mTexelElemCount,
                      _Surface::IOType::Read, NDim, Offset, NDim>(
@@ -523,12 +523,11 @@ __device__ constexpr void CUDASurface2D<UserType, TexelWidth, Height>::Read1D(
 
 template <typename UserType, int TexelWidth, int Height>
 template <int Offset, int NDim>
-__device__ constexpr void
-CUDASurface2D<UserType, TexelWidth, Height>::Write1D(
+__device__ constexpr void CUDASurface2D<UserType, TexelWidth, Height>::Write1D(
     CudaSurfaceArray<Bit32_t, NDim>& array, int x, int y) {
     constexpr int texelOffset =
-        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1)) /
-        Base::mTexelElemCount;
+        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1))
+        / Base::mTexelElemCount;
     int texelStartIndex = x + texelOffset;
     _Surface::IOLoop<TexelWidth, Height, Base::mTexelElemCount,
                      _Surface::IOType::Write, NDim, Offset, NDim>(
@@ -548,8 +547,7 @@ __device__ constexpr void CUDASurface2D<UserType, TexelWidth, Height>::Read2D(
 
 template <typename UserType, int TexelWidth, int Height>
 template <int XOffset, int XDim, int YOffset, int YDim, int Idx>
-__device__ constexpr void
-CUDASurface2D<UserType, TexelWidth, Height>::Write2D(
+__device__ constexpr void CUDASurface2D<UserType, TexelWidth, Height>::Write2D(
     CudaSurfaceArray2D<Bit32_t, XDim, YDim>& array, int x, int y) {
     if constexpr (Idx < YDim) {
         Write1D<XOffset>(array.data[Idx], x, y + YOffset);
@@ -611,8 +609,8 @@ __device__ constexpr void
 CUDASurface3D<UserType, TexelWidth, Height, Depth>::Read1D(
     CudaSurfaceArray<Bit32_t, NDim>* array, int x, int y, int z) {
     constexpr int texelOffset =
-        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1)) /
-        Base::mTexelElemCount;
+        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1))
+        / Base::mTexelElemCount;
     int texelStartIndex = x + texelOffset;
     _Surface::IOLoop<TexelWidth, Height, Depth, Base::mTexelElemCount,
                      _Surface::IOType::Read, NDim, Offset, NDim>(
@@ -626,8 +624,8 @@ __device__ constexpr void
 CUDASurface3D<UserType, TexelWidth, Height, Depth>::Write1D(
     CudaSurfaceArray<Bit32_t, NDim>& array, int x, int y, int z) {
     constexpr int texelOffset =
-        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1)) /
-        Base::mTexelElemCount;
+        (Offset >= 0 ? Offset : Offset - (Base::mTexelElemCount - 1))
+        / Base::mTexelElemCount;
     int texelStartIndex = x + texelOffset;
     _Surface::IOLoop<TexelWidth, Height, Depth, Base::mTexelElemCount,
                      _Surface::IOType::Write, NDim, Offset, NDim>(

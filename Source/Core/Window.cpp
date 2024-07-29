@@ -17,7 +17,7 @@ SDL_Window* CreateWindow(int width, int height) {
                             window_flags);
 }
 
-}
+}  // namespace
 
 SDLWindow::SDLWindow(int width, int height)
     : mWidth(width),

@@ -13,14 +13,12 @@ public:
     MOVABLE_ONLY(VulkanDebugUtils);
 
 public:
-    vk::DebugUtilsMessengerEXT GetHandle() const {
-        return mDebugMessenger;
-    }
+    vk::DebugUtilsMessengerEXT GetHandle() const { return mDebugMessenger; }
 
 private:
     vk::DebugUtilsMessengerEXT CreateDebugMessenger();
 
 private:
-    VulkanInstance* pInstance;
+    VulkanInstance*            pInstance;
     vk::DebugUtilsMessengerEXT mDebugMessenger;
 };

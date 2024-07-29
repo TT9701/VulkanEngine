@@ -12,15 +12,15 @@ class VulkanAllocatedImage;
 
 class VulkanSwapchain {
 public:
-    VulkanSwapchain(VulkanContext* ctx,
-                    vk::Format format, vk::Extent2D extent2D);
+    VulkanSwapchain(VulkanContext* ctx, vk::Format format,
+                    vk::Extent2D extent2D);
     ~VulkanSwapchain();
     MOVABLE_ONLY(VulkanSwapchain);
 
 public:
     static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
 
-    uint32_t AquireNextImageIndex();
+    uint32_t AcquireNextImageIndex(/*vk::Fence waitFence*/);
 
     void Present(vk::Queue queue);
 
@@ -41,9 +41,7 @@ public:
 
     uint32_t GetCurrentImageIndex() const { return mCurrentImageIndex; }
 
-    vk::Fence GetAquireFenceHandle() const {
-        return mAquireFence.GetHandle();
-    }
+    vk::Fence GetAquireFenceHandle() const { return mAcquireFence.GetHandle(); }
 
     vk::Semaphore GetReady4PresentSemHandle() const {
         return mReady4Present.GetHandle();
@@ -60,16 +58,16 @@ private:
 private:
     VulkanContext* pContex;
 
-    vk::Format mFormat;
+    vk::Format   mFormat;
     vk::Extent2D mExtent2D;
 
     vk::SwapchainCreateInfoKHR mCreateInfo {};
-    vk::SwapchainKHR mSwapchain;
+    vk::SwapchainKHR           mSwapchain;
 
     VulkanSemaphore mReady4Present {pContex};
     VulkanSemaphore mReady4Render {pContex};
-    VulkanFence mAquireFence {pContex};
+    VulkanFence     mAcquireFence {pContex};
 
     ::std::vector<VulkanAllocatedImage> mImages {};
-    uint32_t mCurrentImageIndex {0};
+    uint32_t                            mCurrentImageIndex {0};
 };

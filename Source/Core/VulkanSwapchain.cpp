@@ -4,8 +4,8 @@
 #include "VulkanContext.hpp"
 #include "VulkanImage.hpp"
 
-VulkanSwapchain::VulkanSwapchain(VulkanContext* ctx,
-                                 vk::Format format, vk::Extent2D extent2D)
+VulkanSwapchain::VulkanSwapchain(VulkanContext* ctx, vk::Format format,
+                                 vk::Extent2D extent2D)
     : pContex(ctx),
       mFormat(format),
       mExtent2D(extent2D),
@@ -22,12 +22,12 @@ VulkanSwapchain::~VulkanSwapchain() {
     pContex->GetDeviceHandle().destroy(mSwapchain);
 }
 
-uint32_t VulkanSwapchain::AquireNextImageIndex() {
+uint32_t VulkanSwapchain::AcquireNextImageIndex(/*vk::Fence waitFence*/) {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mAquireFence.GetHandle(), vk::True,
+        mAcquireFence.GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS));
 
-    pContex->GetDeviceHandle().resetFences(mAquireFence.GetHandle());
+    pContex->GetDeviceHandle().resetFences(mAcquireFence.GetHandle());
 
     VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
@@ -38,6 +38,7 @@ uint32_t VulkanSwapchain::AquireNextImageIndex() {
 
 void VulkanSwapchain::Present(vk::Queue queue) {
     auto sem = mReady4Present.GetHandle();
+
     vk::PresentInfoKHR presentInfo {};
     presentInfo.setSwapchains(mSwapchain)
         .setWaitSemaphores(sem)

@@ -16,7 +16,9 @@ public:
     std::vector<std::string> GetVulkanInstanceExtension() const;
 
     SDL_Window* GetPtr() const { return mWindow; }
+
     int GetWidth() const { return mWidth; }
+
     int GetHeight() const { return mHeight; }
 
 private:
@@ -24,5 +26,5 @@ private:
     int mHeight;
 
     SDL_Window* mWindow;
-    SDL_Event* mEvent {nullptr};
+    SDL_Event*  mEvent {nullptr};
 };

@@ -75,8 +75,8 @@ vk::DescriptorSet DescriptorAllocator::Allocate(vk::Device              device,
     vk::DescriptorSet ds;
     vk::Result        result = device.allocateDescriptorSets(&allocInfo, &ds);
 
-    if (result == vk::Result::eErrorOutOfPoolMemory ||
-        result == vk::Result::eErrorFragmentedPool) {
+    if (result == vk::Result::eErrorOutOfPoolMemory
+        || result == vk::Result::eErrorFragmentedPool) {
 
         mFullPools.push_back(poolToUse);
 
@@ -111,7 +111,8 @@ vk::DescriptorPool DescriptorAllocator::CreatePool(
     vk::Device device, uint32_t setCount, std::span<PoolSizeRatio> poolRatios) {
     std::vector<vk::DescriptorPoolSize> poolSizes;
     for (PoolSizeRatio ratio : poolRatios) {
-        poolSizes.emplace_back(ratio.type, static_cast<uint32_t>(ratio.ratio * setCount));
+        poolSizes.emplace_back(ratio.type,
+                               static_cast<uint32_t>(ratio.ratio * setCount));
     }
     vk::DescriptorPoolCreateInfo poolInfo {};
     poolInfo.setMaxSets(setCount).setPoolSizes(poolSizes);

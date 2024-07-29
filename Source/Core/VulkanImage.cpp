@@ -23,11 +23,11 @@ VulkanAllocatedImage::VulkanAllocatedImage(
 }
 
 VulkanAllocatedImage::VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
-                                           vk::Extent3D extent,
-                                           vk::Format format,
+                                           vk::Extent3D         extent,
+                                           vk::Format           format,
                                            vk::ImageAspectFlags aspect,
-                                           uint32_t arrayLayers,
-                                           vk::ImageViewType viewType)
+                                           uint32_t             arrayLayers,
+                                           vk::ImageViewType    viewType)
     : pContex(ctx),
       mExtent3D(extent),
       mFormat(format),
@@ -46,15 +46,15 @@ VulkanAllocatedImage::~VulkanAllocatedImage() {
 }
 
 void VulkanAllocatedImage::TransitionLayout(vk::CommandBuffer cmd,
-                                            vk::ImageLayout newLayout) {
+                                            vk::ImageLayout   newLayout) {
     Utils::TransitionImageLayout(cmd, mImage, mLayout, newLayout);
     mLayout = newLayout;
 }
 
 void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
-                                       vk::Image dstImage,
-                                       vk::Extent2D srcExtent,
-                                       vk::Extent2D dstExtent) {
+                                       vk::Image         dstImage,
+                                       vk::Extent2D      srcExtent,
+                                       vk::Extent2D      dstExtent) {
     vk::ImageBlit2 blitRegion {};
     blitRegion
         .setSrcOffsets(
@@ -79,10 +79,10 @@ void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
     cmd.blitImage2(blitInfo);
 }
 
-void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
+void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer    cmd,
                                        VulkanAllocatedImage dstImage,
-                                       vk::Extent2D srcExtent,
-                                       vk::Extent2D dstExtent) {
+                                       vk::Extent2D         srcExtent,
+                                       vk::Extent2D         dstExtent) {
     CopyToImage(cmd, dstImage.mImage, srcExtent, dstExtent);
 }
 
@@ -117,10 +117,10 @@ void VulkanAllocatedImage::UploadData(void* data) {
     }
 }
 
-vk::Image VulkanAllocatedImage::CreateImage(void* data,
+vk::Image VulkanAllocatedImage::CreateImage(void*                    data,
                                             VmaAllocationCreateFlags flags,
-                                            vk::ImageUsageFlags usage,
-                                            vk::ImageType type) {
+                                            vk::ImageUsageFlags      usage,
+                                            vk::ImageType            type) {
     VkImage image {};
 
     vk::ImageCreateInfo imageCreateInfo {};

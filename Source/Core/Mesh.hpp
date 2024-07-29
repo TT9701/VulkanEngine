@@ -8,16 +8,16 @@
 struct GPUMeshBuffers {
     UniquePtr<VulkanAllocatedBuffer> mIndexBuffer {nullptr};
     UniquePtr<VulkanAllocatedBuffer> mVertexBuffer {nullptr};
-    vk::DeviceAddress mVertexBufferAddress {};
+    vk::DeviceAddress                mVertexBufferAddress {};
 };
 
 struct ExternalGPUMeshBuffers {
     UniquePtr<CUDA::VulkanExternalBuffer> mIndexBuffer {};
     UniquePtr<CUDA::VulkanExternalBuffer> mVertexBuffer {};
-    vk::DeviceAddress mVertexBufferAddress {};
+    vk::DeviceAddress                     mVertexBufferAddress {};
 };
 
 struct MeshPushConstants {
-    glm::mat4 mModelMatrix;
+    glm::mat4         mModelMatrix;
     vk::DeviceAddress mVertexBufferAddress {};
 };

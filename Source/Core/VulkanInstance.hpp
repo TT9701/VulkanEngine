@@ -19,5 +19,5 @@ private:
 private:
     ::std::vector<::std::string> mEnabledInstanceLayers;
     ::std::vector<::std::string> mEnabledInstanceExtensions;
-    vk::Instance mInstance;
+    vk::Instance                 mInstance;
 };

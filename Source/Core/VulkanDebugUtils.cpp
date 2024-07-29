@@ -7,10 +7,10 @@ namespace {
 
 #if defined(VK_EXT_debug_utils)
 vk::Bool32 VKAPI_PTR debugMessengerCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+    VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT             messageTypes,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData) {
+    void*                                       pUserData) {
     if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
         printf("MessageCode is %s & Message is %s \n",
                pCallbackData->pMessageIdName, pCallbackData->pMessage);

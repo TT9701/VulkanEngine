@@ -5,7 +5,7 @@
 #include "VulkanInstance.hpp"
 
 VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanInstance* instance,
-                                           vk::QueueFlags requestedQueueTypes)
+                                           vk::QueueFlags  requestedQueueTypes)
     : pInstance(instance),
       mPhysicalDevice(PickPhysicalDevice(requestedQueueTypes)) {
     DBG_LOG_INFO("Physical Device Selected: %s",
@@ -23,7 +23,7 @@ vk::PhysicalDevice VulkanPhysicalDevice::PickPhysicalDevice(
 
     for (auto& device : deviceList) {
         std::string devicename(device.getProperties().deviceName.data());
-        const auto result = devicename.find("NVIDIA");
+        const auto  result = devicename.find("NVIDIA");
         if (result != std::string::npos) {
             picked = device;
             break;
@@ -55,7 +55,7 @@ void VulkanPhysicalDevice::SetQueueFamlies(vk::QueueFlags requestedQueueTypes) {
                 & queueFamilyProps[queueFamilyIndex].queueFlags)
                    & vk::QueueFlagBits::eCompute) {
             mComputeFamilyIndex = queueFamilyIndex;
-            mComputeQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
+            mComputeQueueCount  = queueFamilyProps[queueFamilyIndex].queueCount;
             requestedQueueTypes &= ~vk::QueueFlagBits::eCompute;
             continue;
         }

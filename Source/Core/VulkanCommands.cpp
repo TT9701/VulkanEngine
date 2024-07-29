@@ -5,7 +5,7 @@
 #include "VulkanContext.hpp"
 
 VulkanCommandPool::VulkanCommandPool(VulkanContext* ctx,
-                                     uint32_t queueFamilysIndex,
+                                     uint32_t       queueFamilysIndex,
                                      vk::CommandPoolCreateFlags flags)
     : pCtx(std::move(ctx)),
       mFlags(flags),
@@ -23,9 +23,9 @@ vk::CommandPool VulkanCommandPool::CreateCommandPool() {
     return pCtx->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
 }
 
-VulkanCommandBuffers::VulkanCommandBuffers(VulkanContext* ctx,
-                                           VulkanCommandPool* pool,
-                                           uint32_t count,
+VulkanCommandBuffers::VulkanCommandBuffers(VulkanContext*         ctx,
+                                           VulkanCommandPool*     pool,
+                                           uint32_t               count,
                                            vk::CommandBufferLevel level)
     : pContex(ctx),
       pCmdPool(pool),

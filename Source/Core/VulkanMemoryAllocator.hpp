@@ -26,8 +26,8 @@ private:
 
 private:
     VulkanPhysicalDevice* pPhysicalDevice;
-    VulkanDevice* pDevice;
-    VulkanInstance* pInstance;
+    VulkanDevice*         pDevice;
+    VulkanInstance*       pInstance;
 
     VmaAllocator mAllocator;
 };

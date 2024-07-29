@@ -20,9 +20,9 @@ class VulkanContext {
 public:
     VulkanContext(
         const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-        ::std::vector<::std::string> const& requestedInstanceLayers = {},
+        ::std::vector<::std::string> const& requestedInstanceLayers     = {},
         ::std::vector<::std::string> const& requestedInstanceExtensions = {},
-        ::std::vector<::std::string> const& requestedDeviceExtensions = {});
+        ::std::vector<::std::string> const& requestedDeviceExtensions   = {});
     ~VulkanContext() = default;
     MOVABLE_ONLY(VulkanContext);
 
@@ -113,7 +113,7 @@ public:
     static void EnableDescriptorIndexing();
 
 private:
-    static vk::PhysicalDeviceFeatures sPhysicalDeviceFeatures;
+    static vk::PhysicalDeviceFeatures         sPhysicalDeviceFeatures;
     static vk::PhysicalDeviceVulkan11Features sEnable11Features;
     static vk::PhysicalDeviceVulkan12Features sEnable12Features;
     static vk::PhysicalDeviceVulkan13Features sEnable13Features;
@@ -123,9 +123,9 @@ private:
 #ifndef NDEBUG
     SharedPtr<VulkanDebugUtils> mSPDebugUtilsMessenger;
 #endif
-    SharedPtr<VulkanSurface> mSPSurface;
-    SharedPtr<VulkanPhysicalDevice> mSPPhysicalDevice;
-    SharedPtr<VulkanDevice> mSPDevice;
+    SharedPtr<VulkanSurface>         mSPSurface;
+    SharedPtr<VulkanPhysicalDevice>  mSPPhysicalDevice;
+    SharedPtr<VulkanDevice>          mSPDevice;
     SharedPtr<VulkanMemoryAllocator> mSPAllocator;
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<VulkanExternalMemoryPool> mSPExternalMemoryPool;

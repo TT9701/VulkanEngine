@@ -197,46 +197,46 @@ cudaChannelFormatDesc GetCudaChannelFormatDescForVulkanFormat(
     return d;
 }
 
-cudaExtent GetCudaExtentForVulkanExtent(vk::Extent3D vkExt,
-                                        uint32_t arrayLayers,
+cudaExtent GetCudaExtentForVulkanExtent(vk::Extent3D      vkExt,
+                                        uint32_t          arrayLayers,
                                         vk::ImageViewType vkImageViewType) {
     cudaExtent e = {0, 0, 0};
 
     switch (vkImageViewType) {
         case vk::ImageViewType::e1D:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = 0;
-            e.depth = 0;
+            e.depth  = 0;
             break;
         case vk::ImageViewType::e2D:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = vkExt.height;
-            e.depth = 0;
+            e.depth  = 0;
             break;
         case vk::ImageViewType::e3D:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = vkExt.height;
-            e.depth = vkExt.depth;
+            e.depth  = vkExt.depth;
             break;
         case vk::ImageViewType::eCube:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = vkExt.height;
-            e.depth = arrayLayers;
+            e.depth  = arrayLayers;
             break;
         case vk::ImageViewType::e1DArray:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = 0;
-            e.depth = arrayLayers;
+            e.depth  = arrayLayers;
             break;
         case vk::ImageViewType::e2DArray:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = vkExt.height;
-            e.depth = arrayLayers;
+            e.depth  = arrayLayers;
             break;
         case vk::ImageViewType::eCubeArray:
-            e.width = vkExt.width;
+            e.width  = vkExt.width;
             e.height = vkExt.height;
-            e.depth = arrayLayers;
+            e.depth  = arrayLayers;
             break;
         default: assert(0);
     }
@@ -269,9 +269,9 @@ unsigned int GetCudaMipmappedArrayFlagsForVulkanImage(
     return flags;
 }
 
-cudaExternalMemory_t GetCUDAExternalMemory(VkDevice device,
+cudaExternalMemory_t GetCUDAExternalMemory(VkDevice       device,
                                            VkDeviceMemory vkDeviceMemory,
-                                           size_t allocByteSize) {
+                                           size_t         allocByteSize) {
     PFN_vkGetMemoryWin32HandleKHR fpGetMemoryWin32HandleKHR =
         (PFN_vkGetMemoryWin32HandleKHR)vkGetDeviceProcAddr(
             device, "vkGetMemoryWin32HandleKHR");
@@ -299,9 +299,9 @@ cudaExternalMemory_t GetCUDAExternalMemory(VkDevice device,
 
     memset(&desc, 0, sizeof(desc));
 
-    desc.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+    desc.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
     desc.handle.win32.handle = handle;
-    desc.size = allocByteSize;
+    desc.size                = allocByteSize;
     desc.flags |= cudaExternalMemoryDedicated;
 
     cudaExternalMemory_t extMem {};
@@ -351,7 +351,7 @@ VulkanExternalBuffer::VulkanExternalBuffer(
     VmaAllocationCreateInfo vmaAllocInfo {};
     vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     vmaAllocInfo.flags = flags;
-    vmaAllocInfo.pool = pool;
+    vmaAllocInfo.pool  = pool;
 
     vmaCreateBuffer(allocator, (VkBufferCreateInfo*)&bufferInfo, &vmaAllocInfo,
                     (VkBuffer*)&mBuffer, &mAllocation, &mInfo);
@@ -367,7 +367,7 @@ VulkanExternalBuffer::~VulkanExternalBuffer() {
 VulkanMappedPointer VulkanExternalBuffer::GetMappedPointer(size_t offset,
                                                            size_t size) const {
     cudaExternalMemoryBufferDesc desc {offset, size, 0};
-    void* ptr = nullptr;
+    void*                        ptr = nullptr;
     cudaExternalMemoryGetMappedBuffer(&ptr, mExternalMemory, &desc);
     return {ptr};
 }
@@ -403,7 +403,7 @@ VulkanExternalImage::VulkanExternalImage(
     VmaAllocationCreateInfo allocCreateInfo {};
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
     allocCreateInfo.flags = flags;
-    allocCreateInfo.pool = pool;
+    allocCreateInfo.pool  = pool;
 
     vmaCreateImage(allocator,
                    reinterpret_cast<VkImageCreateInfo*>(&imageCreateInfo),
@@ -424,22 +424,22 @@ VulkanExternalImage::VulkanExternalImage(
 
     memset(&mArrayDesc, 0, sizeof(mArrayDesc));
     auto formatDesc = GetCudaChannelFormatDescForVulkanFormat(mFormat);
-    auto ext = GetCudaExtentForVulkanExtent(
+    auto ext        = GetCudaExtentForVulkanExtent(
         mExtent3D, imageViewCreateInfo.subresourceRange.layerCount, viewType);
     auto descFlags = GetCudaMipmappedArrayFlagsForVulkanImage(
         viewType, usage,
         usage & vk::ImageUsageFlagBits::eStorage ? true : false);
 
     mArrayDesc.formatDesc = formatDesc;
-    mArrayDesc.extent = ext;
-    mArrayDesc.flags = descFlags;
+    mArrayDesc.extent     = ext;
+    mArrayDesc.flags      = descFlags;
 
-    auto mipmappedArray = GetMapMipmappedArray(0, 1);
+    auto        mipmappedArray = GetMapMipmappedArray(0, 1);
     cudaArray_t cudaMipLevelArray {};
     cudaGetMipmappedArrayLevel(&cudaMipLevelArray, mipmappedArray, 0);
 
     cudaResourceDesc surfaceResDesc {};
-    surfaceResDesc.resType = cudaResourceTypeArray;
+    surfaceResDesc.resType         = cudaResourceTypeArray;
     surfaceResDesc.res.array.array = cudaMipLevelArray;
 
     mSurface2D =
@@ -455,7 +455,7 @@ cudaMipmappedArray_t VulkanExternalImage::GetMapMipmappedArray(
     unsigned long long offset, unsigned int numLevels) {
     cudaMipmappedArray_t mipmap {nullptr};
 
-    mArrayDesc.offset = offset;
+    mArrayDesc.offset    = offset;
     mArrayDesc.numLevels = numLevels;
 
     cudaExternalMemoryGetMappedMipmappedArray(&mipmap, mExternalMemory,
@@ -464,7 +464,8 @@ cudaMipmappedArray_t VulkanExternalImage::GetMapMipmappedArray(
     return mipmap;
 }
 
-void VulkanExternalSemaphore::CreateExternalSemaphore(vk::Device device) {
+VulkanExternalSemaphore::VulkanExternalSemaphore(vk::Device device)
+    : pDevice(device) {
     vk::SemaphoreCreateInfo semaphoreInfo {};
 
     vk::ExportSemaphoreCreateInfoKHR exportSemaphoreCreateInfo {};
@@ -472,12 +473,12 @@ void VulkanExternalSemaphore::CreateExternalSemaphore(vk::Device device) {
         vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32);
     semaphoreInfo.setPNext(&exportSemaphoreCreateInfo);
 
-    mSemaphore = device.createSemaphore(semaphoreInfo);
+    mSemaphore = pDevice.createSemaphore(semaphoreInfo);
 
     VkSemaphoreGetWin32HandleInfoKHR semaphoreGetWin32HandleInfoKHR {};
     semaphoreGetWin32HandleInfoKHR.sType =
         VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR;
-    semaphoreGetWin32HandleInfoKHR.pNext = nullptr;
+    semaphoreGetWin32HandleInfoKHR.pNext     = nullptr;
     semaphoreGetWin32HandleInfoKHR.semaphore = mSemaphore;
     semaphoreGetWin32HandleInfoKHR.handleType =
         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
@@ -485,7 +486,7 @@ void VulkanExternalSemaphore::CreateExternalSemaphore(vk::Device device) {
     PFN_vkGetSemaphoreWin32HandleKHR fpGetSemaphoreWin32HandleKHR;
     fpGetSemaphoreWin32HandleKHR =
         (PFN_vkGetSemaphoreWin32HandleKHR)vkGetDeviceProcAddr(
-            device, "vkGetSemaphoreWin32HandleKHR");
+            pDevice, "vkGetSemaphoreWin32HandleKHR");
 
     if (!fpGetSemaphoreWin32HandleKHR) {
         throw std::runtime_error(
@@ -494,7 +495,7 @@ void VulkanExternalSemaphore::CreateExternalSemaphore(vk::Device device) {
 
     HANDLE handle;
 
-    if (fpGetSemaphoreWin32HandleKHR(device, &semaphoreGetWin32HandleInfoKHR,
+    if (fpGetSemaphoreWin32HandleKHR(pDevice, &semaphoreGetWin32HandleInfoKHR,
                                      &handle)
         != VK_SUCCESS) {
         throw std::runtime_error("Failed to retrieve handle for Semaphore!");
@@ -503,12 +504,16 @@ void VulkanExternalSemaphore::CreateExternalSemaphore(vk::Device device) {
     cudaExternalSemaphoreHandleDesc desc = {};
     memset(&desc, 0, sizeof(desc));
 
-    desc.type = cudaExternalSemaphoreHandleTypeOpaqueWin32;
+    desc.type                = cudaExternalSemaphoreHandleTypeOpaqueWin32;
     desc.handle.win32.handle = handle;
 
     cudaImportExternalSemaphore(&mExternalSemaphore, &desc);
 
     CloseHandle(handle);
+}
+
+VulkanExternalSemaphore::~VulkanExternalSemaphore() {
+    pDevice.destroy(mSemaphore);
 }
 
 void VulkanExternalSemaphore::InsertWaitToStreamAsync(cudaStream_t cudaStream) {
@@ -528,24 +533,21 @@ void VulkanExternalSemaphore::InsertSignalToStreamAsync(
                                       cudaStream);
 }
 
-void VulkanExternalSemaphore::Destroy(vk::Device device) {
-    device.destroy(mSemaphore);
-}
-
 cudaMipmappedArray_t MapMipmappedArrayOntoExternalMemory(
     cudaExternalMemory_t extMem, unsigned long long offset,
     cudaChannelFormatDesc* formatDesc, cudaExtent* extent, unsigned int flags,
     unsigned int numLevels) {
     cudaMipmappedArray_t mipmap {nullptr};
+
     cudaExternalMemoryMipmappedArrayDesc desc {};
 
     memset(&desc, 0, sizeof(desc));
 
-    desc.offset = offset;
+    desc.offset     = offset;
     desc.formatDesc = *formatDesc;
-    desc.extent = *extent;
-    desc.flags = flags;
-    desc.numLevels = numLevels;
+    desc.extent     = *extent;
+    desc.flags      = flags;
+    desc.numLevels  = numLevels;
 
     // Note: 'mipmap' must eventually be freed using cudaFreeMipmappedArray()
     cudaExternalMemoryGetMappedMipmappedArray(&mipmap, extMem, &desc);

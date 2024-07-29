@@ -2,8 +2,7 @@
 
 #include "VulkanContext.hpp"
 
-VulkanFence::VulkanFence(VulkanContext* ctx,
-                         vk::FenceCreateFlags flags)
+VulkanFence::VulkanFence(VulkanContext* ctx, vk::FenceCreateFlags flags)
     : pContext(ctx), mFence(CreateFence(flags)) {}
 
 VulkanFence::~VulkanFence() {
@@ -26,6 +25,5 @@ VulkanSemaphore::~VulkanSemaphore() {
 vk::Semaphore VulkanSemaphore::CreateSem() {
     vk::SemaphoreCreateInfo semaphoreCreateInfo {};
 
-    return pContext->GetDeviceHandle().createSemaphore(
-        semaphoreCreateInfo);
+    return pContext->GetDeviceHandle().createSemaphore(semaphoreCreateInfo);
 }

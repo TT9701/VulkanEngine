@@ -13,8 +13,8 @@ class VulkanCommandPool;
 class VulkanCommandManager {
 public:
     VulkanCommandManager(
-        VulkanContext* ctx, uint32_t count,
-        uint32_t concurrentCommandsCount, uint32_t queueFamilyIndex,
+        VulkanContext* ctx, uint32_t count, uint32_t concurrentCommandsCount,
+        uint32_t                   queueFamilyIndex,
         vk::CommandPoolCreateFlags flags =
             vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
@@ -31,9 +31,11 @@ public:
 
     void WaitUntilAllSubmitsAreComplete();
 
-    vk::CommandBuffer GetCmdBufferToBegin();
+    vk::CommandBuffer GetCmdBufferToBegin() const;
 
-    void EndCmdBuffer(vk::CommandBuffer cmd);
+    vk::Fence GetCurrentFence() const;
+
+    void EndCmdBuffer(vk::CommandBuffer cmd) const;
 
 private:
     SharedPtr<VulkanCommandPool> CreateCommandPool(
@@ -49,19 +51,18 @@ private:
     uint32_t mCommandInFlight;
     uint32_t mQueueFamilyIndex;
 
-    SharedPtr<VulkanCommandPool> mSPCommandPool;
-    SharedPtr<VulkanCommandBuffers> mSPCommandbuffers;
+    SharedPtr<VulkanCommandPool>          mSPCommandPool;
+    SharedPtr<VulkanCommandBuffers>       mSPCommandbuffers;
     ::std::vector<SharedPtr<VulkanFence>> mSPFences;
 
     ::std::vector<bool> mIsSubmitted {};
-    uint32_t mFenceCurrentIndex {};
-    uint32_t mCommandBufferCurrentIndex {};
+    uint32_t            mFenceCurrentIndex {};
+    uint32_t            mCommandBufferCurrentIndex {};
 };
 
 class ImmediateSubmitManager {
 public:
-    ImmediateSubmitManager(VulkanContext* ctx,
-                           uint32_t queueFamilyIndex);
+    ImmediateSubmitManager(VulkanContext* ctx, uint32_t queueFamilyIndex);
     ~ImmediateSubmitManager() = default;
     MOVABLE_ONLY(ImmediateSubmitManager);
 
@@ -69,15 +70,15 @@ public:
     void Submit(::std::function<void(vk::CommandBuffer cmd)>&& function) const;
 
 private:
-    SharedPtr<VulkanFence> CreateFence();
+    SharedPtr<VulkanFence>          CreateFence();
     SharedPtr<VulkanCommandBuffers> CreateCommandBuffer();
-    SharedPtr<VulkanCommandPool> CreateCommandPool();
+    SharedPtr<VulkanCommandPool>    CreateCommandPool();
 
 private:
     VulkanContext* pContex;
-    uint32_t mQueueFamilyIndex;
+    uint32_t       mQueueFamilyIndex;
 
-    SharedPtr<VulkanFence> mSPFence;
-    SharedPtr<VulkanCommandPool> mSPCommandPool;
+    SharedPtr<VulkanFence>          mSPFence;
+    SharedPtr<VulkanCommandPool>    mSPCommandPool;
     SharedPtr<VulkanCommandBuffers> mSPCommandBuffer;
 };

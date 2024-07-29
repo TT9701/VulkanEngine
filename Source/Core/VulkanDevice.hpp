@@ -8,11 +8,11 @@ class VulkanPhysicalDevice;
 
 class VulkanDevice {
 public:
-    VulkanDevice(VulkanPhysicalDevice* physicalDevice,
-                 ::std::vector<::std::string> const& requestedLayers = {},
+    VulkanDevice(VulkanPhysicalDevice*               physicalDevice,
+                 ::std::vector<::std::string> const& requestedLayers     = {},
                  ::std::vector<::std::string> const& requestedExtensions = {},
-                 vk::PhysicalDeviceFeatures* pFeatures = {},
-                 void* pNext = nullptr);
+                 vk::PhysicalDeviceFeatures*         pFeatures           = {},
+                 void*                               pNext = nullptr);
 
     ~VulkanDevice();
     MOVABLE_ONLY(VulkanDevice);

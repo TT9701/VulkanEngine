@@ -28,8 +28,8 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
     imgBarrier.setSrcStageMask(vk::PipelineStageFlagBits2::eAllCommands)
         .setSrcAccessMask(vk::AccessFlagBits2::eMemoryWrite)
         .setDstStageMask(vk::PipelineStageFlagBits2::eAllCommands)
-        .setDstAccessMask(vk::AccessFlagBits2::eMemoryWrite |
-                          vk::AccessFlagBits2::eMemoryRead)
+        .setDstAccessMask(vk::AccessFlagBits2::eMemoryWrite
+                          | vk::AccessFlagBits2::eMemoryRead)
         .setOldLayout(currentLayout)
         .setNewLayout(newLayout)
         .setSubresourceRange(GetDefaultImageSubresourceRange(

@@ -3,7 +3,7 @@
 #include "VulkanMemoryAllocator.hpp"
 
 VulkanAllocatedBuffer::VulkanAllocatedBuffer(VulkanMemoryAllocator* allocator,
-                                             size_t allocByteSize,
+                                             size_t               allocByteSize,
                                              vk::BufferUsageFlags usage,
                                              VmaAllocationCreateFlags flags)
     : mAllocator(allocator),
@@ -14,7 +14,7 @@ VulkanAllocatedBuffer::~VulkanAllocatedBuffer() {
 }
 
 vk::Buffer VulkanAllocatedBuffer::CreateBuffer(size_t allocByteSize,
-                                               vk::BufferUsageFlags usage,
+                                               vk::BufferUsageFlags     usage,
                                                VmaAllocationCreateFlags flags) {
     vk::BufferCreateInfo bufferInfo {};
     bufferInfo.setSize(allocByteSize).setUsage(usage);

@@ -14,7 +14,7 @@ public:
                          vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
                          void* data = nullptr, VulkanEngine* engine = nullptr,
                          uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1,
-                         vk::ImageType type = vk::ImageType::e2D,
+                         vk::ImageType     type     = vk::ImageType::e2D,
                          vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
     VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
@@ -57,24 +57,24 @@ private:
                           vk::ImageUsageFlags usage, vk::ImageType type);
 
     vk::ImageView CreateImageView(vk::ImageAspectFlags aspect,
-                                  vk::ImageViewType viewType);
+                                  vk::ImageViewType    viewType);
 
 private:
     VulkanContext* pContex;
 
     vk::Extent3D mExtent3D;
-    vk::Format mFormat;
+    vk::Format   mFormat;
 
     bool mOwnsImage;
 
     VulkanEngine* pEngine;
 
-    uint32_t mMipmapLevel;
-    uint32_t mArrayLayerCount;
+    uint32_t        mMipmapLevel;
+    uint32_t        mArrayLayerCount;
     vk::ImageLayout mLayout {vk::ImageLayout::eUndefined};
 
     VmaAllocation mAllocation {};
 
-    vk::Image mImage {};
+    vk::Image     mImage {};
     vk::ImageView mImageView {};
 };

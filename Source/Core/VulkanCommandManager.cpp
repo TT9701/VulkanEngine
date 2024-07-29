@@ -18,7 +18,7 @@ VulkanCommandManager::VulkanCommandManager(VulkanContext* ctx, uint32_t count,
     mIsSubmitted.resize(mCommandInFlight);
 }
 
-void VulkanCommandManager::Submit(vk::Queue queue,
+void VulkanCommandManager::Submit(vk::Queue              queue,
                                   vk::SubmitInfo2 const& submitInfo) {
     pContex->GetDeviceHandle().resetFences(
         mSPFences[mFenceCurrentIndex]->GetHandle());
@@ -58,7 +58,7 @@ void VulkanCommandManager::WaitUntilAllSubmitsAreComplete() {
     }
 }
 
-vk::CommandBuffer VulkanCommandManager::GetCmdBufferToBegin() {
+vk::CommandBuffer VulkanCommandManager::GetCmdBufferToBegin() const {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
         mSPFences[mFenceCurrentIndex]->GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS));
@@ -76,7 +76,11 @@ vk::CommandBuffer VulkanCommandManager::GetCmdBufferToBegin() {
     return currentCmdBuf;
 }
 
-void VulkanCommandManager::EndCmdBuffer(vk::CommandBuffer cmd) {
+vk::Fence VulkanCommandManager::GetCurrentFence() const {
+    return mSPFences[mFenceCurrentIndex]->GetHandle();
+}
+
+void VulkanCommandManager::EndCmdBuffer(vk::CommandBuffer cmd) const {
     cmd.end();
 }
 
@@ -87,7 +91,8 @@ SharedPtr<VulkanCommandPool> VulkanCommandManager::CreateCommandPool(
 
 SharedPtr<VulkanCommandBuffers> VulkanCommandManager::CreateCommandBuffers(
     uint32_t count) {
-    return MakeShared<VulkanCommandBuffers>(pContex, mSPCommandPool.get(), count);
+    return MakeShared<VulkanCommandBuffers>(pContex, mSPCommandPool.get(),
+                                            count);
 }
 
 std::vector<SharedPtr<VulkanFence>> VulkanCommandManager::CreateFences() {
@@ -99,7 +104,7 @@ std::vector<SharedPtr<VulkanFence>> VulkanCommandManager::CreateFences() {
 }
 
 ImmediateSubmitManager::ImmediateSubmitManager(VulkanContext* ctx,
-                                               uint32_t queueFamilyIndex)
+                                               uint32_t       queueFamilyIndex)
     : pContex(ctx),
       mQueueFamilyIndex(queueFamilyIndex),
       mSPFence(CreateFence()),
@@ -129,7 +134,7 @@ void ImmediateSubmitManager::Submit(
     cmd.end();
 
     auto cmdSubmitInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
-    auto submit = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
+    auto submit        = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
 
     pContex->GetDevice()->GetGraphicQueue().submit2(submit,
                                                     mSPFence->GetHandle());

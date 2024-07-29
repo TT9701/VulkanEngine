@@ -18,7 +18,7 @@ public:
 private:
     VulkanDevice* pDevice;
 
-    SharedPtr<VulkanFence> mRenderFence;
+    SharedPtr<VulkanFence>     mRenderFence;
     SharedPtr<VulkanSemaphore> mReady4RenderSemaphore;
     SharedPtr<VulkanSemaphore> mReady4PresentSemaphore;
 };

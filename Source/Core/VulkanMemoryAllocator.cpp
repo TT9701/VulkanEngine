@@ -6,8 +6,7 @@
 #include "VulkanPhysicalDevice.hpp"
 
 VulkanMemoryAllocator::VulkanMemoryAllocator(
-    VulkanPhysicalDevice* physicalDevice,
-    VulkanDevice* device,
+    VulkanPhysicalDevice* physicalDevice, VulkanDevice* device,
     VulkanInstance* instance)
     : pPhysicalDevice(physicalDevice),
       pDevice(device),
@@ -31,23 +30,23 @@ VmaAllocator VulkanMemoryAllocator::CreateAllocator() {
         .vkGetPhysicalDeviceMemoryProperties =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetPhysicalDeviceMemoryProperties,
         .vkAllocateMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkAllocateMemory,
-        .vkFreeMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkFreeMemory,
-        .vkMapMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkMapMemory,
-        .vkUnmapMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkUnmapMemory,
+        .vkFreeMemory     = VULKAN_HPP_DEFAULT_DISPATCHER.vkFreeMemory,
+        .vkMapMemory      = VULKAN_HPP_DEFAULT_DISPATCHER.vkMapMemory,
+        .vkUnmapMemory    = VULKAN_HPP_DEFAULT_DISPATCHER.vkUnmapMemory,
         .vkFlushMappedMemoryRanges =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkFlushMappedMemoryRanges,
         .vkInvalidateMappedMemoryRanges =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkInvalidateMappedMemoryRanges,
         .vkBindBufferMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkBindBufferMemory,
-        .vkBindImageMemory = VULKAN_HPP_DEFAULT_DISPATCHER.vkBindImageMemory,
+        .vkBindImageMemory  = VULKAN_HPP_DEFAULT_DISPATCHER.vkBindImageMemory,
         .vkGetBufferMemoryRequirements =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetBufferMemoryRequirements,
         .vkGetImageMemoryRequirements =
             VULKAN_HPP_DEFAULT_DISPATCHER.vkGetImageMemoryRequirements,
-        .vkCreateBuffer = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateBuffer,
+        .vkCreateBuffer  = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateBuffer,
         .vkDestroyBuffer = VULKAN_HPP_DEFAULT_DISPATCHER.vkDestroyBuffer,
-        .vkCreateImage = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateImage,
-        .vkDestroyImage = VULKAN_HPP_DEFAULT_DISPATCHER.vkDestroyImage,
+        .vkCreateImage   = VULKAN_HPP_DEFAULT_DISPATCHER.vkCreateImage,
+        .vkDestroyImage  = VULKAN_HPP_DEFAULT_DISPATCHER.vkDestroyImage,
         .vkCmdCopyBuffer = VULKAN_HPP_DEFAULT_DISPATCHER.vkCmdCopyBuffer,
 #if VMA_VULKAN_VERSION >= 1001000
         .vkGetBufferMemoryRequirements2KHR =
@@ -73,10 +72,10 @@ VmaAllocator VulkanMemoryAllocator::CreateAllocator() {
 #if defined(VK_KHR_buffer_device_address) && defined(_WIN32)
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 #endif
-        .physicalDevice = pPhysicalDevice->GetHandle(),
-        .device = pDevice->GetHandle(),
+        .physicalDevice   = pPhysicalDevice->GetHandle(),
+        .device           = pDevice->GetHandle(),
         .pVulkanFunctions = &vulkanFunctions,
-        .instance = pInstance->GetHandle(),
+        .instance         = pInstance->GetHandle(),
         .vulkanApiVersion = VK_API_VERSION_1_3,
     };
 

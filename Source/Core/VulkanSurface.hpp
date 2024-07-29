@@ -21,5 +21,5 @@ private:
 
 private:
     VulkanInstance* pInstance;
-    VkSurfaceKHR mSurface;
+    VkSurfaceKHR    mSurface;
 };

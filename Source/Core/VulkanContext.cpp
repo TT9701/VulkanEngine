@@ -1,6 +1,6 @@
 #include "VulkanContext.hpp"
 
-vk::PhysicalDeviceFeatures VulkanContext::sPhysicalDeviceFeatures {};
+vk::PhysicalDeviceFeatures         VulkanContext::sPhysicalDeviceFeatures {};
 vk::PhysicalDeviceVulkan11Features VulkanContext::sEnable11Features {};
 vk::PhysicalDeviceVulkan12Features VulkanContext::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features VulkanContext::sEnable13Features {};

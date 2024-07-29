@@ -21,9 +21,9 @@ private:
     vk::CommandPool CreateCommandPool();
 
 private:
-    VulkanContext* pCtx;
+    VulkanContext*             pCtx;
     vk::CommandPoolCreateFlags mFlags;
-    uint32_t mQueueFamilysIndex;
+    uint32_t                   mQueueFamilysIndex;
 
     vk::CommandPool mCmdPool;
 };
@@ -49,8 +49,8 @@ private:
     ::std::vector<vk::CommandBuffer> CreateCommandBuffers(uint32_t count);
 
 private:
-    VulkanContext* pContex;
-    VulkanCommandPool* pCmdPool;
+    VulkanContext*         pContex;
+    VulkanCommandPool*     pCmdPool;
     vk::CommandBufferLevel mLevel;
 
     ::std::vector<vk::CommandBuffer> mCmdBuffer;

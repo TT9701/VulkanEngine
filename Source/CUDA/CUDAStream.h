@@ -11,7 +11,7 @@ public:
     ~CUDAStream() { HANDLE_ERROR(cudaStreamDestroy(mStream)); }
 
 public:
-    cudaStream_t Get() const { return mStream; }
+    cudaStream_t GetHandle() const { return mStream; }
 
     void Synchronize() const;
 

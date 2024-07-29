@@ -56,8 +56,8 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetBlending(
     vk::Bool32 enable) {
     mColorBlendAttachment
         .setColorWriteMask(
-            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-            vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA)
+            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
+            | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA)
         .setBlendEnable(enable);
 
     return *this;

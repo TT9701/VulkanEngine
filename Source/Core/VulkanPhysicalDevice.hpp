@@ -9,7 +9,7 @@ class VulkanInstance;
 class VulkanPhysicalDevice {
 public:
     VulkanPhysicalDevice(VulkanInstance* instance,
-                         vk::QueueFlags requestedQueueTypes);
+                         vk::QueueFlags  requestedQueueTypes);
     ~VulkanPhysicalDevice() = default;
     MOVABLE_ONLY(VulkanPhysicalDevice);
 
@@ -36,6 +36,7 @@ public:
 
 private:
     vk::PhysicalDevice PickPhysicalDevice(vk::QueueFlags requestedQueueTypes);
+
     void SetQueueFamlies(vk::QueueFlags requestedQueueTypes);
 
 private:
@@ -44,9 +45,9 @@ private:
     vk::PhysicalDevice mPhysicalDevice;
 
     std::optional<uint32_t> mGraphicsFamilyIndex;
-    uint32_t mGraphicsQueueCount = 0;
+    uint32_t                mGraphicsQueueCount = 0;
     std::optional<uint32_t> mComputeFamilyIndex;
-    uint32_t mComputeQueueCount = 0;
+    uint32_t                mComputeQueueCount = 0;
     std::optional<uint32_t> mTransferFamilyIndex;
-    uint32_t mTransferQueueCount = 0;
+    uint32_t                mTransferQueueCount = 0;
 };
