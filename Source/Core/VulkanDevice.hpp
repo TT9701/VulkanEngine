@@ -8,11 +8,11 @@ class VulkanPhysicalDevice;
 
 class VulkanDevice {
 public:
-    VulkanDevice(VulkanPhysicalDevice*               physicalDevice,
-                 ::std::vector<::std::string> const& requestedLayers     = {},
-                 ::std::vector<::std::string> const& requestedExtensions = {},
-                 vk::PhysicalDeviceFeatures*         pFeatures           = {},
-                 void*                               pNext = nullptr);
+    VulkanDevice(VulkanPhysicalDevice*       physicalDevice,
+                 ::std::span<::std::string>  requestedLayers     = {},
+                 ::std::span<::std::string>  requestedExtensions = {},
+                 vk::PhysicalDeviceFeatures* pFeatures           = {},
+                 void*                       pNext               = nullptr);
 
     ~VulkanDevice();
     MOVABLE_ONLY(VulkanDevice);
@@ -33,8 +33,8 @@ public:
     }
 
 private:
-    vk::Device CreateDevice(std::vector<std::string> const& requestedLayers,
-                            std::vector<std::string> const& requestedExtensions,
+    vk::Device CreateDevice(std::span<std::string>      requestedLayers,
+                            std::span<std::string>      requestedExtensions,
                             vk::PhysicalDeviceFeatures* pFeatures, void* pNext);
 
     void SetQueues();

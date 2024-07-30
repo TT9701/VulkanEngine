@@ -6,7 +6,6 @@
 #include "Mesh.hpp"
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanCommandManager.hpp"
-#include "VulkanDescriptors.hpp"
 
 #include "CUDA/CUDAStream.h"
 #include "CUDA/CUDAVulkan.h"
@@ -21,6 +20,7 @@ class VulkanFence;
 class VulkanCommandBuffers;
 class VulkanCommandPool;
 class VulkanSampler;
+class VulkanDescriptorManager;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -34,8 +34,8 @@ public:
     void Run();
 
 public:
-    SharedPtr<ImmediateSubmitManager> GetImmediateSubmitManager() {
-        return mSPImmediateSubmitManager;
+    ImmediateSubmitManager* GetImmediateSubmitManager() const {
+        return mSPImmediateSubmitManager.get();
     }
 
 private:
@@ -48,14 +48,16 @@ private:
     UniquePtr<CUDA::VulkanExternalImage> CreateExternalImage();
     SharedPtr<ImmediateSubmitManager>    CreateImmediateSubmitManager();
     SharedPtr<VulkanCommandManager>      CreateCommandManager();
-    void                                 CreateCUDASyncStructures();
-    void                                 CreatePipelines();
-    void                                 CreateDescriptors();
-    void                                 CreateTriangleData();
-    void                                 CreateExternalTriangleData();
     UniquePtr<VulkanAllocatedImage>      CreateErrorCheckTexture();
-    void                                 CreateDefaultSamplers();
-    void                                 SetCudaInterop();
+    SharedPtr<VulkanDescriptorManager>   CreateDescriptorManager();
+
+    void CreateCUDASyncStructures();
+    void CreatePipelines();
+    void CreateDescriptors();
+    void CreateTriangleData();
+    void CreateExternalTriangleData();
+    void CreateDefaultSamplers();
+    void SetCudaInterop();
 
     GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
                                   ::std::span<Vertex>   vertices);
@@ -84,10 +86,7 @@ private:
     SharedPtr<ImmediateSubmitManager>    mSPImmediateSubmitManager;
     SharedPtr<VulkanAllocatedImage>      mErrorCheckImage;
 
-    vk::DescriptorSet       mDrawImageDescriptors {};
-    vk::DescriptorSetLayout mDrawImageDescriptorLayout {};
-
-    DescriptorAllocator mMainDescriptorAllocator {};
+    SharedPtr<VulkanDescriptorManager> mDescriptorManager;
 
     // background compute
     vk::Pipeline       mBackgroundComputePipeline {};
@@ -99,9 +98,6 @@ private:
     GPUMeshBuffers     mTriangleMesh {};
 
     ExternalGPUMeshBuffers mTriangleExternalMesh {};
-
-    vk::DescriptorSetLayout mTextureTriangleDescriptorLayout {};
-    vk::DescriptorSet       mTextureTriangleDescriptors {};
 
     SharedPtr<VulkanSampler> mDefaultSamplerLinear {};
     SharedPtr<VulkanSampler> mDefaultSamplerNearest {};

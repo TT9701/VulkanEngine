@@ -6,6 +6,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 #include "VulkanCommands.hpp"
 #include "VulkanContext.hpp"
+#include "VulkanDescriptors.hpp"
 #include "VulkanHelper.hpp"
 #include "VulkanImage.hpp"
 #include "VulkanPipeline.hpp"
@@ -21,7 +22,8 @@ VulkanEngine::VulkanEngine()
       mCUDAExternalImage(CreateExternalImage()),
       mSPCmdManager(CreateCommandManager()),
       mSPImmediateSubmitManager(CreateImmediateSubmitManager()),
-      mErrorCheckImage(CreateErrorCheckTexture()) {
+      mErrorCheckImage(CreateErrorCheckTexture()),
+      mDescriptorManager(CreateDescriptorManager()) {
     SetCudaInterop();
     CreateCUDASyncStructures();
 
@@ -241,11 +243,6 @@ void VulkanEngine::CreatePipelines() {
 }
 
 void VulkanEngine::CreateDescriptors() {
-    std::vector<DescriptorAllocator::PoolSizeRatio> sizes {
-        {vk::DescriptorType::eStorageImage, 1},
-        {vk::DescriptorType::eCombinedImageSampler, 1}};
-
-    mMainDescriptorAllocator.InitPool(mSPContext->GetDeviceHandle(), 10, sizes);
 
     CreateBackgroundComputeDescriptors();
     CreateTriangleDescriptors();
@@ -330,6 +327,14 @@ UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
         vk::ImageAspectFlagBits::eColor, pixels.data(), this);
 }
 
+SharedPtr<VulkanDescriptorManager> VulkanEngine::CreateDescriptorManager() {
+    std::vector<DescPoolSizeRatio> sizes {
+        {vk::DescriptorType::eStorageImage, 1},
+        {vk::DescriptorType::eCombinedImageSampler, 1}};
+
+    return MakeShared<VulkanDescriptorManager>(mSPContext.get(), 10, sizes);
+}
+
 void VulkanEngine::CreateDefaultSamplers() {
     mDefaultSamplerNearest = MakeShared<VulkanSampler>(
         mSPContext.get(), vk::Filter::eNearest, vk::Filter::eNearest);
@@ -394,28 +399,29 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
 }
 
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
-    DescriptorLayoutBuilder builder;
-    builder.AddBinding(0, vk::DescriptorType::eStorageImage);
-    mDrawImageDescriptorLayout = builder.Build(
-        mSPContext->GetDeviceHandle(), vk::ShaderStageFlagBits::eCompute);
+    mDescriptorManager->AddDescSetLayoutBinding(
+        0, 1, vk::DescriptorType::eStorageImage);
+    const auto drawImageSetLayout = mDescriptorManager->BuildDescSetLayout(
+        "DrawImage_Layout_0", vk::ShaderStageFlagBits::eCompute);
 
-    mDrawImageDescriptors = mMainDescriptorAllocator.Allocate(
-        mSPContext->GetDeviceHandle(), mDrawImageDescriptorLayout);
+    const auto drawImageDesc =
+        mDescriptorManager->Allocate("DrawImage_Desc_0", drawImageSetLayout);
 
-    DescriptorWriter writer {};
-    writer.WriteImage(0,
-                      {VK_NULL_HANDLE, mDrawImage->GetViewHandle(),
-                       vk::ImageLayout::eGeneral},
-                      vk::DescriptorType::eStorageImage);
+    mDescriptorManager->WriteImage(0,
+                                   {VK_NULL_HANDLE, mDrawImage->GetViewHandle(),
+                                    vk::ImageLayout::eGeneral},
+                                   vk::DescriptorType::eStorageImage);
 
-    writer.UpdateSet(mSPContext->GetDeviceHandle(), mDrawImageDescriptors);
+    mDescriptorManager->UpdateSet(drawImageDesc);
 
     DBG_LOG_INFO("Vulkan Background Compute Descriptors Created");
 }
 
 void VulkanEngine::CreateBackgroundComputePipeline() {
     vk::PipelineLayoutCreateInfo computeLayout {};
-    computeLayout.setSetLayouts(mDrawImageDescriptorLayout);
+    vk::ArrayProxy               setLayouts {
+        mDescriptorManager->GetDescSetLayout("DrawImage_Layout_0")};
+    computeLayout.setSetLayouts(setLayouts);
 
     mBackgroundComputePipelineLayout =
         mSPContext->GetDeviceHandle().createPipelineLayout(computeLayout);
@@ -463,8 +469,10 @@ void VulkanEngine::CreateTrianglePipeline() {
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
     vk::PipelineLayoutCreateInfo layoutCreateInfo {};
+    vk::ArrayProxy               setLayouts {
+        mDescriptorManager->GetDescSetLayout("Triangle_Layout_0")};
     layoutCreateInfo.setPushConstantRanges(pushConstant)
-        .setSetLayouts(mTextureTriangleDescriptorLayout);
+        .setSetLayouts(setLayouts);
     mTrianglePipelieLayout =
         mSPContext->GetDeviceHandle().createPipelineLayout(layoutCreateInfo);
 
@@ -489,23 +497,22 @@ void VulkanEngine::CreateTrianglePipeline() {
 }
 
 void VulkanEngine::CreateTriangleDescriptors() {
-    DescriptorLayoutBuilder builder {};
-    builder.AddBinding(0, vk::DescriptorType::eCombinedImageSampler);
-    mTextureTriangleDescriptorLayout = builder.Build(
-        mSPContext->GetDeviceHandle(), vk::ShaderStageFlagBits::eFragment);
+    mDescriptorManager->AddDescSetLayoutBinding(
+        0, 1, vk::DescriptorType::eCombinedImageSampler);
 
-    mTextureTriangleDescriptors = mMainDescriptorAllocator.Allocate(
-        mSPContext->GetDeviceHandle(), mTextureTriangleDescriptorLayout);
+    const auto triangleSetLayout = mDescriptorManager->BuildDescSetLayout(
+        "Triangle_Layout_0", vk::ShaderStageFlagBits::eFragment);
 
-    DescriptorWriter writer {};
-    writer.WriteImage(
+    const auto triangleDesc =
+        mDescriptorManager->Allocate("Triangle_Desc_0", triangleSetLayout);
+
+    mDescriptorManager->WriteImage(
         0,
         {mDefaultSamplerNearest->GetHandle(), mErrorCheckImage->GetViewHandle(),
          vk::ImageLayout::eShaderReadOnlyOptimal},
         vk::DescriptorType::eCombinedImageSampler);
 
-    writer.UpdateSet(mSPContext->GetDeviceHandle(),
-                     mTextureTriangleDescriptors);
+    mDescriptorManager->UpdateSet(triangleDesc);
 }
 
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
@@ -522,9 +529,9 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     // cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
     //                  mBackgroundComputePipeline);
     //
-    // cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-    //                        mBackgroundComputePipelineLayout, 0,
-    //                        mDrawImageDescriptors, {});
+    // cmd.bindDescriptorSets(
+    //     vk::PipelineBindPoint::eCompute, mBackgroundComputePipelineLayout, 0,
+    //     mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
     //
     // cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
     //              ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
@@ -601,9 +608,9 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
         {mDrawImage->GetExtent3D().width, mDrawImage->GetExtent3D().height});
     cmd.setScissor(0, scissor);
 
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                           mTrianglePipelieLayout, 0,
-                           mTextureTriangleDescriptors, {});
+    cmd.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics, mTrianglePipelieLayout, 0,
+        mDescriptorManager->GetDescriptor("Triangle_Desc_0"), {});
 
     MeshPushConstants pushConstants {};
     pushConstants.mVertexBufferAddress =

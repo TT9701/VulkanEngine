@@ -4,9 +4,9 @@
 #include "Utilities/VulkanUtilities.hpp"
 #include "VulkanPhysicalDevice.hpp"
 
-VulkanDevice::VulkanDevice(VulkanPhysicalDevice*           physicalDevice,
-                           std::vector<std::string> const& requestedLayers,
-                           std::vector<std::string> const& requestedExtensions,
+VulkanDevice::VulkanDevice(VulkanPhysicalDevice*       physicalDevice,
+                           std::span<std::string>      requestedLayers,
+                           std::span<std::string>      requestedExtensions,
                            vk::PhysicalDeviceFeatures* pFeatures, void* pNext)
     : pPhysicalDevice(physicalDevice),
       mDevice(CreateDevice(requestedLayers, requestedExtensions, pFeatures,
@@ -25,8 +25,8 @@ VulkanDevice::~VulkanDevice() {
 }
 
 vk::Device VulkanDevice::CreateDevice(
-    std::vector<std::string> const& requestedLayers,
-    std::vector<std::string> const& requestedExtensions,
+    std::span<std::string>      requestedLayers,
+    std::span<std::string>      requestedExtensions,
     vk::PhysicalDeviceFeatures* pFeatures, void* pNext) {
     ::std::vector<float> queuePriorities(16, 1.0f);
 

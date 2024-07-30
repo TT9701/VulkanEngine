@@ -2,6 +2,15 @@
 
 #include <Core/Utilities/VulkanUtilities.hpp>
 
+enum class PipelineType { Graphics, Compute };
+
+class PipelineManager {
+public:
+
+private:
+    // ::std::unordered_map<::std::string, vk::Pipeline> 
+};
+
 class GraphicsPipelineBuilder {
 public:
     ::std::vector<vk::PipelineShaderStageCreateInfo> mShaderStages {};

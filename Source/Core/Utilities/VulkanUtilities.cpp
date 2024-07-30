@@ -6,8 +6,8 @@
 
 namespace Utils {
 
-std::vector<std::string> FilterStringList(std::vector<std::string> available,
-                                          std::vector<std::string> request) {
+std::vector<std::string> FilterStringList(std::span<std::string> available,
+                                          std::span<std::string> request) {
     ::std::ranges::sort(available);
     ::std::ranges::sort(request);
     ::std::vector<::std::string> result {};

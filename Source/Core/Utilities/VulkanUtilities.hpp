@@ -6,8 +6,7 @@
 namespace Utils {
 
 ::std::vector<::std::string> FilterStringList(
-    ::std::vector<::std::string> available,
-    ::std::vector<::std::string> request);
+    ::std::span<::std::string> available, ::std::span<::std::string> request);
 
 vk::ImageSubresourceRange GetDefaultImageSubresourceRange(
     vk::ImageAspectFlags flags);

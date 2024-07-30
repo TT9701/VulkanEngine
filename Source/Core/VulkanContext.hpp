@@ -20,9 +20,9 @@ class VulkanContext {
 public:
     VulkanContext(
         const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-        ::std::vector<::std::string> const& requestedInstanceLayers     = {},
-        ::std::vector<::std::string> const& requestedInstanceExtensions = {},
-        ::std::vector<::std::string> const& requestedDeviceExtensions   = {});
+        ::std::span<::std::string> requestedInstanceLayers     = {},
+        ::std::span<::std::string> requestedInstanceExtensions = {},
+        ::std::span<::std::string> requestedDeviceExtensions   = {});
     ~VulkanContext() = default;
     MOVABLE_ONLY(VulkanContext);
 
@@ -81,8 +81,8 @@ public:
 
 private:
     SharedPtr<VulkanInstance> CreateInstance(
-        ::std::vector<::std::string> const& requestedLayers,
-        ::std::vector<::std::string> const& requestedExtensions);
+        ::std::span<::std::string> requestedLayers,
+        ::std::span<::std::string> requestedExtensions);
 
 #ifndef NDEBUG
     SharedPtr<VulkanDebugUtils> CreateDebugUtilsMessenger();
@@ -93,7 +93,7 @@ private:
     SharedPtr<VulkanPhysicalDevice> PickPhysicalDevice(vk::QueueFlags flags);
 
     SharedPtr<VulkanDevice> CreateDevice(
-        ::std::vector<::std::string> const& requestedExtensions);
+        ::std::span<::std::string> requestedExtensions);
 
     SharedPtr<VulkanMemoryAllocator> CreateVmaAllocator();
 

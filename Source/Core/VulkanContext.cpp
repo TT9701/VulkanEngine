@@ -7,9 +7,9 @@ vk::PhysicalDeviceVulkan13Features VulkanContext::sEnable13Features {};
 
 VulkanContext::VulkanContext(
     const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-    ::std::vector<::std::string> const& requestedInstanceLayers,
-    ::std::vector<::std::string> const& requestedInstanceExtensions,
-    ::std::vector<::std::string> const& requestedDeviceExtensions)
+    ::std::span<::std::string> requestedInstanceLayers,
+    ::std::span<::std::string> requestedInstanceExtensions,
+    ::std::span<::std::string> requestedDeviceExtensions)
     : mSPInstance(
           CreateInstance(requestedInstanceLayers, requestedInstanceExtensions)),
 #ifndef NDEBUG
@@ -26,8 +26,8 @@ VulkanContext::VulkanContext(
 }
 
 SharedPtr<VulkanInstance> VulkanContext::CreateInstance(
-    ::std::vector<::std::string> const& requestedLayers,
-    ::std::vector<::std::string> const& requestedExtensions) {
+    ::std::span<::std::string> requestedLayers,
+    ::std::span<::std::string> requestedExtensions) {
     return MakeShared<VulkanInstance>(requestedLayers, requestedExtensions);
 }
 
@@ -47,9 +47,9 @@ SharedPtr<VulkanPhysicalDevice> VulkanContext::PickPhysicalDevice(
 }
 
 SharedPtr<VulkanDevice> VulkanContext::CreateDevice(
-    ::std::vector<::std::string> const& requestedExtensions) {
+    ::std::span<::std::string> requestedExtensions) {
     return MakeShared<VulkanDevice>(
-        mSPPhysicalDevice.get(), ::std::vector<::std::string> {},
+        mSPPhysicalDevice.get(), ::std::span<::std::string> {},
         requestedExtensions, &sPhysicalDeviceFeatures, &sEnable11Features);
 }
 

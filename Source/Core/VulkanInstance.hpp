@@ -5,9 +5,8 @@
 
 class VulkanInstance {
 public:
-    VulkanInstance(
-        ::std::vector<::std::string> const& requestedInstanceLayers,
-        ::std::vector<::std::string> const& requestedInstanceExtensions);
+    VulkanInstance(::std::span<::std::string> requestedInstanceLayers,
+                   ::std::span<::std::string> requestedInstanceExtensions);
     ~VulkanInstance();
     MOVABLE_ONLY(VulkanInstance);
 

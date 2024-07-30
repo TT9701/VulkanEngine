@@ -5,7 +5,7 @@
 namespace {
 bool LoadDispatcher = false;
 
-auto SetInstanceLayers(::std::vector<::std::string> const& requestedLayers) {
+auto SetInstanceLayers(::std::span<::std::string> requestedLayers) {
     if (!LoadDispatcher) {
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
@@ -21,8 +21,7 @@ auto SetInstanceLayers(::std::vector<::std::string> const& requestedLayers) {
     return Utils::FilterStringList(availableInstanceLayers, requestedLayers);
 }
 
-auto SetInstanceExtensions(
-    std::vector<std::string> const& requestedExtensions) {
+auto SetInstanceExtensions(std::span<std::string> requestedExtensions) {
     if (!LoadDispatcher) {
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
@@ -42,8 +41,8 @@ auto SetInstanceExtensions(
 }  // namespace
 
 VulkanInstance::VulkanInstance(
-    std::vector<std::string> const& requestedInstanceLayers,
-    std::vector<std::string> const& requestedInstanceExtensions)
+    std::span<std::string> requestedInstanceLayers,
+    std::span<std::string> requestedInstanceExtensions)
     : mEnabledInstanceLayers(SetInstanceLayers(requestedInstanceLayers)),
       mEnabledInstanceExtensions(
           SetInstanceExtensions(requestedInstanceExtensions)),
