@@ -12,17 +12,17 @@
 #include "VulkanInstance.hpp"
 #include "VulkanMemoryAllocator.hpp"
 #include "VulkanPhysicalDevice.hpp"
+#include "VulkanSampler.hpp"
 #include "VulkanSurface.hpp"
 
 class SDLWindow;
 
 class VulkanContext {
 public:
-    VulkanContext(
-        const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-        ::std::span<::std::string> requestedInstanceLayers     = {},
-        ::std::span<::std::string> requestedInstanceExtensions = {},
-        ::std::span<::std::string> requestedDeviceExtensions   = {});
+    VulkanContext(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
+                  ::std::span<::std::string> requestedInstanceLayers     = {},
+                  ::std::span<::std::string> requestedInstanceExtensions = {},
+                  ::std::span<::std::string> requestedDeviceExtensions   = {});
     ~VulkanContext() = default;
     MOVABLE_ONLY(VulkanContext);
 
@@ -53,6 +53,14 @@ public:
     }
 #endif
 
+    VulkanSampler* GetDefaultNearestSampler() const {
+        return mDefaultSamplerNearest.get();
+    }
+
+    VulkanSampler* GetDefaultLinearSampler() const {
+        return mDefaultSamplerLinear.get();
+    }
+
     vk::Instance GetInstanceHandle() const { return mSPInstance->GetHandle(); }
 
 #ifndef NDEBUG
@@ -79,27 +87,37 @@ public:
     }
 #endif
 
+    vk::Sampler GetDefaultNearestSamplerHandle() const {
+        return mDefaultSamplerNearest->GetHandle();
+    }
+
+    vk::Sampler GetDefaultLinearSamplerHandle() const {
+        return mDefaultSamplerLinear->GetHandle();
+    }
+
 private:
-    SharedPtr<VulkanInstance> CreateInstance(
+    UniquePtr<VulkanInstance> CreateInstance(
         ::std::span<::std::string> requestedLayers,
         ::std::span<::std::string> requestedExtensions);
 
 #ifndef NDEBUG
-    SharedPtr<VulkanDebugUtils> CreateDebugUtilsMessenger();
+    UniquePtr<VulkanDebugUtils> CreateDebugUtilsMessenger();
 #endif
 
-    SharedPtr<VulkanSurface> CreateSurface(const SDLWindow* window);
+    UniquePtr<VulkanSurface> CreateSurface(const SDLWindow* window);
 
-    SharedPtr<VulkanPhysicalDevice> PickPhysicalDevice(vk::QueueFlags flags);
+    UniquePtr<VulkanPhysicalDevice> PickPhysicalDevice(vk::QueueFlags flags);
 
-    SharedPtr<VulkanDevice> CreateDevice(
+    UniquePtr<VulkanDevice> CreateDevice(
         ::std::span<::std::string> requestedExtensions);
 
-    SharedPtr<VulkanMemoryAllocator> CreateVmaAllocator();
+    UniquePtr<VulkanMemoryAllocator> CreateVmaAllocator();
 
 #ifdef CUDA_VULKAN_INTEROP
-    SharedPtr<VulkanExternalMemoryPool> CreateExternalMemoryPool();
+    UniquePtr<VulkanExternalMemoryPool> CreateExternalMemoryPool();
 #endif
+
+    void CreateDefaultSamplers();
 
 public:
     static void EnableDefaultFeatures();
@@ -119,15 +137,17 @@ private:
     static vk::PhysicalDeviceVulkan13Features sEnable13Features;
 
 private:
-    SharedPtr<VulkanInstance> mSPInstance;
+    UniquePtr<VulkanInstance> mSPInstance;
 #ifndef NDEBUG
-    SharedPtr<VulkanDebugUtils> mSPDebugUtilsMessenger;
+    UniquePtr<VulkanDebugUtils> mSPDebugUtilsMessenger;
 #endif
-    SharedPtr<VulkanSurface>         mSPSurface;
-    SharedPtr<VulkanPhysicalDevice>  mSPPhysicalDevice;
-    SharedPtr<VulkanDevice>          mSPDevice;
-    SharedPtr<VulkanMemoryAllocator> mSPAllocator;
+    UniquePtr<VulkanSurface>         mSPSurface;
+    UniquePtr<VulkanPhysicalDevice>  mSPPhysicalDevice;
+    UniquePtr<VulkanDevice>          mSPDevice;
+    UniquePtr<VulkanMemoryAllocator> mSPAllocator;
 #ifdef CUDA_VULKAN_INTEROP
-    SharedPtr<VulkanExternalMemoryPool> mSPExternalMemoryPool;
+    UniquePtr<VulkanExternalMemoryPool> mSPExternalMemoryPool;
 #endif
+    UniquePtr<VulkanSampler> mDefaultSamplerLinear {};
+    UniquePtr<VulkanSampler> mDefaultSamplerNearest {};
 };

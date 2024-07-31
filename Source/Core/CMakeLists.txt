@@ -52,6 +52,8 @@ set (CORE_SRC
     VulkanBuffer.cpp
     VulkanSampler.hpp
     VulkanSampler.cpp
+    VulkanShader.hpp
+    VulkanShader.cpp
 
     MeshType.hpp
     Mesh.hpp

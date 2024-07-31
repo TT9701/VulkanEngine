@@ -25,8 +25,4 @@ vk::SubmitInfo2 SubmitInfo(
     vk::ArrayProxy<vk::CommandBufferSubmitInfo> const& cmd,
     vk::ArrayProxy<vk::SemaphoreSubmitInfo> const&     signalSemaphoreInfo,
     vk::ArrayProxy<vk::SemaphoreSubmitInfo> const&     waitSemaphoreInfo);
-
-bool LoadShaderModule(const ::std::string& filePath, vk::Device device,
-                      vk::ShaderModule* outShaderModule);
-
 }  // namespace Utils

@@ -9,8 +9,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "VulkanDescriptors.hpp"
 #include "VulkanHelper.hpp"
 #include "VulkanImage.hpp"
-#include "VulkanPipeline.hpp"
-#include "VulkanSampler.hpp"
+#include "VulkanShader.hpp"
 #include "VulkanSwapchain.hpp"
 #include "Window.hpp"
 
@@ -23,11 +22,10 @@ VulkanEngine::VulkanEngine()
       mSPCmdManager(CreateCommandManager()),
       mSPImmediateSubmitManager(CreateImmediateSubmitManager()),
       mErrorCheckImage(CreateErrorCheckTexture()),
-      mDescriptorManager(CreateDescriptorManager()) {
+      mDescriptorManager(CreateDescriptorManager()),
+      mPipelineManager(CreatePipelineManager()) {
     SetCudaInterop();
     CreateCUDASyncStructures();
-
-    CreateDefaultSamplers();
 
     CreateDescriptors();
     CreatePipelines();
@@ -133,11 +131,11 @@ void VulkanEngine::Draw() {
     ++mFrameNum;
 }
 
-SharedPtr<SDLWindow> VulkanEngine::CreateSDLWindow() {
-    return MakeShared<SDLWindow>();
+UniquePtr<SDLWindow> VulkanEngine::CreateSDLWindow() {
+    return MakeUnique<SDLWindow>();
 }
 
-SharedPtr<VulkanContext> VulkanEngine::CreateContext() {
+UniquePtr<VulkanContext> VulkanEngine::CreateContext() {
     ::std::vector<::std::string> requestedInstanceLayers {};
 #ifndef NDEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
@@ -166,21 +164,21 @@ SharedPtr<VulkanContext> VulkanEngine::CreateContext() {
 
     VulkanContext::EnableDefaultFeatures();
 
-    return MakeShared<VulkanContext>(
+    return MakeUnique<VulkanContext>(
         mSPWindow.get(),
         vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
         requestedInstanceLayers, requestedInstanceExtensions,
         enabledDeivceExtensions);
 }
 
-SharedPtr<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
-    return MakeShared<VulkanSwapchain>(
+UniquePtr<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
+    return MakeUnique<VulkanSwapchain>(
         mSPContext.get(), vk::Format::eR8G8B8A8Unorm,
         vk::Extent2D {static_cast<uint32_t>(mSPWindow->GetWidth()),
                       static_cast<uint32_t>(mSPWindow->GetHeight())});
 }
 
-UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateDrawImage() {
+SharedPtr<VulkanAllocatedImage> VulkanEngine::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
                                   static_cast<uint32_t>(mSPWindow->GetHeight()),
                                   1};
@@ -191,13 +189,13 @@ UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return MakeUnique<VulkanAllocatedImage>(
+    return MakeShared<VulkanAllocatedImage>(
         mSPContext.get(), VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         drawImageExtent, vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
 }
 
-UniquePtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
+SharedPtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
                                   static_cast<uint32_t>(mSPWindow->GetHeight()),
                                   1};
@@ -208,7 +206,7 @@ UniquePtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return MakeUnique<CUDA::VulkanExternalImage>(
+    return MakeShared<CUDA::VulkanExternalImage>(
         mSPContext->GetDeviceHandle(),
         mSPContext->GetVmaAllocator()->GetHandle(),
         mSPContext->GetExternalMemoryPool()->GetHandle(), 0, drawImageExtent,
@@ -216,14 +214,14 @@ UniquePtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
         vk::ImageAspectFlagBits::eColor);
 }
 
-SharedPtr<ImmediateSubmitManager> VulkanEngine::CreateImmediateSubmitManager() {
-    return MakeShared<ImmediateSubmitManager>(
+UniquePtr<ImmediateSubmitManager> VulkanEngine::CreateImmediateSubmitManager() {
+    return MakeUnique<ImmediateSubmitManager>(
         mSPContext.get(),
         mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
 }
 
-SharedPtr<VulkanCommandManager> VulkanEngine::CreateCommandManager() {
-    return MakeShared<VulkanCommandManager>(
+UniquePtr<VulkanCommandManager> VulkanEngine::CreateCommandManager() {
+    return MakeUnique<VulkanCommandManager>(
         mSPContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
         mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
 }
@@ -311,7 +309,7 @@ void VulkanEngine::CreateExternalTriangleData() {
     auto cudaMipmapped = externalImage.GetMapMipmappedArray(0, 1);
 }
 
-UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
+SharedPtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
     uint32_t black   = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
     std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
@@ -320,26 +318,23 @@ UniquePtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    return MakeUnique<VulkanAllocatedImage>(
+    return MakeShared<VulkanAllocatedImage>(
         mSPContext.get(), VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         vk::ImageAspectFlagBits::eColor, pixels.data(), this);
 }
 
-SharedPtr<VulkanDescriptorManager> VulkanEngine::CreateDescriptorManager() {
+UniquePtr<VulkanDescriptorManager> VulkanEngine::CreateDescriptorManager() {
     std::vector<DescPoolSizeRatio> sizes {
         {vk::DescriptorType::eStorageImage, 1},
         {vk::DescriptorType::eCombinedImageSampler, 1}};
 
-    return MakeShared<VulkanDescriptorManager>(mSPContext.get(), 10, sizes);
+    return MakeUnique<VulkanDescriptorManager>(mSPContext.get(), 10, sizes);
 }
 
-void VulkanEngine::CreateDefaultSamplers() {
-    mDefaultSamplerNearest = MakeShared<VulkanSampler>(
-        mSPContext.get(), vk::Filter::eNearest, vk::Filter::eNearest);
-    mDefaultSamplerLinear = MakeShared<VulkanSampler>(
-        mSPContext.get(), vk::Filter::eLinear, vk::Filter::eLinear);
+UniquePtr<VulkanPipelineManager> VulkanEngine::CreatePipelineManager() {
+    return MakeUnique<VulkanPipelineManager>(mSPContext.get());
 }
 
 void VulkanEngine::SetCudaInterop() {
@@ -418,80 +413,60 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
 }
 
 void VulkanEngine::CreateBackgroundComputePipeline() {
-    vk::PipelineLayoutCreateInfo computeLayout {};
-    vk::ArrayProxy               setLayouts {
+    ::std::vector setLayouts {
         mDescriptorManager->GetDescSetLayout("DrawImage_Layout_0")};
-    computeLayout.setSetLayouts(setLayouts);
 
-    mBackgroundComputePipelineLayout =
-        mSPContext->GetDeviceHandle().createPipelineLayout(computeLayout);
+    auto backgroundPipelineLayout = mPipelineManager->CreateLayout(
+        "BackgoundCompute_Layout", setLayouts, {});
 
-    vk::ShaderModule computeDrawShader {};
-    VE_ASSERT(Utils::LoadShaderModule("../../Shaders/BackGround.comp.spv",
-                                      mSPContext->GetDeviceHandle(),
-                                      &computeDrawShader),
-              "Error when building the compute shader");
+    VulkanShader computeDrawShader {mSPContext.get(), "computeDraw",
+                                    "../../Shaders/BackGround.comp.spv",
+                                    ShaderStage::Compute};
 
-    vk::PipelineShaderStageCreateInfo stageinfo {};
-    stageinfo.setStage(vk::ShaderStageFlagBits::eCompute)
-        .setModule(computeDrawShader)
-        .setPName("main");
+    auto& builder = mPipelineManager->GetComputePipelineBuilder();
 
-    vk::ComputePipelineCreateInfo computePipelineCreateInfo {};
-    computePipelineCreateInfo.setLayout(mBackgroundComputePipelineLayout)
-        .setStage(stageinfo);
-
-    mBackgroundComputePipeline =
-        mSPContext->GetDeviceHandle()
-            .createComputePipeline({}, computePipelineCreateInfo)
-            .value;
-
-    mSPContext->GetDeviceHandle().destroy(computeDrawShader);
+    auto backgroundComputePipeline =
+        builder.SetShader(computeDrawShader)
+            .SetLayout(backgroundPipelineLayout->GetHandle())
+            .Build("BackgroundCompute_Pipeline");
 
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
 
 void VulkanEngine::CreateTrianglePipeline() {
-    vk::ShaderModule vertexShader {};
-    vk::ShaderModule fragmentShader {};
+    std::vector<VulkanShader> shaders;
+    shaders.reserve(2);
 
-    VE_ASSERT(
-        Utils::LoadShaderModule("../../Shaders/Triangle.vert.spv",
-                                mSPContext->GetDeviceHandle(), &vertexShader),
-        "Error when building the triangle vertex shader");
-    VE_ASSERT(
-        Utils::LoadShaderModule("../../Shaders/Triangle.frag.spv",
-                                mSPContext->GetDeviceHandle(), &fragmentShader),
-        "Error when building the triangle fragment shader");
+    shaders.emplace_back(mSPContext.get(), "vertex",
+                         "../../Shaders/Triangle.vert.spv",
+                         ShaderStage::Vertex);
+
+    shaders.emplace_back(mSPContext.get(), "fragment",
+                         "../../Shaders/Triangle.frag.spv",
+                         ShaderStage::Fragment);
 
     vk::PushConstantRange pushConstant {};
     pushConstant.setSize(sizeof(MeshPushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
-    vk::PipelineLayoutCreateInfo layoutCreateInfo {};
-    vk::ArrayProxy               setLayouts {
+    std::vector setLayouts {
         mDescriptorManager->GetDescSetLayout("Triangle_Layout_0")};
-    layoutCreateInfo.setPushConstantRanges(pushConstant)
-        .setSetLayouts(setLayouts);
-    mTrianglePipelieLayout =
-        mSPContext->GetDeviceHandle().createPipelineLayout(layoutCreateInfo);
 
-    GraphicsPipelineBuilder graphicsPipelineBuilder {};
-    mTrianglePipelie =
-        graphicsPipelineBuilder.SetLayout(mTrianglePipelieLayout)
-            .SetShaders(vertexShader, fragmentShader)
-            .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
-            .SetPolygonMode(vk::PolygonMode::eFill)
-            .SetCullMode(vk::CullModeFlagBits::eNone, vk::FrontFace::eClockwise)
-            .SetMultisampling(vk::SampleCountFlagBits::e1)
-            .SetBlending(vk::False)
-            .SetDepth(vk::False, vk::False)
-            .SetColorAttachmentFormat(mDrawImage->GetFormat())
-            .SetDepthStencilFormat(vk::Format::eUndefined)
-            .Build(mSPContext->GetDeviceHandle());
+    auto trianglePipelineLayout = mPipelineManager->CreateLayout(
+        "Triangle_Layout", setLayouts, pushConstant);
 
-    mSPContext->GetDeviceHandle().destroy(vertexShader);
-    mSPContext->GetDeviceHandle().destroy(fragmentShader);
+    auto& builder = mPipelineManager->GetGraphicsPipelineBuilder();
+    builder.SetLayout(trianglePipelineLayout->GetHandle())
+        .SetShaders(shaders)
+        .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
+        .SetPolygonMode(vk::PolygonMode::eFill)
+        .SetCullMode(vk::CullModeFlagBits::eNone, vk::FrontFace::eClockwise)
+        .SetMultisampling(vk::SampleCountFlagBits::e1)
+        .SetBlending(vk::False)
+        .SetDepth(vk::False, vk::False)
+        .SetColorAttachmentFormat(mDrawImage->GetFormat())
+        .SetDepthStencilFormat(vk::Format::eUndefined)
+        .Build("TriangleDraw_Pipeline");
 
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
@@ -508,7 +483,8 @@ void VulkanEngine::CreateTriangleDescriptors() {
 
     mDescriptorManager->WriteImage(
         0,
-        {mDefaultSamplerNearest->GetHandle(), mErrorCheckImage->GetViewHandle(),
+        {mSPContext->GetDefaultNearestSamplerHandle(),
+         mErrorCheckImage->GetViewHandle(),
          vk::ImageLayout::eShaderReadOnlyOptimal},
         vk::DescriptorType::eCombinedImageSampler);
 
@@ -517,8 +493,10 @@ void VulkanEngine::CreateTriangleDescriptors() {
 
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     vk::ClearColorValue clearValue {};
-    float               flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
-    clearValue                = {flash, flash, flash, 1.0f};
+
+    float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
+
+    clearValue = {flash, flash, flash, 1.0f};
 
     auto subresource =
         Utils::GetDefaultImageSubresourceRange(vk::ImageAspectFlagBits::eColor);
@@ -526,53 +504,63 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     cmd.clearColorImage(mDrawImage->GetHandle(), vk::ImageLayout::eGeneral,
                         clearValue, subresource);
 
-    // cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
-    //                  mBackgroundComputePipeline);
+    // Compute Draw
+    // {
+    //     cmd.bindPipeline(
+    //         vk::PipelineBindPoint::eCompute,
+    //         mPipelineManager->GetComputePipeline("BackgroundCompute_Pipeline"));
     //
-    // cmd.bindDescriptorSets(
-    //     vk::PipelineBindPoint::eCompute, mBackgroundComputePipelineLayout, 0,
-    //     mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
+    //     cmd.bindDescriptorSets(
+    //         vk::PipelineBindPoint::eCompute,
+    //         mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0,
+    //         mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
     //
-    // cmd.dispatch(::std::ceil(mDrawImage.mExtent3D.width / 16.0),
-    //              ::std::ceil(mDrawImage.mExtent3D.height / 16.0), 1);
+    //     cmd.dispatch(::std::ceil(mDrawImage->GetExtent3D().width / 16.0),
+    //                  ::std::ceil(mDrawImage->GetExtent3D().height / 16.0), 1);
+    // }
 
-    auto layout = mDrawImage->GetLayout();
+    // CUDA Draw
+    {
+        auto layout = mDrawImage->GetLayout();
 
-    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-    Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
-                                 vk::ImageLayout::eUndefined,
-                                 vk::ImageLayout::eTransferSrcOptimal);
+        mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+        Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
+                                     vk::ImageLayout::eUndefined,
+                                     vk::ImageLayout::eTransferSrcOptimal);
 
-    vk::ImageBlit2 blitRegion {};
-    blitRegion
-        .setSrcOffsets(
-            {vk::Offset3D {},
-             vk::Offset3D {
-                 static_cast<int32_t>(mCUDAExternalImage->GetExtent3D().width),
-                 static_cast<int32_t>(mCUDAExternalImage->GetExtent3D().height),
-                 1}})
-        .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
-        .setDstOffsets(
-            {vk::Offset3D {},
-             vk::Offset3D {
-                 static_cast<int32_t>(mDrawImage->GetExtent3D().width),
-                 static_cast<int32_t>(mDrawImage->GetExtent3D().height), 1}})
-        .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
+        vk::ImageBlit2 blitRegion {};
+        blitRegion
+            .setSrcOffsets(
+                {vk::Offset3D {},
+                 vk::Offset3D {static_cast<int32_t>(
+                                   mCUDAExternalImage->GetExtent3D().width),
+                               static_cast<int32_t>(
+                                   mCUDAExternalImage->GetExtent3D().height),
+                               1}})
+            .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
+            .setDstOffsets(
+                {vk::Offset3D {},
+                 vk::Offset3D {
+                     static_cast<int32_t>(mDrawImage->GetExtent3D().width),
+                     static_cast<int32_t>(mDrawImage->GetExtent3D().height),
+                     1}})
+            .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
 
-    vk::BlitImageInfo2 blitInfo {};
-    blitInfo.setDstImage(mDrawImage->GetHandle())
-        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
-        .setSrcImage(mCUDAExternalImage->GetVkImage())
-        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setFilter(vk::Filter::eLinear)
-        .setRegions(blitRegion);
+        vk::BlitImageInfo2 blitInfo {};
+        blitInfo.setDstImage(mDrawImage->GetHandle())
+            .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+            .setSrcImage(mCUDAExternalImage->GetVkImage())
+            .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
+            .setFilter(vk::Filter::eLinear)
+            .setRegions(blitRegion);
 
-    cmd.blitImage2(blitInfo);
+        cmd.blitImage2(blitInfo);
 
-    mDrawImage->TransitionLayout(cmd, layout);
-    Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
-                                 vk::ImageLayout::eTransferSrcOptimal,
-                                 vk::ImageLayout::eGeneral);
+        mDrawImage->TransitionLayout(cmd, layout);
+        Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
+                                     vk::ImageLayout::eTransferSrcOptimal,
+                                     vk::ImageLayout::eGeneral);
+    }
 }
 
 void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
@@ -594,7 +582,9 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
 
     cmd.beginRendering(renderInfo);
 
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, mTrianglePipelie);
+    cmd.bindPipeline(
+        vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetGraphicsPipeline("TriangleDraw_Pipeline"));
 
     vk::Viewport viewport {};
     viewport.setWidth(mDrawImage->GetExtent3D().width)
@@ -609,15 +599,17 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
     cmd.setScissor(0, scissor);
 
     cmd.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics, mTrianglePipelieLayout, 0,
+        vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetLayoutHandle("Triangle_Layout"), 0,
         mDescriptorManager->GetDescriptor("Triangle_Desc_0"), {});
 
     MeshPushConstants pushConstants {};
     pushConstants.mVertexBufferAddress =
         mTriangleExternalMesh.mVertexBufferAddress;
     pushConstants.mModelMatrix = glm::mat4(1.0f);
-    cmd.pushConstants(mTrianglePipelieLayout, vk::ShaderStageFlagBits::eVertex,
-                      0, sizeof(MeshPushConstants), &pushConstants);
+    cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+                      vk::ShaderStageFlagBits::eVertex, 0,
+                      sizeof(MeshPushConstants), &pushConstants);
 
     cmd.bindIndexBuffer(mTriangleMesh.mIndexBuffer->GetHandle(), 0,
                         vk::IndexType::eUint32);

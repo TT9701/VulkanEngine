@@ -23,44 +23,52 @@ VulkanContext::VulkanContext(
       mSPExternalMemoryPool(CreateExternalMemoryPool())
 #endif
 {
+    CreateDefaultSamplers();
 }
 
-SharedPtr<VulkanInstance> VulkanContext::CreateInstance(
+UniquePtr<VulkanInstance> VulkanContext::CreateInstance(
     ::std::span<::std::string> requestedLayers,
     ::std::span<::std::string> requestedExtensions) {
-    return MakeShared<VulkanInstance>(requestedLayers, requestedExtensions);
+    return MakeUnique<VulkanInstance>(requestedLayers, requestedExtensions);
 }
 
 #ifndef NDEBUG
-SharedPtr<VulkanDebugUtils> VulkanContext::CreateDebugUtilsMessenger() {
-    return MakeShared<VulkanDebugUtils>(mSPInstance.get());
+UniquePtr<VulkanDebugUtils> VulkanContext::CreateDebugUtilsMessenger() {
+    return MakeUnique<VulkanDebugUtils>(mSPInstance.get());
 }
 #endif
 
-SharedPtr<VulkanSurface> VulkanContext::CreateSurface(const SDLWindow* window) {
-    return MakeShared<VulkanSurface>(mSPInstance.get(), window);
+UniquePtr<VulkanSurface> VulkanContext::CreateSurface(const SDLWindow* window) {
+    return MakeUnique<VulkanSurface>(mSPInstance.get(), window);
 }
 
-SharedPtr<VulkanPhysicalDevice> VulkanContext::PickPhysicalDevice(
+UniquePtr<VulkanPhysicalDevice> VulkanContext::PickPhysicalDevice(
     vk::QueueFlags flags) {
-    return MakeShared<VulkanPhysicalDevice>(mSPInstance.get(), flags);
+    return MakeUnique<VulkanPhysicalDevice>(mSPInstance.get(), flags);
 }
 
-SharedPtr<VulkanDevice> VulkanContext::CreateDevice(
+UniquePtr<VulkanDevice> VulkanContext::CreateDevice(
     ::std::span<::std::string> requestedExtensions) {
-    return MakeShared<VulkanDevice>(
+    return MakeUnique<VulkanDevice>(
         mSPPhysicalDevice.get(), ::std::span<::std::string> {},
         requestedExtensions, &sPhysicalDeviceFeatures, &sEnable11Features);
 }
 
-SharedPtr<VulkanMemoryAllocator> VulkanContext::CreateVmaAllocator() {
-    return MakeShared<VulkanMemoryAllocator>(
+UniquePtr<VulkanMemoryAllocator> VulkanContext::CreateVmaAllocator() {
+    return MakeUnique<VulkanMemoryAllocator>(
         mSPPhysicalDevice.get(), mSPDevice.get(), mSPInstance.get());
 }
 
 #ifdef CUDA_VULKAN_INTEROP
-SharedPtr<VulkanExternalMemoryPool> VulkanContext::CreateExternalMemoryPool() {
-    return MakeShared<VulkanExternalMemoryPool>(mSPAllocator.get());
+UniquePtr<VulkanExternalMemoryPool> VulkanContext::CreateExternalMemoryPool() {
+    return MakeUnique<VulkanExternalMemoryPool>(mSPAllocator.get());
+}
+
+void VulkanContext::CreateDefaultSamplers() {
+    mDefaultSamplerNearest = MakeUnique<VulkanSampler>(
+        this, vk::Filter::eNearest, vk::Filter::eNearest);
+    mDefaultSamplerLinear = MakeUnique<VulkanSampler>(this, vk::Filter::eLinear,
+                                                      vk::Filter::eLinear);
 }
 #endif
 
