@@ -7,7 +7,7 @@
 #include <cmath>
 #include <stdexcept>
 
-#include "../Core/MeshType.hpp"
+#include "../Core/Model/MeshType.hpp"
 
 namespace {
 
@@ -375,17 +375,13 @@ VulkanMappedPointer VulkanExternalBuffer::GetMappedPointer(size_t offset,
 VulkanExternalImage::VulkanExternalImage(
     vk::Device device, VmaAllocator allocator, VmaPool pool,
     VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
-    vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect, bool mipmaped,
-    uint32_t arrayLayers, vk::ImageType type, vk::ImageViewType viewType)
+    vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+    uint32_t mipmapLevels, uint32_t arrayLayers, vk::ImageType type,
+    vk::ImageViewType viewType)
     : mDevice(device),
       mAllocator(allocator),
       mExtent3D(extent),
       mFormat(format) {
-    uint32_t mipLevels =
-        mipmaped ? static_cast<uint32_t>(1
-                                         + ::std::floor(::std::log2(std::max(
-                                             extent.width, extent.height))))
-                 : 1;
 
     vk::ExternalMemoryImageCreateInfo externalImage {};
     externalImage.setHandleTypes(
@@ -396,7 +392,7 @@ VulkanExternalImage::VulkanExternalImage(
         .setFormat(mFormat)
         .setExtent(mExtent3D)
         .setUsage(usage)
-        .setMipLevels(mipLevels)
+        .setMipLevels(mipmapLevels)
         .setArrayLayers(arrayLayers)
         .setPNext(&externalImage);
 

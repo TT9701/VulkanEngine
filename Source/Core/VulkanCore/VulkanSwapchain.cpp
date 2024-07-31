@@ -1,6 +1,6 @@
 #include "VulkanSwapchain.hpp"
 
-#include "Utilities/Logger.hpp"
+#include "Core/Utilities/Logger.hpp"
 #include "VulkanContext.hpp"
 #include "VulkanImage.hpp"
 

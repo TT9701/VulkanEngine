@@ -72,7 +72,7 @@ public:
     VulkanExternalImage(vk::Device device, VmaAllocator allocator, VmaPool pool,
                         VmaAllocationCreateFlags flags, vk::Extent3D extent,
                         vk::Format format, vk::ImageUsageFlags usage,
-                        vk::ImageAspectFlags aspect, bool mipmaped = false,
+                        vk::ImageAspectFlags aspect, uint32_t mipmapLevels = 1,
                         uint32_t          arrayLayers = 1,
                         vk::ImageType     type        = vk::ImageType::e2D,
                         vk::ImageViewType viewType    = vk::ImageViewType::e2D);

@@ -3,7 +3,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-#include "Utilities/Logger.hpp"
+#include "Core/Utilities/Logger.hpp"
 
 namespace {
 

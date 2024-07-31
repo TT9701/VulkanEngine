@@ -3,8 +3,8 @@
 #include <vulkan/vulkan.hpp>
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Mesh.hpp"
-#include "Utilities/VulkanUtilities.hpp"
+#include "Core/Model/Mesh.hpp"
+#include "Core/Utilities/VulkanUtilities.hpp"
 #include "VulkanCommandManager.hpp"
 #include "VulkanPipeline.hpp"
 
@@ -16,7 +16,7 @@ class VulkanContext;
 class VulkanMemoryAllocator;
 class VulkanExternalMemoryPool;
 class VulkanSwapchain;
-class VulkanAllocatedImage;
+class VulkanImage;
 class VulkanFence;
 class VulkanCommandBuffers;
 class VulkanCommandPool;
@@ -42,23 +42,19 @@ public:
 private:
     void Draw();
 
-    UniquePtr<SDLWindow>                 CreateSDLWindow();
-    UniquePtr<VulkanContext>             CreateContext();
-    UniquePtr<VulkanSwapchain>           CreateSwapchain();
-    SharedPtr<VulkanAllocatedImage>      CreateDrawImage();
-    SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage();
-    UniquePtr<ImmediateSubmitManager>    CreateImmediateSubmitManager();
-    UniquePtr<VulkanCommandManager>      CreateCommandManager();
-    SharedPtr<VulkanAllocatedImage>      CreateErrorCheckTexture();
-    UniquePtr<VulkanDescriptorManager>   CreateDescriptorManager();
-    UniquePtr<VulkanPipelineManager>     CreatePipelineManager();
+    UniquePtr<SDLWindow>               CreateSDLWindow();
+    UniquePtr<VulkanContext>           CreateContext();
+    UniquePtr<VulkanSwapchain>         CreateSwapchain();
+    SharedPtr<VulkanImage>             CreateDrawImage();
+    UniquePtr<ImmediateSubmitManager>  CreateImmediateSubmitManager();
+    UniquePtr<VulkanCommandManager>    CreateCommandManager();
+    SharedPtr<VulkanImage>             CreateErrorCheckTexture();
+    UniquePtr<VulkanDescriptorManager> CreateDescriptorManager();
+    UniquePtr<VulkanPipelineManager>   CreatePipelineManager();
 
-    void CreateCUDASyncStructures();
     void CreatePipelines();
     void CreateDescriptors();
     void CreateTriangleData();
-    void CreateExternalTriangleData();
-    void SetCudaInterop();
 
     GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
                                   ::std::span<Vertex>   vertices);
@@ -71,6 +67,13 @@ private:
     void CreateTrianglePipeline();
     void CreateTriangleDescriptors();
 
+#ifdef CUDA_VULKAN_INTEROP
+    SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage();
+    void                                 CreateExternalTriangleData();
+    void                                 CreateCUDASyncStructures();
+    void                                 SetCudaInterop();
+#endif
+
     void DrawBackground(vk::CommandBuffer cmd);
     void DrawTriangle(vk::CommandBuffer cmd);
 
@@ -81,11 +84,11 @@ private:
     UniquePtr<SDLWindow>                 mSPWindow;
     UniquePtr<VulkanContext>             mSPContext;
     UniquePtr<VulkanSwapchain>           mSPSwapchain;
-    SharedPtr<VulkanAllocatedImage>      mDrawImage;
+    SharedPtr<VulkanImage>               mDrawImage;
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
     UniquePtr<VulkanCommandManager>      mSPCmdManager;
     UniquePtr<ImmediateSubmitManager>    mSPImmediateSubmitManager;
-    SharedPtr<VulkanAllocatedImage>      mErrorCheckImage;
+    SharedPtr<VulkanImage>               mErrorCheckImage;
     UniquePtr<VulkanDescriptorManager>   mDescriptorManager;
     UniquePtr<VulkanPipelineManager>     mPipelineManager;
 

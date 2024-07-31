@@ -1,15 +1,16 @@
 #include "VulkanImage.hpp"
 
-#include "Engine.hpp"
+#include "VulkanEngine.hpp"
 #include "VulkanBuffer.hpp"
 #include "VulkanContext.hpp"
 #include "VulkanMemoryAllocator.hpp"
 
-VulkanAllocatedImage::VulkanAllocatedImage(
-    VulkanContext* ctx, VmaAllocationCreateFlags flags, vk::Extent3D extent,
-    vk::Format format, vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
-    void* data, VulkanEngine* engine, uint32_t mipmapLevel,
-    uint32_t arrayLayers, vk::ImageType type, vk::ImageViewType viewType)
+VulkanImage::VulkanImage(VulkanContext* ctx, VmaAllocationCreateFlags flags,
+                         vk::Extent3D extent, vk::Format format,
+                         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+                         void* data, VulkanEngine* engine, uint32_t mipmapLevel,
+                         uint32_t arrayLayers, vk::ImageType type,
+                         vk::ImageViewType viewType)
     : pContex(ctx),
       mExtent3D(extent),
       mFormat(format),
@@ -22,12 +23,10 @@ VulkanAllocatedImage::VulkanAllocatedImage(
     UploadData(data);
 }
 
-VulkanAllocatedImage::VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
-                                           vk::Extent3D         extent,
-                                           vk::Format           format,
-                                           vk::ImageAspectFlags aspect,
-                                           uint32_t             arrayLayers,
-                                           vk::ImageViewType    viewType)
+VulkanImage::VulkanImage(VulkanContext* ctx, vk::Image image,
+                         vk::Extent3D extent, vk::Format format,
+                         vk::ImageAspectFlags aspect, uint32_t arrayLayers,
+                         vk::ImageViewType viewType)
     : pContex(ctx),
       mExtent3D(extent),
       mFormat(format),
@@ -38,23 +37,21 @@ VulkanAllocatedImage::VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
       mImage(image),
       mImageView(CreateImageView(aspect, viewType)) {}
 
-VulkanAllocatedImage::~VulkanAllocatedImage() {
+VulkanImage::~VulkanImage() {
     if (mOwnsImage)
         vmaDestroyImage(pContex->GetVmaAllocator()->GetHandle(), mImage,
                         mAllocation);
     pContex->GetDeviceHandle().destroy(mImageView);
 }
 
-void VulkanAllocatedImage::TransitionLayout(vk::CommandBuffer cmd,
-                                            vk::ImageLayout   newLayout) {
+void VulkanImage::TransitionLayout(vk::CommandBuffer cmd,
+                                   vk::ImageLayout   newLayout) {
     Utils::TransitionImageLayout(cmd, mImage, mLayout, newLayout);
     mLayout = newLayout;
 }
 
-void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
-                                       vk::Image         dstImage,
-                                       vk::Extent2D      srcExtent,
-                                       vk::Extent2D      dstExtent) {
+void VulkanImage::CopyToImage(vk::CommandBuffer cmd, vk::Image dstImage,
+                              vk::Extent2D srcExtent, vk::Extent2D dstExtent) {
     vk::ImageBlit2 blitRegion {};
     blitRegion
         .setSrcOffsets(
@@ -79,19 +76,17 @@ void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer cmd,
     cmd.blitImage2(blitInfo);
 }
 
-void VulkanAllocatedImage::CopyToImage(vk::CommandBuffer    cmd,
-                                       VulkanAllocatedImage dstImage,
-                                       vk::Extent2D         srcExtent,
-                                       vk::Extent2D         dstExtent) {
+void VulkanImage::CopyToImage(vk::CommandBuffer cmd, VulkanImage dstImage,
+                              vk::Extent2D srcExtent, vk::Extent2D dstExtent) {
     CopyToImage(cmd, dstImage.mImage, srcExtent, dstExtent);
 }
 
-void VulkanAllocatedImage::UploadData(void* data) {
+void VulkanImage::UploadData(void* data) {
     if (data) {
         size_t dataSize = static_cast<size_t>(mExtent3D.width)
                         * mExtent3D.height * mExtent3D.depth * 4;
 
-        VulkanAllocatedBuffer uploadBuffer {
+        VulkanBuffer uploadBuffer {
             pContex->GetVmaAllocator(), dataSize,
             vk::BufferUsageFlagBits::eTransferSrc,
             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
@@ -117,10 +112,9 @@ void VulkanAllocatedImage::UploadData(void* data) {
     }
 }
 
-vk::Image VulkanAllocatedImage::CreateImage(void*                    data,
-                                            VmaAllocationCreateFlags flags,
-                                            vk::ImageUsageFlags      usage,
-                                            vk::ImageType            type) {
+vk::Image VulkanImage::CreateImage(void* data, VmaAllocationCreateFlags flags,
+                                   vk::ImageUsageFlags usage,
+                                   vk::ImageType       type) {
     VkImage image {};
 
     vk::ImageCreateInfo imageCreateInfo {};
@@ -143,8 +137,8 @@ vk::Image VulkanAllocatedImage::CreateImage(void*                    data,
     return image;
 }
 
-vk::ImageView VulkanAllocatedImage::CreateImageView(
-    vk::ImageAspectFlags aspect, vk::ImageViewType viewType) {
+vk::ImageView VulkanImage::CreateImageView(vk::ImageAspectFlags aspect,
+                                           vk::ImageViewType    viewType) {
 
     vk::ImageViewCreateInfo imageViewCreateInfo {};
     imageViewCreateInfo.setViewType(viewType)

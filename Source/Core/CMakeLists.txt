@@ -2,66 +2,82 @@ find_package(Vulkan REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 
-set (CORE_SRC 
-    VulkanHelper.hpp
-
+set (UTILITIES_SRC 
     Utilities/Logger.hpp
-
     Utilities/VulkanUtilities.hpp
     Utilities/VulkanUtilities.cpp
     Utilities/MemoryPool.hpp
     Utilities/MemoryPool.cpp
     Utilities/Defines.hpp
-
-    Window.hpp
-    Window.cpp
-
-    Engine.hpp
-    Engine.cpp
-    VulkanInstance.hpp
-    VulkanInstance.cpp
-    VulkanDebugUtils.hpp
-    VulkanDebugUtils.cpp
-    VulkanSurface.hpp
-    VulkanSurface.cpp
-    VulkanPhysicalDevice.hpp
-    VulkanPhysicalDevice.cpp
-    VulkanDevice.hpp
-    VulkanDevice.cpp
-    VulkanContext.hpp
-    VulkanContext.cpp
-    VulkanMemoryAllocator.hpp
-    VulkanMemoryAllocator.cpp
-    VulkanSwapchain.hpp
-    VulkanSwapchain.cpp
-    VulkanImage.hpp
-    VulkanImage.cpp
-    VulkanSyncStructures.hpp
-    VulkanSyncStructures.cpp
-    VulkanCommands.hpp
-    VulkanCommands.cpp
-    VulkanCommandManager.cpp
-    VulkanCommandManager.hpp
-    VulkanFrameObjects.hpp
-    VulkanFrameObjects.cpp
-    VulkanDescriptors.hpp
-    VulkanDescriptors.cpp
-    VulkanPipeline.hpp
-    VulkanPipeline.cpp
-    VulkanBuffer.hpp
-    VulkanBuffer.cpp
-    VulkanSampler.hpp
-    VulkanSampler.cpp
-    VulkanShader.hpp
-    VulkanShader.cpp
-
-    MeshType.hpp
-    Mesh.hpp
-    Mesh.cpp
 )
+set (UTILITIES_SRC_GROUP_NAME "Utilities")
+
+set (VULKAN_CORE_SRC 
+    VulkanCore/VulkanHelper.hpp
+    VulkanCore/VulkanEngine.hpp
+    VulkanCore/VulkanEngine.cpp
+    VulkanCore/VulkanInstance.hpp
+    VulkanCore/VulkanInstance.cpp
+    VulkanCore/VulkanDebugUtils.hpp
+    VulkanCore/VulkanDebugUtils.cpp
+    VulkanCore/VulkanSurface.hpp
+    VulkanCore/VulkanSurface.cpp
+    VulkanCore/VulkanPhysicalDevice.hpp
+    VulkanCore/VulkanPhysicalDevice.cpp
+    VulkanCore/VulkanDevice.hpp
+    VulkanCore/VulkanDevice.cpp
+    VulkanCore/VulkanContext.hpp
+    VulkanCore/VulkanContext.cpp
+    VulkanCore/VulkanMemoryAllocator.hpp
+    VulkanCore/VulkanMemoryAllocator.cpp
+    VulkanCore/VulkanSwapchain.hpp
+    VulkanCore/VulkanSwapchain.cpp
+    VulkanCore/VulkanImage.hpp
+    VulkanCore/VulkanImage.cpp
+    VulkanCore/VulkanSyncStructures.hpp
+    VulkanCore/VulkanSyncStructures.cpp
+    VulkanCore/VulkanCommands.hpp
+    VulkanCore/VulkanCommands.cpp
+    VulkanCore/VulkanCommandManager.cpp
+    VulkanCore/VulkanCommandManager.hpp
+    VulkanCore/VulkanFrameObjects.hpp
+    VulkanCore/VulkanFrameObjects.cpp
+    VulkanCore/VulkanDescriptors.hpp
+    VulkanCore/VulkanDescriptors.cpp
+    VulkanCore/VulkanPipeline.hpp
+    VulkanCore/VulkanPipeline.cpp
+    VulkanCore/VulkanBuffer.hpp
+    VulkanCore/VulkanBuffer.cpp
+    VulkanCore/VulkanSampler.hpp
+    VulkanCore/VulkanSampler.cpp
+    VulkanCore/VulkanShader.hpp
+    VulkanCore/VulkanShader.cpp
+)
+set (VULKAN_CORE_SRC_GROUP_NAME "VulkanCore")
+
+set (PLATFORM_SRC 
+    Platform/Window.hpp 
+    Platform/Window.cpp
+)
+set (PLATFORM_SRC_GROUP_NAME "Platform")
+
+set (MODEL_SRC
+    Model/MeshType.hpp
+    Model/Mesh.hpp
+    Model/Mesh.cpp
+)
+set (MODEL_SRC_GROUP_NAME "Model")
+
+source_group(${UTILITIES_SRC_GROUP_NAME} FILES ${UTILITIES_SRC})
+source_group(${VULKAN_CORE_SRC_GROUP_NAME} FILES ${VULKAN_CORE_SRC})
+source_group(${PLATFORM_SRC_GROUP_NAME} FILES ${PLATFORM_SRC})
+source_group(${MODEL_SRC_GROUP_NAME} FILES ${MODEL_SRC})
 
 add_library(Core STATIC
-    ${CORE_SRC}
+    ${UTILITIES_SRC}
+    ${PLATFORM_SRC}
+    ${VULKAN_CORE_SRC}
+    ${MODEL_SRC}
 )
 
 set_target_properties(Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})

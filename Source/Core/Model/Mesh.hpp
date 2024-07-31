@@ -1,19 +1,21 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 #include "CUDA/CUDAVulkan.h"
 #include "Core/Utilities/MemoryPool.hpp"
 #include "MeshType.hpp"
-#include "VulkanBuffer.hpp"
+#include "Core/VulkanCore/VulkanBuffer.hpp"
 
 struct GPUMeshBuffers {
-    UniquePtr<VulkanAllocatedBuffer> mIndexBuffer {nullptr};
-    UniquePtr<VulkanAllocatedBuffer> mVertexBuffer {nullptr};
-    vk::DeviceAddress                mVertexBufferAddress {};
+    SharedPtr<VulkanBuffer> mIndexBuffer {nullptr};
+    SharedPtr<VulkanBuffer> mVertexBuffer {nullptr};
+    vk::DeviceAddress       mVertexBufferAddress {};
 };
 
 struct ExternalGPUMeshBuffers {
-    UniquePtr<CUDA::VulkanExternalBuffer> mIndexBuffer {};
-    UniquePtr<CUDA::VulkanExternalBuffer> mVertexBuffer {};
+    SharedPtr<CUDA::VulkanExternalBuffer> mIndexBuffer {};
+    SharedPtr<CUDA::VulkanExternalBuffer> mVertexBuffer {};
     vk::DeviceAddress                     mVertexBufferAddress {};
 };
 

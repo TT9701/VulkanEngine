@@ -1,6 +1,6 @@
 #include "VulkanDebugUtils.hpp"
 
-#include "Utilities/Logger.hpp"
+#include "Core/Utilities/Logger.hpp"
 #include "VulkanInstance.hpp"
 
 namespace {

@@ -7,24 +7,24 @@ class VulkanContext;
 class VulkanMemoryAllocator;
 class VulkanEngine;
 
-class VulkanAllocatedImage {
+class VulkanImage {
 public:
-    VulkanAllocatedImage(VulkanContext* ctx, VmaAllocationCreateFlags flags,
-                         vk::Extent3D extent, vk::Format format,
-                         vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
-                         void* data = nullptr, VulkanEngine* engine = nullptr,
-                         uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1,
-                         vk::ImageType     type     = vk::ImageType::e2D,
-                         vk::ImageViewType viewType = vk::ImageViewType::e2D);
+    VulkanImage(VulkanContext* ctx, VmaAllocationCreateFlags flags,
+                vk::Extent3D extent, vk::Format format,
+                vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+                void* data = nullptr, VulkanEngine* engine = nullptr,
+                uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1,
+                vk::ImageType     type     = vk::ImageType::e2D,
+                vk::ImageViewType viewType = vk::ImageViewType::e2D);
 
-    VulkanAllocatedImage(VulkanContext* ctx, vk::Image image,
-                         vk::Extent3D extent, vk::Format format,
-                         vk::ImageAspectFlags aspect, uint32_t arrayLayers = 1,
-                         vk::ImageViewType viewType = vk::ImageViewType::e2D);
+    VulkanImage(VulkanContext* ctx, vk::Image image, vk::Extent3D extent,
+                vk::Format format, vk::ImageAspectFlags aspect,
+                uint32_t          arrayLayers = 1,
+                vk::ImageViewType viewType    = vk::ImageViewType::e2D);
 
-    ~VulkanAllocatedImage();
+    ~VulkanImage();
 
-    MOVABLE_ONLY(VulkanAllocatedImage);
+    MOVABLE_ONLY(VulkanImage);
 
 public:
     void TransitionLayout(vk::CommandBuffer cmd, vk::ImageLayout newLayout);
@@ -32,7 +32,7 @@ public:
     void CopyToImage(vk::CommandBuffer cmd, vk::Image dstImage,
                      vk::Extent2D srcExtent, vk::Extent2D dstExtent);
 
-    void CopyToImage(vk::CommandBuffer cmd, VulkanAllocatedImage dstImage,
+    void CopyToImage(vk::CommandBuffer cmd, VulkanImage dstImage,
                      vk::Extent2D srcExtent, vk::Extent2D dstExtent);
 
     void UploadData(void* data);

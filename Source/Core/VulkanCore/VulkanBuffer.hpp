@@ -7,13 +7,12 @@
 
 class VulkanMemoryAllocator;
 
-class VulkanAllocatedBuffer {
+class VulkanBuffer {
 public:
-    VulkanAllocatedBuffer(VulkanMemoryAllocator* allocator,
-                          size_t allocByteSize, vk::BufferUsageFlags usage,
-                          VmaAllocationCreateFlags flags);
-    ~VulkanAllocatedBuffer();
-    MOVABLE_ONLY(VulkanAllocatedBuffer);
+    VulkanBuffer(VulkanMemoryAllocator* allocator, size_t allocByteSize,
+                 vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags);
+    ~VulkanBuffer();
+    MOVABLE_ONLY(VulkanBuffer);
 
 public:
     vk::Buffer GetHandle() const { return mBuffer; }

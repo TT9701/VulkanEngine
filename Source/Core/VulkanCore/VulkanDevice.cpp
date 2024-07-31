@@ -1,7 +1,7 @@
 #include "VulkanDevice.hpp"
 
-#include "Utilities/Logger.hpp"
-#include "Utilities/VulkanUtilities.hpp"
+#include "Core/Utilities/Logger.hpp"
+#include "Core/Utilities/VulkanUtilities.hpp"
 #include "VulkanPhysicalDevice.hpp"
 
 VulkanDevice::VulkanDevice(VulkanPhysicalDevice*       physicalDevice,

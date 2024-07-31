@@ -8,7 +8,7 @@
 class VulkanContext;
 class VulkanSemaphore;
 class VulkanFence;
-class VulkanAllocatedImage;
+class VulkanImage;
 
 class VulkanSwapchain {
 public:
@@ -68,6 +68,6 @@ private:
     VulkanSemaphore mReady4Render {pContex};
     VulkanFence     mAcquireFence {pContex};
 
-    ::std::vector<VulkanAllocatedImage> mImages {};
+    ::std::vector<VulkanImage> mImages {};
     uint32_t                            mCurrentImageIndex {0};
 };

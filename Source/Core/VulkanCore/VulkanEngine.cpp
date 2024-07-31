@@ -1,9 +1,12 @@
-#include "Engine.hpp"
+#include "VulkanEngine.hpp"
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
 
+#include <glm/glm.hpp>
+
+#include "Core/Platform/Window.hpp"
 #include "VulkanCommands.hpp"
 #include "VulkanContext.hpp"
 #include "VulkanDescriptors.hpp"
@@ -11,7 +14,6 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "VulkanImage.hpp"
 #include "VulkanShader.hpp"
 #include "VulkanSwapchain.hpp"
-#include "Window.hpp"
 
 VulkanEngine::VulkanEngine()
     : mSPWindow(CreateSDLWindow()),
@@ -178,7 +180,7 @@ UniquePtr<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
                       static_cast<uint32_t>(mSPWindow->GetHeight())});
 }
 
-SharedPtr<VulkanAllocatedImage> VulkanEngine::CreateDrawImage() {
+SharedPtr<VulkanImage> VulkanEngine::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
                                   static_cast<uint32_t>(mSPWindow->GetHeight()),
                                   1};
@@ -189,28 +191,9 @@ SharedPtr<VulkanAllocatedImage> VulkanEngine::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return MakeShared<VulkanAllocatedImage>(
-        mSPContext.get(), VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        drawImageExtent, vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
-        vk::ImageAspectFlagBits::eColor);
-}
-
-SharedPtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
-    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
-                                  static_cast<uint32_t>(mSPWindow->GetHeight()),
-                                  1};
-
-    vk::ImageUsageFlags drawImageUsage {};
-    drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
-    drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
-    drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
-    drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
-
-    return MakeShared<CUDA::VulkanExternalImage>(
-        mSPContext->GetDeviceHandle(),
-        mSPContext->GetVmaAllocator()->GetHandle(),
-        mSPContext->GetExternalMemoryPool()->GetHandle(), 0, drawImageExtent,
-        vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
+    return mSPContext->CreateImage2D(
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, drawImageExtent,
+        vk::Format::eR16G16B16A16Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
 }
 
@@ -224,15 +207,6 @@ UniquePtr<VulkanCommandManager> VulkanEngine::CreateCommandManager() {
     return MakeUnique<VulkanCommandManager>(
         mSPContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
         mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
-}
-
-void VulkanEngine::CreateCUDASyncStructures() {
-    mCUDAWaitSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
-        mSPContext->GetDeviceHandle());
-    mCUDASignalSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
-        mSPContext->GetDeviceHandle());
-
-    DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }
 
 void VulkanEngine::CreatePipelines() {
@@ -270,46 +244,7 @@ void VulkanEngine::CreateTriangleData() {
     mTriangleMesh = UploadMeshData(indices, vertices);
 }
 
-void VulkanEngine::CreateExternalTriangleData() {
-    mTriangleExternalMesh.mVertexBuffer =
-        MakeUnique<CUDA::VulkanExternalBuffer>(
-            mSPContext->GetDeviceHandle(),
-            mSPContext->GetVmaAllocator()->GetHandle(), 3 * sizeof(Vertex),
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
-                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-            mSPContext->GetExternalMemoryPool()->GetHandle());
-
-    mTriangleExternalMesh.mIndexBuffer = MakeUnique<CUDA::VulkanExternalBuffer>(
-        mSPContext->GetDeviceHandle(),
-        mSPContext->GetVmaAllocator()->GetHandle(), 3 * sizeof(uint32_t),
-        vk::BufferUsageFlagBits::eIndexBuffer
-            | vk::BufferUsageFlagBits::eTransferDst,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        mSPContext->GetExternalMemoryPool()->GetHandle());
-
-    vk::BufferDeviceAddressInfo deviceAddrInfo {};
-    deviceAddrInfo.setBuffer(
-        mTriangleExternalMesh.mVertexBuffer->GetVkBuffer());
-
-    mTriangleExternalMesh.mVertexBufferAddress =
-        mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
-
-    CUDA::VulkanExternalImage externalImage {
-        mSPContext->GetDeviceHandle(),
-        mSPContext->GetVmaAllocator()->GetHandle(),
-        mSPContext->GetExternalMemoryPool()->GetHandle(),
-        0,
-        {16, 16, 1},
-        vk::Format::eR8G8B8A8Uint,
-        vk::ImageUsageFlagBits::eStorage,
-        vk::ImageAspectFlagBits::eColor};
-
-    auto cudaMipmapped = externalImage.GetMapMipmappedArray(0, 1);
-}
-
-SharedPtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
+SharedPtr<VulkanImage> VulkanEngine::CreateErrorCheckTexture() {
     uint32_t black   = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
     std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
@@ -318,9 +253,10 @@ SharedPtr<VulkanAllocatedImage> VulkanEngine::CreateErrorCheckTexture() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    return MakeShared<VulkanAllocatedImage>(
-        mSPContext.get(), VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        VkExtent3D {16, 16, 1}, vk::Format::eR8G8B8A8Unorm,
+
+    return mSPContext->CreateImage2D(
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VkExtent3D {16, 16, 1},
+        vk::Format::eR8G8B8A8Unorm,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
         vk::ImageAspectFlagBits::eColor, pixels.data(), this);
 }
@@ -337,11 +273,59 @@ UniquePtr<VulkanPipelineManager> VulkanEngine::CreatePipelineManager() {
     return MakeUnique<VulkanPipelineManager>(mSPContext.get());
 }
 
+#ifdef CUDA_VULKAN_INTEROP
+SharedPtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
+    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
+                                  static_cast<uint32_t>(mSPWindow->GetHeight()),
+                                  1};
+
+    vk::ImageUsageFlags drawImageUsage {};
+    drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
+    drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
+    drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
+    drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
+
+    return mSPContext->CreateExternalImage2D(
+        drawImageExtent, vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
+        vk::ImageAspectFlagBits::eColor);
+}
+
+void VulkanEngine::CreateExternalTriangleData() {
+    mTriangleExternalMesh.mVertexBuffer =
+        mSPContext->CreateExternalPersistentBuffer(
+            3 * sizeof(Vertex),
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+    mTriangleExternalMesh.mIndexBuffer =
+        mSPContext->CreateExternalPersistentBuffer(
+            3 * sizeof(uint32_t), vk::BufferUsageFlagBits::eIndexBuffer
+                                      | vk::BufferUsageFlagBits::eTransferDst);
+
+    vk::BufferDeviceAddressInfo deviceAddrInfo {};
+    deviceAddrInfo.setBuffer(
+        mTriangleExternalMesh.mVertexBuffer->GetVkBuffer());
+
+    mTriangleExternalMesh.mVertexBufferAddress =
+        mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+}
+
+void VulkanEngine::CreateCUDASyncStructures() {
+    mCUDAWaitSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
+        mSPContext->GetDeviceHandle());
+    mCUDASignalSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
+        mSPContext->GetDeviceHandle());
+
+    DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
+}
+
 void VulkanEngine::SetCudaInterop() {
     auto result = CUDA::GetVulkanCUDABindDeviceID(
         mSPContext->GetPhysicalDevice()->GetHandle());
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
 }
+#endif
 
 GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
                                             std::span<Vertex>   vertices) {
@@ -349,18 +333,14 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     const size_t indexBufferSize  = indices.size() * sizeof(uint32_t);
 
     GPUMeshBuffers newMesh {};
-    newMesh.mVertexBuffer = MakeUnique<VulkanAllocatedBuffer>(
-        mSPContext->GetVmaAllocator(), vertexBufferSize,
-        vk::BufferUsageFlagBits::eStorageBuffer
-            | vk::BufferUsageFlagBits::eTransferDst
-            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    newMesh.mVertexBuffer = mSPContext->CreatePersistentBuffer(
+        vertexBufferSize, vk::BufferUsageFlagBits::eStorageBuffer
+                              | vk::BufferUsageFlagBits::eTransferDst
+                              | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-    newMesh.mIndexBuffer = MakeUnique<VulkanAllocatedBuffer>(
-        mSPContext->GetVmaAllocator(), indexBufferSize,
-        vk::BufferUsageFlagBits::eIndexBuffer
-            | vk::BufferUsageFlagBits::eTransferDst,
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    newMesh.mIndexBuffer = mSPContext->CreatePersistentBuffer(
+        indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer
+                             | vk::BufferUsageFlagBits::eTransferDst);
 
     vk::BufferDeviceAddressInfo deviceAddrInfo {};
     deviceAddrInfo.setBuffer(newMesh.mVertexBuffer->GetHandle());
@@ -368,25 +348,23 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
     newMesh.mVertexBufferAddress =
         mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
 
-    VulkanAllocatedBuffer staging {
-        mSPContext->GetVmaAllocator(), vertexBufferSize + indexBufferSize,
-        vk::BufferUsageFlagBits::eTransferSrc,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-            | VMA_ALLOCATION_CREATE_MAPPED_BIT};
+    auto staging =
+        mSPContext->CreateStagingBuffer(vertexBufferSize + indexBufferSize,
+                                        vk::BufferUsageFlagBits::eTransferSrc);
 
-    void* data = staging.GetAllocationInfo().pMappedData;
+    void* data = staging->GetAllocationInfo().pMappedData;
     memcpy(data, vertices.data(), vertexBufferSize);
     memcpy((char*)data + vertexBufferSize, indices.data(), indexBufferSize);
 
     mSPImmediateSubmitManager->Submit([&](vk::CommandBuffer cmd) {
         vk::BufferCopy vertexCopy {};
         vertexCopy.setSize(vertexBufferSize);
-        cmd.copyBuffer(staging.GetHandle(), newMesh.mVertexBuffer->GetHandle(),
+        cmd.copyBuffer(staging->GetHandle(), newMesh.mVertexBuffer->GetHandle(),
                        vertexCopy);
 
         vk::BufferCopy indexCopy {};
         indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
-        cmd.copyBuffer(staging.GetHandle(), newMesh.mIndexBuffer->GetHandle(),
+        cmd.copyBuffer(staging->GetHandle(), newMesh.mIndexBuffer->GetHandle(),
                        indexCopy);
     });
 

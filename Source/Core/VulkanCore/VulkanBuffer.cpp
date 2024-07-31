@@ -2,20 +2,19 @@
 
 #include "VulkanMemoryAllocator.hpp"
 
-VulkanAllocatedBuffer::VulkanAllocatedBuffer(VulkanMemoryAllocator* allocator,
-                                             size_t               allocByteSize,
-                                             vk::BufferUsageFlags usage,
-                                             VmaAllocationCreateFlags flags)
+VulkanBuffer::VulkanBuffer(VulkanMemoryAllocator* allocator,
+                           size_t allocByteSize, vk::BufferUsageFlags usage,
+                           VmaAllocationCreateFlags flags)
     : mAllocator(allocator),
       mBuffer(CreateBuffer(allocByteSize, usage, flags)) {}
 
-VulkanAllocatedBuffer::~VulkanAllocatedBuffer() {
+VulkanBuffer::~VulkanBuffer() {
     vmaDestroyBuffer(mAllocator->GetHandle(), mBuffer, mAllocation);
 }
 
-vk::Buffer VulkanAllocatedBuffer::CreateBuffer(size_t allocByteSize,
-                                               vk::BufferUsageFlags     usage,
-                                               VmaAllocationCreateFlags flags) {
+vk::Buffer VulkanBuffer::CreateBuffer(size_t                   allocByteSize,
+                                      vk::BufferUsageFlags     usage,
+                                      VmaAllocationCreateFlags flags) {
     vk::BufferCreateInfo bufferInfo {};
     bufferInfo.setSize(allocByteSize).setUsage(usage);
 

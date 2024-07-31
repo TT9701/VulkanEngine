@@ -9,6 +9,8 @@
 #ifndef NDEBUG
 #include "VulkanDebugUtils.hpp"
 #endif
+#include "VulkanBuffer.hpp"
+#include "VulkanImage.hpp"
 #include "VulkanInstance.hpp"
 #include "VulkanMemoryAllocator.hpp"
 #include "VulkanPhysicalDevice.hpp"
@@ -16,6 +18,11 @@
 #include "VulkanSurface.hpp"
 
 class SDLWindow;
+
+namespace CUDA {
+class VulkanExternalImage;
+class VulkanExternalBuffer;
+}
 
 class VulkanContext {
 public:
@@ -25,6 +32,40 @@ public:
                   ::std::span<::std::string> requestedDeviceExtensions   = {});
     ~VulkanContext() = default;
     MOVABLE_ONLY(VulkanContext);
+
+public:
+    SharedPtr<VulkanImage> CreateImage2D(
+        VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
+        vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect,
+        void* data = nullptr, VulkanEngine* engine = nullptr,
+        uint32_t mipmapLevel = 1, uint32_t arrayLayers = 1);
+
+    SharedPtr<VulkanBuffer> CreatePersistentBuffer(size_t allocByteSize,
+                                                   vk::BufferUsageFlags usage);
+
+    SharedPtr<VulkanBuffer> CreateStagingBuffer(size_t allocByteSize,
+                                                vk::BufferUsageFlags usage);
+
+#ifdef CUDA_VULKAN_INTEROP
+    SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
+        vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
+        vk::ImageAspectFlags aspect, VmaAllocationCreateFlags flags = {},
+        uint32_t mipmapLevels = 1, uint32_t arrayLayers = 1);
+
+    SharedPtr<CUDA::VulkanExternalBuffer> CreateExternalPersistentBuffer(
+        size_t allocByteSize, vk::BufferUsageFlags usage);
+
+    SharedPtr<CUDA::VulkanExternalBuffer> CreateExternalStagingBuffer(
+        size_t allocByteSize, vk::BufferUsageFlags usage);
+#endif
+
+    SharedPtr<VulkanSampler> CreateSampler(
+        vk::Filter minFilter, vk::Filter magFilter,
+        vk::SamplerAddressMode addressModeU = vk::SamplerAddressMode::eRepeat,
+        vk::SamplerAddressMode addressModeV = vk::SamplerAddressMode::eRepeat,
+        vk::SamplerAddressMode addressModeW = vk::SamplerAddressMode::eRepeat,
+        float maxLod = 0.0f, bool compareEnable = false,
+        vk::CompareOp compareOp = vk::CompareOp::eNever);
 
 public:
     VulkanInstance* GetInstance() const { return mSPInstance.get(); }
@@ -148,6 +189,6 @@ private:
 #ifdef CUDA_VULKAN_INTEROP
     UniquePtr<VulkanExternalMemoryPool> mSPExternalMemoryPool;
 #endif
-    UniquePtr<VulkanSampler> mDefaultSamplerLinear {};
-    UniquePtr<VulkanSampler> mDefaultSamplerNearest {};
+    SharedPtr<VulkanSampler> mDefaultSamplerLinear {};
+    SharedPtr<VulkanSampler> mDefaultSamplerNearest {};
 };
