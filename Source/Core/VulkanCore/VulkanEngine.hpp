@@ -1,15 +1,17 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include "Core/Model/Mesh.hpp"
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Core/Model/Mesh.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "VulkanCommandManager.hpp"
 #include "VulkanPipeline.hpp"
 
+#ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"
 #include "CUDA/CUDAVulkan.h"
+#endif
 
 class SDLWindow;
 class VulkanContext;
@@ -64,18 +66,24 @@ private:
     void CreateBackgroundComputePipeline();
 
     // Graphics
-    void CreateTrianglePipeline();
-    void CreateTriangleDescriptors();
+    void CreateMeshPipeline();
+    void CreateMeshDescriptors();
+
+    // Draw quad
+    void CreateDrawQuadDescriptors();
+    void CreateDrawQuadPipeline();
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage();
-    void                                 CreateExternalTriangleData();
-    void                                 CreateCUDASyncStructures();
-    void                                 SetCudaInterop();
+
+    void CreateExternalTriangleData();
+    void CreateCUDASyncStructures();
+    void SetCudaInterop();
 #endif
 
     void DrawBackground(vk::CommandBuffer cmd);
-    void DrawTriangle(vk::CommandBuffer cmd);
+    void DrawMesh(vk::CommandBuffer cmd);
+    void DrawQuad(vk::CommandBuffer cmd);
 
 private:
     bool     mStopRendering {false};
@@ -92,12 +100,14 @@ private:
     UniquePtr<VulkanDescriptorManager>   mDescriptorManager;
     UniquePtr<VulkanPipelineManager>     mPipelineManager;
 
-    GPUMeshBuffers mTriangleMesh {};
+    GPUMeshBuffers mBoxMesh {};
 
+#ifdef CUDA_VULKAN_INTEROP
     ExternalGPUMeshBuffers mTriangleExternalMesh {};
 
     SharedPtr<CUDA::VulkanExternalSemaphore> mCUDAWaitSemaphore {};
     SharedPtr<CUDA::VulkanExternalSemaphore> mCUDASignalSemaphore {};
 
     CUDA::CUDAStream mCUDAStream {};
+#endif
 };

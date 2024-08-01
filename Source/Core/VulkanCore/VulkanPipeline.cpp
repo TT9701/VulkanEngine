@@ -69,9 +69,8 @@ VulkanPipelineBuilder<PipelineType::Graphics>& VulkanPipelineBuilder<
     return *this;
 }
 
-VulkanPipelineBuilder<PipelineType::Graphics>&
-VulkanPipelineBuilder<PipelineType::Graphics>::SetShaders(
-    ::std::span<VulkanShader> shaders) {
+VulkanPipelineBuilder<PipelineType::Graphics>& VulkanPipelineBuilder<
+    PipelineType::Graphics>::SetShaders(::std::span<VulkanShader> shaders) {
     mShaderStages.clear();
     for (const auto& shader : shaders) {
         mShaderStages.push_back(shader.GetStageInfo());
@@ -189,6 +188,8 @@ VulkanPipelineBuilder<PipelineType::Graphics>::Build(std::string const& name,
         pManager->pContext, createInfo, cache);
 
     pManager->mGraphicsPipelines.emplace(name, ptr);
+
+    Clear();
 
     return ptr;
 }

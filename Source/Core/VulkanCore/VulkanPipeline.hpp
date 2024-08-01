@@ -202,7 +202,7 @@ public:
     SharedPtr<VulkanPipelineLayout> CreateLayout(
         ::std::string const&                           name,
         vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-        vk::ArrayProxy<vk::PushConstantRange> const&   pushContants,
+        vk::ArrayProxy<vk::PushConstantRange> const&   pushContants = {},
         vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
 
 public:

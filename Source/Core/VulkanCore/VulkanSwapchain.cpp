@@ -22,7 +22,7 @@ VulkanSwapchain::~VulkanSwapchain() {
     pContex->GetDeviceHandle().destroy(mSwapchain);
 }
 
-uint32_t VulkanSwapchain::AcquireNextImageIndex(/*vk::Fence waitFence*/) {
+uint32_t VulkanSwapchain::AcquireNextImageIndex() {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
         mAcquireFence.GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS));
@@ -31,7 +31,7 @@ uint32_t VulkanSwapchain::AcquireNextImageIndex(/*vk::Fence waitFence*/) {
 
     VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
-        VK_NULL_HANDLE, &mCurrentImageIndex));
+        mAcquireFence.GetHandle(), &mCurrentImageIndex));
 
     return mCurrentImageIndex;
 }

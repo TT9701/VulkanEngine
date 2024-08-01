@@ -20,8 +20,9 @@ VulkanContext::VulkanContext(
       mSPSurface(CreateSurface(window)),
       mSPPhysicalDevice(PickPhysicalDevice(requestedQueueFlags)),
       mSPDevice(CreateDevice(requestedDeviceExtensions)),
-      mSPAllocator(CreateVmaAllocator()),
+      mSPAllocator(CreateVmaAllocator())
 #ifdef CUDA_VULKAN_INTEROP
+      ,
       mSPExternalMemoryPool(CreateExternalMemoryPool())
 #endif
 {

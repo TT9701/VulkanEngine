@@ -20,20 +20,24 @@ VulkanEngine::VulkanEngine()
       mSPContext(CreateContext()),
       mSPSwapchain(CreateSwapchain()),
       mDrawImage(CreateDrawImage()),
+#ifdef CUDA_VULKAN_INTEROP
       mCUDAExternalImage(CreateExternalImage()),
+#endif
       mSPCmdManager(CreateCommandManager()),
       mSPImmediateSubmitManager(CreateImmediateSubmitManager()),
       mErrorCheckImage(CreateErrorCheckTexture()),
       mDescriptorManager(CreateDescriptorManager()),
       mPipelineManager(CreatePipelineManager()) {
-    SetCudaInterop();
-    CreateCUDASyncStructures();
-
     CreateDescriptors();
     CreatePipelines();
 
     CreateTriangleData();
+
+#ifdef CUDA_VULKAN_INTEROP
+    SetCudaInterop();
+    CreateCUDASyncStructures();
     CreateExternalTriangleData();
+#endif
 }
 
 VulkanEngine::~VulkanEngine() {
@@ -66,21 +70,31 @@ void VulkanEngine::Draw() {
 
     mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eColorAttachmentOptimal);
 
-    DrawTriangle(cmd);
+    DrawMesh(cmd);
 
-    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferSrcOptimal);
+    mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+    // Utils::TransitionImageLayout(cmd, swapchainImage,
+    //                              vk::ImageLayout::eUndefined,
+    //                              vk::ImageLayout::eTransferDstOptimal);
+    //
+    // mDrawImage->CopyToImage(
+    //     cmd, swapchainImage,
+    //     {mDrawImage->GetExtent3D().width, mDrawImage->GetExtent3D().height},
+    //     mSPSwapchain->GetExtent2D());
+    //
+    // Utils::TransitionImageLayout(cmd, swapchainImage,
+    //                              vk::ImageLayout::eTransferDstOptimal,
+    //                              vk::ImageLayout::ePresentSrcKHR);
 
     Utils::TransitionImageLayout(cmd, swapchainImage,
                                  vk::ImageLayout::eUndefined,
-                                 vk::ImageLayout::eTransferDstOptimal);
+                                 vk::ImageLayout::eColorAttachmentOptimal);
 
-    mDrawImage->CopyToImage(
-        cmd, swapchainImage,
-        {mDrawImage->GetExtent3D().width, mDrawImage->GetExtent3D().height},
-        mSPSwapchain->GetExtent2D());
+    DrawQuad(cmd);
 
     Utils::TransitionImageLayout(cmd, swapchainImage,
-                                 vk::ImageLayout::eTransferDstOptimal,
+                                 vk::ImageLayout::eColorAttachmentOptimal,
                                  vk::ImageLayout::ePresentSrcKHR);
 
     mSPCmdManager->EndCmdBuffer(cmd);
@@ -91,17 +105,23 @@ void VulkanEngine::Draw() {
     waitInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
         vk::PipelineStageFlagBits2::eColorAttachmentOutput,
         mSPSwapchain->GetReady4RenderSemHandle()));
+
+#ifdef CUDA_VULKAN_INTEROP
     waitInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
         vk::PipelineStageFlagBits2::eAllCommands,
         mCUDASignalSemaphore->GetVkSemaphore()));
+#endif
 
     ::std::vector<vk::SemaphoreSubmitInfo> signalInfos {};
     signalInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
         vk::PipelineStageFlagBits2::eAllGraphics,
         mSPSwapchain->GetReady4PresentSemHandle()));
+
+#ifdef CUDA_VULKAN_INTEROP
     signalInfos.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
         vk::PipelineStageFlagBits2::eAllCommands,
         mCUDAWaitSemaphore->GetVkSemaphore()));
+#endif
 
     auto submit = Utils::SubmitInfo(cmdInfo, signalInfos, waitInfos);
 
@@ -110,10 +130,7 @@ void VulkanEngine::Draw() {
 
     mSPSwapchain->Present(mSPContext->GetDevice()->GetGraphicQueue());
 
-    // TODO: SYNCHRONIZATION
-    mSPContext->GetDevice()->GetGraphicQueue().submit2(
-        {}, mSPSwapchain->GetAquireFenceHandle());
-
+#ifdef CUDA_VULKAN_INTEROP
     cudaExternalSemaphoreWaitParams waitParams {};
     auto cudaWait = mCUDAWaitSemaphore->GetCUDAExternalSemaphore();
     mCUDAStream.WaitExternalSemaphoresAsync(&cudaWait, &waitParams, 1);
@@ -129,6 +146,7 @@ void VulkanEngine::Draw() {
     cudaExternalSemaphoreSignalParams signalParams {};
     auto cudaSignal = mCUDASignalSemaphore->GetCUDAExternalSemaphore();
     mCUDAStream.SignalExternalSemaphoresAsyn(&cudaSignal, &signalParams, 1);
+#endif
 
     ++mFrameNum;
 }
@@ -190,6 +208,7 @@ SharedPtr<VulkanImage> VulkanEngine::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
+    drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
     return mSPContext->CreateImage2D(
         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, drawImageExtent,
@@ -211,13 +230,15 @@ UniquePtr<VulkanCommandManager> VulkanEngine::CreateCommandManager() {
 
 void VulkanEngine::CreatePipelines() {
     CreateBackgroundComputePipeline();
-    CreateTrianglePipeline();
+    CreateMeshPipeline();
+    CreateDrawQuadPipeline();
 }
 
 void VulkanEngine::CreateDescriptors() {
 
     CreateBackgroundComputeDescriptors();
-    CreateTriangleDescriptors();
+    CreateMeshDescriptors();
+    CreateDrawQuadDescriptors();
 }
 
 void VulkanEngine::CreateTriangleData() {
@@ -241,7 +262,7 @@ void VulkanEngine::CreateTriangleData() {
 
     ::std::array<uint32_t, 3> indices {0, 1, 2};
 
-    mTriangleMesh = UploadMeshData(indices, vertices);
+    mBoxMesh = UploadMeshData(indices, vertices);
 }
 
 SharedPtr<VulkanImage> VulkanEngine::CreateErrorCheckTexture() {
@@ -411,7 +432,7 @@ void VulkanEngine::CreateBackgroundComputePipeline() {
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
 
-void VulkanEngine::CreateTrianglePipeline() {
+void VulkanEngine::CreateMeshPipeline() {
     std::vector<VulkanShader> shaders;
     shaders.reserve(2);
 
@@ -449,7 +470,7 @@ void VulkanEngine::CreateTrianglePipeline() {
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
 
-void VulkanEngine::CreateTriangleDescriptors() {
+void VulkanEngine::CreateMeshDescriptors() {
     mDescriptorManager->AddDescSetLayoutBinding(
         0, 1, vk::DescriptorType::eCombinedImageSampler);
 
@@ -469,6 +490,58 @@ void VulkanEngine::CreateTriangleDescriptors() {
     mDescriptorManager->UpdateSet(triangleDesc);
 }
 
+void VulkanEngine::CreateDrawQuadDescriptors() {
+    mDescriptorManager->AddDescSetLayoutBinding(
+        0, 1, vk::DescriptorType::eCombinedImageSampler);
+
+    const auto quadSetLayout = mDescriptorManager->BuildDescSetLayout(
+        "Quad_Layout_0", vk::ShaderStageFlagBits::eFragment);
+
+    const auto quadDesc =
+        mDescriptorManager->Allocate("Quad_Desc_0", quadSetLayout);
+
+    mDescriptorManager->WriteImage(
+        0,
+        {mSPContext->GetDefaultLinearSamplerHandle(),
+         mDrawImage->GetViewHandle(), vk::ImageLayout::eShaderReadOnlyOptimal},
+        vk::DescriptorType::eCombinedImageSampler);
+
+    mDescriptorManager->UpdateSet(quadDesc);
+}
+
+void VulkanEngine::CreateDrawQuadPipeline() {
+    std::vector<VulkanShader> shaders;
+    shaders.reserve(2);
+
+    shaders.emplace_back(mSPContext.get(), "vertex",
+                         "../../Shaders/Quad.vert.spv", ShaderStage::Vertex);
+
+    shaders.emplace_back(mSPContext.get(), "fragment",
+                         "../../Shaders/Quad.frag.spv", ShaderStage::Fragment);
+
+    std::vector setLayouts {
+        mDescriptorManager->GetDescSetLayout("Quad_Layout_0")};
+
+    auto quadPipelineLayout =
+        mPipelineManager->CreateLayout("Quad_Layout", setLayouts);
+
+    auto& builder = mPipelineManager->GetGraphicsPipelineBuilder();
+    builder.SetLayout(quadPipelineLayout->GetHandle())
+        .SetShaders(shaders)
+        .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
+        .SetPolygonMode(vk::PolygonMode::eFill)
+        .SetCullMode(vk::CullModeFlagBits::eFront,
+                     vk::FrontFace::eCounterClockwise)
+        .SetMultisampling(vk::SampleCountFlagBits::e1)
+        .SetBlending(vk::False)
+        .SetDepth(vk::False, vk::False)
+        .SetColorAttachmentFormat(mSPSwapchain->GetFormat())
+        .SetDepthStencilFormat(vk::Format::eUndefined)
+        .Build("QuadDraw_Pipeline");
+
+    DBG_LOG_INFO("Vulkan Quad Graphics Pipeline Created");
+}
+
 void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
     vk::ClearColorValue clearValue {};
 
@@ -483,65 +556,65 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
                         clearValue, subresource);
 
     // Compute Draw
-    // {
-    //     cmd.bindPipeline(
-    //         vk::PipelineBindPoint::eCompute,
-    //         mPipelineManager->GetComputePipeline("BackgroundCompute_Pipeline"));
-    //
-    //     cmd.bindDescriptorSets(
-    //         vk::PipelineBindPoint::eCompute,
-    //         mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0,
-    //         mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
-    //
-    //     cmd.dispatch(::std::ceil(mDrawImage->GetExtent3D().width / 16.0),
-    //                  ::std::ceil(mDrawImage->GetExtent3D().height / 16.0), 1);
-    // }
+    {
+        cmd.bindPipeline(
+            vk::PipelineBindPoint::eCompute,
+            mPipelineManager->GetComputePipeline("BackgroundCompute_Pipeline"));
+
+        cmd.bindDescriptorSets(
+            vk::PipelineBindPoint::eCompute,
+            mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0,
+            mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
+
+        cmd.dispatch(::std::ceil(mDrawImage->GetExtent3D().width / 16.0),
+                     ::std::ceil(mDrawImage->GetExtent3D().height / 16.0), 1);
+    }
 
     // CUDA Draw
-    {
-        auto layout = mDrawImage->GetLayout();
-
-        mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-        Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
-                                     vk::ImageLayout::eUndefined,
-                                     vk::ImageLayout::eTransferSrcOptimal);
-
-        vk::ImageBlit2 blitRegion {};
-        blitRegion
-            .setSrcOffsets(
-                {vk::Offset3D {},
-                 vk::Offset3D {static_cast<int32_t>(
-                                   mCUDAExternalImage->GetExtent3D().width),
-                               static_cast<int32_t>(
-                                   mCUDAExternalImage->GetExtent3D().height),
-                               1}})
-            .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
-            .setDstOffsets(
-                {vk::Offset3D {},
-                 vk::Offset3D {
-                     static_cast<int32_t>(mDrawImage->GetExtent3D().width),
-                     static_cast<int32_t>(mDrawImage->GetExtent3D().height),
-                     1}})
-            .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
-
-        vk::BlitImageInfo2 blitInfo {};
-        blitInfo.setDstImage(mDrawImage->GetHandle())
-            .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
-            .setSrcImage(mCUDAExternalImage->GetVkImage())
-            .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-            .setFilter(vk::Filter::eLinear)
-            .setRegions(blitRegion);
-
-        cmd.blitImage2(blitInfo);
-
-        mDrawImage->TransitionLayout(cmd, layout);
-        Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
-                                     vk::ImageLayout::eTransferSrcOptimal,
-                                     vk::ImageLayout::eGeneral);
-    }
+    // {
+    //     auto layout = mDrawImage->GetLayout();
+    //
+    //     mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+    //     Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
+    //                                  vk::ImageLayout::eUndefined,
+    //                                  vk::ImageLayout::eTransferSrcOptimal);
+    //
+    //     vk::ImageBlit2 blitRegion {};
+    //     blitRegion
+    //         .setSrcOffsets(
+    //             {vk::Offset3D {},
+    //              vk::Offset3D {static_cast<int32_t>(
+    //                                mCUDAExternalImage->GetExtent3D().width),
+    //                            static_cast<int32_t>(
+    //                                mCUDAExternalImage->GetExtent3D().height),
+    //                            1}})
+    //         .setSrcSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
+    //         .setDstOffsets(
+    //             {vk::Offset3D {},
+    //              vk::Offset3D {
+    //                  static_cast<int32_t>(mDrawImage->GetExtent3D().width),
+    //                  static_cast<int32_t>(mDrawImage->GetExtent3D().height),
+    //                  1}})
+    //         .setDstSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
+    //
+    //     vk::BlitImageInfo2 blitInfo {};
+    //     blitInfo.setDstImage(mDrawImage->GetHandle())
+    //         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+    //         .setSrcImage(mCUDAExternalImage->GetVkImage())
+    //         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
+    //         .setFilter(vk::Filter::eLinear)
+    //         .setRegions(blitRegion);
+    //
+    //     cmd.blitImage2(blitInfo);
+    //
+    //     mDrawImage->TransitionLayout(cmd, layout);
+    //     Utils::TransitionImageLayout(cmd, mCUDAExternalImage->GetVkImage(),
+    //                                  vk::ImageLayout::eTransferSrcOptimal,
+    //                                  vk::ImageLayout::eGeneral);
+    // }
 }
 
-void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
+void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     vk::RenderingAttachmentInfo colorAttachment {};
     colorAttachment.setImageView(mDrawImage->GetViewHandle())
         .setImageLayout(mDrawImage->GetLayout())
@@ -582,15 +655,59 @@ void VulkanEngine::DrawTriangle(vk::CommandBuffer cmd) {
         mDescriptorManager->GetDescriptor("Triangle_Desc_0"), {});
 
     MeshPushConstants pushConstants {};
-    pushConstants.mVertexBufferAddress =
-        mTriangleExternalMesh.mVertexBufferAddress;
+    pushConstants.mVertexBufferAddress = mBoxMesh.mVertexBufferAddress;
+    // mTriangleExternalMesh.mVertexBufferAddress;
     pushConstants.mModelMatrix = glm::mat4(1.0f);
     cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
                       vk::ShaderStageFlagBits::eVertex, 0,
                       sizeof(MeshPushConstants), &pushConstants);
 
-    cmd.bindIndexBuffer(mTriangleMesh.mIndexBuffer->GetHandle(), 0,
+    cmd.bindIndexBuffer(mBoxMesh.mIndexBuffer->GetHandle(), 0,
                         vk::IndexType::eUint32);
+
+    cmd.drawIndexed(3, 1, 0, 0, 0);
+
+    cmd.endRendering();
+}
+
+void VulkanEngine::DrawQuad(vk::CommandBuffer cmd) {
+    auto imageIndex = mSPSwapchain->GetCurrentImageIndex();
+    vk::RenderingAttachmentInfo colorAttachment {};
+    colorAttachment.setImageView(mSPSwapchain->GetImageViewHandle(imageIndex))
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eLoad)
+        .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+    vk::RenderingInfo renderInfo {};
+    renderInfo
+        .setRenderArea(vk::Rect2D {{0, 0},
+                                   {mSPSwapchain->GetExtent2D().width,
+                                    mSPSwapchain->GetExtent2D().height}})
+        .setLayerCount(1u)
+        .setColorAttachments(colorAttachment);
+
+    cmd.beginRendering(renderInfo);
+
+    cmd.bindPipeline(
+        vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetGraphicsPipeline("QuadDraw_Pipeline"));
+
+    vk::Viewport viewport {};
+    viewport.setWidth(mSPSwapchain->GetExtent2D().width)
+        .setHeight(mSPSwapchain->GetExtent2D().height)
+        .setMinDepth(0.0f)
+        .setMaxDepth(1.0f);
+    cmd.setViewport(0, viewport);
+
+    vk::Rect2D scissor {};
+    scissor.setExtent({mSPSwapchain->GetExtent2D().width,
+                       mSPSwapchain->GetExtent2D().height});
+    cmd.setScissor(0, scissor);
+
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                           mPipelineManager->GetLayoutHandle("Quad_Layout"), 0,
+                           mDescriptorManager->GetDescriptor("Quad_Desc_0"),
+                           {});
 
     cmd.drawIndexed(3, 1, 0, 0, 0);
 

@@ -20,7 +20,7 @@ public:
 public:
     static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
 
-    uint32_t AcquireNextImageIndex(/*vk::Fence waitFence*/);
+    uint32_t AcquireNextImageIndex();
 
     void Present(vk::Queue queue);
 
@@ -40,6 +40,10 @@ public:
     uint32_t GetImageCount() const { return mImages.size(); }
 
     uint32_t GetCurrentImageIndex() const { return mCurrentImageIndex; }
+
+    VulkanImage const& GetCurrentImage() const {
+        return mImages[mCurrentImageIndex];
+    }
 
     vk::Fence GetAquireFenceHandle() const { return mAcquireFence.GetHandle(); }
 
@@ -69,5 +73,5 @@ private:
     VulkanFence     mAcquireFence {pContex};
 
     ::std::vector<VulkanImage> mImages {};
-    uint32_t                            mCurrentImageIndex {0};
+    uint32_t                   mCurrentImageIndex {0};
 };

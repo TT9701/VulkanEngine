@@ -2,9 +2,9 @@
 
 #include <SDL2/SDL_vulkan.h>
 
-#include "Utilities/Logger.hpp"
+#include "Core/Utilities/Logger.hpp"
 #include "VulkanInstance.hpp"
-#include "Window.hpp"
+#include "Core/Platform/Window.hpp"
 
 VulkanSurface::VulkanSurface(VulkanInstance* instance, const SDLWindow* window)
     : pInstance(instance), mSurface(CreateSurface(window)) {
