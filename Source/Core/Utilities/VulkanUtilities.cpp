@@ -45,12 +45,13 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
 }
 
 vk::SemaphoreSubmitInfo GetDefaultSemaphoreSubmitInfo(
-    vk::PipelineStageFlagBits2 stageMask, vk::Semaphore semaphore) {
+    vk::PipelineStageFlagBits2 stageMask, vk::Semaphore semaphore,
+    uint64_t value) {
     vk::SemaphoreSubmitInfo submitInfo {};
     submitInfo.setSemaphore(semaphore)
         .setStageMask(stageMask)
         .setDeviceIndex(0u)
-        .setValue(1ui64);
+        .setValue(value);
 
     return submitInfo;
 }

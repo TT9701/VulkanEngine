@@ -52,6 +52,15 @@ SharedPtr<VulkanBuffer> VulkanContext::CreateStagingBuffer(
             | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 }
 
+SharedPtr<VulkanBuffer> VulkanContext::CreateUniformBuffer(
+    size_t allocByteSize, vk::BufferUsageFlags usage) {
+    return MakeShared<VulkanBuffer>(
+        mSPAllocator.get(), allocByteSize, usage,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE);
+}
+
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<CUDA::VulkanExternalImage> VulkanContext::CreateExternalImage2D(
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
@@ -145,6 +154,7 @@ void VulkanContext::EnableDefaultFeatures() {
     EnableSynchronization2();
     EnableBufferDeviceAddress();
     EnableDescriptorIndexing();
+    EnableTimelineSemaphore();
 
     sEnable11Features.setPNext(&sEnable12Features);
     sEnable12Features.setPNext(&sEnable13Features);
@@ -164,4 +174,8 @@ void VulkanContext::EnableBufferDeviceAddress() {
 
 void VulkanContext::EnableDescriptorIndexing() {
     sEnable12Features.setDescriptorIndexing(vk::True);
+}
+
+void VulkanContext::EnableTimelineSemaphore() {
+    sEnable12Features.setTimelineSemaphore(vk::True);
 }

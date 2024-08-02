@@ -4,9 +4,10 @@
 
 VulkanBuffer::VulkanBuffer(VulkanMemoryAllocator* allocator,
                            size_t allocByteSize, vk::BufferUsageFlags usage,
-                           VmaAllocationCreateFlags flags)
+                           VmaAllocationCreateFlags flags,
+                           VmaMemoryUsage           memoryUsage)
     : mAllocator(allocator),
-      mBuffer(CreateBuffer(allocByteSize, usage, flags)) {}
+      mBuffer(CreateBuffer(allocByteSize, usage, flags, memoryUsage)) {}
 
 VulkanBuffer::~VulkanBuffer() {
     vmaDestroyBuffer(mAllocator->GetHandle(), mBuffer, mAllocation);
@@ -14,13 +15,14 @@ VulkanBuffer::~VulkanBuffer() {
 
 vk::Buffer VulkanBuffer::CreateBuffer(size_t                   allocByteSize,
                                       vk::BufferUsageFlags     usage,
-                                      VmaAllocationCreateFlags flags) {
+                                      VmaAllocationCreateFlags flags,
+                                      VmaMemoryUsage           memoryUsage) {
     vk::BufferCreateInfo bufferInfo {};
     bufferInfo.setSize(allocByteSize).setUsage(usage);
 
     /* https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html */
     VmaAllocationCreateInfo vmaAllocInfo {};
-    vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    vmaAllocInfo.usage = memoryUsage;
     vmaAllocInfo.flags = flags;
 
     VkBuffer buffer {};

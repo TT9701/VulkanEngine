@@ -46,6 +46,9 @@ public:
     SharedPtr<VulkanBuffer> CreateStagingBuffer(size_t allocByteSize,
                                                 vk::BufferUsageFlags usage);
 
+    SharedPtr<VulkanBuffer> CreateUniformBuffer(size_t allocByteSize,
+                                                vk::BufferUsageFlags usage);
+
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
         vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
@@ -170,6 +173,8 @@ public:
     static void EnableBufferDeviceAddress();
 
     static void EnableDescriptorIndexing();
+
+    static void EnableTimelineSemaphore();
 
 private:
     static vk::PhysicalDeviceFeatures         sPhysicalDeviceFeatures;

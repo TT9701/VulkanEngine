@@ -16,7 +16,7 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
                            vk::ImageLayout newLayout);
 
 vk::SemaphoreSubmitInfo GetDefaultSemaphoreSubmitInfo(
-    vk::PipelineStageFlagBits2 stageMask, vk::Semaphore semaphore);
+    vk::PipelineStageFlagBits2 stageMask, vk::Semaphore semaphore, uint64_t value = 1ui64);
 
 vk::CommandBufferSubmitInfo GetDefaultCommandBufferSubmitInfo(
     vk::CommandBuffer cmd);

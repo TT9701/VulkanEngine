@@ -24,6 +24,8 @@ SDLWindow::SDLWindow(int width, int height)
       mHeight(height),
       mWindow(CreateWindow(mWidth, mHeight)),
       mEvent(new SDL_Event()) {
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+    
     DBG_LOG_INFO("SDL_Window Created. Width: %d, Height: %d.", mWidth, mHeight);
 }
 
@@ -32,7 +34,8 @@ SDLWindow::~SDLWindow() {
     SDL_DestroyWindow(mWindow);
 }
 
-void SDLWindow::PollEvents(bool& quit, bool& stopRendering) {
+void SDLWindow::PollEvents(bool& quit, bool& stopRendering,
+                           ::std::function<void(SDL_Event*)>&& func) {
     while (SDL_PollEvent(mEvent)) {
         switch (mEvent->type) {
             case SDL_QUIT: quit = true; break;
@@ -51,6 +54,7 @@ void SDLWindow::PollEvents(bool& quit, bool& stopRendering) {
                 break;
             default: break;
         }
+        func(mEvent);
     }
 }
 

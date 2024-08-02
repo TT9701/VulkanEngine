@@ -9,6 +9,8 @@ set (UTILITIES_SRC
     Utilities/MemoryPool.hpp
     Utilities/MemoryPool.cpp
     Utilities/Defines.hpp
+    Utilities/Camera.hpp
+    Utilities/Camera.cpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
@@ -90,6 +92,7 @@ endif()
 
 target_compile_definitions(Core 
     PUBLIC 
+        GLM_ENABLE_EXPERIMENTAL
         GLM_FORCE_DEPTH_ZERO_TO_ONE
         GLM_FORCE_RADIANS)
 
@@ -169,6 +172,7 @@ target_precompile_headers(Core
         <vector> 
         <memory> 
         <string> 
+        <tuple>
         <thread>
         <span>
         <fstream>

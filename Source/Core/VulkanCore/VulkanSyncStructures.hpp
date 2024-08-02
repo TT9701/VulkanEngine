@@ -44,3 +44,26 @@ private:
 
     vk::Semaphore mSemaphore;
 };
+
+class VulkanTimelineSemaphore {
+public:
+    VulkanTimelineSemaphore(VulkanContext* ctx, uint64_t initialValue = 0ui64);
+    ~VulkanTimelineSemaphore();
+    MOVABLE_ONLY(VulkanTimelineSemaphore);
+
+public:
+    vk::Semaphore GetHandle() const { return mSemaphore; }
+
+    uint64_t GetValue() const { return mValue; }
+
+    void IncreaseValue(uint64_t val = 1);
+
+private:
+    vk::Semaphore CreateTimelineSemaphore();
+
+private:
+    VulkanContext* pContext;
+
+    uint64_t mValue {0};
+    vk::Semaphore mSemaphore;
+};

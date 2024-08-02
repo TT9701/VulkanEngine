@@ -10,6 +10,16 @@ class VulkanFence;
 class VulkanCommandBuffers;
 class VulkanCommandPool;
 
+namespace VulkanCore::_Detail {
+
+struct SemSubmitInfo {
+    vk::PipelineStageFlagBits2 flags;
+    vk::Semaphore              sem;
+    uint64_t                   value {0};
+};
+
+}  // namespace VulkanCore::_Detail
+
 class VulkanCommandManager {
 public:
     VulkanCommandManager(
@@ -22,8 +32,14 @@ public:
 
     MOVABLE_ONLY(VulkanCommandManager);
 
+    using Type_SemSubmitInfo =
+        ::std::tuple<vk::PipelineStageFlagBits2, vk::Semaphore, uint64_t>;
+
 public:
-    void Submit(vk::Queue queue, vk::SubmitInfo2 const& submitInfo);
+    void Submit(
+        vk::CommandBuffer cmd, vk::Queue queue,
+        ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& waitInfos,
+        ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& signalInfos);
 
     void GoToNextCmdBuffer();
 
@@ -49,15 +65,15 @@ private:
     VulkanContext* pContex;
 
     uint32_t mCommandInFlight;
-    uint32_t mQueueFamilyIndex;
+    uint32_t mGraphicsQueueFamilyIndex;
 
     SharedPtr<VulkanCommandPool>          mSPCommandPool;
     SharedPtr<VulkanCommandBuffers>       mSPCommandbuffers;
     ::std::vector<SharedPtr<VulkanFence>> mSPFences;
 
     ::std::vector<bool> mIsSubmitted {};
-    uint32_t            mFenceCurrentIndex {};
-    uint32_t            mCommandBufferCurrentIndex {};
+    uint32_t            mFenceCurIdx {};
+    uint32_t            mCmdBufferCurIdx {};
 };
 
 class ImmediateSubmitManager {

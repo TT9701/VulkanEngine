@@ -10,7 +10,8 @@ class VulkanMemoryAllocator;
 class VulkanBuffer {
 public:
     VulkanBuffer(VulkanMemoryAllocator* allocator, size_t allocByteSize,
-                 vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags);
+                 vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags,
+                 VmaMemoryUsage memoryUsage = VMA_MEMORY_USAGE_AUTO);
     ~VulkanBuffer();
     MOVABLE_ONLY(VulkanBuffer);
 
@@ -23,7 +24,8 @@ public:
 
 private:
     vk::Buffer CreateBuffer(size_t allocByteSize, vk::BufferUsageFlags usage,
-                            VmaAllocationCreateFlags flags);
+                            VmaAllocationCreateFlags flags,
+                            VmaMemoryUsage           memoryUsage);
 
 private:
     VulkanMemoryAllocator* mAllocator;

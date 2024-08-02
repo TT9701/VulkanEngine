@@ -11,34 +11,52 @@ VulkanCommandManager::VulkanCommandManager(VulkanContext* ctx, uint32_t count,
                                            vk::CommandPoolCreateFlags flags)
     : pContex(ctx),
       mCommandInFlight(concurrentCommandsCount),
-      mQueueFamilyIndex(queueFamilyIndex),
+      mGraphicsQueueFamilyIndex(queueFamilyIndex),
       mSPCommandPool(CreateCommandPool(flags)),
       mSPCommandbuffers(CreateCommandBuffers(count)),
       mSPFences(CreateFences()) {
     mIsSubmitted.resize(mCommandInFlight);
 }
 
-void VulkanCommandManager::Submit(vk::Queue              queue,
-                                  vk::SubmitInfo2 const& submitInfo) {
-    pContex->GetDeviceHandle().resetFences(
-        mSPFences[mFenceCurrentIndex]->GetHandle());
+void VulkanCommandManager::Submit(
+    vk::CommandBuffer cmd, vk::Queue queue,
+    ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& waitInfos,
+    ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& signalInfos) {
+    auto cmdInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
 
-    queue.submit2(submitInfo, mSPFences[mFenceCurrentIndex]->GetHandle());
-    mIsSubmitted[mFenceCurrentIndex] = true;
+    ::std::vector<vk::SemaphoreSubmitInfo> waits {};
+    for (auto& info : waitInfos) {
+        waits.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
+            info.flags, info.sem, info.value));
+    }
+
+    ::std::vector<vk::SemaphoreSubmitInfo> signals {};
+    for (auto& info : signalInfos) {
+        signals.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
+            info.flags, info.sem, info.value));
+    }
+
+    auto submit = Utils::SubmitInfo(cmdInfo, signals, waits);
+
+    pContex->GetDeviceHandle().resetFences(
+        mSPFences[mFenceCurIdx]->GetHandle());
+
+    queue.submit2(submit, mSPFences[mFenceCurIdx]->GetHandle());
+    mIsSubmitted[mFenceCurIdx] = true;
 }
 
 void VulkanCommandManager::GoToNextCmdBuffer() {
-    mCommandBufferCurrentIndex =
-        (mCommandBufferCurrentIndex + 1) % mSPCommandbuffers->GetBufferCount();
-    mFenceCurrentIndex = (mFenceCurrentIndex + 1) % mCommandInFlight;
+    mCmdBufferCurIdx =
+        (mCmdBufferCurIdx + 1) % mSPCommandbuffers->GetBufferCount();
+    mFenceCurIdx = (mFenceCurIdx + 1) % mCommandInFlight;
 }
 
 void VulkanCommandManager::WaitUntilSubmitIsComplete() {
-    if (!mIsSubmitted[mFenceCurrentIndex])
+    if (!mIsSubmitted[mFenceCurIdx])
         return;
 
     const auto result = pContex->GetDeviceHandle().waitForFences(
-        mSPFences[mFenceCurrentIndex]->GetHandle(), vk::True,
+        mSPFences[mFenceCurIdx]->GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS);
 
     if (result == vk::Result::eTimeout) {
@@ -46,7 +64,7 @@ void VulkanCommandManager::WaitUntilSubmitIsComplete() {
         pContex->GetDeviceHandle().waitIdle();
     }
 
-    mIsSubmitted[mFenceCurrentIndex] = false;
+    mIsSubmitted[mFenceCurIdx] = false;
 }
 
 void VulkanCommandManager::WaitUntilAllSubmitsAreComplete() {
@@ -60,11 +78,10 @@ void VulkanCommandManager::WaitUntilAllSubmitsAreComplete() {
 
 vk::CommandBuffer VulkanCommandManager::GetCmdBufferToBegin() const {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mSPFences[mFenceCurrentIndex]->GetHandle(), vk::True,
+        mSPFences[mFenceCurIdx]->GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS));
 
-    auto currentCmdBuf =
-        mSPCommandbuffers->GetHandle(mCommandBufferCurrentIndex);
+    auto currentCmdBuf = mSPCommandbuffers->GetHandle(mCmdBufferCurIdx);
 
     currentCmdBuf.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
 
@@ -77,7 +94,7 @@ vk::CommandBuffer VulkanCommandManager::GetCmdBufferToBegin() const {
 }
 
 vk::Fence VulkanCommandManager::GetCurrentFence() const {
-    return mSPFences[mFenceCurrentIndex]->GetHandle();
+    return mSPFences[mFenceCurIdx]->GetHandle();
 }
 
 void VulkanCommandManager::EndCmdBuffer(vk::CommandBuffer cmd) const {
@@ -86,7 +103,8 @@ void VulkanCommandManager::EndCmdBuffer(vk::CommandBuffer cmd) const {
 
 SharedPtr<VulkanCommandPool> VulkanCommandManager::CreateCommandPool(
     vk::CommandPoolCreateFlags flags) {
-    return MakeShared<VulkanCommandPool>(pContex, mQueueFamilyIndex, flags);
+    return MakeShared<VulkanCommandPool>(pContex, mGraphicsQueueFamilyIndex,
+                                         flags);
 }
 
 SharedPtr<VulkanCommandBuffers> VulkanCommandManager::CreateCommandBuffers(

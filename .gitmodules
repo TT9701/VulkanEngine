@@ -2,3 +2,6 @@
 	path = External/SDL
 	url = https://github.com/libsdl-org/SDL.git
 	branch = release-2.30.x
+[submodule "External/Assimp"]
+	path = External/Assimp
+	url = git@github.com:assimp/assimp.git
