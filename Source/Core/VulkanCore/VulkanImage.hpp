@@ -53,7 +53,7 @@ public:
     vk::ImageView GetViewHandle() const { return mImageView; }
 
 private:
-    vk::Image CreateImage(void* data, VmaAllocationCreateFlags flags,
+    vk::Image CreateImage(VmaAllocationCreateFlags flags,
                           vk::ImageUsageFlags usage, vk::ImageType type);
 
     vk::ImageView CreateImageView(vk::ImageAspectFlags aspect,

@@ -152,11 +152,11 @@ if (MSVC)
     set_target_properties(INTELLI_DS_MemoryPool_DEBUG 
         PROPERTIES
             IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib
-            IMPORTED_IMPLIB ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib)
+            )
     set_target_properties(INTELLI_DS_MemoryPool_RELEASE 
         PROPERTIES
             IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib
-            IMPORTED_IMPLIB $${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib)
+            )
 endif(MSVC)
 
 target_link_libraries(Core

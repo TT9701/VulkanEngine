@@ -1,8 +1,8 @@
 #include "VulkanImage.hpp"
 
-#include "VulkanEngine.hpp"
 #include "VulkanBuffer.hpp"
 #include "VulkanContext.hpp"
+#include "VulkanEngine.hpp"
 #include "VulkanMemoryAllocator.hpp"
 
 VulkanImage::VulkanImage(VulkanContext* ctx, VmaAllocationCreateFlags flags,
@@ -18,9 +18,11 @@ VulkanImage::VulkanImage(VulkanContext* ctx, VmaAllocationCreateFlags flags,
       pEngine(engine),
       mMipmapLevel(mipmapLevel),
       mArrayLayerCount(arrayLayers),
-      mImage(CreateImage(data, flags, usage, type)),
+      mImage(CreateImage(flags, usage, type)),
       mImageView(CreateImageView(aspect, viewType)) {
-    UploadData(data);
+    if (data) {
+        UploadData(data);
+    }
 }
 
 VulkanImage::VulkanImage(VulkanContext* ctx, vk::Image image,
@@ -82,39 +84,34 @@ void VulkanImage::CopyToImage(vk::CommandBuffer cmd, VulkanImage dstImage,
 }
 
 void VulkanImage::UploadData(void* data) {
-    if (data) {
-        size_t dataSize = static_cast<size_t>(mExtent3D.width)
-                        * mExtent3D.height * mExtent3D.depth * 4;
+    size_t dataSize = static_cast<size_t>(mExtent3D.width) * mExtent3D.height
+                    * mExtent3D.depth * 4;
 
-        VulkanBuffer uploadBuffer {
-            pContex->GetVmaAllocator(), dataSize,
-            vk::BufferUsageFlagBits::eTransferSrc,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                | VMA_ALLOCATION_CREATE_MAPPED_BIT};
+    VulkanBuffer uploadBuffer {
+        pContex->GetVmaAllocator(), dataSize,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            | VMA_ALLOCATION_CREATE_MAPPED_BIT};
 
-        memcpy(uploadBuffer.GetAllocationInfo().pMappedData, data, dataSize);
+    memcpy(uploadBuffer.GetAllocationInfo().pMappedData, data, dataSize);
 
-        pEngine->GetImmediateSubmitManager()->Submit(
-            [&](vk::CommandBuffer cmd) {
-                TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
-                vk::BufferImageCopy copyRegion {};
-                copyRegion
-                    .setImageSubresource(
-                        {vk::ImageAspectFlagBits::eColor, 0, 0, 1})
-                    .setImageExtent(mExtent3D);
+    pEngine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+        TransitionLayout(cmd, vk::ImageLayout::eTransferDstOptimal);
+        vk::BufferImageCopy copyRegion {};
+        copyRegion
+            .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
+            .setImageExtent(mExtent3D);
 
-                cmd.copyBufferToImage(uploadBuffer.GetHandle(), mImage,
-                                      vk::ImageLayout::eTransferDstOptimal,
-                                      copyRegion);
+        cmd.copyBufferToImage(uploadBuffer.GetHandle(), mImage,
+                              vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
-                TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
-            });
-    }
+        TransitionLayout(cmd, vk::ImageLayout::eShaderReadOnlyOptimal);
+    });
 }
 
-vk::Image VulkanImage::CreateImage(void* data, VmaAllocationCreateFlags flags,
-                                   vk::ImageUsageFlags usage,
-                                   vk::ImageType       type) {
+vk::Image VulkanImage::CreateImage(VmaAllocationCreateFlags flags,
+                                   vk::ImageUsageFlags      usage,
+                                   vk::ImageType            type) {
     VkImage image {};
 
     vk::ImageCreateInfo imageCreateInfo {};
