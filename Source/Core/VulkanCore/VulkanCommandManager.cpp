@@ -5,6 +5,8 @@
 #include "VulkanContext.hpp"
 #include "VulkanSyncStructures.hpp"
 
+void VulkanQueueSubmitRequest::Wait_CPUBlocking() {}
+
 VulkanCommandManager::VulkanCommandManager(VulkanContext* ctx, uint32_t count,
                                            uint32_t concurrentCommandsCount,
                                            uint32_t queueFamilyIndex,
@@ -18,10 +20,9 @@ VulkanCommandManager::VulkanCommandManager(VulkanContext* ctx, uint32_t count,
     mIsSubmitted.resize(mCommandInFlight);
 }
 
-void VulkanCommandManager::Submit(
-    vk::CommandBuffer cmd, vk::Queue queue,
-    ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& waitInfos,
-    ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& signalInfos) {
+void VulkanCommandManager::Submit(vk::CommandBuffer cmd, vk::Queue queue,
+                                  ::std::span<SemSubmitInfo> waitInfos,
+                                  ::std::span<SemSubmitInfo> signalInfos) {
     auto cmdInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
 
     ::std::vector<vk::SemaphoreSubmitInfo> waits {};

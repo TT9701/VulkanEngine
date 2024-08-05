@@ -3,9 +3,11 @@
 #include <glm/glm.hpp>
 
 struct Vertex {
-    glm::vec3 position {};
-    float     uvX {};
-    glm::vec3 normal {};
-    float     uvY {};
+    glm::vec4 position {};          // w - empty
+    glm::vec4 normal {};            // w - empty
     glm::vec4 color {};
+    glm::vec2 texcoords {};         // z, w - empty
+    glm::vec2 padding {};           // empty
+    glm::vec4 tangent {};           // w - empty
+    glm::vec4 bitangent {};         // w - empty
 };

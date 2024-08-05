@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "Core/Model/Mesh.hpp"
+#include "Core/Model/Model.hpp"
 #include "Core/Utilities/Camera.hpp"
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
@@ -137,4 +138,6 @@ private:
 
     CUDA::CUDAStream mCUDAStream {};
 #endif
+
+    SharedPtr<Model> mFactoryModel;
 };

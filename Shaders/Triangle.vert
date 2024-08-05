@@ -5,11 +5,13 @@ layout (location = 0) out vec3 outColor;
 layout (location = 1) out vec2 outUV;
 
 struct Vertex {
-	vec3 position;
-	float uvX;
-	vec3 normal;
-	float uvY;
+	vec4 position;
+	vec4 normal;
 	vec4 color;
+	vec2 texcoords;
+	vec2 padding;
+	vec4 tangent;
+	vec4 bitangent;
 }; 
 
 layout (set = 0, binding = 0) uniform SceneDataUBO 
@@ -33,8 +35,6 @@ void main()
 {
     Vertex v = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
 
-	gl_Position = ubo.viewproj * PushConstants.modelMatrix * vec4(v.position, 1.0f);
-	outColor = v.color.xyz;
-    outUV.x = v.uvX;
-    outUV.y = v.uvY;
+	gl_Position = ubo.viewproj * PushConstants.modelMatrix * vec4(v.position.xyz, 1.0f);
+    outUV = v.texcoords.xy;
 }

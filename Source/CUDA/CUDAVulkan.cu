@@ -14,21 +14,14 @@ namespace {
 __global__ void SimpleAdd(void* data, float time) {
     auto vertices = static_cast<Vertex*>(data);
 
-    vertices[0].position = {0.0f, 0.0f, 0.0f};
-    vertices[1].position = {1.0f, 0.0f, 0.0f};
-    vertices[2].position = {0.5f, 0.5f * ::std::sin(time / 1000.0f), 0.0f};
+    vertices[0].position = {0.0f, 0.0f, 0.0f, 0.0f};
+    vertices[1].position = {1.0f, 0.0f, 0.0f, 0.0f};
+    vertices[2].position = {0.5f, 0.5f * ::std::sin(time / 1000.0f), 0.0f,
+                            0.0f};
 
-    vertices[0].color = {1.0f, 0.0f, 0.0f, 1.0f};
-    vertices[1].color = {0.0f, 1.0f, 0.0f, 1.0f};
-    vertices[2].color = {0.0f, 0.0f, 1.0f, 1.0f};
-
-    vertices[0].uvX = 1.0f;
-    vertices[1].uvX = 0.0f;
-    vertices[2].uvX = 0.5f;
-
-    vertices[0].uvY = 0.0f;
-    vertices[1].uvY = 0.0f;
-    vertices[2].uvY = 1.0f;
+    vertices[0].texcoords = {1.0f, 0.0f};
+    vertices[1].texcoords = {0.0f, 0.0f};
+    vertices[2].texcoords = {0.5f, 1.0f};
 }
 
 cudaChannelFormatDesc GetCudaChannelFormatDescForVulkanFormat(

@@ -21,6 +21,7 @@ set (DLL_FOLDER_NAME "Dlls")
 set (EXECUTABLE_FOLDER_NAME "Executables")
 set (CUSTOM_FOLDER_NAME "Custom_Projects")
 
+add_subdirectory (External)
 add_subdirectory (Source)
 
 find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)

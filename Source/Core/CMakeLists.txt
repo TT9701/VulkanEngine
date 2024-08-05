@@ -67,6 +67,8 @@ set (MODEL_SRC
     Model/MeshType.hpp
     Model/Mesh.hpp
     Model/Mesh.cpp
+    Model/Model.cpp
+    Model/Model.hpp
 )
 set (MODEL_SRC_GROUP_NAME "Model")
 
@@ -110,31 +112,27 @@ target_link_libraries(Core
     PUBLIC
         Vulkan::Headers)
 
+target_link_libraries(CUDA
+    PUBLIC
+        GPUOpen::VulkanMemoryAllocator)
+
 target_include_directories(Core 
     PUBLIC 
         ${PROJECT_SOURCE_DIR}/Source)
 
-target_include_directories(Core 
+# target_include_directories(Core 
+#     PUBLIC 
+#         ${PROJECT_SOURCE_DIR}/External/Output/Include)
+
+# include("../../External/Output/cmake/SDL2Config.cmake")
+target_link_libraries(Core
     PUBLIC 
-        ${PROJECT_SOURCE_DIR}/External/Output/Include/SDL/include)
-        
-add_library(SDL_DEBUG SHARED IMPORTED)
-add_library(SDL_RELEASE SHARED IMPORTED)
+        SDL2::SDL2)
 
-if (MSVC)
-    set_target_properties(SDL_DEBUG PROPERTIES
-            IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/External/Output/Bin/SDL2d.dll
-            IMPORTED_IMPLIB ${PROJECT_SOURCE_DIR}/External/Output/Lib/Debug/SDL2d.lib)
-    set_target_properties(SDL_RELEASE PROPERTIES
-            IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/External/Output/Bin/SDL2.dll
-            IMPORTED_IMPLIB ${PROJECT_SOURCE_DIR}/External/Output/Lib/Release/SDL2.lib)
-endif(MSVC)
-
+# include("../../External/Output/lib/cmake/assimp-5.4/assimpConfig.cmake")
 target_link_libraries(Core
     PUBLIC
-        debug SDL_DEBUG
-        optimized SDL_RELEASE)
-
+        assimp::assimp)
 
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
 
@@ -151,12 +149,10 @@ set (INTELLIGENDESIGN_DEMO_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-I
 if (MSVC)
     set_target_properties(INTELLI_DS_MemoryPool_DEBUG 
         PROPERTIES
-            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib
-            )
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib)
     set_target_properties(INTELLI_DS_MemoryPool_RELEASE 
         PROPERTIES
-            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib
-            )
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib)
 endif(MSVC)
 
 target_link_libraries(Core

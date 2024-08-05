@@ -4,26 +4,38 @@ project (External)
 
 find_package(Vulkan REQUIRED)
 
-set (BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Bin)
-set (LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Lib)
-set (INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Include)
+# set (BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Bin)
+# set (LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Lib)
+# set (INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Include)
 
-set (DEBUG_LIB_DIR ${LIB_DIR}/Debug)
-set (RELEASE_LIB_DIR ${LIB_DIR}/Release)
+# set (DEBUG_LIB_DIR ${LIB_DIR}/Debug)
+# set (RELEASE_LIB_DIR ${LIB_DIR}/Release)
 
-add_subdirectory(SDL)
+set (SDL_STATIC OFF CACHE BOOL "Disable sdl static library" FORCE)
+set (SDL_TEST OFF CACHE BOOL "Disable sdl test" FORCE)
+add_subdirectory(SDL EXCLUDE_FROM_ALL)
+set_target_properties(SDL2 PROPERTIES FOLDER ${DLL_FOLDER_NAME})
+set_target_properties(sdl_headers_copy PROPERTIES FOLDER ${CUSTOM_FOLDER_NAME})
 
-install (TARGETS SDL2
-    CONFIGURATIONS Debug
-        RUNTIME DESTINATION ${BIN_DIR}
-        LIBRARY DESTINATION ${DEBUG_LIB_DIR}
-        ARCHIVE DESTINATION ${DEBUG_LIB_DIR})
+set (ASSIMP_BUILD_TESTS OFF CACHE BOOL "Disable assimp test" FORCE)
+add_subdirectory(Assimp EXCLUDE_FROM_ALL)
+set_target_properties(assimp PROPERTIES FOLDER ${DLL_FOLDER_NAME})
+set_target_properties(zlibstatic PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
-install (TARGETS SDL2
-    CONFIGURATIONS Release
-        RUNTIME DESTINATION ${BIN_DIR}
-        LIBRARY DESTINATION ${RELEASE_LIB_DIR}
-        ARCHIVE DESTINATION ${RELEASE_LIB_DIR})
+set (VMA_BUILD_SAMPLES OFF CACHE BOOL "Don't build vma sample" FORCE)
+add_subdirectory(vma EXCLUDE_FROM_ALL)
 
-install (DIRECTORY ${SDL2_SOURCE_DIR}/include 
-    DESTINATION ${INCLUDE_DIR}/SDL)
+# install (TARGETS SDL2
+#     CONFIGURATIONS Debug
+#         RUNTIME DESTINATION ${BIN_DIR}
+#         LIBRARY DESTINATION ${DEBUG_LIB_DIR}
+#         ARCHIVE DESTINATION ${DEBUG_LIB_DIR})
+
+# install (TARGETS SDL2
+#     CONFIGURATIONS Release
+#         RUNTIME DESTINATION ${BIN_DIR}
+#         LIBRARY DESTINATION ${RELEASE_LIB_DIR}
+#         ARCHIVE DESTINATION ${RELEASE_LIB_DIR})
+
+# install (DIRECTORY ${SDL2_SOURCE_DIR}/include 
+#     DESTINATION ${INCLUDE_DIR}/SDL)

@@ -42,6 +42,9 @@ VulkanEngine::VulkanEngine()
     CreateCUDASyncStructures();
     CreateExternalTriangleData();
 #endif
+
+    mFactoryModel = MakeShared<Model>("../../../Models/sample.fbx");
+    mFactoryModel->GenerateMeshBuffers(mSPContext.get(), this);
 }
 
 VulkanEngine::~VulkanEngine() {
@@ -73,7 +76,7 @@ void VulkanEngine::Draw() {
     const uint64_t computeFinished  = graphicsFinished + 1;
     const uint64_t allFinished      = graphicsFinished + 2;
 
-    const uint64_t increaseValue = allFinished - graphicsFinished;
+    const uint64_t increaseValue = allFinished - graphicsFinished + 1;
 
     // Compute Draw
     {
@@ -85,14 +88,18 @@ void VulkanEngine::Draw() {
 
         mSPCmdManager->EndCmdBuffer(cmd);
 
-        mSPCmdManager->Submit(
-            cmd, mSPContext->GetDevice()->GetGraphicQueue(),
-            {{vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-              mSPSwapchain->GetReady4RenderSemHandle()},
-             {vk::PipelineStageFlagBits2::eBottomOfPipe,
-              mSPTimelineSemaphore->GetHandle(), graphicsFinished}},
-            {{vk::PipelineStageFlagBits2::eAllGraphics,
-              mSPTimelineSemaphore->GetHandle(), computeFinished}});
+        ::std::vector<SemSubmitInfo> waits = {
+            {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             mSPSwapchain->GetReady4RenderSemHandle(), 0ui64},
+            {vk::PipelineStageFlagBits2::eBottomOfPipe,
+             mSPTimelineSemaphore->GetHandle(), graphicsFinished}};
+
+        ::std::vector<SemSubmitInfo> signals = {
+            {vk::PipelineStageFlagBits2::eAllGraphics,
+             mSPTimelineSemaphore->GetHandle(), computeFinished}};
+
+        mSPCmdManager->Submit(cmd, mSPContext->GetDevice()->GetGraphicQueue(),
+                              waits, signals);
 
         mSPCmdManager->GoToNextCmdBuffer();
     }
@@ -123,14 +130,32 @@ void VulkanEngine::Draw() {
 
         mSPCmdManager->EndCmdBuffer(cmd);
 
-        mSPCmdManager->Submit(
-            cmd, mSPContext->GetDevice()->GetGraphicQueue(),
-            {{vk::PipelineStageFlagBits2::eComputeShader,
-              mSPTimelineSemaphore->GetHandle(), computeFinished}},
-            {{vk::PipelineStageFlagBits2::eAllGraphics,
-              mSPTimelineSemaphore->GetHandle(), allFinished},
-             {vk::PipelineStageFlagBits2::eAllGraphics,
-              mSPSwapchain->GetReady4PresentSemHandle()}});
+        ::std::vector<SemSubmitInfo> waits = {
+            {vk::PipelineStageFlagBits2::eComputeShader,
+             mSPTimelineSemaphore->GetHandle(), computeFinished}};
+
+        ::std::vector<SemSubmitInfo> signals = {
+            {vk::PipelineStageFlagBits2::eAllGraphics,
+             mSPTimelineSemaphore->GetHandle(), allFinished},
+            {vk::PipelineStageFlagBits2::eAllGraphics,
+             mSPSwapchain->GetReady4PresentSemHandle()}};
+
+        mSPCmdManager->Submit(cmd, mSPContext->GetDevice()->GetGraphicQueue(),
+                              waits, signals);
+
+        mSPCmdManager->GoToNextCmdBuffer();
+    }
+
+    {
+        auto cmd = mSPCmdManager->GetCmdBufferToBegin();
+        mSPCmdManager->EndCmdBuffer(cmd);
+
+        ::std::vector<SemSubmitInfo> signals = {
+            {vk::PipelineStageFlagBits2::eAllGraphics,
+             mSPTimelineSemaphore->GetHandle(), allFinished + 1}};
+
+        mSPCmdManager->Submit(cmd, mSPContext->GetDevice()->GetGraphicQueue(),
+                              {}, signals);
 
         mSPCmdManager->GoToNextCmdBuffer();
     }
@@ -286,32 +311,23 @@ void VulkanEngine::CreateDescriptors() {
 void VulkanEngine::CreateBoxData() {
     ::std::array<Vertex, 8> vertices {};
 
-    vertices[0].position = {-1, -1, 1};
-    vertices[1].position = {1, -1, 1};
-    vertices[2].position = {-1, 1, 1};
-    vertices[3].position = {1, 1, 1};
-    vertices[4].position = {-1, -1, -1};
-    vertices[5].position = {1, -1, -1};
-    vertices[6].position = {-1, 1, -1};
-    vertices[7].position = {1, 1, -1};
+    vertices[0].position = {-1, -1, 1, 0};
+    vertices[1].position = {1, -1, 1, 0};
+    vertices[2].position = {-1, 1, 1, 0};
+    vertices[3].position = {1, 1, 1, 0};
+    vertices[4].position = {-1, -1, -1, 0};
+    vertices[5].position = {1, -1, -1, 0};
+    vertices[6].position = {-1, 1, -1, 0};
+    vertices[7].position = {1, 1, -1, 0};
 
-    vertices[0].uvX = 0.0f;
-    vertices[1].uvX = 1.0f;
-    vertices[2].uvX = 0.0f;
-    vertices[3].uvX = 1.0f;
-    vertices[4].uvX = 0.0f;
-    vertices[5].uvX = 1.0f;
-    vertices[6].uvX = 0.0f;
-    vertices[7].uvX = 1.0f;
-
-    vertices[0].uvY = 0.0f;
-    vertices[1].uvY = 0.0f;
-    vertices[2].uvY = 1.0f;
-    vertices[3].uvY = 1.0f;
-    vertices[4].uvY = 0.0f;
-    vertices[5].uvY = 0.0f;
-    vertices[6].uvY = 1.0f;
-    vertices[7].uvY = 1.0f;
+    vertices[0].texcoords = {0.0f, 0.0f};
+    vertices[1].texcoords = {1.0f, 0.0f};
+    vertices[2].texcoords = {0.0f, 1.0f};
+    vertices[3].texcoords = {1.0f, 1.0f};
+    vertices[4].texcoords = {0.0f, 0.0f};
+    vertices[5].texcoords = {1.0f, 0.0f};
+    vertices[6].texcoords = {0.0f, 1.0f};
+    vertices[7].texcoords = {1.0f, 1.0f};
 
     ::std::array<uint32_t, 36> indices {//Top
                                         2, 7, 6, 2, 3, 7,
@@ -773,18 +789,36 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     mDescriptorManager->UpdateSet(
         mDescriptorManager->GetDescriptor("Triangle_Desc_0"));
 
-    MeshPushConstants pushConstants {};
-    pushConstants.mVertexBufferAddress = mBoxMesh.mVertexBufferAddress;
-    // mTriangleExternalMesh.mVertexBufferAddress;
-    pushConstants.mModelMatrix = glm::mat4(1.0f);
-    cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
-                      vk::ShaderStageFlagBits::eVertex, 0,
-                      sizeof(MeshPushConstants), &pushConstants);
+    // MeshPushConstants pushConstants {};
+    // pushConstants.mVertexBufferAddress = mBoxMesh.mVertexBufferAddress;
+    // // mTriangleExternalMesh.mVertexBufferAddress;
+    // pushConstants.mModelMatrix = glm::mat4(1.0f);
+    // cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+    //                   vk::ShaderStageFlagBits::eVertex, 0,
+    //                   sizeof(MeshPushConstants), &pushConstants);
+    //
+    // cmd.bindIndexBuffer(mBoxMesh.mIndexBuffer->GetHandle(), 0,
+    //                     vk::IndexType::eUint32);
+    //
+    // cmd.drawIndexed(36, 1, 0, 0, 0);
 
-    cmd.bindIndexBuffer(mBoxMesh.mIndexBuffer->GetHandle(), 0,
-                        vk::IndexType::eUint32);
+    for (auto const& mesh : mFactoryModel->GetMeshes()) {
+        auto      pushContants = mesh.GetPushContants();
+        glm::mat4 model {1.0f};
+        model = glm::translate(model, glm::vec3 {0.0f, 0.0f, 100.0f});
+        model = glm::scale(model, glm::vec3 {0.01f});
+        pushContants.mModelMatrix = model;
 
-    cmd.drawIndexed(36, 1, 0, 0, 0);
+        cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+                          vk::ShaderStageFlagBits::eVertex, 0,
+                          sizeof(pushContants), &pushContants);
+
+        cmd.bindIndexBuffer(mesh.GetIndexBuffer()->GetHandle(), 0,
+                            vk::IndexType::eUint32);
+
+        cmd.drawIndexed(static_cast<uint32_t>(mesh.GetIndexData().size()), 1, 0,
+                        0, 0);
+    }
 
     cmd.endRendering();
 }

@@ -10,15 +10,19 @@ class VulkanFence;
 class VulkanCommandBuffers;
 class VulkanCommandPool;
 
-namespace VulkanCore::_Detail {
-
 struct SemSubmitInfo {
     vk::PipelineStageFlagBits2 flags;
     vk::Semaphore              sem;
     uint64_t                   value {0};
 };
 
-}  // namespace VulkanCore::_Detail
+struct VulkanQueueSubmitRequest {
+    VulkanQueueSubmitRequest(uint64_t value) : mFenceValue(value) {}
+
+    uint64_t mFenceValue {0};
+
+    void Wait_CPUBlocking();
+};
 
 class VulkanCommandManager {
 public:
@@ -32,14 +36,10 @@ public:
 
     MOVABLE_ONLY(VulkanCommandManager);
 
-    using Type_SemSubmitInfo =
-        ::std::tuple<vk::PipelineStageFlagBits2, vk::Semaphore, uint64_t>;
-
 public:
-    void Submit(
-        vk::CommandBuffer cmd, vk::Queue queue,
-        ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& waitInfos,
-        ::std::vector<VulkanCore::_Detail::SemSubmitInfo> const& signalInfos);
+    void Submit(vk::CommandBuffer cmd, vk::Queue queue,
+                ::std::span<SemSubmitInfo> waitInfos   = {},
+                ::std::span<SemSubmitInfo> signalInfos = {});
 
     void GoToNextCmdBuffer();
 

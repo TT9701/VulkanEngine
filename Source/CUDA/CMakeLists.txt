@@ -11,7 +11,7 @@ set (CUDA_SRC
     CUDAVulkan.h
     CUDAVulkan.cu)
 
-add_library(CUDA ${CUDA_SRC})
+add_library(CUDA STATIC ${CUDA_SRC})
 
 set_property(TARGET CUDA 
     PROPERTY 
@@ -24,6 +24,10 @@ set_property(TARGET CUDA
 target_link_libraries(CUDA 
     PRIVATE
         Vulkan::Vulkan)
+
+target_link_libraries(CUDA
+    PRIVATE
+        GPUOpen::VulkanMemoryAllocator)
 
 set_target_properties(CUDA PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
