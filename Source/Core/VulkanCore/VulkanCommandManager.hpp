@@ -17,11 +17,15 @@ struct SemSubmitInfo {
 };
 
 struct VulkanQueueSubmitRequest {
-    VulkanQueueSubmitRequest(uint64_t value) : mFenceValue(value) {}
+    VulkanQueueSubmitRequest(uint64_t value, uint64_t const* timelineValue)
+        : mFenceValue(value), pTimelineValue(timelineValue) {}
+
+    void Wait_CPUBlocking();
 
     uint64_t mFenceValue {0};
 
-    void Wait_CPUBlocking();
+private:
+    const uint64_t* pTimelineValue;
 };
 
 class VulkanCommandManager;
@@ -52,7 +56,8 @@ public:
     MOVABLE_ONLY(VulkanCommandManager);
 
 public:
-    void Submit(vk::CommandBuffer cmd, vk::Queue queue,
+    VulkanQueueSubmitRequest Submit(
+        vk::CommandBuffer cmd, vk::Queue queue,
                 ::std::span<SemSubmitInfo> waitInfos   = {},
                 ::std::span<SemSubmitInfo> signalInfos = {});
 

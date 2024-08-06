@@ -20,7 +20,6 @@ VulkanEngine::VulkanEngine()
     : mSPWindow(CreateSDLWindow()),
       mSPContext(CreateContext()),
       mSPSwapchain(CreateSwapchain()),
-      mSPTimelineSemaphore(CreateTimelineSem()),
       mDrawImage(CreateDrawImage()),
       mDepthImage(CreateDepthImage()),
 #ifdef CUDA_VULKAN_INTEROP
@@ -43,7 +42,10 @@ VulkanEngine::VulkanEngine()
     CreateExternalTriangleData();
 #endif
 
-    mFactoryModel = MakeShared<Model>("../../../Models/sample.fbx");
+    mMainCamera.mPosition = glm::vec3 {0.0f, 0.0f, 2.0f};
+
+    mFactoryModel = MakeShared<Model>(
+        "../../../Models/RM_HP_59930007DR0130HP000.fbx");
     mFactoryModel->GenerateMeshBuffers(mSPContext.get(), this);
 }
 
@@ -56,7 +58,7 @@ void VulkanEngine::Run() {
 
     while (!bQuit) {
         mSPWindow->PollEvents(bQuit, mStopRendering, [&](SDL_Event* e) {
-            mMainCamera.ProcessSDLEvent(e);
+            mMainCamera.ProcessSDLEvent(e, 0.001f);
         });
 
         if (mStopRendering) {
@@ -72,11 +74,10 @@ void VulkanEngine::Draw() {
     auto swapchainImage =
         mSPSwapchain->GetImageHandle(mSPSwapchain->AcquireNextImageIndex());
 
-    const uint64_t graphicsFinished = mSPTimelineSemaphore->GetValue();
-    const uint64_t computeFinished  = graphicsFinished + 1;
-    const uint64_t allFinished      = graphicsFinished + 2;
-
-    const uint64_t increaseValue = allFinished - graphicsFinished + 1;
+    const uint64_t graphicsFinished =
+        mSPContext->GetTimelineSemphore()->GetValue();
+    const uint64_t computeFinished = graphicsFinished + 1;
+    const uint64_t allFinished     = graphicsFinished + 2;
 
     // Compute Draw
     {
@@ -93,11 +94,11 @@ void VulkanEngine::Draw() {
             {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
              mSPSwapchain->GetReady4RenderSemHandle(), 0ui64},
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
-             mSPTimelineSemaphore->GetHandle(), graphicsFinished}};
+             mSPContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPTimelineSemaphore->GetHandle(), computeFinished}};
+             mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
         mSPCmdManager->Submit(cmd.GetHandle(),
                               mSPContext->GetDevice()->GetGraphicQueue(), waits,
@@ -132,11 +133,11 @@ void VulkanEngine::Draw() {
 
         ::std::vector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eComputeShader,
-             mSPTimelineSemaphore->GetHandle(), computeFinished}};
+             mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPTimelineSemaphore->GetHandle(), allFinished},
+             mSPContext->GetTimelineSemaphoreHandle(), allFinished},
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPSwapchain->GetReady4PresentSemHandle()}};
 
@@ -151,7 +152,7 @@ void VulkanEngine::Draw() {
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPTimelineSemaphore->GetHandle(), allFinished + 1}};
+             mSPContext->GetTimelineSemaphoreHandle(), allFinished + 1}};
 
         mSPCmdManager->Submit(cmd.GetHandle(),
                               mSPContext->GetDevice()->GetGraphicQueue(), {},
@@ -171,7 +172,6 @@ void VulkanEngine::Draw() {
     // #endif
 
     mSPSwapchain->Present(mSPContext->GetDevice()->GetGraphicQueue());
-    mSPTimelineSemaphore->IncreaseValue(increaseValue);
 
     // #ifdef CUDA_VULKAN_INTEROP
     //     cudaExternalSemaphoreWaitParams waitParams {};
@@ -213,8 +213,6 @@ UniquePtr<VulkanContext> VulkanEngine::CreateContext() {
 #ifndef NDEBUG
     requestedInstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
-    requestedInstanceExtensions.emplace_back(
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
     ::std::vector<::std::string> enabledDeivceExtensions {};
 
@@ -243,10 +241,6 @@ UniquePtr<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
         mSPContext.get(), vk::Format::eR8G8B8A8Unorm,
         vk::Extent2D {static_cast<uint32_t>(mSPWindow->GetWidth()),
                       static_cast<uint32_t>(mSPWindow->GetHeight())});
-}
-
-UniquePtr<VulkanTimelineSemaphore> VulkanEngine::CreateTimelineSem() {
-    return MakeUnique<VulkanTimelineSemaphore>(mSPContext.get());
 }
 
 SharedPtr<VulkanImage> VulkanEngine::CreateDrawImage() {
@@ -476,21 +470,20 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
 }
 
 void VulkanEngine::UpdateScene() {
-    mMainCamera.Update();
-
     auto view = mMainCamera.GetViewMatrix();
 
     glm::mat4 proj =
         glm::perspective(glm::radians(45.0f),
                          static_cast<float>(mSPWindow->GetWidth())
                              / static_cast<float>(mSPWindow->GetHeight()),
-                         10000.0f, 0.1f);
+                         10000.0f, 0.01f);
 
     proj[1][1] *= -1;
 
-    mSceneData.view     = view;
-    mSceneData.proj     = proj;
-    mSceneData.viewProj = proj * view;
+    mSceneData.cameraPos = glm::vec4 {mMainCamera.mPosition, 1.0f};
+    mSceneData.view      = view;
+    mSceneData.proj      = proj;
+    mSceneData.viewProj  = proj * view;
     UpdateSceneUBO();
 }
 
@@ -567,7 +560,7 @@ void VulkanEngine::CreateMeshPipeline() {
         .SetShaders(shaders)
         .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
         .SetPolygonMode(vk::PolygonMode::eFill)
-        .SetCullMode(vk::CullModeFlagBits::eBack,
+        .SetCullMode(vk::CullModeFlagBits::eFront,
                      vk::FrontFace::eCounterClockwise)
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
@@ -584,7 +577,8 @@ void VulkanEngine::CreateMeshDescriptors() {
         0, 1, vk::DescriptorType::eUniformBuffer);
 
     const auto triangleSetLayout0 = mDescriptorManager->BuildDescSetLayout(
-        "Triangle_Layout_0", vk::ShaderStageFlagBits::eVertex);
+        "Triangle_Layout_0",
+        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
 
     mDescriptorManager->AddDescSetLayoutBinding(
         0, 1, vk::DescriptorType::eCombinedImageSampler);
@@ -801,10 +795,11 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     // cmd.drawIndexed(36, 1, 0, 0, 0);
 
     for (auto const& mesh : mFactoryModel->GetMeshes()) {
-        auto      pushContants = mesh.GetPushContants();
+        auto pushContants = mesh.GetPushContants();
+
         glm::mat4 model {1.0f};
-        model = glm::translate(model, glm::vec3 {0.0f, 0.0f, 100.0f});
-        model = glm::scale(model, glm::vec3 {0.01f});
+        model = glm::scale(model, glm::vec3 {0.0001f});
+
         pushContants.mModelMatrix = model;
 
         cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),

@@ -22,7 +22,6 @@ class VulkanExternalMemoryPool;
 class VulkanSwapchain;
 class VulkanImage;
 class VulkanFence;
-class VulkanTimelineSemaphore;
 class VulkanCommandBuffers;
 class VulkanCommandPool;
 class VulkanDescriptorManager;
@@ -31,6 +30,9 @@ class VulkanShader;
 constexpr uint32_t FRAME_OVERLAP = 3;
 
 struct SceneData {
+    glm::vec4 sunLightPos {-2.0f, 3.0f, 1.0f, 1.0f};
+    glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 cameraPos {};
     glm::mat4 view {};
     glm::mat4 proj {};
     glm::mat4 viewProj {};
@@ -56,7 +58,6 @@ private:
     UniquePtr<SDLWindow>               CreateSDLWindow();
     UniquePtr<VulkanContext>           CreateContext();
     UniquePtr<VulkanSwapchain>         CreateSwapchain();
-    UniquePtr<VulkanTimelineSemaphore> CreateTimelineSem();
     SharedPtr<VulkanImage>             CreateDrawImage();
     SharedPtr<VulkanImage>             CreateDepthImage();
     UniquePtr<ImmediateSubmitManager>  CreateImmediateSubmitManager();
@@ -107,8 +108,6 @@ private:
     UniquePtr<SDLWindow>       mSPWindow;
     UniquePtr<VulkanContext>   mSPContext;
     UniquePtr<VulkanSwapchain> mSPSwapchain;
-
-    UniquePtr<VulkanTimelineSemaphore> mSPTimelineSemaphore;
 
     SharedPtr<VulkanImage> mDrawImage;
     SharedPtr<VulkanImage> mDepthImage;

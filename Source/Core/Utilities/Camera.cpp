@@ -1,59 +1,100 @@
 #include "Camera.hpp"
 
-#include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/transform.hpp"
 
+Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
+    : mPosition(position),
+      mFront(glm::vec3(0.0f, 0.0f, -1.0f)),
+      mWorldUp(up),
+      mYaw(yaw),
+      mPitch(pitch),
+      mMovementSpeed(CAMERA_SPEED),
+      mMouseSensitivity(CAMERA_SENSITIVITY),
+      mZoom(CAMERA_ZOOM) {
+    Update();
+}
+
+Camera::Camera(float posX, float posY, float posZ, float upX, float upY,
+               float upZ, float yaw, float pitch)
+    : mPosition(posX, posY, posZ),
+      mFront(glm::vec3(0.0f, 0.0f, -1.0f)),
+      mWorldUp(glm::vec3(upX, upY, upZ)),
+      mYaw(yaw),
+      mPitch(pitch),
+      mMovementSpeed(CAMERA_SPEED),
+      mMouseSensitivity(CAMERA_SENSITIVITY),
+      mZoom(CAMERA_ZOOM) {
+    Update();
+}
+
 glm::mat4 Camera::GetViewMatrix() {
-    glm::mat4 cameraTranslation = glm::translate(glm::mat4(1.f), position);
-    glm::mat4 cameraRotation    = GetRotationMatrix();
-    return glm::inverse(cameraTranslation * cameraRotation);
+    return glm::lookAt(mPosition, mPosition + mFront, mUp);
 }
 
-glm::mat4 Camera::GetRotationMatrix() {
-    glm::quat pitchRotation = glm::angleAxis(pitch, glm::vec3 {1.f, 0.f, 0.f});
-    glm::quat yawRotation   = glm::angleAxis(yaw, glm::vec3 {0.f, -1.f, 0.f});
-
-    return glm::toMat4(yawRotation) * glm::toMat4(pitchRotation);
+void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
+    ProcessKeyboard(e, deltaTime);
+    ProcessMouseMovement(e);
+    ProcessMouseScroll(e);
 }
 
-void Camera::ProcessSDLEvent(SDL_Event* e) {
+void Camera::Update() {
+    glm::vec3 front;
+    front.x = cos(glm::radians(mYaw)) * cos(glm::radians(mPitch));
+    front.y = sin(glm::radians(mPitch));
+    front.z = sin(glm::radians(mYaw)) * cos(glm::radians(mPitch));
+
+    mFront = glm::normalize(front);
+    mRight = glm::normalize(glm::cross(mFront, mWorldUp));
+    mUp    = glm::normalize(glm::cross(mRight, mFront));
+}
+
+void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
     if (e->type == SDL_KEYDOWN) {
+        mMovementSpeed += 0.2f;
+        float velocity = mMovementSpeed * deltaTime;
         if (e->key.keysym.sym == SDLK_w) {
-            velocity.z = -1;
+            mPosition += mFront * velocity;
         }
         if (e->key.keysym.sym == SDLK_s) {
-            velocity.z = 1;
+            mPosition -= mFront * velocity;
         }
         if (e->key.keysym.sym == SDLK_a) {
-            velocity.x = -1;
+            mPosition -= mRight * velocity;
         }
         if (e->key.keysym.sym == SDLK_d) {
-            velocity.x = 1;
+            mPosition += mRight * velocity;
+        }
+        if (e->key.keysym.sym == SDLK_SPACE) {
+            mPosition += mUp * velocity;
         }
     }
 
     if (e->type == SDL_KEYUP) {
-        if (e->key.keysym.sym == SDLK_w) {
-            velocity.z = 0;
-        }
-        if (e->key.keysym.sym == SDLK_s) {
-            velocity.z = 0;
-        }
-        if (e->key.keysym.sym == SDLK_a) {
-            velocity.x = 0;
-        }
-        if (e->key.keysym.sym == SDLK_d) {
-            velocity.x = 0;
-        }
-    }
-
-    if (e->type == SDL_MOUSEMOTION) {
-        yaw += (float)e->motion.xrel / 1000.f;
-        pitch -= (float)e->motion.yrel / 1000.f;
+        mMovementSpeed = CAMERA_SPEED;
     }
 }
 
-void Camera::Update() {
-    glm::mat4 cameraRotation = GetRotationMatrix();
-    position += glm::vec3(cameraRotation * glm::vec4(velocity * 0.005f, 0.f));
+void Camera::ProcessMouseMovement(SDL_Event* e) {
+    if (e->type == SDL_MOUSEMOTION) {
+        mYaw += (float)e->motion.xrel * mMouseSensitivity;
+        mPitch -= (float)e->motion.yrel * mMouseSensitivity;
+    }
+
+    if (mPitch > 89.0f)
+        mPitch = 89.0f;
+    if (mPitch < -89.0f)
+        mPitch = -89.0f;
+
+    Update();
+}
+
+void Camera::ProcessMouseScroll(SDL_Event* e) {
+    if (e->type == SDL_MOUSEWHEEL) {
+        mZoom += static_cast<float>(e->wheel.y);
+
+        if (mZoom < 1.0f)
+            mZoom = 1.0f;
+        if (mZoom > 45.0f)
+            mZoom = 45.0f;
+    }
 }

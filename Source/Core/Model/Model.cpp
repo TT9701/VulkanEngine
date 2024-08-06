@@ -82,17 +82,17 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
         // tangents and bitangents
         if (mesh->HasTangentsAndBitangents()) {
             temp.x         = mesh->mTangents[i].x;
-            temp.y         = mesh->mTangents[i].z;
-            temp.z         = mesh->mTangents[i].y;
+            temp.y         = mesh->mTangents[i].y;
+            temp.z         = mesh->mTangents[i].z;
             vertex.tangent = glm::vec4 {temp, 0.0f};
 
             temp.x           = mesh->mBitangents[i].x;
-            temp.y           = mesh->mBitangents[i].z;
-            temp.z           = mesh->mBitangents[i].y;
+            temp.y           = mesh->mBitangents[i].y;
+            temp.z           = mesh->mBitangents[i].z;
             vertex.bitangent = glm::vec4 {temp, 0.0f};
         }
 
-        vertices.push_back(std::move(vertex));
+        vertices.push_back(vertex);
     }
 
     if (mesh->HasFaces()) {

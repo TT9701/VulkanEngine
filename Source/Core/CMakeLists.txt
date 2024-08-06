@@ -42,8 +42,6 @@ set (VULKAN_CORE_SRC
     VulkanCore/VulkanCommands.cpp
     VulkanCore/VulkanCommandManager.cpp
     VulkanCore/VulkanCommandManager.hpp
-    VulkanCore/VulkanFrameObjects.hpp
-    VulkanCore/VulkanFrameObjects.cpp
     VulkanCore/VulkanDescriptors.hpp
     VulkanCore/VulkanDescriptors.cpp
     VulkanCore/VulkanPipeline.hpp

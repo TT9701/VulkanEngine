@@ -56,6 +56,8 @@ public:
 
     uint64_t GetValue() const { return mValue; }
 
+    uint64_t const* GetValueAddress() const { return &mValue; }
+
     void IncreaseValue(uint64_t val = 1);
 
 private:

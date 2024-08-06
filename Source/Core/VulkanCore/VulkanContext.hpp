@@ -16,13 +16,14 @@
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanSampler.hpp"
 #include "VulkanSurface.hpp"
+#include "VulkanSyncStructures.hpp"
 
 class SDLWindow;
 
 namespace CUDA {
 class VulkanExternalImage;
 class VulkanExternalBuffer;
-}
+}  // namespace CUDA
 
 class VulkanContext {
 public:
@@ -71,29 +72,31 @@ public:
         vk::CompareOp compareOp = vk::CompareOp::eNever);
 
 public:
-    VulkanInstance* GetInstance() const { return mSPInstance.get(); }
+    VulkanInstance* GetInstance() const { return mPInstance.get(); }
 
 #ifndef NDEBUG
     VulkanDebugUtils* GetDebugMessenger() const {
-        return mSPDebugUtilsMessenger.get();
+        return mPDebugUtilsMessenger.get();
     }
 #endif
 
-    VulkanSurface* GetSurface() const { return mSPSurface.get(); }
+    VulkanSurface* GetSurface() const { return mPSurface.get(); }
 
     VulkanPhysicalDevice* GetPhysicalDevice() const {
-        return mSPPhysicalDevice.get();
+        return mPPhysicalDevice.get();
     }
 
-    VulkanDevice* GetDevice() const { return mSPDevice.get(); }
+    VulkanDevice* GetDevice() const { return mPDevice.get(); }
 
-    VulkanMemoryAllocator* GetVmaAllocator() const {
-        return mSPAllocator.get();
+    VulkanMemoryAllocator* GetVmaAllocator() const { return mPAllocator.get(); }
+
+    VulkanTimelineSemaphore* GetTimelineSemphore() const {
+        return mPTimelineSemaphore.get();
     }
 
 #ifdef CUDA_VULKAN_INTEROP
     VulkanExternalMemoryPool* GetExternalMemoryPool() const {
-        return mSPExternalMemoryPool.get();
+        return mPExternalMemoryPool.get();
     }
 #endif
 
@@ -105,29 +108,33 @@ public:
         return mDefaultSamplerLinear.get();
     }
 
-    vk::Instance GetInstanceHandle() const { return mSPInstance->GetHandle(); }
+    vk::Instance GetInstanceHandle() const { return mPInstance->GetHandle(); }
 
 #ifndef NDEBUG
     vk::DebugUtilsMessengerEXT GetDebugMessengerHandle() const {
-        return mSPDebugUtilsMessenger->GetHandle();
+        return mPDebugUtilsMessenger->GetHandle();
     }
 #endif
 
-    vk::SurfaceKHR GetSurfaceHandle() const { return mSPSurface->GetHandle(); }
+    vk::SurfaceKHR GetSurfaceHandle() const { return mPSurface->GetHandle(); }
 
     vk::PhysicalDevice GetPhysicalDeviceHandle() const {
-        return mSPPhysicalDevice->GetHandle();
+        return mPPhysicalDevice->GetHandle();
     }
 
-    vk::Device GetDeviceHandle() const { return mSPDevice->GetHandle(); }
+    vk::Device GetDeviceHandle() const { return mPDevice->GetHandle(); }
 
     VmaAllocator GetVmaAllocatorHandle() const {
-        return mSPAllocator->GetHandle();
+        return mPAllocator->GetHandle();
+    }
+
+    vk::Semaphore GetTimelineSemaphoreHandle() const {
+        return mPTimelineSemaphore->GetHandle();
     }
 
 #ifdef CUDA_VULKAN_INTEROP
     VmaPool GetExternalMemoryPoolHandle() const {
-        return mSPExternalMemoryPool->GetHandle();
+        return mPExternalMemoryPool->GetHandle();
     }
 #endif
 
@@ -157,6 +164,8 @@ private:
 
     UniquePtr<VulkanMemoryAllocator> CreateVmaAllocator();
 
+    UniquePtr<VulkanTimelineSemaphore> CreateTimelineSem();
+
 #ifdef CUDA_VULKAN_INTEROP
     UniquePtr<VulkanExternalMemoryPool> CreateExternalMemoryPool();
 #endif
@@ -183,16 +192,17 @@ private:
     static vk::PhysicalDeviceVulkan13Features sEnable13Features;
 
 private:
-    UniquePtr<VulkanInstance> mSPInstance;
+    UniquePtr<VulkanInstance> mPInstance;
 #ifndef NDEBUG
-    UniquePtr<VulkanDebugUtils> mSPDebugUtilsMessenger;
+    UniquePtr<VulkanDebugUtils> mPDebugUtilsMessenger;
 #endif
-    UniquePtr<VulkanSurface>         mSPSurface;
-    UniquePtr<VulkanPhysicalDevice>  mSPPhysicalDevice;
-    UniquePtr<VulkanDevice>          mSPDevice;
-    UniquePtr<VulkanMemoryAllocator> mSPAllocator;
+    UniquePtr<VulkanSurface>           mPSurface;
+    UniquePtr<VulkanPhysicalDevice>    mPPhysicalDevice;
+    UniquePtr<VulkanDevice>            mPDevice;
+    UniquePtr<VulkanMemoryAllocator>   mPAllocator;
+    UniquePtr<VulkanTimelineSemaphore> mPTimelineSemaphore;
 #ifdef CUDA_VULKAN_INTEROP
-    UniquePtr<VulkanExternalMemoryPool> mSPExternalMemoryPool;
+    UniquePtr<VulkanExternalMemoryPool> mPExternalMemoryPool;
 #endif
     SharedPtr<VulkanSampler> mDefaultSamplerLinear {};
     SharedPtr<VulkanSampler> mDefaultSamplerNearest {};

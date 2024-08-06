@@ -5,7 +5,9 @@
 #include "VulkanContext.hpp"
 #include "VulkanSyncStructures.hpp"
 
-void VulkanQueueSubmitRequest::Wait_CPUBlocking() {}
+void VulkanQueueSubmitRequest::Wait_CPUBlocking() {
+    while (*pTimelineValue < mFenceValue) {}
+}
 
 CmdBufferToBegin::CmdBufferToBegin(vk::CommandBuffer     cmd,
                                    VulkanCommandManager* manager)
@@ -42,9 +44,12 @@ VulkanCommandManager::VulkanCommandManager(VulkanContext* ctx, uint32_t count,
     mIsSubmitted.resize(mCommandInFlight);
 }
 
-void VulkanCommandManager::Submit(vk::CommandBuffer cmd, vk::Queue queue,
-                                  ::std::span<SemSubmitInfo> waitInfos,
-                                  ::std::span<SemSubmitInfo> signalInfos) {
+VulkanQueueSubmitRequest VulkanCommandManager::Submit(
+    vk::CommandBuffer cmd, vk::Queue queue,
+    ::std::span<SemSubmitInfo> waitInfos,
+    ::std::span<SemSubmitInfo> signalInfos) {
+    uint64_t signalValue {0ui64};
+
     auto cmdInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
 
     ::std::vector<vk::SemaphoreSubmitInfo> waits {};
@@ -57,6 +62,7 @@ void VulkanCommandManager::Submit(vk::CommandBuffer cmd, vk::Queue queue,
     for (auto& info : signalInfos) {
         signals.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
             info.flags, info.sem, info.value));
+        signalValue = signalValue > info.value ? signalValue : info.value;
     }
 
     auto submit = Utils::SubmitInfo(cmdInfo, signals, waits);
@@ -66,6 +72,16 @@ void VulkanCommandManager::Submit(vk::CommandBuffer cmd, vk::Queue queue,
 
     queue.submit2(submit, mSPFences[mFenceCurIdx]->GetHandle());
     mIsSubmitted[mFenceCurIdx] = true;
+
+    auto timelineValue = pContex->GetTimelineSemphore()->GetValue();
+    if (signalValue - timelineValue > 0) {
+        pContex->GetTimelineSemphore()->IncreaseValue(signalValue
+                                                      - timelineValue);
+    } else {
+        throw ::std::runtime_error("");
+    }
+
+    return {signalValue, pContex->GetTimelineSemphore()->GetValueAddress()};
 }
 
 void VulkanCommandManager::WaitUntilSubmitIsComplete() {
