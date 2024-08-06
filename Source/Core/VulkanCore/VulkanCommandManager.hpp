@@ -24,6 +24,21 @@ struct VulkanQueueSubmitRequest {
     void Wait_CPUBlocking();
 };
 
+class VulkanCommandManager;
+
+struct CmdBufferToBegin {
+    CmdBufferToBegin(vk::CommandBuffer cmd, VulkanCommandManager* manager);
+    ~CmdBufferToBegin();
+
+    vk::CommandBuffer GetHandle() const { return mBuffer; }
+
+    void End();
+
+private:
+    VulkanCommandManager* pManager;
+    vk::CommandBuffer     mBuffer;
+};
+
 class VulkanCommandManager {
 public:
     VulkanCommandManager(
@@ -41,17 +56,13 @@ public:
                 ::std::span<SemSubmitInfo> waitInfos   = {},
                 ::std::span<SemSubmitInfo> signalInfos = {});
 
-    void GoToNextCmdBuffer();
-
     void WaitUntilSubmitIsComplete();
 
     void WaitUntilAllSubmitsAreComplete();
 
-    vk::CommandBuffer GetCmdBufferToBegin() const;
+    CmdBufferToBegin GetCmdBufferToBegin();
 
     vk::Fence GetCurrentFence() const;
-
-    void EndCmdBuffer(vk::CommandBuffer cmd) const;
 
 private:
     SharedPtr<VulkanCommandPool> CreateCommandPool(
@@ -63,6 +74,7 @@ private:
 
 private:
     VulkanContext* pContex;
+    friend CmdBufferToBegin;
 
     uint32_t mCommandInFlight;
     uint32_t mGraphicsQueueFamilyIndex;

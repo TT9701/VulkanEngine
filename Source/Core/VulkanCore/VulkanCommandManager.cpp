@@ -7,6 +7,28 @@
 
 void VulkanQueueSubmitRequest::Wait_CPUBlocking() {}
 
+CmdBufferToBegin::CmdBufferToBegin(vk::CommandBuffer     cmd,
+                                   VulkanCommandManager* manager)
+    : pManager(manager), mBuffer(cmd) {
+    mBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+
+    vk::CommandBufferBeginInfo beginInfo {};
+    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+    mBuffer.begin(beginInfo);
+}
+
+CmdBufferToBegin::~CmdBufferToBegin() {
+    pManager->mCmdBufferCurIdx = (pManager->mCmdBufferCurIdx + 1)
+                               % pManager->mSPCommandbuffers->GetBufferCount();
+    pManager->mFenceCurIdx =
+        (pManager->mFenceCurIdx + 1) % pManager->mCommandInFlight;
+}
+
+void CmdBufferToBegin::End() {
+    mBuffer.end();
+}
+
 VulkanCommandManager::VulkanCommandManager(VulkanContext* ctx, uint32_t count,
                                            uint32_t concurrentCommandsCount,
                                            uint32_t queueFamilyIndex,
@@ -46,12 +68,6 @@ void VulkanCommandManager::Submit(vk::CommandBuffer cmd, vk::Queue queue,
     mIsSubmitted[mFenceCurIdx] = true;
 }
 
-void VulkanCommandManager::GoToNextCmdBuffer() {
-    mCmdBufferCurIdx =
-        (mCmdBufferCurIdx + 1) % mSPCommandbuffers->GetBufferCount();
-    mFenceCurIdx = (mFenceCurIdx + 1) % mCommandInFlight;
-}
-
 void VulkanCommandManager::WaitUntilSubmitIsComplete() {
     if (!mIsSubmitted[mFenceCurIdx])
         return;
@@ -77,29 +93,18 @@ void VulkanCommandManager::WaitUntilAllSubmitsAreComplete() {
     }
 }
 
-vk::CommandBuffer VulkanCommandManager::GetCmdBufferToBegin() const {
+CmdBufferToBegin VulkanCommandManager::GetCmdBufferToBegin() {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
         mSPFences[mFenceCurIdx]->GetHandle(), vk::True,
         VulkanFence::TIME_OUT_NANO_SECONDS));
 
     auto currentCmdBuf = mSPCommandbuffers->GetHandle(mCmdBufferCurIdx);
 
-    currentCmdBuf.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-
-    vk::CommandBufferBeginInfo beginInfo {};
-    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-    currentCmdBuf.begin(beginInfo);
-
-    return currentCmdBuf;
+    return {currentCmdBuf, this};
 }
 
 vk::Fence VulkanCommandManager::GetCurrentFence() const {
     return mSPFences[mFenceCurIdx]->GetHandle();
-}
-
-void VulkanCommandManager::EndCmdBuffer(vk::CommandBuffer cmd) const {
-    cmd.end();
 }
 
 SharedPtr<VulkanCommandPool> VulkanCommandManager::CreateCommandPool(

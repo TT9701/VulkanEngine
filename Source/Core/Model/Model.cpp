@@ -1,6 +1,9 @@
 #include "Model.hpp"
 
+#include <assimp/postprocess.h>
+#include <assimp/Importer.hpp>
 // #include <assimp/DefaultLogger.hpp>
+
 #include "Core/Utilities/Logger.hpp"
 
 Model::Model(std::string const& path)
@@ -19,8 +22,8 @@ void Model::Draw() {}
 void Model::LoadModel(std::string const& path) {
     Assimp::Importer importer {};
 
-    const auto scene = importer.ReadFile(
-        path, aiProcessPreset_TargetRealtime_Fast);
+    const auto scene =
+        importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
         || !scene->mRootNode) {

@@ -82,11 +82,12 @@ void VulkanEngine::Draw() {
     {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
 
-        mDrawImage->TransitionLayout(cmd, vk::ImageLayout::eGeneral);
+        mDrawImage->TransitionLayout(cmd.GetHandle(),
+                                     vk::ImageLayout::eGeneral);
 
-        DrawBackground(cmd);
+        DrawBackground(cmd.GetHandle());
 
-        mSPCmdManager->EndCmdBuffer(cmd);
+        cmd.End();
 
         ::std::vector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
@@ -98,37 +99,36 @@ void VulkanEngine::Draw() {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPTimelineSemaphore->GetHandle(), computeFinished}};
 
-        mSPCmdManager->Submit(cmd, mSPContext->GetDevice()->GetGraphicQueue(),
-                              waits, signals);
-
-        mSPCmdManager->GoToNextCmdBuffer();
+        mSPCmdManager->Submit(cmd.GetHandle(),
+                              mSPContext->GetDevice()->GetGraphicQueue(), waits,
+                              signals);
     }
 
     // Graphics Draw
     {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
 
-        mDrawImage->TransitionLayout(cmd,
+        mDrawImage->TransitionLayout(cmd.GetHandle(),
                                      vk::ImageLayout::eColorAttachmentOptimal);
-        mDepthImage->TransitionLayout(cmd,
+        mDepthImage->TransitionLayout(cmd.GetHandle(),
                                       vk::ImageLayout::eDepthAttachmentOptimal);
 
-        DrawMesh(cmd);
+        DrawMesh(cmd.GetHandle());
 
-        mDrawImage->TransitionLayout(cmd,
+        mDrawImage->TransitionLayout(cmd.GetHandle(),
                                      vk::ImageLayout::eShaderReadOnlyOptimal);
 
-        Utils::TransitionImageLayout(cmd, swapchainImage,
+        Utils::TransitionImageLayout(cmd.GetHandle(), swapchainImage,
                                      vk::ImageLayout::eUndefined,
                                      vk::ImageLayout::eColorAttachmentOptimal);
 
-        DrawQuad(cmd);
+        DrawQuad(cmd.GetHandle());
 
-        Utils::TransitionImageLayout(cmd, swapchainImage,
+        Utils::TransitionImageLayout(cmd.GetHandle(), swapchainImage,
                                      vk::ImageLayout::eColorAttachmentOptimal,
                                      vk::ImageLayout::ePresentSrcKHR);
 
-        mSPCmdManager->EndCmdBuffer(cmd);
+        cmd.End();
 
         ::std::vector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eComputeShader,
@@ -140,24 +140,22 @@ void VulkanEngine::Draw() {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPSwapchain->GetReady4PresentSemHandle()}};
 
-        mSPCmdManager->Submit(cmd, mSPContext->GetDevice()->GetGraphicQueue(),
-                              waits, signals);
-
-        mSPCmdManager->GoToNextCmdBuffer();
+        mSPCmdManager->Submit(cmd.GetHandle(),
+                              mSPContext->GetDevice()->GetGraphicQueue(), waits,
+                              signals);
     }
 
     {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
-        mSPCmdManager->EndCmdBuffer(cmd);
+        cmd.End();
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPTimelineSemaphore->GetHandle(), allFinished + 1}};
 
-        mSPCmdManager->Submit(cmd, mSPContext->GetDevice()->GetGraphicQueue(),
-                              {}, signals);
-
-        mSPCmdManager->GoToNextCmdBuffer();
+        mSPCmdManager->Submit(cmd.GetHandle(),
+                              mSPContext->GetDevice()->GetGraphicQueue(), {},
+                              signals);
     }
 
     // #ifdef CUDA_VULKAN_INTEROP
