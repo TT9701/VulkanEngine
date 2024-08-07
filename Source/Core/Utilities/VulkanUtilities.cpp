@@ -16,6 +16,15 @@ std::vector<std::string> FilterStringList(std::span<std::string> available,
     return result;
 }
 
+std::string GetFileName(std::string const& path) {
+    auto sub = path.substr(0, path.find_last_of('.'));
+    return sub.substr(path.find_last_of('/') + 1, path.back());
+}
+
+std::string GetDirectory(std::string const& path) {
+    return path.substr(0, path.find_last_of('/') + 1);
+}
+
 vk::ImageSubresourceRange GetDefaultImageSubresourceRange(
     vk::ImageAspectFlags flags) {
     return {flags, 0, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers};

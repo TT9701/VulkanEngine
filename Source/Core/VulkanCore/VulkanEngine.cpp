@@ -7,6 +7,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <glm/glm.hpp>
 #include "glm/gtx/transform.hpp"
 
+#include "Core/Model/CISDI_3DModelConverter.hpp"
 #include "Core/Platform/Window.hpp"
 #include "VulkanCommands.hpp"
 #include "VulkanContext.hpp"
@@ -42,10 +43,22 @@ VulkanEngine::VulkanEngine()
     CreateExternalTriangleData();
 #endif
 
-    mMainCamera.mPosition = glm::vec3 {0.0f, 0.0f, 2.0f};
+    mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
-    mFactoryModel = MakeShared<Model>(
-        "../../../Models/RM_HP_59930007DR0130HP000.fbx");
+    // mFactoryModel =
+    //     MakeShared<Model>("../../../Models/RM_HP_59930007DR0130HP000.fbx");
+
+    CISDI_3DModelDataConverter converter {
+        "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
+    
+    auto cisdiModelPath = converter.Execute();
+    
+    // auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
+    
+    auto meshes = converter.LoadCISDIModelData(cisdiModelPath);
+    
+    mFactoryModel = MakeShared<Model>(meshes);
+
     mFactoryModel->GenerateMeshBuffers(mSPContext.get(), this);
 }
 
@@ -80,6 +93,7 @@ void VulkanEngine::Draw() {
     const uint64_t allFinished     = graphicsFinished + 2;
 
     // Compute Draw
+    ::std::optional<VulkanQueueSubmitRequest> optReq {};
     {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
 
@@ -100,9 +114,9 @@ void VulkanEngine::Draw() {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
-        mSPCmdManager->Submit(cmd.GetHandle(),
-                              mSPContext->GetDevice()->GetGraphicQueue(), waits,
-                              signals);
+        optReq = mSPCmdManager->Submit(
+            cmd.GetHandle(), mSPContext->GetDevice()->GetGraphicQueue(), waits,
+            signals);
     }
 
     // Graphics Draw
@@ -795,7 +809,7 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     // cmd.drawIndexed(36, 1, 0, 0, 0);
 
     for (auto const& mesh : mFactoryModel->GetMeshes()) {
-        auto pushContants = mesh.GetPushContants();
+        auto pushContants = mesh.mConstants;
 
         glm::mat4 model {1.0f};
         model = glm::scale(model, glm::vec3 {0.0001f});
@@ -806,11 +820,11 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
                           vk::ShaderStageFlagBits::eVertex, 0,
                           sizeof(pushContants), &pushContants);
 
-        cmd.bindIndexBuffer(mesh.GetIndexBuffer()->GetHandle(), 0,
+        cmd.bindIndexBuffer(mesh.mBuffers.mIndexBuffer->GetHandle(), 0,
                             vk::IndexType::eUint32);
 
-        cmd.drawIndexed(static_cast<uint32_t>(mesh.GetIndexData().size()), 1, 0,
-                        0, 0);
+        cmd.drawIndexed(static_cast<uint32_t>(mesh.mIndices.size()), 1, 0, 0,
+                        0);
     }
 
     cmd.endRendering();

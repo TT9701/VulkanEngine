@@ -8,6 +8,10 @@ namespace Utils {
 ::std::vector<::std::string> FilterStringList(
     ::std::span<::std::string> available, ::std::span<::std::string> request);
 
+::std::string GetFileName(std::string const& path);
+
+::std::string GetDirectory(std::string const& path);
+
 vk::ImageSubresourceRange GetDefaultImageSubresourceRange(
     vk::ImageAspectFlags flags);
 

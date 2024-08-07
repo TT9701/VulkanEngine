@@ -6,7 +6,9 @@
 
 class Model {
 public:
-    Model(::std::string const& path);
+    Model(::std::string const& path, bool flipYZ = true);
+
+    Model(::std::vector<Mesh> const& meshes);
 
     void GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine);
 
@@ -15,13 +17,21 @@ public:
     ::std::vector<Mesh> const& GetMeshes() const { return mMeshes; }
 
 private:
-    void LoadModel(::std::string const& path);
+    void LoadModel();
     void ProcessNode(aiNode* node, const aiScene* scene);
     Mesh ProcessMesh(aiMesh* mesh, const aiScene* scene);
 
     // TODO: Texture
 
 private:
+    bool mFlipYZ;
+
+    uint32_t mVertexCount {0};
+    uint32_t mTriangleCount {0};
+
     ::std::vector<Mesh> mMeshes {};
-    ::std::string       mDirectory;
+
+    ::std::string mPath;
+    ::std::string mDirectory;
+    ::std::string mName;
 };

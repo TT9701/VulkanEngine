@@ -5,10 +5,21 @@
 // #include <assimp/DefaultLogger.hpp>
 
 #include "Core/Utilities/Logger.hpp"
+#include "Core/Utilities/VulkanUtilities.hpp"
 
-Model::Model(std::string const& path)
-    : mDirectory(path.substr(0, path.find_last_of('/'))) {
-    LoadModel(path);
+Model::Model(std::string const& path, bool flipYZ)
+    : mFlipYZ(flipYZ),
+      mPath(path),
+      mDirectory(Utils::GetDirectory(path)),
+      mName(Utils::GetFileName(path)) {
+    LoadModel();
+}
+
+Model::Model(std::vector<Mesh> const& meshes) : mMeshes(meshes) {
+    for (auto& mesh : meshes) {
+        mVertexCount += mesh.mVertices.size();
+        mTriangleCount += mesh.mIndices.size() / 3;
+    }
 }
 
 void Model::GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine) {
@@ -19,11 +30,11 @@ void Model::GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine) {
 
 void Model::Draw() {}
 
-void Model::LoadModel(std::string const& path) {
+void Model::LoadModel() {
     Assimp::Importer importer {};
 
     const auto scene =
-        importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast);
+        importer.ReadFile(mPath, aiProcessPreset_TargetRealtime_Fast);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
         || !scene->mRootNode) {
@@ -57,17 +68,27 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
 
         // position
         if (mesh->HasPositions()) {
-            temp.x          = mesh->mVertices[i].x;
-            temp.y          = mesh->mVertices[i].z;
-            temp.z          = mesh->mVertices[i].y;
+            temp.x = mesh->mVertices[i].x;
+            if (mFlipYZ) {
+                temp.y = mesh->mVertices[i].z;
+                temp.z = mesh->mVertices[i].y;
+            } else {
+                temp.y = mesh->mVertices[i].y;
+                temp.z = mesh->mVertices[i].z;
+            }
             vertex.position = glm::vec4 {temp, 0.0f};
         }
 
         // normal
         if (mesh->HasNormals()) {
-            temp.x        = mesh->mNormals[i].x;
-            temp.y        = mesh->mNormals[i].z;
-            temp.z        = mesh->mNormals[i].y;
+            temp.x = mesh->mNormals[i].x;
+            if (mFlipYZ) {
+                temp.y = mesh->mNormals[i].z;
+                temp.z = mesh->mNormals[i].y;
+            } else {
+                temp.y = mesh->mNormals[i].y;
+                temp.z = mesh->mNormals[i].z;
+            }
             vertex.normal = glm::vec4 {temp, 0.0f};
         }
 
@@ -81,14 +102,24 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
 
         // tangents and bitangents
         if (mesh->HasTangentsAndBitangents()) {
-            temp.x         = mesh->mTangents[i].x;
-            temp.y         = mesh->mTangents[i].y;
-            temp.z         = mesh->mTangents[i].z;
+            temp.x = mesh->mTangents[i].x;
+            if (mFlipYZ) {
+                temp.y = mesh->mTangents[i].z;
+                temp.z = mesh->mTangents[i].y;
+            } else {
+                temp.y = mesh->mTangents[i].y;
+                temp.z = mesh->mTangents[i].z;
+            }
             vertex.tangent = glm::vec4 {temp, 0.0f};
 
-            temp.x           = mesh->mBitangents[i].x;
-            temp.y           = mesh->mBitangents[i].y;
-            temp.z           = mesh->mBitangents[i].z;
+            temp.x = mesh->mBitangents[i].x;
+            if (mFlipYZ) {
+                temp.y = mesh->mBitangents[i].z;
+                temp.z = mesh->mBitangents[i].y;
+            } else {
+                temp.y = mesh->mBitangents[i].y;
+                temp.z = mesh->mBitangents[i].z;
+            }
             vertex.bitangent = glm::vec4 {temp, 0.0f};
         }
 
@@ -105,6 +136,9 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
     }
 
     // TODO: material
+
+    mVertexCount += vertices.size();
+    mTriangleCount += mesh->mNumFaces;
 
     return {vertices, indices};
 }

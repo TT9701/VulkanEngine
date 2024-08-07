@@ -34,19 +34,6 @@ public:
 
     void GenerateBuffers(VulkanContext* context, VulkanEngine* engine);
 
-    ::std::vector<Vertex> const& GetVertexData() const { return mVertices; }
-
-    ::std::vector<uint32_t> const& GetIndexData() const { return mIndices; }
-
-    VulkanBuffer* GetVertexBuffer() const {
-        return mBuffers.mVertexBuffer.get();
-    }
-
-    VulkanBuffer* GetIndexBuffer() const { return mBuffers.mIndexBuffer.get(); }
-
-    MeshPushConstants GetPushContants() const { return mConstants; }
-
-private:
     ::std::vector<Vertex>   mVertices {};
     ::std::vector<uint32_t> mIndices {};
     // TODO: Textures

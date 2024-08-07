@@ -67,6 +67,8 @@ set (MODEL_SRC
     Model/Mesh.cpp
     Model/Model.cpp
     Model/Model.hpp
+    Model/CISDI_3DModelConverter.hpp
+    Model/CISDI_3DModelConverter.cpp
 )
 set (MODEL_SRC_GROUP_NAME "Model")
 
@@ -170,4 +172,6 @@ target_precompile_headers(Core
         <thread>
         <span>
         <fstream>
+        <iostream>
+        <filesystem>
         <unordered_map>)

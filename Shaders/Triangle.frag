@@ -40,4 +40,5 @@ void main()
 	vec3 result = (ambient + diffuse + specular) * objectColor;
 
 	outFragColor = vec4(result, 1.0);
+	// outFragColor = vec4(normal, 1.0);
 }
