@@ -51,9 +51,9 @@ VulkanEngine::VulkanEngine()
     CISDI_3DModelDataConverter converter {
         "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
     
-    auto cisdiModelPath = converter.Execute();
+    // auto cisdiModelPath = converter.Execute();
     
-    // auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
+    auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
     
     auto meshes = converter.LoadCISDIModelData(cisdiModelPath);
     
@@ -93,7 +93,6 @@ void VulkanEngine::Draw() {
     const uint64_t allFinished     = graphicsFinished + 2;
 
     // Compute Draw
-    ::std::optional<VulkanQueueSubmitRequest> optReq {};
     {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
 
@@ -114,7 +113,7 @@ void VulkanEngine::Draw() {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
-        optReq = mSPCmdManager->Submit(
+        mSPCmdManager->Submit(
             cmd.GetHandle(), mSPContext->GetDevice()->GetGraphicQueue(), waits,
             signals);
     }
@@ -383,6 +382,9 @@ UniquePtr<VulkanPipelineManager> VulkanEngine::CreatePipelineManager() {
 SharedPtr<VulkanBuffer> VulkanEngine::CreateSceneUniformBuffer() {
     return mSPContext->CreateUniformBuffer(
         sizeof(SceneData), vk::BufferUsageFlagBits::eUniformBuffer);
+}
+
+SharedPtr<VulkanBuffer> VulkanEngine::CreateRWBuffer() {
 }
 
 #ifdef CUDA_VULKAN_INTEROP

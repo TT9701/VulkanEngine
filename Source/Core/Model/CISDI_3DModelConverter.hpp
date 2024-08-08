@@ -24,9 +24,10 @@ struct CISDI_3DModelData {
     } header;
 
     struct CISDI_Mesh {
-        // TODO: 
-        uint32_t vertexCount;
-        uint32_t indexCount;
+        struct MeshHeader {
+            uint32_t vertexCount;
+            uint32_t indexCount;
+        } header;
 
         struct Vertex {
             glm::vec3 position;
@@ -42,24 +43,34 @@ struct CISDI_3DModelData {
 
 class CISDI_3DModelDataConverter {
 public:
-    CISDI_3DModelDataConverter(::std::string const& path, ::std::string const& ,
-                               bool                 flipYZ = true);
+    CISDI_3DModelDataConverter(const char* path,
+                               const char* outputDirectory = "",
+                               bool        flipYZ          = true);
 
     ::std::string Execute();
 
     ::std::vector<Mesh> LoadCISDIModelData(::std::string const& path);
 
 private:
+    ::std::string GetOutputDirectory(::std::string const& output);
+
     void ProcessNode(::std::ofstream& out, aiNode* node, const aiScene* scene);
 
     void ProcessMesh(::std::ofstream& out, aiMesh* mesh);
 
     uint32_t CalcMeshCount(aiNode* node);
 
+    void WriteDataHeader(::std::ofstream&          ofs,
+                         CISDI_3DModelData::Header header);
+
+    void WriteMeshHeader(::std::ofstream&                          ofs,
+                         CISDI_3DModelData::CISDI_Mesh::MeshHeader meshHeader);
+
 private:
     bool mFlipYZ;
 
     ::std::string mPath;
     ::std::string mDirectory;
+    ::std::string mOutputDirectory;
     ::std::string mName;
 };

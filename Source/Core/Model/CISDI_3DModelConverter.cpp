@@ -6,17 +6,17 @@
 #include "Core/Utilities/Logger.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 
-CISDI_3DModelDataConverter::CISDI_3DModelDataConverter(std::string const& path,
-                                                       bool flipYZ)
+CISDI_3DModelDataConverter::CISDI_3DModelDataConverter(
+    const char* path, const char* outputDirectory, bool flipYZ)
     : mFlipYZ(flipYZ),
       mPath(path),
       mDirectory(Utils::GetDirectory(path)),
+      mOutputDirectory(GetOutputDirectory(outputDirectory)),
       mName(Utils::GetFileName(path)) {}
 
 std::string CISDI_3DModelDataConverter::Execute() {
-    auto directory       = Utils::GetDirectory(mPath);
     auto name            = Utils::GetFileName(mPath);
-    auto cisdiBinaryPath = directory + name + CISDI_3DModel_Subfix;
+    auto cisdiBinaryPath = mOutputDirectory + name + CISDI_3DModel_Subfix;
 
     Assimp::Importer importer {};
 
@@ -38,15 +38,9 @@ std::string CISDI_3DModelDataConverter::Execute() {
         throw ::std::runtime_error("fail to open file: " + cisdiBinaryPath);
     }
 
-    {
-        cisdiBinary.write((char*)&CISDI_3DModel_HEADER_UINT64,
-                         sizeof(CISDI_3DModel_HEADER_UINT64));
-        cisdiBinary.write((char*)&CISDI_3DModel_VERSION,
-                          sizeof(CISDI_3DModel_VERSION));
-
-        auto meshCount = CalcMeshCount(scene->mRootNode);
-        cisdiBinary.write((char*)&meshCount, sizeof(meshCount));
-    }
+    WriteDataHeader(cisdiBinary,
+                    {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
+                     CalcMeshCount(scene->mRootNode)});
 
     ProcessNode(cisdiBinary, scene->mRootNode, scene);
 
@@ -75,8 +69,8 @@ std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
         cisdiBinary.read((char*)&data.meshes[i], 8);
 
         ::std::vector<Vertex> vertices;
-        vertices.reserve(data.meshes[i].vertexCount);
-        for (uint32_t j = 0; j < data.meshes[i].vertexCount; ++j) {
+        vertices.reserve(data.meshes[i].header.vertexCount);
+        for (uint32_t j = 0; j < data.meshes[i].header.vertexCount; ++j) {
             Vertex v {};
             cisdiBinary.read(
                 (char*)&v.position,
@@ -88,14 +82,22 @@ std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
         }
 
         ::std::vector<uint32_t> indices;
-        indices.resize(data.meshes[i].indexCount);
+        indices.resize(data.meshes[i].header.indexCount);
         cisdiBinary.read((char*)indices.data(),
-                         sizeof(uint32_t) * data.meshes[i].indexCount);
+                         sizeof(uint32_t) * data.meshes[i].header.indexCount);
 
         meshes.emplace_back(vertices, indices);
     }
 
     return meshes;
+}
+
+std::string CISDI_3DModelDataConverter::GetOutputDirectory(
+    const std::string& output) {
+    auto str = output.empty() ? Utils::GetDirectory(mDirectory) : output;
+    if (!str.ends_with("/"))
+        str += "/";
+    return str;
 }
 
 void CISDI_3DModelDataConverter::ProcessNode(::std::ofstream& out, aiNode* node,
@@ -111,9 +113,7 @@ void CISDI_3DModelDataConverter::ProcessNode(::std::ofstream& out, aiNode* node,
 
 void CISDI_3DModelDataConverter::ProcessMesh(::std::ofstream& out,
                                              aiMesh*          mesh) {
-    out.write((char*)&mesh->mNumVertices, sizeof(mesh->mNumVertices));
-    uint32_t indexCount = mesh->mNumFaces * 3;
-    out.write((char*)&indexCount, sizeof(uint32_t));
+    WriteMeshHeader(out, {mesh->mNumVertices, mesh->mNumFaces * 3});
 
     for (uint32_t i = 0; i < mesh->mNumVertices; ++i) {
         glm::vec3 temp;
@@ -183,4 +183,14 @@ uint32_t CISDI_3DModelDataConverter::CalcMeshCount(aiNode* node) {
         meshCount += CalcMeshCount(node->mChildren[i]);
     }
     return meshCount;
+}
+
+void CISDI_3DModelDataConverter::WriteDataHeader(
+    std::ofstream& ofs, CISDI_3DModelData::Header header) {
+    ofs.write((char*)&header, sizeof(header));
+}
+
+void CISDI_3DModelDataConverter::WriteMeshHeader(
+    std::ofstream& ofs, CISDI_3DModelData::CISDI_Mesh::MeshHeader meshHeader) {
+    ofs.write((char*)&meshHeader, sizeof(meshHeader));
 }

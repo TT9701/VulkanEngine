@@ -66,6 +66,7 @@ private:
     UniquePtr<VulkanDescriptorManager> CreateDescriptorManager();
     UniquePtr<VulkanPipelineManager>   CreatePipelineManager();
     SharedPtr<VulkanBuffer>            CreateSceneUniformBuffer();
+    SharedPtr<VulkanBuffer>            CreateRWBuffer();
 
     void CreatePipelines();
     void CreateDescriptors();
@@ -122,6 +123,8 @@ private:
     UniquePtr<VulkanPipelineManager>   mPipelineManager;
 
     SharedPtr<VulkanBuffer> mSceneUniformBuffer;
+
+    SharedPtr<VulkanBuffer> mRWBuffer;
 
     Camera mMainCamera {};
 
