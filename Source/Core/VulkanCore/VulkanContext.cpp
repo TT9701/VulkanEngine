@@ -46,9 +46,9 @@ SharedPtr<VulkanBuffer> VulkanContext::CreatePersistentBuffer(
 }
 
 SharedPtr<VulkanBuffer> VulkanContext::CreateStagingBuffer(
-    size_t allocByteSize, vk::BufferUsageFlags usage) {
+    size_t allocByteSize) {
     return MakeShared<VulkanBuffer>(
-        mPAllocator.get(), allocByteSize, usage,
+        mPAllocator.get(), allocByteSize, vk::BufferUsageFlagBits::eTransferSrc,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
             | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 }
@@ -56,10 +56,17 @@ SharedPtr<VulkanBuffer> VulkanContext::CreateStagingBuffer(
 SharedPtr<VulkanBuffer> VulkanContext::CreateUniformBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
     return MakeShared<VulkanBuffer>(
-        mPAllocator.get(), allocByteSize, usage,
+        mPAllocator.get(), allocByteSize,
+        usage | vk::BufferUsageFlagBits::eUniformBuffer,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
             | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE);
+}
+
+SharedPtr<VulkanBuffer> VulkanContext::CreateStorageBuffer(
+    size_t allocByteSize, vk::BufferUsageFlags usage) {
+    return CreatePersistentBuffer(
+        allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -69,9 +76,8 @@ SharedPtr<CUDA::VulkanExternalImage> VulkanContext::CreateExternalImage2D(
     uint32_t mipmapLevels, uint32_t arrayLayers) {
     return MakeShared<CUDA::VulkanExternalImage>(
         mPDevice->GetHandle(), mPAllocator->GetHandle(),
-        mPExternalMemoryPool->GetHandle(), flags, extent, format, usage,
-        aspect, mipmapLevels, arrayLayers, vk::ImageType::e2D,
-        vk::ImageViewType::e2D);
+        mPExternalMemoryPool->GetHandle(), flags, extent, format, usage, aspect,
+        mipmapLevels, arrayLayers, vk::ImageType::e2D, vk::ImageViewType::e2D);
 }
 
 SharedPtr<CUDA::VulkanExternalBuffer>
@@ -133,8 +139,8 @@ UniquePtr<VulkanDevice> VulkanContext::CreateDevice(
 }
 
 UniquePtr<VulkanMemoryAllocator> VulkanContext::CreateVmaAllocator() {
-    return MakeUnique<VulkanMemoryAllocator>(
-        mPPhysicalDevice.get(), mPDevice.get(), mPInstance.get());
+    return MakeUnique<VulkanMemoryAllocator>(mPPhysicalDevice.get(),
+                                             mPDevice.get(), mPInstance.get());
 }
 
 UniquePtr<VulkanTimelineSemaphore> VulkanContext::CreateTimelineSem() {

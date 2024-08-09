@@ -30,8 +30,13 @@ VulkanEngine::VulkanEngine()
       mSPImmediateSubmitManager(CreateImmediateSubmitManager()),
       mErrorCheckImage(CreateErrorCheckTexture()),
       mDescriptorManager(CreateDescriptorManager()),
-      mPipelineManager(CreatePipelineManager()),
-      mSceneUniformBuffer(CreateSceneUniformBuffer()) {
+      mPipelineManager(CreatePipelineManager()) {
+
+    mSceneUniformBuffer = mSPContext->CreateUniformBuffer(sizeof(SceneData));
+
+    mRWBuffer = mSPContext->CreateStorageBuffer(
+        sizeof(glm::vec4) * mSPWindow->GetWidth() * mSPWindow->GetHeight());
+
     CreateDescriptors();
     CreatePipelines();
 
@@ -50,13 +55,14 @@ VulkanEngine::VulkanEngine()
 
     CISDI_3DModelDataConverter converter {
         "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
-    
-    // auto cisdiModelPath = converter.Execute();
-    
+
+    // converter.Execute();
+
     auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
-    
-    auto meshes = converter.LoadCISDIModelData(cisdiModelPath);
-    
+
+    auto meshes =
+        CISDI_3DModelDataConverter::LoadCISDIModelData(cisdiModelPath);
+
     mFactoryModel = MakeShared<Model>(meshes);
 
     mFactoryModel->GenerateMeshBuffers(mSPContext.get(), this);
@@ -113,9 +119,9 @@ void VulkanEngine::Draw() {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
-        mSPCmdManager->Submit(
-            cmd.GetHandle(), mSPContext->GetDevice()->GetGraphicQueue(), waits,
-            signals);
+        mSPCmdManager->Submit(cmd.GetHandle(),
+                              mSPContext->GetDevice()->GetGraphicQueue(), waits,
+                              signals);
     }
 
     // Graphics Draw
@@ -379,14 +385,6 @@ UniquePtr<VulkanPipelineManager> VulkanEngine::CreatePipelineManager() {
     return MakeUnique<VulkanPipelineManager>(mSPContext.get());
 }
 
-SharedPtr<VulkanBuffer> VulkanEngine::CreateSceneUniformBuffer() {
-    return mSPContext->CreateUniformBuffer(
-        sizeof(SceneData), vk::BufferUsageFlagBits::eUniformBuffer);
-}
-
-SharedPtr<VulkanBuffer> VulkanEngine::CreateRWBuffer() {
-}
-
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<CUDA::VulkanExternalImage> VulkanEngine::CreateExternalImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
@@ -463,8 +461,7 @@ GPUMeshBuffers VulkanEngine::UploadMeshData(std::span<uint32_t> indices,
         mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
 
     auto staging =
-        mSPContext->CreateStagingBuffer(vertexBufferSize + indexBufferSize,
-                                        vk::BufferUsageFlagBits::eTransferSrc);
+        mSPContext->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
 
     void* data = staging->GetAllocationInfo().pMappedData;
     memcpy(data, vertices.data(), vertexBufferSize);
@@ -511,6 +508,9 @@ void VulkanEngine::UpdateSceneUBO() {
 void VulkanEngine::CreateBackgroundComputeDescriptors() {
     mDescriptorManager->AddDescSetLayoutBinding(
         0, 1, vk::DescriptorType::eStorageImage);
+    mDescriptorManager->AddDescSetLayoutBinding(
+        1, 1, vk::DescriptorType::eStorageBuffer);
+
     const auto drawImageSetLayout = mDescriptorManager->BuildDescSetLayout(
         "DrawImage_Layout_0", vk::ShaderStageFlagBits::eCompute);
 
@@ -521,6 +521,12 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
                                    {VK_NULL_HANDLE, mDrawImage->GetViewHandle(),
                                     vk::ImageLayout::eGeneral},
                                    vk::DescriptorType::eStorageImage);
+
+    mDescriptorManager->WriteBuffer(
+        1,
+        {mRWBuffer->GetHandle(), 0,
+         sizeof(glm::vec4) * mSPWindow->GetWidth() * mSPWindow->GetHeight()},
+        vk::DescriptorType::eStorageBuffer);
 
     mDescriptorManager->UpdateSet(drawImageDesc);
 

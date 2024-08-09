@@ -28,8 +28,7 @@ void Mesh::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
         context->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
 
     auto staging =
-        context->CreateStagingBuffer(vertexBufferSize + indexBufferSize,
-                                        vk::BufferUsageFlagBits::eTransferSrc);
+        context->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
 
     void* data = staging->GetAllocationInfo().pMappedData;
     memcpy(data, mVertices.data(), vertexBufferSize);

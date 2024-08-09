@@ -69,6 +69,8 @@ set (MODEL_SRC
     Model/Model.hpp
     Model/CISDI_3DModelConverter.hpp
     Model/CISDI_3DModelConverter.cpp
+    Model/CISDI_3DModelData.hpp
+    Model/CISDI_3DModelData.cpp
 )
 set (MODEL_SRC_GROUP_NAME "Model")
 

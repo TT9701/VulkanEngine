@@ -33,4 +33,8 @@ set_target_properties(CUDA PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
 target_compile_definitions(CUDA 
     PUBLIC 
-        CUDA_VULKAN_INTEROP) 
+        CUDA_VULKAN_INTEROP)
+
+target_include_directories(CUDA
+    PUBLIC
+        ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

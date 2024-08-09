@@ -2,25 +2,27 @@
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16f,set = 0, binding = 0) uniform image2D image;
+layout (rgba16f,set = 0, binding = 0) uniform image2D image;
 
+layout (set = 0, binding = 1) buffer StorageBuffer{
+    vec4 storageBuffer[];
+};
 
 void main() 
 {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = imageSize(image);
 
-    if(texelCoord.x < size.x && texelCoord.y < size.y)
-    {
-        vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
+    int index = size.x * texelCoord.y + texelCoord.x;
 
-        if(gl_LocalInvocationID.x != 0 && gl_LocalInvocationID.y != 0)
-        {
-            color.x = float(texelCoord.x)/(size.x);
-            color.y = float(texelCoord.y)/(size.y);	
-        }
-    
-        // imageStore(image, texelCoord, color);
-        imageStore(image, texelCoord, vec4(0.1, 0.1, 0.1, 1.0));
-    }
+    float c = 0.001;
+    float oldc =  storageBuffer[index].x;
+    if (oldc > 0.9999)
+        oldc = 0.0;
+    float newc = oldc + c;
+    storageBuffer[index] = vec4(newc, newc, newc, 1.0);
+
+    imageStore(image, texelCoord, storageBuffer[index]);
+
+    imageStore(image, texelCoord, vec4(0.1, 0.1, 0.1, 1.0));
 }

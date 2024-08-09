@@ -2,3 +2,5 @@ build/
 /bin
 Output/
 *.spv
+.idea/
+.vs/

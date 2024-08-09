@@ -44,11 +44,15 @@ public:
     SharedPtr<VulkanBuffer> CreatePersistentBuffer(size_t allocByteSize,
                                                    vk::BufferUsageFlags usage);
 
-    SharedPtr<VulkanBuffer> CreateStagingBuffer(size_t allocByteSize,
-                                                vk::BufferUsageFlags usage);
+    SharedPtr<VulkanBuffer> CreateStagingBuffer(size_t allocByteSize);
 
-    SharedPtr<VulkanBuffer> CreateUniformBuffer(size_t allocByteSize,
-                                                vk::BufferUsageFlags usage);
+    SharedPtr<VulkanBuffer> CreateUniformBuffer(
+        size_t               allocByteSize,
+        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
+
+    SharedPtr<VulkanBuffer> CreateStorageBuffer(
+        size_t               allocByteSize,
+        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
