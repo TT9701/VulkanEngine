@@ -567,7 +567,7 @@ void VulkanEngine::CreateMeshPipeline() {
                          ShaderStage::Fragment);
 
     vk::PushConstantRange pushConstant {};
-    pushConstant.setSize(sizeof(MeshPushConstants))
+    pushConstant.setSize(sizeof(PushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
     std::vector setLayouts {
@@ -803,36 +803,39 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     mDescriptorManager->UpdateSet(
         mDescriptorManager->GetDescriptor("Triangle_Desc_0"));
 
-    // MeshPushConstants pushConstants {};
+    // PushConstants pushConstants {};
     // pushConstants.mVertexBufferAddress = mBoxMesh.mVertexBufferAddress;
     // // mTriangleExternalMesh.mVertexBufferAddress;
     // pushConstants.mModelMatrix = glm::mat4(1.0f);
     // cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
     //                   vk::ShaderStageFlagBits::eVertex, 0,
-    //                   sizeof(MeshPushConstants), &pushConstants);
+    //                   sizeof(PushConstants), &pushConstants);
     //
     // cmd.bindIndexBuffer(mBoxMesh.mIndexBuffer->GetHandle(), 0,
     //                     vk::IndexType::eUint32);
     //
     // cmd.drawIndexed(36, 1, 0, 0, 0);
 
-    for (auto const& mesh : mFactoryModel->GetMeshes()) {
-        auto pushContants = mesh.mConstants;
-
+    auto pushContants = mFactoryModel->GetPushContants();
+    for (uint32_t i = 0; i < mFactoryModel->GetMeshes().size(); ++i) {
+        auto const& mesh = mFactoryModel->GetMeshes()[i];
+    
         glm::mat4 model {1.0f};
         model = glm::scale(model, glm::vec3 {0.0001f});
-
+    
         pushContants.mModelMatrix = model;
-
+    
         cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
                           vk::ShaderStageFlagBits::eVertex, 0,
                           sizeof(pushContants), &pushContants);
-
-        cmd.bindIndexBuffer(mesh.mBuffers.mIndexBuffer->GetHandle(), 0,
-                            vk::IndexType::eUint32);
-
-        cmd.drawIndexed(static_cast<uint32_t>(mesh.mIndices.size()), 1, 0, 0,
-                        0);
+    
+        cmd.bindIndexBuffer(
+            mFactoryModel->GetBuffers().mIndexBuffer->GetHandle(),
+            mFactoryModel->GetIndexOffsets()[i] * sizeof(uint32_t),
+            vk::IndexType::eUint32);
+    
+        cmd.drawIndexed(static_cast<uint32_t>(mesh.mIndices.size()), 1, 0,
+                        mFactoryModel->GetVertexOffsets()[i], 0);
     }
 
     cmd.endRendering();

@@ -146,15 +146,13 @@ target_include_directories(Core
 add_library(INTELLI_DS_MemoryPool_DEBUG STATIC IMPORTED)
 add_library(INTELLI_DS_MemoryPool_RELEASE STATIC IMPORTED)
 
-set (INTELLIGENDESIGN_DEMO_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsDemo/Repository")
-
 if (MSVC)
     set_target_properties(INTELLI_DS_MemoryPool_DEBUG 
         PROPERTIES
-            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib)
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_CODE_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib)
     set_target_properties(INTELLI_DS_MemoryPool_RELEASE 
         PROPERTIES
-            IMPORTED_LOCATION ${INTELLIGENDESIGN_DEMO_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib)
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_CODE_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib)
 endif(MSVC)
 
 target_link_libraries(Core

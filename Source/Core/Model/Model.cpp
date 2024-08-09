@@ -6,6 +6,8 @@
 
 #include "Core/Utilities/Logger.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
+#include "Core/VulkanCore/VulkanContext.hpp"
+#include "Core/VulkanCore/VulkanEngine.hpp"
 
 Model::Model(std::string const& path, bool flipYZ)
     : mFlipYZ(flipYZ),
@@ -16,16 +18,68 @@ Model::Model(std::string const& path, bool flipYZ)
 }
 
 Model::Model(std::vector<Mesh> const& meshes) : mMeshes(meshes) {
-    for (auto& mesh : meshes) {
+    mOffsets.vertexOffsets.reserve(mMeshes.size());
+    mOffsets.indexOffsets.reserve(mMeshes.size());
+    for (auto& mesh : mMeshes) {
+        mOffsets.vertexOffsets.push_back(mVertexCount);
         mVertexCount += mesh.mVertices.size();
-        mTriangleCount += mesh.mIndices.size() / 3;
+        mOffsets.indexOffsets.push_back(mIndexCount);
+        mIndexCount += mesh.mIndices.size();
     }
+    mTriangleCount = mIndexCount / 3;
 }
 
 void Model::GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine) {
-    for (auto& mesh : mMeshes) {
-        mesh.GenerateBuffers(context, engine);
+    const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
+    const size_t indexSize  = sizeof(mMeshes[0].mIndices[0]);
+
+    const size_t vertexBufferSize = mVertexCount * vertexSize;
+    const size_t indexBufferSize  = mIndexCount * indexSize;
+
+    mBuffers.mVertexBuffer = context->CreatePersistentBuffer(
+        vertexBufferSize, vk::BufferUsageFlagBits::eStorageBuffer
+                              | vk::BufferUsageFlagBits::eTransferDst
+                              | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+    mBuffers.mIndexBuffer = context->CreatePersistentBuffer(
+        indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer
+                             | vk::BufferUsageFlagBits::eTransferDst);
+
+    vk::BufferDeviceAddressInfo deviceAddrInfo {};
+    deviceAddrInfo.setBuffer(mBuffers.mVertexBuffer->GetHandle());
+
+    mBuffers.mVertexBufferAddress =
+        context->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+
+    auto staging =
+        context->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
+
+    void* data = staging->GetAllocationInfo().pMappedData;
+    for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+        memcpy((Vertex*)data + mOffsets.vertexOffsets[i],
+               mMeshes[i].mVertices.data(),
+               mMeshes[i].mVertices.size() * vertexSize);
     }
+    for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+        memcpy((uint32_t*)((char*)data + vertexBufferSize)
+                   + mOffsets.indexOffsets[i],
+               mMeshes[i].mIndices.data(),
+               mMeshes[i].mIndices.size() * indexSize);
+    }
+
+    engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+        vk::BufferCopy vertexCopy {};
+        vertexCopy.setSize(vertexBufferSize);
+        cmd.copyBuffer(staging->GetHandle(),
+                       mBuffers.mVertexBuffer->GetHandle(), vertexCopy);
+
+        vk::BufferCopy indexCopy {};
+        indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
+        cmd.copyBuffer(staging->GetHandle(), mBuffers.mIndexBuffer->GetHandle(),
+                       indexCopy);
+    });
+
+    mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
 }
 
 void Model::Draw() {}
