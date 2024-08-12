@@ -54,6 +54,8 @@ public:
         size_t               allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
+    SharedPtr<VulkanBuffer> CreateIndirectCmdBuffer(size_t allocByteSize);
+
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
         vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
@@ -178,16 +180,12 @@ private:
 
 public:
     static void EnableDefaultFeatures();
-
     static void EnableDynamicRendering();
-
     static void EnableSynchronization2();
-
     static void EnableBufferDeviceAddress();
-
     static void EnableDescriptorIndexing();
-
     static void EnableTimelineSemaphore();
+    static void EnableMultiDrawIndirect();
 
 private:
     static vk::PhysicalDeviceFeatures         sPhysicalDeviceFeatures;

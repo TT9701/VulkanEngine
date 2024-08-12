@@ -65,7 +65,7 @@ VulkanEngine::VulkanEngine()
 
     mFactoryModel = MakeShared<Model>(meshes);
 
-    mFactoryModel->GenerateMeshBuffers(mSPContext.get(), this);
+    mFactoryModel->GenerateBuffers(mSPContext.get(), this);
 }
 
 VulkanEngine::~VulkanEngine() {
@@ -816,27 +816,31 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     //
     // cmd.drawIndexed(36, 1, 0, 0, 0);
 
-    auto pushContants = mFactoryModel->GetPushContants();
-    for (uint32_t i = 0; i < mFactoryModel->GetMeshes().size(); ++i) {
-        auto const& mesh = mFactoryModel->GetMeshes()[i];
-    
-        glm::mat4 model {1.0f};
-        model = glm::scale(model, glm::vec3 {0.0001f});
-    
-        pushContants.mModelMatrix = model;
-    
-        cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
-                          vk::ShaderStageFlagBits::eVertex, 0,
-                          sizeof(pushContants), &pushContants);
-    
-        cmd.bindIndexBuffer(
-            mFactoryModel->GetBuffers().mIndexBuffer->GetHandle(),
-            mFactoryModel->GetIndexOffsets()[i] * sizeof(uint32_t),
-            vk::IndexType::eUint32);
-    
-        cmd.drawIndexed(static_cast<uint32_t>(mesh.mIndices.size()), 1, 0,
-                        mFactoryModel->GetVertexOffsets()[i], 0);
-    }
+    cmd.bindIndexBuffer(
+        mFactoryModel->GetMeshBuffer().mIndexBuffer->GetHandle(), 0,
+        vk::IndexType::eUint32);
+
+    glm::mat4 model {1.0f};
+    model = glm::scale(model, glm::vec3 {0.0001f});
+
+    auto pushContants         = mFactoryModel->GetPushContants();
+    pushContants.mModelMatrix = model;
+
+    cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+                      vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushContants),
+                      &pushContants);
+
+    // for (uint32_t i = 0; i < mFactoryModel->GetMeshes().size(); ++i) {
+    //     auto const& mesh = mFactoryModel->GetMeshes()[i];
+    //
+    //     cmd.drawIndexed(static_cast<uint32_t>(mesh.mIndices.size()), 1,
+    //                     mFactoryModel->GetIndexOffsets()[i],
+    //                     mFactoryModel->GetVertexOffsets()[i], 0);
+    // }
+
+    cmd.drawIndexedIndirect(mFactoryModel->GetIndirectCmdBuffer()->GetHandle(),
+                            0, mFactoryModel->GetMeshes().size(),
+                            sizeof(vk::DrawIndexedIndirectCommand));
 
     cmd.endRendering();
 }

@@ -69,6 +69,13 @@ SharedPtr<VulkanBuffer> VulkanContext::CreateStorageBuffer(
         allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
+SharedPtr<VulkanBuffer> VulkanContext::CreateIndirectCmdBuffer(
+    size_t allocByteSize) {
+    return CreatePersistentBuffer(allocByteSize,
+                                  vk::BufferUsageFlagBits::eIndirectBuffer
+                                      | vk::BufferUsageFlagBits::eTransferDst);
+}
+
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<CUDA::VulkanExternalImage> VulkanContext::CreateExternalImage2D(
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
@@ -166,6 +173,7 @@ void VulkanContext::EnableDefaultFeatures() {
     EnableBufferDeviceAddress();
     EnableDescriptorIndexing();
     EnableTimelineSemaphore();
+    EnableMultiDrawIndirect();
 
     sEnable11Features.setPNext(&sEnable12Features);
     sEnable12Features.setPNext(&sEnable13Features);
@@ -189,4 +197,9 @@ void VulkanContext::EnableDescriptorIndexing() {
 
 void VulkanContext::EnableTimelineSemaphore() {
     sEnable12Features.setTimelineSemaphore(vk::True);
+}
+
+void VulkanContext::EnableMultiDrawIndirect() {
+    sPhysicalDeviceFeatures.setMultiDrawIndirect(vk::True);
+    sPhysicalDeviceFeatures.setDrawIndirectFirstInstance(vk::True);
 }

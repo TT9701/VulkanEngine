@@ -18,9 +18,9 @@ public:
 
     Model(::std::vector<Mesh> const& meshes);
 
-    void GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine);
+    void GenerateBuffers(VulkanContext* context, VulkanEngine* engine);
 
-    void Draw();
+    void Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix = glm::mat4(1.0f));
 
     ::std::vector<Mesh> const& GetMeshes() const { return mMeshes; }
 
@@ -38,9 +38,13 @@ public:
         return mOffsets.indexOffsets;
     }
 
-    GPUMeshBuffers GetBuffers() const { return mBuffers; }
+    GPUMeshBuffers GetMeshBuffer() const { return mBuffers; }
 
     PushConstants GetPushContants() const { return mConstants; }
+
+    VulkanBuffer* GetIndirectCmdBuffer() const {
+        return mIndirectCmdBuffer.get();
+    }
 
 private:
     void LoadModel();
@@ -71,4 +75,7 @@ private:
     GPUMeshBuffers mBuffers {};
 
     PushConstants mConstants {};
+
+    ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectCmds;
+    SharedPtr<VulkanBuffer>                       mIndirectCmdBuffer;
 };

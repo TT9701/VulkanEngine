@@ -20,7 +20,16 @@ Model::Model(std::string const& path, bool flipYZ)
 Model::Model(std::vector<Mesh> const& meshes) : mMeshes(meshes) {
     mOffsets.vertexOffsets.reserve(mMeshes.size());
     mOffsets.indexOffsets.reserve(mMeshes.size());
+    mIndirectCmds.reserve(mMeshes.size());
     for (auto& mesh : mMeshes) {
+        vk::DrawIndexedIndirectCommand cmd {};
+        cmd.setFirstInstance(0)
+            .setInstanceCount(1)
+            .setFirstIndex(mIndexCount)
+            .setIndexCount(mesh.mIndices.size())
+            .setVertexOffset(mVertexCount);
+        mIndirectCmds.push_back(cmd);
+
         mOffsets.vertexOffsets.push_back(mVertexCount);
         mVertexCount += mesh.mVertices.size();
         mOffsets.indexOffsets.push_back(mIndexCount);
@@ -29,7 +38,7 @@ Model::Model(std::vector<Mesh> const& meshes) : mMeshes(meshes) {
     mTriangleCount = mIndexCount / 3;
 }
 
-void Model::GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine) {
+void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
     const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
     const size_t indexSize  = sizeof(mMeshes[0].mIndices[0]);
 
@@ -80,9 +89,37 @@ void Model::GenerateMeshBuffers(VulkanContext* context, VulkanEngine* engine) {
     });
 
     mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
+
+    // indirect command buffer
+    {
+        auto bufSize =
+            sizeof(vk::DrawIndexedIndirectCommand) * mIndirectCmds.size();
+        mIndirectCmdBuffer = context->CreateIndirectCmdBuffer(bufSize);
+
+        auto staging = context->CreateStagingBuffer(bufSize);
+
+        void* data = staging->GetAllocationInfo().pMappedData;
+        memcpy(data, mIndirectCmds.data(), bufSize);
+
+        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+            vk::BufferCopy cmdBufCopy {};
+            cmdBufCopy.setSize(bufSize);
+            cmd.copyBuffer(staging->GetHandle(),
+                           mIndirectCmdBuffer->GetHandle(), cmdBufCopy);
+        });
+    }
 }
 
-void Model::Draw() {}
+void Model::Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix) {
+    // cmd.bindIndexBuffer(mBuffers.mIndexBuffer->GetHandle(), 0,
+    //                     vk::IndexType::eUint32);
+    //
+    // mConstants.mModelMatrix = modelMatrix;
+    //
+    // cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+    //                   vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushContants),
+    //                   &pushContants);
+}
 
 void Model::LoadModel() {
     Assimp::Importer importer {};
