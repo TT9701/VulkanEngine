@@ -168,6 +168,9 @@ void VulkanContext::CreateDefaultSamplers() {
 #endif
 
 void VulkanContext::EnableDefaultFeatures() {
+    sEnable12Features.setRuntimeDescriptorArray(vk::True);
+    sEnable11Features.setShaderDrawParameters(vk::True);
+
     EnableDynamicRendering();
     EnableSynchronization2();
     EnableBufferDeviceAddress();

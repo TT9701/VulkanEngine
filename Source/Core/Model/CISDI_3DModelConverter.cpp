@@ -7,8 +7,12 @@ CISDI_3DModelDataConverter::CISDI_3DModelDataConverter(
     : mFlipYZ(flipYZ), mPath(path), mOutputDirectory(outputDirectory) {}
 
 void CISDI_3DModelDataConverter::Execute() {
-    CISDI_3DModelData::Convert(mPath.c_str(), mFlipYZ,
-                               mOutputDirectory.c_str());
+    if (mOutputDirectory.empty()) {
+        CISDI_3DModelData::Convert(mPath.c_str(), mFlipYZ, nullptr);
+    } else {
+        CISDI_3DModelData::Convert(mPath.c_str(), mFlipYZ,
+                                   mOutputDirectory.c_str());
+    }
 }
 
 std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(

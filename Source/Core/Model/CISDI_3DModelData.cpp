@@ -116,12 +116,13 @@ void ProcessNode(std::ofstream& out, aiNode* node, const aiScene* scene,
 
 void CISDI_3DModelData::Convert(const char* path, bool flipYZ,
                                 const char* output) {
-    auto inPath     = ::std::filesystem::path(path);
-    auto outputPath = ::std::filesystem::canonical(output);
+    auto inPath = ::std::filesystem::path(path);
 
+    ::std::filesystem::path outputPath;
     if (!output) {
         outputPath = inPath.replace_extension(CISDI_3DModel_Subfix);
     } else {
+        outputPath = ::std::filesystem::canonical(output);
         if (::std::filesystem::is_directory(outputPath)) {
             outputPath = outputPath.wstring().append(L"/").append(
                 inPath.filename().replace_extension(CISDI_3DModel_Subfix));

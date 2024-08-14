@@ -28,10 +28,4 @@ public:
     ::std::vector<uint32_t> mIndices {};
 
     // TODO: Textures
-
-    // struct PushConstants {
-    //     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
-    // };
-    //
-    // PushConstants mConstants {};
 };
