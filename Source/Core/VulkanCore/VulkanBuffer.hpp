@@ -6,13 +6,12 @@
 class VulkanDevice;
 class VulkanMemoryAllocator;
 
-enum class BufferMemoryType { DeviceLocal, Staging, ReadBack };
-
 class VulkanBuffer {
 public:
+    enum class MemoryType { DeviceLocal, Staging, ReadBack };
+
     VulkanBuffer(VulkanDevice* device, VulkanMemoryAllocator* allocator,
-                 size_t size, vk::BufferUsageFlags usage,
-                 BufferMemoryType memType);
+                 size_t size, vk::BufferUsageFlags usage, MemoryType memType);
 
     ~VulkanBuffer();
 
@@ -27,7 +26,7 @@ public:
 
     size_t GetSize() const;
 
-    BufferMemoryType GetMemoryType() const;
+    MemoryType GetMemoryType() const;
 
     // for mapped buffers, non mapped buffers return nullptr
     void* GetMapPtr() const;
@@ -40,7 +39,7 @@ private:
     VulkanMemoryAllocator* pAllocator;
 
     vk::BufferUsageFlags mUsageFlags;
-    BufferMemoryType mMemoryType;
+    MemoryType mMemoryType;
 
     size_t mSize;
 

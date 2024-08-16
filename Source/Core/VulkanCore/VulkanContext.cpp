@@ -27,6 +27,8 @@ VulkanContext::VulkanContext(
       mPExternalMemoryPool(CreateExternalMemoryPool())
 #endif
 {
+    CreateDefaultSamplers();
+
     mPDevice->SetObjectName(mPInstance->GetHandle(), "Default Instance");
     mPDevice->SetObjectName(mPSurface->GetHandle(), "Default Surface");
     mPDevice->SetObjectName(
@@ -35,8 +37,6 @@ VulkanContext::VulkanContext(
     mPDevice->SetObjectName(mPDevice->GetHandle(), "Default Device");
     mPDevice->SetObjectName(mPTimelineSemaphore->GetHandle(),
                             "Main Timeline Semaphore");
-
-    CreateDefaultSamplers();
 
     mPDevice->SetObjectName(mDefaultSamplerLinear->GetHandle(),
                             "Default Linear Sampler");
@@ -47,36 +47,36 @@ VulkanContext::VulkanContext(
                             "Main Timeline Semaphore");
 }
 
-SharedPtr<VulkanResource> VulkanContext::CreateTexture2D(
+SharedPtr<VulkanRenderResource> VulkanContext::CreateTexture2D(
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
     uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount) {
-    return MakeShared<VulkanResource>(
-        mPDevice.get(), mPAllocator.get(), VulkanResource::Type::Texture2D,
+    return MakeShared<VulkanRenderResource>(
+        mPDevice.get(), mPAllocator.get(), VulkanRenderResource::Type::Texture2D,
         format, extent, usage, mipLevels, arraySize, sampleCount);
 }
 
-SharedPtr<VulkanResource> VulkanContext::CreateDeviceLocalBuffer(
+SharedPtr<VulkanRenderResource> VulkanContext::CreateDeviceLocalBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return MakeShared<VulkanResource>(
-        mPDevice.get(), mPAllocator.get(), VulkanResource::Type::Buffer,
-        allocByteSize, usage, BufferMemoryType::DeviceLocal);
+    return MakeShared<VulkanRenderResource>(
+        mPDevice.get(), mPAllocator.get(), VulkanRenderResource::Type::Buffer,
+        allocByteSize, usage, VulkanBuffer::MemoryType::DeviceLocal);
 }
 
-SharedPtr<VulkanResource> VulkanContext::CreateStagingBuffer(
+SharedPtr<VulkanRenderResource> VulkanContext::CreateStagingBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return MakeShared<VulkanResource>(
-        mPDevice.get(), mPAllocator.get(), VulkanResource::Type::Buffer,
+    return MakeShared<VulkanRenderResource>(
+        mPDevice.get(), mPAllocator.get(), VulkanRenderResource::Type::Buffer,
         allocByteSize, usage | vk::BufferUsageFlagBits::eTransferSrc,
-        BufferMemoryType::Staging);
+        VulkanBuffer::MemoryType::Staging);
 }
 
-SharedPtr<VulkanResource> VulkanContext::CreateStorageBuffer(
+SharedPtr<VulkanRenderResource> VulkanContext::CreateStorageBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
     return CreateDeviceLocalBuffer(
         allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
-SharedPtr<VulkanResource> VulkanContext::CreateIndirectCmdBuffer(
+SharedPtr<VulkanRenderResource> VulkanContext::CreateIndirectCmdBuffer(
     size_t allocByteSize) {
     return CreateDeviceLocalBuffer(allocByteSize,
                                    vk::BufferUsageFlagBits::eIndirectBuffer

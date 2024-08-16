@@ -3,7 +3,7 @@
 #include "VulkanBuffer.hpp"
 #include "VulkanTexture.hpp"
 
-class VulkanResource {
+class VulkanRenderResource {
 public:
     enum class Type {
         Texture1D,
@@ -15,30 +15,30 @@ public:
     };
 
     // buffer
-    explicit VulkanResource(VulkanDevice* device,
+    explicit VulkanRenderResource(VulkanDevice* device,
                             VulkanMemoryAllocator* allocator, Type type,
                             size_t size, vk::BufferUsageFlags usage,
-                            BufferMemoryType memType);
+                            VulkanBuffer::MemoryType memType);
 
     // texture
-    explicit VulkanResource(VulkanDevice* device,
+    explicit VulkanRenderResource(VulkanDevice* device,
                             VulkanMemoryAllocator* allocator, Type type,
                             vk::Format format, vk::Extent3D extent,
                             vk::ImageUsageFlags usage, uint32_t mipLevels,
                             uint32_t arraySize, uint32_t sampleCount);
 
     // texture for existing vk::image (swapchain images)
-    explicit VulkanResource(VulkanDevice* device, vk::Image handle, Type type,
+    explicit VulkanRenderResource(VulkanDevice* device, vk::Image handle, Type type,
                             vk::Format format, vk::Extent3D extent,
                             uint32_t arraySize, uint32_t sampleCount);
 
-    ~VulkanResource() = default;
+    ~VulkanRenderResource() = default;
 
 public:
     Type GetType() const;
     ::std::string_view GetName() const;
 
-    void SetName(::std::string const& name);
+    void SetName(const char* name);
 
     // buffer
     vk::Buffer GetBufferHandle() const;
@@ -46,25 +46,24 @@ public:
     vk::DeviceAddress GetBufferDeviceAddress() const;
     vk::BufferUsageFlags GetBufferUsageFlags() const;
     size_t GetBufferSize() const;
-    BufferMemoryType GetBufferMemType() const;
+    VulkanBuffer::MemoryType GetBufferMemType() const;
 
     // texture
-    void CreateTextureView(::std::string const& name,
-                           vk::ImageAspectFlags aspect,
-                           uint32_t mostDetailedMip = 0,
-                           uint32_t mipCount = vk::RemainingMipLevels,
-                           uint32_t firstArray = 0,
-                           uint32_t arraySize = vk::RemainingArrayLayers);
+    void CreateTexView(::std::string_view name, vk::ImageAspectFlags aspect,
+                       uint32_t mostDetailedMip = 0,
+                       uint32_t mipCount = vk::RemainingMipLevels,
+                       uint32_t firstArray = 0,
+                       uint32_t arraySize = vk::RemainingArrayLayers);
 
-    vk::Image GetTextureHandle() const;
-    vk::ImageView GetTextureViewHandle(::std::string const& name) const;
-    uint32_t GetWidth(uint32_t mipLevel = 0) const;
-    uint32_t GetHeight(uint32_t mipLevel = 0) const;
-    uint32_t GetDepth(uint32_t mipLevel = 0) const;
-    uint32_t GetMipCount() const;
-    uint32_t GetSampleCount() const;
-    uint32_t GetArraySize() const;
-    vk::Format GetFormat() const;
+    vk::Image GetTexHandle() const;
+    vk::ImageView GetTexViewHandle(::std::string_view name) const;
+    uint32_t GetTexWidth(uint32_t mipLevel = 0) const;
+    uint32_t GetTexHeight(uint32_t mipLevel = 0) const;
+    uint32_t GetTexDepth(uint32_t mipLevel = 0) const;
+    uint32_t GetTexMipCount() const;
+    uint32_t GetTexSampleCount() const;
+    uint32_t GetTexArraySize() const;
+    vk::Format GetTexFormat() const;
 
 private:
     ::std::variant<VulkanBuffer, VulkanTexture> mResource;

@@ -2,7 +2,7 @@
 
 #include "Core/Utilities/Logger.hpp"
 #include "VulkanContext.hpp"
-#include "VulkanResource.h"
+#include "VulkanRenderResource.h"
 
 VulkanSwapchain::VulkanSwapchain(VulkanContext* ctx, vk::Format format,
                                  vk::Extent2D extent2D)
@@ -73,11 +73,11 @@ vk::SwapchainKHR VulkanSwapchain::RecreateSwapchain(vk::SwapchainKHR old) {
 }
 
 vk::Image VulkanSwapchain::GetImageHandle(uint32_t index) const {
-    return mImages[index].GetTextureHandle();
+    return mImages[index].GetTexHandle();
 }
 
 vk::ImageView VulkanSwapchain::GetImageViewHandle(uint32_t index) const {
-    return mImages[index].GetTextureViewHandle("Color-Whole");
+    return mImages[index].GetTexViewHandle("Color-Whole");
 }
 
 void VulkanSwapchain::SetSwapchainImages() {
@@ -85,15 +85,15 @@ void VulkanSwapchain::SetSwapchainImages() {
     mImages.reserve(images.size());
     for (auto& img : images) {
         mImages.emplace_back(
-            pContex->GetDevice(), img, VulkanResource::Type::Texture2D, mFormat,
+            pContex->GetDevice(), img, VulkanRenderResource::Type::Texture2D, mFormat,
             vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
 
-        pContex->SetName(mImages.back().GetTextureHandle(), "Swapchain Images");
+        pContex->SetName(mImages.back().GetTexHandle(), "Swapchain Images");
 
-        mImages.back().CreateTextureView("Color-Whole",
+        mImages.back().CreateTexView("Color-Whole",
                                        vk::ImageAspectFlagBits::eColor);
 
-        pContex->SetName(mImages.back().GetTextureViewHandle("Color-Whole"),
+        pContex->SetName(mImages.back().GetTexViewHandle("Color-Whole"),
                          "Swapchain Imageviews");
     }
 }

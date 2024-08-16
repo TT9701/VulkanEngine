@@ -4,12 +4,12 @@
 
 #include "CUDA/CUDAVulkan.h"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Core/VulkanCore/VulkanResource.h"
+#include "Core/VulkanCore/VulkanRenderResource.h"
 #include "MeshType.hpp"
 
 struct GPUMeshBuffers {
-    SharedPtr<VulkanResource> mIndexBuffer {nullptr};
-    SharedPtr<VulkanResource> mVertexBuffer {nullptr};
+    SharedPtr<VulkanRenderResource> mIndexBuffer {nullptr};
+    SharedPtr<VulkanRenderResource> mVertexBuffer {nullptr};
     vk::DeviceAddress mVertexBufferAddress {};
 };
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <vma/vk_mem_alloc.h>
+#include <vulkan/vulkan.hpp>
 
 class VulkanDevice;
 class VulkanMemoryAllocator;
@@ -30,7 +30,7 @@ public:
     ~VulkanTexture();
 
 public:
-    void CreateImageView(::std::string const& name, vk::ImageAspectFlags aspect,
+    void CreateImageView(::std::string_view name, vk::ImageAspectFlags aspect,
                          uint32_t mostDetailedMip = 0,
                          uint32_t mipCount = vk::RemainingMipLevels,
                          uint32_t firstArray = 0,
@@ -45,7 +45,7 @@ public:
     uint32_t GetArraySize() const;
     vk::Format GetFormat() const;
     vk::Image GetHandle() const;
-    vk::ImageView GetViewHandle(::std::string const& name) const;
+    vk::ImageView GetViewHandle(::std::string_view name) const;
 
 private:
     vk::Image CreateImage();

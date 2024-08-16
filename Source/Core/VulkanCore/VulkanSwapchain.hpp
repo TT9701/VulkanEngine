@@ -8,7 +8,7 @@
 class VulkanContext;
 class VulkanSemaphore;
 class VulkanFence;
-class VulkanResource;
+class VulkanRenderResource;
 
 class VulkanSwapchain {
 public:
@@ -41,7 +41,7 @@ public:
 
     uint32_t GetCurrentImageIndex() const { return mCurrentImageIndex; }
 
-    VulkanResource const& GetCurrentImage() const {
+    VulkanRenderResource const& GetCurrentImage() const {
         return mImages[mCurrentImageIndex];
     }
 
@@ -72,6 +72,6 @@ private:
     VulkanSemaphore mReady4Render {pContex};
     VulkanFence mAcquireFence {pContex};
 
-    ::std::vector<VulkanResource> mImages {};
+    ::std::vector<VulkanRenderResource> mImages {};
     uint32_t mCurrentImageIndex {0};
 };

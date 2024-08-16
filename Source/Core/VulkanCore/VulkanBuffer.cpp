@@ -6,7 +6,7 @@
 
 VulkanBuffer::VulkanBuffer(VulkanDevice* device,
                            VulkanMemoryAllocator* allocator, size_t size,
-                           vk::BufferUsageFlags usage, BufferMemoryType memType)
+                           vk::BufferUsageFlags usage, MemoryType memType)
     : pDevice(device),
       pAllocator(allocator),
       mUsageFlags(usage),
@@ -30,7 +30,7 @@ vk::DeviceAddress VulkanBuffer::GetDeviceAddress() const {
     return 0;
 }
 
-BufferMemoryType VulkanBuffer::GetMemoryType() const {
+VulkanBuffer::MemoryType VulkanBuffer::GetMemoryType() const {
     return mMemoryType;
 }
 
@@ -42,7 +42,7 @@ void* VulkanBuffer::GetMapPtr() const {
 }
 
 vk::Buffer VulkanBuffer::CreateBufferResource() {
-    bMapped = mMemoryType != BufferMemoryType::DeviceLocal;
+    bMapped = mMemoryType != MemoryType::DeviceLocal;
     if (mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddress
         || mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddressEXT
         || mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddressKHR) {
@@ -57,15 +57,15 @@ vk::Buffer VulkanBuffer::CreateBufferResource() {
     vmaAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
     switch (mMemoryType) {
-        case BufferMemoryType::Staging:
+        case MemoryType::Staging:
             vmaAllocInfo.flags =
                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                 | VMA_ALLOCATION_CREATE_MAPPED_BIT;
             break;
-        case BufferMemoryType::DeviceLocal:
+        case MemoryType::DeviceLocal:
             vmaAllocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
             break;
-        case BufferMemoryType::ReadBack:
+        case MemoryType::ReadBack:
             vmaAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
                                | VMA_ALLOCATION_CREATE_MAPPED_BIT;
             break;

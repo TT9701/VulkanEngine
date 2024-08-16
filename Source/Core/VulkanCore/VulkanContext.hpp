@@ -12,7 +12,7 @@
 #include "VulkanInstance.hpp"
 #include "VulkanMemoryAllocator.hpp"
 #include "VulkanPhysicalDevice.hpp"
-#include "VulkanResource.h"
+#include "VulkanRenderResource.h"
 #include "VulkanSampler.hpp"
 #include "VulkanSurface.hpp"
 #include "VulkanSyncStructures.hpp"
@@ -34,25 +34,25 @@ public:
     MOVABLE_ONLY(VulkanContext);
 
 public:
-    SharedPtr<VulkanResource> CreateTexture2D(vk::Extent3D extent,
+    SharedPtr<VulkanRenderResource> CreateTexture2D(vk::Extent3D extent,
                                               vk::Format format,
                                               vk::ImageUsageFlags usage,
                                               uint32_t mipLevels = 1,
                                               uint32_t arraySize = 1,
                                               uint32_t sampleCount = 1);
 
-    SharedPtr<VulkanResource> CreateDeviceLocalBuffer(
+    SharedPtr<VulkanRenderResource> CreateDeviceLocalBuffer(
         size_t allocByteSize, vk::BufferUsageFlags usage);
 
-    SharedPtr<VulkanResource> CreateStagingBuffer(
+    SharedPtr<VulkanRenderResource> CreateStagingBuffer(
         size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
-    SharedPtr<VulkanResource> CreateStorageBuffer(
+    SharedPtr<VulkanRenderResource> CreateStorageBuffer(
         size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
-    SharedPtr<VulkanResource> CreateIndirectCmdBuffer(size_t allocByteSize);
+    SharedPtr<VulkanRenderResource> CreateIndirectCmdBuffer(size_t allocByteSize);
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(

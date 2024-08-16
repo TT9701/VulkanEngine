@@ -16,13 +16,13 @@ class Model {
 public:
     Model(const char* path, bool flipYZ = true);
 
-    Model(::std::vector<Mesh> const& meshes);
+    Model(::std::span<Mesh> meshes);
 
     void GenerateBuffers(VulkanContext* context, VulkanEngine* engine);
 
     void Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix = glm::mat4(1.0f));
 
-    ::std::vector<Mesh> const& GetMeshes() const { return mMeshes; }
+    ::std::span<Mesh> GetMeshes() { return mMeshes; }
 
     uint32_t GetVertexCount() const { return mVertexCount; }
 
@@ -30,19 +30,15 @@ public:
 
     uint32_t GetTriangleCount() const { return mTriangleCount; }
 
-    ::std::vector<uint32_t> const& GetVertexOffsets() const {
-        return mOffsets.vertexOffsets;
-    }
+    ::std::span<uint32_t> GetVertexOffsets() { return mOffsets.vertexOffsets; }
 
-    ::std::vector<uint32_t> const& GetIndexOffsets() const {
-        return mOffsets.indexOffsets;
-    }
+    ::std::span<uint32_t> GetIndexOffsets() { return mOffsets.indexOffsets; }
 
     GPUMeshBuffers GetMeshBuffer() const { return mBuffers; }
 
     PushConstants GetPushContants() const { return mConstants; }
 
-    VulkanResource* GetIndirectCmdBuffer() const {
+    VulkanRenderResource* GetIndirectCmdBuffer() const {
         return mIndirectCmdBuffer.get();
     }
 
@@ -77,5 +73,5 @@ private:
     PushConstants mConstants {};
 
     ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectCmds;
-    SharedPtr<VulkanResource> mIndirectCmdBuffer;
+    SharedPtr<VulkanRenderResource> mIndirectCmdBuffer;
 };

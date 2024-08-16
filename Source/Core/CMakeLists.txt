@@ -52,8 +52,8 @@ set (VULKAN_CORE_SRC
     VulkanCore/VulkanSampler.cpp
     VulkanCore/VulkanShader.hpp
     VulkanCore/VulkanShader.cpp
-    VulkanCore/VulkanResource.cpp
-    VulkanCore/VulkanResource.h
+    VulkanCore/VulkanRenderResource.cpp
+    VulkanCore/VulkanRenderResource.h
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "VulkanCore")
 

@@ -6,11 +6,11 @@ class CISDI_3DModelDataConverter {
 public:
     CISDI_3DModelDataConverter(const char* path,
                                const char* outputDirectory = "",
-                               bool        flipYZ          = true);
+                               bool flipYZ = true);
 
     void Execute();
 
-    static ::std::vector<Mesh> LoadCISDIModelData(::std::string const& path);
+    static ::std::vector<Mesh> LoadCISDIModelData(const char* path);
 
 private:
     bool mFlipYZ;

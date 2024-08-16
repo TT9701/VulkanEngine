@@ -13,7 +13,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "VulkanContext.hpp"
 #include "VulkanDescriptors.hpp"
 #include "VulkanHelper.hpp"
-#include "VulkanResource.h"
+#include "VulkanRenderResource.h"
 #include "VulkanShader.hpp"
 #include "VulkanSwapchain.hpp"
 
@@ -51,10 +51,10 @@ VulkanEngine::VulkanEngine()
 
     // mFactoryModel =
     //     MakeShared<Model>("../../../Models/RM_HP_59930007DR0130HP000.fbx");
-
-    CISDI_3DModelDataConverter converter {
-        "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
-
+    //
+    // CISDI_3DModelDataConverter converter {
+    //     "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
+    //
     // converter.Execute();
 
     auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
@@ -102,7 +102,7 @@ void VulkanEngine::Draw() {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
 
         Utils::TransitionImageLayout(
-            cmd.GetHandle(), mDrawImage->GetTextureHandle(),
+            cmd.GetHandle(), mDrawImage->GetTexHandle(),
             vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral);
 
         DrawBackground(cmd.GetHandle());
@@ -129,19 +129,19 @@ void VulkanEngine::Draw() {
         auto cmd = mSPCmdManager->GetCmdBufferToBegin();
 
         Utils::TransitionImageLayout(cmd.GetHandle(),
-                                     mDrawImage->GetTextureHandle(),
+                                     mDrawImage->GetTexHandle(),
                                      vk::ImageLayout::eGeneral,
                                      vk::ImageLayout::eColorAttachmentOptimal);
 
         Utils::TransitionImageLayout(cmd.GetHandle(),
-                                     mDepthImage->GetTextureHandle(),
+                                     mDepthImage->GetTexHandle(),
                                      vk::ImageLayout::eUndefined,
                                      vk::ImageLayout::eDepthAttachmentOptimal);
 
         DrawMesh(cmd.GetHandle());
 
         Utils::TransitionImageLayout(cmd.GetHandle(),
-                                     mDrawImage->GetTextureHandle(),
+                                     mDrawImage->GetTexHandle(),
                                      vk::ImageLayout::eColorAttachmentOptimal,
                                      vk::ImageLayout::eShaderReadOnlyOptimal);
 
@@ -269,7 +269,7 @@ UniquePtr<VulkanSwapchain> VulkanEngine::CreateSwapchain() {
                       static_cast<uint32_t>(mSPWindow->GetHeight())});
 }
 
-SharedPtr<VulkanResource> VulkanEngine::CreateDrawImage() {
+SharedPtr<VulkanRenderResource> VulkanEngine::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
                                   static_cast<uint32_t>(mSPWindow->GetHeight()),
                                   1};
@@ -283,11 +283,11 @@ SharedPtr<VulkanResource> VulkanEngine::CreateDrawImage() {
 
     auto ptr = mSPContext->CreateTexture2D(
         drawImageExtent, vk::Format::eR16G16B16A16Sfloat, drawImageUsage);
-    ptr->CreateTextureView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+    ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
     return ptr;
 }
 
-SharedPtr<VulkanResource> VulkanEngine::CreateDepthImage() {
+SharedPtr<VulkanRenderResource> VulkanEngine::CreateDepthImage() {
     vk::Extent3D depthImageExtent {
         static_cast<uint32_t>(mSPWindow->GetWidth()),
         static_cast<uint32_t>(mSPWindow->GetHeight()), 1};
@@ -297,7 +297,7 @@ SharedPtr<VulkanResource> VulkanEngine::CreateDepthImage() {
 
     auto ptr = mSPContext->CreateTexture2D(
         depthImageExtent, vk::Format::eD32Sfloat, depthImageUsage);
-    ptr->CreateTextureView("Depth-Whole", vk::ImageAspectFlagBits::eDepth);
+    ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth);
 
     return ptr;
 }
@@ -327,7 +327,7 @@ void VulkanEngine::CreateDescriptors() {
     CreateDrawQuadDescriptors();
 }
 
-SharedPtr<VulkanResource> VulkanEngine::CreateErrorCheckTexture() {
+SharedPtr<VulkanRenderResource> VulkanEngine::CreateErrorCheckTexture() {
     auto extent = VkExtent3D {16, 16, 1};
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
@@ -340,18 +340,18 @@ SharedPtr<VulkanResource> VulkanEngine::CreateErrorCheckTexture() {
 
     auto ptr =
         mSPContext->CreateTexture2D(extent, vk::Format::eR8G8B8A8Unorm,
-                                  vk::ImageUsageFlagBits::eSampled
-                                      | vk::ImageUsageFlagBits::eTransferDst);
-    ptr->CreateTextureView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+                                    vk::ImageUsageFlagBits::eSampled
+                                        | vk::ImageUsageFlagBits::eTransferDst);
+    ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 
     {
         size_t dataSize = extent.width * extent.height * 4;
 
         auto uploadBuffer = mSPContext->CreateStagingBuffer(dataSize);
-        // uploadBuffer->SetBlob(pixels.data(), 0, dataSize);
+        memcpy(uploadBuffer->GetBufferMappedPtr(), pixels.data(), dataSize);
 
         mSPImmediateSubmitManager->Submit([&](vk::CommandBuffer cmd) {
-            Utils::TransitionImageLayout(cmd, ptr->GetTextureHandle(),
+            Utils::TransitionImageLayout(cmd, ptr->GetTexHandle(),
                                          vk::ImageLayout::eUndefined,
                                          vk::ImageLayout::eTransferDstOptimal);
 
@@ -361,11 +361,11 @@ SharedPtr<VulkanResource> VulkanEngine::CreateErrorCheckTexture() {
                 .setImageExtent(extent);
 
             cmd.copyBufferToImage(
-                uploadBuffer->GetBufferHandle(), ptr->GetTextureHandle(),
+                uploadBuffer->GetBufferHandle(), ptr->GetTexHandle(),
                 vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
             Utils::TransitionImageLayout(
-                cmd, ptr->GetTextureHandle(),
+                cmd, ptr->GetTexHandle(),
                 vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
         });
@@ -477,7 +477,7 @@ void VulkanEngine::CreateBackgroundComputeDescriptors() {
 
     mDescriptorManager->WriteImage(
         0,
-        {VK_NULL_HANDLE, mDrawImage->GetTextureViewHandle("Color-Whole"),
+        {VK_NULL_HANDLE, mDrawImage->GetTexViewHandle("Color-Whole"),
          vk::ImageLayout::eGeneral},
         vk::DescriptorType::eStorageImage);
 
@@ -546,8 +546,8 @@ void VulkanEngine::CreateMeshPipeline() {
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
         .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
-        .SetColorAttachmentFormat(mDrawImage->GetFormat())
-        .SetDepthStencilFormat(mDepthImage->GetFormat())
+        .SetColorAttachmentFormat(mDrawImage->GetTexFormat())
+        .SetDepthStencilFormat(mDepthImage->GetTexFormat())
         .Build("TriangleDraw_Pipeline");
 
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
@@ -576,7 +576,7 @@ void VulkanEngine::CreateMeshDescriptors() {
     // mDescriptorManager->WriteImage(
     //     0,
     //     {mSPContext->GetDefaultNearestSamplerHandle(),
-    //      mErrorCheckImage->GetTextureViewHandle("Color-Whole"),
+    //      mErrorCheckImage->GetTexViewHandle("Color-Whole"),
     //      vk::ImageLayout::eShaderReadOnlyOptimal},
     //     vk::DescriptorType::eCombinedImageSampler);
     //
@@ -596,7 +596,7 @@ void VulkanEngine::CreateDrawQuadDescriptors() {
     mDescriptorManager->WriteImage(
         0,
         {mSPContext->GetDefaultLinearSamplerHandle(),
-         mDrawImage->GetTextureViewHandle("Color-Whole"),
+         mDrawImage->GetTexViewHandle("Color-Whole"),
          vk::ImageLayout::eShaderReadOnlyOptimal},
         vk::DescriptorType::eCombinedImageSampler);
 
@@ -647,7 +647,7 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
         vk::ImageAspectFlagBits::eColor, 0, vk::RemainingMipLevels, 0,
         vk::RemainingArrayLayers};
 
-    cmd.clearColorImage(mDrawImage->GetTextureHandle(),
+    cmd.clearColorImage(mDrawImage->GetTexHandle(),
                         vk::ImageLayout::eGeneral, clearValue, subresource);
 
     // Compute Draw
@@ -661,8 +661,8 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
             mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0,
             mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
 
-        cmd.dispatch(::std::ceil(mDrawImage->GetWidth() / 16.0),
-                     ::std::ceil(mDrawImage->GetHeight() / 16.0), 1);
+        cmd.dispatch(::std::ceil(mDrawImage->GetTexWidth() / 16.0),
+                     ::std::ceil(mDrawImage->GetTexHeight() / 16.0), 1);
     }
 
     // CUDA Draw
@@ -712,14 +712,14 @@ void VulkanEngine::DrawBackground(vk::CommandBuffer cmd) {
 void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     vk::RenderingAttachmentInfo colorAttachment {};
     colorAttachment
-        .setImageView(mDrawImage->GetTextureViewHandle("Color-Whole"))
+        .setImageView(mDrawImage->GetTexViewHandle("Color-Whole"))
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eLoad)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
 
     vk::RenderingAttachmentInfo depthAttachment {};
     depthAttachment
-        .setImageView(mDepthImage->GetTextureViewHandle("Depth-Whole"))
+        .setImageView(mDepthImage->GetTexViewHandle("Depth-Whole"))
         .setImageLayout(vk::ImageLayout::eDepthAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -728,7 +728,7 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     vk::RenderingInfo renderInfo {};
     renderInfo
         .setRenderArea(vk::Rect2D {
-            {0, 0}, {mDrawImage->GetWidth(), mDrawImage->GetHeight()}})
+            {0, 0}, {mDrawImage->GetTexWidth(), mDrawImage->GetTexHeight()}})
         .setLayerCount(1u)
         .setColorAttachments(colorAttachment)
         .setPDepthAttachment(&depthAttachment);
@@ -740,20 +740,20 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
         mPipelineManager->GetGraphicsPipeline("TriangleDraw_Pipeline"));
 
     vk::Viewport viewport {};
-    viewport.setWidth(mDrawImage->GetWidth())
-        .setHeight(mDrawImage->GetHeight())
+    viewport.setWidth(mDrawImage->GetTexWidth())
+        .setHeight(mDrawImage->GetTexHeight())
         .setMinDepth(0.0f)
         .setMaxDepth(1.0f);
     cmd.setViewport(0, viewport);
 
     vk::Rect2D scissor {};
-    scissor.setExtent({mDrawImage->GetWidth(), mDrawImage->GetHeight()});
+    scissor.setExtent({mDrawImage->GetTexWidth(), mDrawImage->GetTexHeight()});
     cmd.setScissor(0, scissor);
 
     mDescriptorManager->WriteImage(
         0,
         {mSPContext->GetDefaultNearestSamplerHandle(),
-         mErrorCheckImage->GetTextureViewHandle("Color-Whole"),
+         mErrorCheckImage->GetTexViewHandle("Color-Whole"),
          vk::ImageLayout::eShaderReadOnlyOptimal},
         vk::DescriptorType::eCombinedImageSampler);
 
@@ -774,19 +774,6 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     mDescriptorManager->UpdateSet(
         mDescriptorManager->GetDescriptor("Triangle_Desc_0"));
 
-    // PushConstants pushConstants {};
-    // pushConstants.mVertexBufferAddress = mBoxMesh.mVertexBufferAddress;
-    // // mTriangleExternalMesh.mVertexBufferAddress;
-    // pushConstants.mModelMatrix = glm::mat4(1.0f);
-    // cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
-    //                   vk::ShaderStageFlagBits::eVertex, 0,
-    //                   sizeof(PushConstants), &pushConstants);
-    //
-    // cmd.bindIndexBuffer(mBoxMesh.mIndexBuffer->GetHandle(), 0,
-    //                     vk::IndexType::eUint32);
-    //
-    // cmd.drawIndexed(36, 1, 0, 0, 0);
-
     cmd.bindIndexBuffer(
         mFactoryModel->GetMeshBuffer().mIndexBuffer->GetBufferHandle(), 0,
         vk::IndexType::eUint32);
@@ -800,14 +787,6 @@ void VulkanEngine::DrawMesh(vk::CommandBuffer cmd) {
     cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
                       vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushContants),
                       &pushContants);
-
-    // for (uint32_t i = 0; i < mFactoryModel->GetMeshes().size(); ++i) {
-    //     auto const& mesh = mFactoryModel->GetMeshes()[i];
-    //
-    //     cmd.drawIndexed(static_cast<uint32_t>(mesh.mIndices.size()), 1,
-    //                     mFactoryModel->GetIndexOffsets()[i],
-    //                     mFactoryModel->GetVertexOffsets()[i], 0);
-    // }
 
     cmd.drawIndexedIndirect(
         mFactoryModel->GetIndirectCmdBuffer()->GetBufferHandle(), 0,

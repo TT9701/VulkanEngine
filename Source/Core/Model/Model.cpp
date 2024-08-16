@@ -17,7 +17,7 @@ Model::Model(const char* path, bool flipYZ)
     LoadModel();
 }
 
-Model::Model(std::vector<Mesh> const& meshes) : mMeshes(meshes) {
+Model::Model(::std::span<Mesh> meshes) : mMeshes(meshes.begin(), meshes.end()) {
     mOffsets.vertexOffsets.reserve(mMeshes.size());
     mOffsets.indexOffsets.reserve(mMeshes.size());
     mIndirectCmds.reserve(mMeshes.size());
@@ -54,7 +54,8 @@ void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
         indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer
                              | vk::BufferUsageFlagBits::eTransferDst);
 
-    mBuffers.mVertexBufferAddress = mBuffers.mVertexBuffer->GetBufferDeviceAddress();
+    mBuffers.mVertexBufferAddress =
+        mBuffers.mVertexBuffer->GetBufferDeviceAddress();
 
     auto staging =
         context->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
@@ -81,8 +82,7 @@ void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
         vk::BufferCopy indexCopy {};
         indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
         cmd.copyBuffer(staging->GetBufferHandle(),
-                       mBuffers.mIndexBuffer->GetBufferHandle(),
-                       indexCopy);
+                       mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
     });
 
     mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;

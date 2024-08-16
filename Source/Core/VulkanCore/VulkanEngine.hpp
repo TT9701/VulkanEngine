@@ -25,7 +25,7 @@ class VulkanCommandBuffers;
 class VulkanCommandPool;
 class VulkanDescriptorManager;
 class VulkanShader;
-class VulkanResource;
+class VulkanRenderResource;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -58,11 +58,11 @@ private:
     UniquePtr<SDLWindow> CreateSDLWindow();
     UniquePtr<VulkanContext> CreateContext();
     UniquePtr<VulkanSwapchain> CreateSwapchain();
-    SharedPtr<VulkanResource> CreateDrawImage();
-    SharedPtr<VulkanResource> CreateDepthImage();
+    SharedPtr<VulkanRenderResource> CreateDrawImage();
+    SharedPtr<VulkanRenderResource> CreateDepthImage();
     UniquePtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
     UniquePtr<VulkanCommandManager> CreateCommandManager();
-    SharedPtr<VulkanResource> CreateErrorCheckTexture();
+    SharedPtr<VulkanRenderResource> CreateErrorCheckTexture();
     UniquePtr<VulkanDescriptorManager> CreateDescriptorManager();
     UniquePtr<VulkanPipelineManager> CreatePipelineManager();
 
@@ -104,21 +104,21 @@ private:
     UniquePtr<VulkanContext> mSPContext;
     UniquePtr<VulkanSwapchain> mSPSwapchain;
 
-    SharedPtr<VulkanResource> mDrawImage;
-    SharedPtr<VulkanResource> mDepthImage;
+    SharedPtr<VulkanRenderResource> mDrawImage;
+    SharedPtr<VulkanRenderResource> mDepthImage;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 #endif
     UniquePtr<VulkanCommandManager> mSPCmdManager;
     UniquePtr<ImmediateSubmitManager> mSPImmediateSubmitManager;
-    SharedPtr<VulkanResource> mErrorCheckImage;
+    SharedPtr<VulkanRenderResource> mErrorCheckImage;
     UniquePtr<VulkanDescriptorManager> mDescriptorManager;
     UniquePtr<VulkanPipelineManager> mPipelineManager;
 
-    SharedPtr<VulkanResource> mSceneUniformBuffer {};
+    SharedPtr<VulkanRenderResource> mSceneUniformBuffer {};
 
-    SharedPtr<VulkanResource> mRWBuffer {};
+    SharedPtr<VulkanRenderResource> mRWBuffer {};
 
     Camera mMainCamera {};
 

@@ -16,8 +16,8 @@ void CISDI_3DModelDataConverter::Execute() {
 }
 
 std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
-    std::string const& path) {
-    auto data = CISDI_3DModelData::Load(path.c_str());
+    const char* path) {
+    auto data = CISDI_3DModelData::Load(path);
 
     ::std::vector<Mesh> meshes;
     meshes.reserve(data.header.meshCount);
@@ -29,9 +29,9 @@ std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
             v.position.x = data.meshes[i].vertices.positions[j].x;
             v.position.y = data.meshes[i].vertices.positions[j].y;
             v.position.z = data.meshes[i].vertices.positions[j].z;
-            v.normal.x   = data.meshes[i].vertices.normals[j].x;
-            v.normal.y   = data.meshes[i].vertices.normals[j].y;
-            v.normal.z   = data.meshes[i].vertices.normals[j].z;
+            v.normal.x = data.meshes[i].vertices.normals[j].x;
+            v.normal.y = data.meshes[i].vertices.normals[j].y;
+            v.normal.z = data.meshes[i].vertices.normals[j].z;
 
             vertices.push_back(v);
         }

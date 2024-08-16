@@ -3,15 +3,15 @@
 #include "VulkanDevice.hpp"
 #include "VulkanTexture.hpp"
 
-VulkanResource::VulkanResource(VulkanDevice* device,
+VulkanRenderResource::VulkanRenderResource(VulkanDevice* device,
                                VulkanMemoryAllocator* allocator, Type type,
                                size_t size, vk::BufferUsageFlags usage,
-                               BufferMemoryType memType)
+                               VulkanBuffer::MemoryType memType)
     : mResource(std::in_place_type<VulkanBuffer>, device, allocator, size,
                 usage, memType),
       mType(type) {}
 
-VulkanResource::VulkanResource(VulkanDevice* device,
+VulkanRenderResource::VulkanRenderResource(VulkanDevice* device,
                                VulkanMemoryAllocator* allocator, Type type,
                                vk::Format format, vk::Extent3D extent,
                                vk::ImageUsageFlags usage, uint32_t mipLevels,
@@ -21,7 +21,7 @@ VulkanResource::VulkanResource(VulkanDevice* device,
                 mipLevels, arraySize, sampleCount),
       mType(type) {}
 
-VulkanResource::VulkanResource(VulkanDevice* device, vk::Image handle,
+VulkanRenderResource::VulkanRenderResource(VulkanDevice* device, vk::Image handle,
                                Type type, vk::Format format,
                                vk::Extent3D extent, uint32_t arraySize,
                                uint32_t sampleCount)
@@ -30,85 +30,83 @@ VulkanResource::VulkanResource(VulkanDevice* device, vk::Image handle,
                 arraySize, sampleCount),
       mType(type) {}
 
-VulkanResource::Type VulkanResource::GetType() const {
+VulkanRenderResource::Type VulkanRenderResource::GetType() const {
     return mType;
 }
 
-void VulkanResource::SetName(std::string const& name) {
+void VulkanRenderResource::SetName(const char* name) {
 
     mName = name;
 }
 
-vk::Buffer VulkanResource::GetBufferHandle() const {
+vk::Buffer VulkanRenderResource::GetBufferHandle() const {
     return ::std::get<VulkanBuffer>(mResource).GetHandle();
 }
 
-void* VulkanResource::GetBufferMappedPtr() const {
+void* VulkanRenderResource::GetBufferMappedPtr() const {
     return ::std::get<VulkanBuffer>(mResource).GetMapPtr();
 }
 
-vk::DeviceAddress VulkanResource::GetBufferDeviceAddress() const {
+vk::DeviceAddress VulkanRenderResource::GetBufferDeviceAddress() const {
     return ::std::get<VulkanBuffer>(mResource).GetDeviceAddress();
 }
 
-vk::BufferUsageFlags VulkanResource::GetBufferUsageFlags() const {
+vk::BufferUsageFlags VulkanRenderResource::GetBufferUsageFlags() const {
     return ::std::get<VulkanBuffer>(mResource).GetUsageFlags();
 }
 
-size_t VulkanResource::GetBufferSize() const {
+size_t VulkanRenderResource::GetBufferSize() const {
     return ::std::get<VulkanBuffer>(mResource).GetSize();
 }
 
-BufferMemoryType VulkanResource::GetBufferMemType() const {
+VulkanBuffer::MemoryType VulkanRenderResource::GetBufferMemType() const {
     return ::std::get<VulkanBuffer>(mResource).GetMemoryType();
 }
 
-void VulkanResource::CreateTextureView(std::string const& name,
-                                       vk::ImageAspectFlags aspect,
-                                       uint32_t mostDetailedMip,
-                                       uint32_t mipCount, uint32_t firstArray,
-                                       uint32_t arraySize) {
+void VulkanRenderResource::CreateTexView(std::string_view name,
+                                   vk::ImageAspectFlags aspect,
+                                   uint32_t mostDetailedMip, uint32_t mipCount,
+                                   uint32_t firstArray, uint32_t arraySize) {
     ::std::get<VulkanTexture>(mResource).CreateImageView(
         name, aspect, mostDetailedMip, mipCount, firstArray, arraySize);
 }
 
-vk::Image VulkanResource::GetTextureHandle() const {
+vk::Image VulkanRenderResource::GetTexHandle() const {
     return ::std::get<VulkanTexture>(mResource).GetHandle();
 }
 
-vk::ImageView VulkanResource::GetTextureViewHandle(
-    std::string const& name) const {
+vk::ImageView VulkanRenderResource::GetTexViewHandle(std::string_view name) const {
     return ::std::get<VulkanTexture>(mResource).GetViewHandle(name);
 }
 
-uint32_t VulkanResource::GetWidth(uint32_t mipLevel) const {
+uint32_t VulkanRenderResource::GetTexWidth(uint32_t mipLevel) const {
     return ::std::get<VulkanTexture>(mResource).GetWidth(mipLevel);
 }
 
-uint32_t VulkanResource::GetHeight(uint32_t mipLevel) const {
+uint32_t VulkanRenderResource::GetTexHeight(uint32_t mipLevel) const {
     return ::std::get<VulkanTexture>(mResource).GetHeight(mipLevel);
 }
 
-uint32_t VulkanResource::GetDepth(uint32_t mipLevel) const {
+uint32_t VulkanRenderResource::GetTexDepth(uint32_t mipLevel) const {
     return ::std::get<VulkanTexture>(mResource).GetDepth(mipLevel);
 }
 
-uint32_t VulkanResource::GetMipCount() const {
+uint32_t VulkanRenderResource::GetTexMipCount() const {
     return ::std::get<VulkanTexture>(mResource).GetMipCount();
 }
 
-uint32_t VulkanResource::GetSampleCount() const {
+uint32_t VulkanRenderResource::GetTexSampleCount() const {
     return ::std::get<VulkanTexture>(mResource).GetSampleCount();
 }
 
-uint32_t VulkanResource::GetArraySize() const {
+uint32_t VulkanRenderResource::GetTexArraySize() const {
     return ::std::get<VulkanTexture>(mResource).GetArraySize();
 }
 
-vk::Format VulkanResource::GetFormat() const {
+vk::Format VulkanRenderResource::GetTexFormat() const {
     return ::std::get<VulkanTexture>(mResource).GetFormat();
 }
 
-std::string_view VulkanResource::GetName() const {
+std::string_view VulkanRenderResource::GetName() const {
     return mName;
 }

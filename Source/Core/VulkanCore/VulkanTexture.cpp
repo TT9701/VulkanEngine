@@ -72,7 +72,7 @@ VulkanTexture::~VulkanTexture() {
     }
 }
 
-void VulkanTexture::CreateImageView(std::string const& name,
+void VulkanTexture::CreateImageView(std::string_view name,
                                     vk::ImageAspectFlags aspect,
                                     uint32_t mostDetailedMip, uint32_t mipCount,
                                     uint32_t firstArray, uint32_t arraySize) {
@@ -118,7 +118,7 @@ void VulkanTexture::CreateImageView(std::string const& name,
         .setViewType(type);
 
     auto view = pDevice->GetHandle().createImageView(info);
-    mViews.emplace(name, view);
+    mViews.emplace(static_cast<::std::string>(name), view);
 }
 
 uint32_t VulkanTexture::GetWidth(uint32_t mipLevel) const {
@@ -159,8 +159,8 @@ vk::Image VulkanTexture::GetHandle() const {
     return mHandle;
 }
 
-vk::ImageView VulkanTexture::GetViewHandle(::std::string const& name) const {
-    return mViews.at(name);
+vk::ImageView VulkanTexture::GetViewHandle(::std::string_view name) const {
+    return mViews.at(static_cast<::std::string>(name));
 }
 
 vk::Image VulkanTexture::CreateImage() {
