@@ -2,6 +2,8 @@
 
 #include "Mesh.hpp"
 
+namespace IntelliDesign_NS::Vulkan::Core {
+
 class CISDI_3DModelDataConverter {
 public:
     CISDI_3DModelDataConverter(const char* path,
@@ -18,3 +20,5 @@ private:
     ::std::string mPath;
     ::std::string mOutputDirectory;
 };
+
+}  // namespace IntelliDesign_NS::Vulkan::Core

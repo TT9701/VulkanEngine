@@ -1,11 +1,11 @@
 #include <Win32/DbgMemLeak.h>
 
-#include "Core/VulkanCore/VulkanEngine.hpp"
+#include "Core/Vulkan/EngineCore.hpp"
 
 int main() {
     INTELLI_DS_SetDbgFlag();
 
-    VulkanEngine engine {};
+    IntelliDesign_NS::Vulkan::Core::EngineCore engine {};
 
     engine.Run();
 

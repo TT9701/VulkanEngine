@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+namespace IntelliDesign_NS::Vulkan::Core {
+
 struct Vertex {
     glm::vec4 position {};   // w - empty
     glm::vec4 normal {};     // w - empty
@@ -10,3 +12,5 @@ struct Vertex {
     glm::vec4 tangent {};    // w - empty
     glm::vec4 bitangent {};  // w - empty
 };
+
+}  // namespace IntelliDesign_NS::Vulkan::Core

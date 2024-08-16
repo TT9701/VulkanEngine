@@ -15,47 +15,47 @@ set (UTILITIES_SRC
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
 set (VULKAN_CORE_SRC 
-    VulkanCore/VulkanHelper.hpp
-    VulkanCore/VulkanEngine.hpp
-    VulkanCore/VulkanEngine.cpp
-    VulkanCore/VulkanInstance.hpp
-    VulkanCore/VulkanInstance.cpp
-    VulkanCore/VulkanDebugUtils.hpp
-    VulkanCore/VulkanDebugUtils.cpp
-    VulkanCore/VulkanSurface.hpp
-    VulkanCore/VulkanSurface.cpp
-    VulkanCore/VulkanPhysicalDevice.hpp
-    VulkanCore/VulkanPhysicalDevice.cpp
-    VulkanCore/VulkanDevice.hpp
-    VulkanCore/VulkanDevice.cpp
-    VulkanCore/VulkanContext.hpp
-    VulkanCore/VulkanContext.cpp
-    VulkanCore/VulkanMemoryAllocator.hpp
-    VulkanCore/VulkanMemoryAllocator.cpp
-    VulkanCore/VulkanSwapchain.hpp
-    VulkanCore/VulkanSwapchain.cpp
-    VulkanCore/VulkanTexture.hpp
-    VulkanCore/VulkanTexture.cpp
-    VulkanCore/VulkanSyncStructures.hpp
-    VulkanCore/VulkanSyncStructures.cpp
-    VulkanCore/VulkanCommands.hpp
-    VulkanCore/VulkanCommands.cpp
-    VulkanCore/VulkanCommandManager.cpp
-    VulkanCore/VulkanCommandManager.hpp
-    VulkanCore/VulkanDescriptors.hpp
-    VulkanCore/VulkanDescriptors.cpp
-    VulkanCore/VulkanPipeline.hpp
-    VulkanCore/VulkanPipeline.cpp
-    VulkanCore/VulkanBuffer.hpp
-    VulkanCore/VulkanBuffer.cpp
-    VulkanCore/VulkanSampler.hpp
-    VulkanCore/VulkanSampler.cpp
-    VulkanCore/VulkanShader.hpp
-    VulkanCore/VulkanShader.cpp
-    VulkanCore/VulkanRenderResource.cpp
-    VulkanCore/VulkanRenderResource.h
+    Vulkan/VulkanHelper.hpp
+    Vulkan/EngineCore.hpp
+    Vulkan/EngineCore.cpp
+    Vulkan/Instance.hpp
+    Vulkan/Instance.cpp
+    Vulkan/DebugUtils.hpp
+    Vulkan/DebugUtils.cpp
+    Vulkan/Surface.hpp
+    Vulkan/Surface.cpp
+    Vulkan/PhysicalDevice.hpp
+    Vulkan/PhysicalDevice.cpp
+    Vulkan/Device.hpp
+    Vulkan/Device.cpp
+    Vulkan/Context.hpp
+    Vulkan/Context.cpp
+    Vulkan/MemoryAllocator.hpp
+    Vulkan/MemoryAllocator.cpp
+    Vulkan/Swapchain.hpp
+    Vulkan/Swapchain.cpp
+    Vulkan/Texture.hpp
+    Vulkan/Texture.cpp
+    Vulkan/SyncStructures.hpp
+    Vulkan/SyncStructures.cpp
+    Vulkan/Commands.hpp
+    Vulkan/Commands.cpp
+    Vulkan/CommandManager.cpp
+    Vulkan/CommandManager.hpp
+    Vulkan/Descriptors.hpp
+    Vulkan/Descriptors.cpp
+    Vulkan/Pipeline.hpp
+    Vulkan/Pipeline.cpp
+    Vulkan/Buffer.hpp
+    Vulkan/Buffer.cpp
+    Vulkan/Sampler.hpp
+    Vulkan/Sampler.cpp
+    Vulkan/Shader.hpp
+    Vulkan/Shader.cpp
+    Vulkan/RenderResource.cpp
+    Vulkan/RenderResource.h
 )
-set (VULKAN_CORE_SRC_GROUP_NAME "VulkanCore")
+set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 
 set (PLATFORM_SRC 
     Platform/Window.hpp 

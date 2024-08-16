@@ -6,8 +6,10 @@
 
 #include "Core/Utilities/Logger.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
-#include "Core/VulkanCore/VulkanContext.hpp"
-#include "Core/VulkanCore/VulkanEngine.hpp"
+#include "Core/Vulkan/Context.hpp"
+#include "Core/Vulkan/EngineCore.hpp"
+
+namespace IntelliDesign_NS::Vulkan::Core {
 
 Model::Model(const char* path, bool flipYZ)
     : mFlipYZ(flipYZ),
@@ -38,7 +40,7 @@ Model::Model(::std::span<Mesh> meshes) : mMeshes(meshes.begin(), meshes.end()) {
     mTriangleCount = mIndexCount / 3;
 }
 
-void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
+void Model::GenerateBuffers(Context* context, EngineCore* engine) {
     const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
     const size_t indexSize = sizeof(mMeshes[0].mIndices[0]);
 
@@ -230,3 +232,5 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
 
     return {vertices, indices};
 }
+
+}  // namespace IntelliDesign_NS::Vulkan::Core

@@ -2,6 +2,8 @@
 
 #include "CISDI_3DModelData.hpp"
 
+namespace IntelliDesign_NS::Vulkan::Core {
+
 CISDI_3DModelDataConverter::CISDI_3DModelDataConverter(
     const char* path, const char* outputDirectory, bool flipYZ)
     : mFlipYZ(flipYZ), mPath(path), mOutputDirectory(outputDirectory) {}
@@ -42,3 +44,5 @@ std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
 
     return meshes;
 }
+
+}  // namespace IntelliDesign_NS::Vulkan::Core

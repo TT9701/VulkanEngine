@@ -12,7 +12,7 @@
 namespace {
 
 __global__ void SimpleAdd(void* data, float time) {
-    auto vertices = static_cast<Vertex*>(data);
+    auto vertices = static_cast<IntelliDesign_NS::Vulkan::Core::Vertex*>(data);
 
     vertices[0].position = {0.0f, 0.0f, 0.0f, 0.0f};
     vertices[1].position = {1.0f, 0.0f, 0.0f, 0.0f};

@@ -4,12 +4,14 @@
 
 #include "CUDA/CUDAVulkan.h"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Core/VulkanCore/VulkanRenderResource.h"
+#include "Core/Vulkan/RenderResource.h"
 #include "MeshType.hpp"
 
+namespace IntelliDesign_NS::Vulkan::Core {
+
 struct GPUMeshBuffers {
-    SharedPtr<VulkanRenderResource> mIndexBuffer {nullptr};
-    SharedPtr<VulkanRenderResource> mVertexBuffer {nullptr};
+    SharedPtr<RenderResource> mIndexBuffer {nullptr};
+    SharedPtr<RenderResource> mVertexBuffer {nullptr};
     vk::DeviceAddress mVertexBufferAddress {};
 };
 
@@ -29,3 +31,5 @@ public:
 
     // TODO: Textures
 };
+
+}  // namespace IntelliDesign_NS::Vulkan::Core
