@@ -1,4 +1,4 @@
-#include "RenderResource.h"
+#include "RenderResource.hpp"
 
 #include "Device.hpp"
 

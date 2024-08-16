@@ -12,7 +12,7 @@
 #include "Instance.hpp"
 #include "MemoryAllocator.hpp"
 #include "PhysicalDevice.hpp"
-#include "RenderResource.h"
+#include "RenderResource.hpp"
 #include "Sampler.hpp"
 #include "Surface.hpp"
 #include "SyncStructures.hpp"

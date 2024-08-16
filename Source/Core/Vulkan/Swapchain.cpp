@@ -2,7 +2,7 @@
 
 #include "Context.hpp"
 #include "Core/Utilities/Logger.hpp"
-#include "RenderResource.h"
+#include "RenderResource.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

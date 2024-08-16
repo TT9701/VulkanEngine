@@ -53,7 +53,9 @@ set (VULKAN_CORE_SRC
     Vulkan/Shader.hpp
     Vulkan/Shader.cpp
     Vulkan/RenderResource.cpp
-    Vulkan/RenderResource.h
+    Vulkan/RenderResource.hpp
+    Vulkan/RenderResourceManager.hpp
+    Vulkan/RenderResourceManager.cpp
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 

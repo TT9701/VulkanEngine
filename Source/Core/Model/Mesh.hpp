@@ -4,7 +4,7 @@
 
 #include "CUDA/CUDAVulkan.h"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Core/Vulkan/RenderResource.h"
+#include "Core/Vulkan/RenderResource.hpp"
 #include "MeshType.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {

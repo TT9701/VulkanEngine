@@ -1,5 +1,7 @@
 #include "EngineCore.hpp"
 
+#include "Buffer.hpp"
+
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
@@ -10,34 +12,40 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "Context.hpp"
 #include "Core/Model/CISDI_3DModelConverter.hpp"
 #include "Core/Platform/Window.hpp"
-#include "RenderResource.h"
+#include "Descriptors.hpp"
+#include "RenderResource.hpp"
+#include "RenderResourceManager.hpp"
 #include "Shader.hpp"
 #include "Swapchain.hpp"
-#include "Descriptors.hpp"
 #include "VulkanHelper.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 EngineCore::EngineCore()
-    : mSPWindow(CreateSDLWindow()),
-      mSPContext(CreateContext()),
-      mSPSwapchain(CreateSwapchain()),
-      mDrawImage(CreateDrawImage()),
-      mDepthImage(CreateDepthImage()),
+    : mPWindow(CreateSDLWindow()),
+      mPContext(CreateContext()),
+      mPSwapchain(CreateSwapchain()),
+      mRenderResManager(CreateRenderResourceManager()),
 #ifdef CUDA_VULKAN_INTEROP
       mCUDAExternalImage(CreateExternalImage()),
 #endif
-      mSPCmdManager(CreateCommandManager()),
-      mSPImmediateSubmitManager(CreateImmediateSubmitManager()),
-      mErrorCheckImage(CreateErrorCheckTexture()),
+      mPCmdManager(CreateCommandManager()),
+      mPImmediateSubmitManager(CreateImmediateSubmitManager()),
       mDescriptorManager(CreateDescriptorManager()),
       mPipelineManager(CreatePipelineManager()) {
+    CreateDrawImage();
+    CreateDepthImage();
+    CreateErrorCheckTexture();
 
-    mSceneUniformBuffer = mSPContext->CreateStagingBuffer(
-        sizeof(SceneData), vk::BufferUsageFlagBits::eUniformBuffer);
+    mRenderResManager->CreateBuffer("SceneUniformBuffer", sizeof(SceneData),
+                                    vk::BufferUsageFlagBits::eUniformBuffer,
+                                    Buffer::MemoryType::Staging);
 
-    mRWBuffer = mSPContext->CreateStorageBuffer(
-        sizeof(glm::vec4) * mSPWindow->GetWidth() * mSPWindow->GetHeight());
+    mRenderResManager->CreateBuffer(
+        "RWBuffer",
+        sizeof(glm::vec4) * mPWindow->GetWidth() * mPWindow->GetHeight(),
+        vk::BufferUsageFlagBits::eStorageBuffer,
+        Buffer::MemoryType::DeviceLocal);
 
     CreateDescriptors();
     CreatePipelines();
@@ -65,18 +73,18 @@ EngineCore::EngineCore()
 
     mFactoryModel = MakeShared<Model>(meshes);
 
-    mFactoryModel->GenerateBuffers(mSPContext.get(), this);
+    mFactoryModel->GenerateBuffers(mPContext.get(), this);
 }
 
 EngineCore::~EngineCore() {
-    mSPContext->GetDeviceHandle().waitIdle();
+    mPContext->GetDeviceHandle().waitIdle();
 }
 
 void EngineCore::Run() {
     bool bQuit = false;
 
     while (!bQuit) {
-        mSPWindow->PollEvents(bQuit, mStopRendering, [&](SDL_Event* e) {
+        mPWindow->PollEvents(bQuit, mStopRendering, [&](SDL_Event* e) {
             mMainCamera.ProcessSDLEvent(e, 0.001f);
         });
 
@@ -91,19 +99,20 @@ void EngineCore::Run() {
 
 void EngineCore::Draw() {
     auto swapchainImage =
-        mSPSwapchain->GetImageHandle(mSPSwapchain->AcquireNextImageIndex());
+        mPSwapchain->GetImageHandle(mPSwapchain->AcquireNextImageIndex());
 
     const uint64_t graphicsFinished =
-        mSPContext->GetTimelineSemphore()->GetValue();
+        mPContext->GetTimelineSemphore()->GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
 
     // Compute Draw
     {
-        auto cmd = mSPCmdManager->GetCmdBufferToBegin();
+        auto cmd = mPCmdManager->GetCmdBufferToBegin();
 
         Utils::TransitionImageLayout(
-            cmd.GetHandle(), mDrawImage->GetTexHandle(),
+            cmd.GetHandle(),
+            mRenderResManager->GetResource("DrawImage")->GetTexHandle(),
             vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral);
 
         DrawBackground(cmd.GetHandle());
@@ -112,39 +121,42 @@ void EngineCore::Draw() {
 
         ::std::vector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-             mSPSwapchain->GetReady4RenderSemHandle(), 0ui64},
+             mPSwapchain->GetReady4RenderSemHandle(), 0ui64},
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
-             mSPContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
+             mPContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
+             mPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
-        mSPCmdManager->Submit(cmd.GetHandle(),
-                              mSPContext->GetDevice()->GetGraphicQueue(), waits,
-                              signals);
+        mPCmdManager->Submit(cmd.GetHandle(),
+                             mPContext->GetDevice()->GetGraphicQueue(), waits,
+                             signals);
     }
 
     // Graphics Draw
     {
-        auto cmd = mSPCmdManager->GetCmdBufferToBegin();
+        auto cmd = mPCmdManager->GetCmdBufferToBegin();
 
-        Utils::TransitionImageLayout(cmd.GetHandle(),
-                                     mDrawImage->GetTexHandle(),
-                                     vk::ImageLayout::eGeneral,
-                                     vk::ImageLayout::eColorAttachmentOptimal);
+        Utils::TransitionImageLayout(
+            cmd.GetHandle(),
+            mRenderResManager->GetResource("DrawImage")->GetTexHandle(),
+            vk::ImageLayout::eGeneral,
+            vk::ImageLayout::eColorAttachmentOptimal);
 
-        Utils::TransitionImageLayout(cmd.GetHandle(),
-                                     mDepthImage->GetTexHandle(),
-                                     vk::ImageLayout::eUndefined,
-                                     vk::ImageLayout::eDepthAttachmentOptimal);
+        Utils::TransitionImageLayout(
+            cmd.GetHandle(),
+            mRenderResManager->GetResource("DepthImage")->GetTexHandle(),
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eDepthAttachmentOptimal);
 
         DrawMesh(cmd.GetHandle());
 
-        Utils::TransitionImageLayout(cmd.GetHandle(),
-                                     mDrawImage->GetTexHandle(),
-                                     vk::ImageLayout::eColorAttachmentOptimal,
-                                     vk::ImageLayout::eShaderReadOnlyOptimal);
+        Utils::TransitionImageLayout(
+            cmd.GetHandle(),
+            mRenderResManager->GetResource("DrawImage")->GetTexHandle(),
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal);
 
         Utils::TransitionImageLayout(cmd.GetHandle(), swapchainImage,
                                      vk::ImageLayout::eUndefined,
@@ -160,30 +172,30 @@ void EngineCore::Draw() {
 
         ::std::vector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eComputeShader,
-             mSPContext->GetTimelineSemaphoreHandle(), computeFinished}};
+             mPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPContext->GetTimelineSemaphoreHandle(), allFinished},
+             mPContext->GetTimelineSemaphoreHandle(), allFinished},
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPSwapchain->GetReady4PresentSemHandle()}};
+             mPSwapchain->GetReady4PresentSemHandle()}};
 
-        mSPCmdManager->Submit(cmd.GetHandle(),
-                              mSPContext->GetDevice()->GetGraphicQueue(), waits,
-                              signals);
+        mPCmdManager->Submit(cmd.GetHandle(),
+                             mPContext->GetDevice()->GetGraphicQueue(), waits,
+                             signals);
     }
 
     {
-        auto cmd = mSPCmdManager->GetCmdBufferToBegin();
+        auto cmd = mPCmdManager->GetCmdBufferToBegin();
         cmd.End();
 
         ::std::vector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSPContext->GetTimelineSemaphoreHandle(), allFinished + 1}};
+             mPContext->GetTimelineSemaphoreHandle(), allFinished + 1}};
 
-        mSPCmdManager->Submit(cmd.GetHandle(),
-                              mSPContext->GetDevice()->GetGraphicQueue(), {},
-                              signals);
+        mPCmdManager->Submit(cmd.GetHandle(),
+                             mPContext->GetDevice()->GetGraphicQueue(), {},
+                             signals);
     }
 
     // #ifdef CUDA_VULKAN_INTEROP
@@ -198,7 +210,7 @@ void EngineCore::Draw() {
     //         mCUDAWaitSemaphore->GetVkSemaphore()));
     // #endif
 
-    mSPSwapchain->Present(mSPContext->GetDevice()->GetGraphicQueue());
+    mPSwapchain->Present(mPContext->GetDevice()->GetGraphicQueue());
 
     // #ifdef CUDA_VULKAN_INTEROP
     //     cudaExternalSemaphoreWaitParams waitParams {};
@@ -232,7 +244,7 @@ UniquePtr<Context> EngineCore::CreateContext() {
 #endif
 
     auto sdlRequestedInstanceExtensions =
-        mSPWindow->GetVulkanInstanceExtension();
+        mPWindow->GetVulkanInstanceExtension();
     ::std::vector<::std::string> requestedInstanceExtensions {};
     requestedInstanceExtensions.insert(requestedInstanceExtensions.end(),
                                        sdlRequestedInstanceExtensions.begin(),
@@ -257,7 +269,7 @@ UniquePtr<Context> EngineCore::CreateContext() {
     Context::EnableDefaultFeatures();
 
     return MakeUnique<Context>(
-        mSPWindow.get(),
+        mPWindow.get(),
         vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
         requestedInstanceLayers, requestedInstanceExtensions,
         enabledDeivceExtensions);
@@ -265,14 +277,19 @@ UniquePtr<Context> EngineCore::CreateContext() {
 
 UniquePtr<Swapchain> EngineCore::CreateSwapchain() {
     return MakeUnique<Swapchain>(
-        mSPContext.get(), vk::Format::eR8G8B8A8Unorm,
-        vk::Extent2D {static_cast<uint32_t>(mSPWindow->GetWidth()),
-                      static_cast<uint32_t>(mSPWindow->GetHeight())});
+        mPContext.get(), vk::Format::eR8G8B8A8Unorm,
+        vk::Extent2D {static_cast<uint32_t>(mPWindow->GetWidth()),
+                      static_cast<uint32_t>(mPWindow->GetHeight())});
 }
 
-SharedPtr<RenderResource> EngineCore::CreateDrawImage() {
-    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
-                                  static_cast<uint32_t>(mSPWindow->GetHeight()),
+UniquePtr<RenderResourceManager> EngineCore::CreateRenderResourceManager() {
+    return MakeUnique<RenderResourceManager>(mPContext->GetDevice(),
+                                             mPContext->GetVmaAllocator());
+}
+
+void EngineCore::CreateDrawImage() {
+    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mPWindow->GetWidth()),
+                                  static_cast<uint32_t>(mPWindow->GetHeight()),
                                   1};
 
     vk::ImageUsageFlags drawImageUsage {};
@@ -282,37 +299,36 @@ SharedPtr<RenderResource> EngineCore::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
-    auto ptr = mSPContext->CreateTexture2D(
-        drawImageExtent, vk::Format::eR16G16B16A16Sfloat, drawImageUsage);
+    auto ptr = mRenderResManager->CreateTexture(
+        "DrawImage", RenderResource::Type::Texture2D,
+        vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
-    return ptr;
 }
 
-SharedPtr<RenderResource> EngineCore::CreateDepthImage() {
-    vk::Extent3D depthImageExtent {
-        static_cast<uint32_t>(mSPWindow->GetWidth()),
-        static_cast<uint32_t>(mSPWindow->GetHeight()), 1};
+void EngineCore::CreateDepthImage() {
+    vk::Extent3D depthImageExtent {static_cast<uint32_t>(mPWindow->GetWidth()),
+                                   static_cast<uint32_t>(mPWindow->GetHeight()),
+                                   1};
 
     vk::ImageUsageFlags depthImageUsage {};
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-    auto ptr = mSPContext->CreateTexture2D(
-        depthImageExtent, vk::Format::eD32Sfloat, depthImageUsage);
+    auto ptr = mRenderResManager->CreateTexture(
+        "DepthImage", RenderResource::Type::Texture2D, vk::Format::eD32Sfloat,
+        depthImageExtent, depthImageUsage);
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth);
-
-    return ptr;
 }
 
 UniquePtr<ImmediateSubmitManager> EngineCore::CreateImmediateSubmitManager() {
     return MakeUnique<ImmediateSubmitManager>(
-        mSPContext.get(),
-        mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
+        mPContext.get(),
+        mPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
 }
 
 UniquePtr<CommandManager> EngineCore::CreateCommandManager() {
     return MakeUnique<CommandManager>(
-        mSPContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
-        mSPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
+        mPContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
+        mPContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value());
 }
 
 void EngineCore::CreatePipelines() {
@@ -328,7 +344,7 @@ void EngineCore::CreateDescriptors() {
     CreateDrawQuadDescriptors();
 }
 
-SharedPtr<RenderResource> EngineCore::CreateErrorCheckTexture() {
+void EngineCore::CreateErrorCheckTexture() {
     auto extent = VkExtent3D {16, 16, 1};
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
@@ -339,19 +355,20 @@ SharedPtr<RenderResource> EngineCore::CreateErrorCheckTexture() {
         }
     }
 
-    auto ptr =
-        mSPContext->CreateTexture2D(extent, vk::Format::eR8G8B8A8Unorm,
-                                    vk::ImageUsageFlagBits::eSampled
-                                        | vk::ImageUsageFlagBits::eTransferDst);
+    auto ptr = mRenderResManager->CreateTexture(
+        "ErrorCheckImage", RenderResource::Type::Texture2D,
+        vk::Format::eR8G8B8A8Unorm, extent,
+        vk::ImageUsageFlagBits::eSampled
+            | vk::ImageUsageFlagBits::eTransferDst);
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 
     {
         size_t dataSize = extent.width * extent.height * 4;
 
-        auto uploadBuffer = mSPContext->CreateStagingBuffer(dataSize);
+        auto uploadBuffer = mPContext->CreateStagingBuffer(dataSize);
         memcpy(uploadBuffer->GetBufferMappedPtr(), pixels.data(), dataSize);
 
-        mSPImmediateSubmitManager->Submit([&](vk::CommandBuffer cmd) {
+        mPImmediateSubmitManager->Submit([&](vk::CommandBuffer cmd) {
             Utils::TransitionImageLayout(cmd, ptr->GetTexHandle(),
                                          vk::ImageLayout::eUndefined,
                                          vk::ImageLayout::eTransferDstOptimal);
@@ -370,8 +387,6 @@ SharedPtr<RenderResource> EngineCore::CreateErrorCheckTexture() {
                 vk::ImageLayout::eShaderReadOnlyOptimal);
         });
     }
-
-    return ptr;
 }
 
 UniquePtr<DescriptorManager> EngineCore::CreateDescriptorManager() {
@@ -379,17 +394,17 @@ UniquePtr<DescriptorManager> EngineCore::CreateDescriptorManager() {
         {vk::DescriptorType::eStorageImage, 1},
         {vk::DescriptorType::eCombinedImageSampler, 1}};
 
-    return MakeUnique<DescriptorManager>(mSPContext.get(), 10, sizes);
+    return MakeUnique<DescriptorManager>(mPContext.get(), 10, sizes);
 }
 
 UniquePtr<PipelineManager> EngineCore::CreatePipelineManager() {
-    return MakeUnique<PipelineManager>(mSPContext.get());
+    return MakeUnique<PipelineManager>(mPContext.get());
 }
 
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<CUDA::VulkanExternalImage> EngineCore::CreateExternalImage() {
-    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mSPWindow->GetWidth()),
-                                  static_cast<uint32_t>(mSPWindow->GetHeight()),
+    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mPWindow->GetWidth()),
+                                  static_cast<uint32_t>(mPWindow->GetHeight()),
                                   1};
 
     vk::ImageUsageFlags drawImageUsage {};
@@ -398,21 +413,21 @@ SharedPtr<CUDA::VulkanExternalImage> EngineCore::CreateExternalImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
 
-    return mSPContext->CreateExternalImage2D(
+    return mPContext->CreateExternalImage2D(
         drawImageExtent, vk::Format::eR32G32B32A32Sfloat, drawImageUsage,
         vk::ImageAspectFlagBits::eColor);
 }
 
 void EngineCore::CreateExternalTriangleData() {
     mTriangleExternalMesh.mVertexBuffer =
-        mSPContext->CreateExternalPersistentBuffer(
+        mPContext->CreateExternalPersistentBuffer(
             3 * sizeof(Vertex),
             vk::BufferUsageFlagBits::eStorageBuffer
                 | vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
     mTriangleExternalMesh.mIndexBuffer =
-        mSPContext->CreateExternalPersistentBuffer(
+        mPContext->CreateExternalPersistentBuffer(
             3 * sizeof(uint32_t), vk::BufferUsageFlagBits::eIndexBuffer
                                       | vk::BufferUsageFlagBits::eTransferDst);
 
@@ -421,21 +436,21 @@ void EngineCore::CreateExternalTriangleData() {
         mTriangleExternalMesh.mVertexBuffer->GetVkBuffer());
 
     mTriangleExternalMesh.mVertexBufferAddress =
-        mSPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+        mPContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
 }
 
 void EngineCore::CreateCUDASyncStructures() {
-    mCUDAWaitSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
-        mSPContext->GetDeviceHandle());
-    mCUDASignalSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
-        mSPContext->GetDeviceHandle());
+    mCUDAWaitSemaphore =
+        MakeShared<CUDA::VulkanExternalSemaphore>(mPContext->GetDeviceHandle());
+    mCUDASignalSemaphore =
+        MakeShared<CUDA::VulkanExternalSemaphore>(mPContext->GetDeviceHandle());
 
     DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }
 
 void EngineCore::SetCudaInterop() {
     auto result = CUDA::GetVulkanCUDABindDeviceID(
-        mSPContext->GetPhysicalDevice()->GetHandle());
+        mPContext->GetPhysicalDevice()->GetHandle());
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
 }
 #endif
@@ -445,8 +460,8 @@ void EngineCore::UpdateScene() {
 
     glm::mat4 proj =
         glm::perspective(glm::radians(45.0f),
-                         static_cast<float>(mSPWindow->GetWidth())
-                             / static_cast<float>(mSPWindow->GetHeight()),
+                         static_cast<float>(mPWindow->GetWidth())
+                             / static_cast<float>(mPWindow->GetHeight()),
                          10000.0f, 0.01f);
 
     proj[1][1] *= -1;
@@ -459,8 +474,9 @@ void EngineCore::UpdateScene() {
 }
 
 void EngineCore::UpdateSceneUBO() {
-    memcpy(mSceneUniformBuffer->GetBufferMappedPtr(), &mSceneData,
-           sizeof(mSceneData));
+    auto data = mRenderResManager->GetResource("SceneUniformBuffer")
+                    ->GetBufferMappedPtr();
+    memcpy(data, &mSceneData, sizeof(mSceneData));
 }
 
 void EngineCore::CreateBackgroundComputeDescriptors() {
@@ -475,16 +491,17 @@ void EngineCore::CreateBackgroundComputeDescriptors() {
     const auto drawImageDesc =
         mDescriptorManager->Allocate("DrawImage_Desc_0", drawImageSetLayout);
 
-    mDescriptorManager->WriteImage(
-        0,
-        {VK_NULL_HANDLE, mDrawImage->GetTexViewHandle("Color-Whole"),
-         vk::ImageLayout::eGeneral},
-        vk::DescriptorType::eStorageImage);
+    mDescriptorManager->WriteImage(0,
+                                   {VK_NULL_HANDLE,
+                                    mRenderResManager->GetResource("DrawImage")
+                                        ->GetTexViewHandle("Color-Whole"),
+                                    vk::ImageLayout::eGeneral},
+                                   vk::DescriptorType::eStorageImage);
 
     mDescriptorManager->WriteBuffer(
         1,
-        {mRWBuffer->GetBufferHandle(), 0,
-         sizeof(glm::vec4) * mSPWindow->GetWidth() * mSPWindow->GetHeight()},
+        {mRenderResManager->GetResource("RWBuffer")->GetBufferHandle(), 0,
+         sizeof(glm::vec4) * mPWindow->GetWidth() * mPWindow->GetHeight()},
         vk::DescriptorType::eStorageBuffer);
 
     mDescriptorManager->UpdateSet(drawImageDesc);
@@ -499,9 +516,9 @@ void EngineCore::CreateBackgroundComputePipeline() {
     auto backgroundPipelineLayout = mPipelineManager->CreateLayout(
         "BackgoundCompute_Layout", setLayouts, {});
 
-    Shader computeDrawShader {mSPContext.get(), "computeDraw",
-                                    "../../Shaders/BackGround.comp.spv",
-                                    ShaderStage::Compute};
+    Shader computeDrawShader {mPContext.get(), "computeDraw",
+                              "../../Shaders/BackGround.comp.spv",
+                              ShaderStage::Compute};
 
     auto& builder = mPipelineManager->GetComputePipelineBuilder();
 
@@ -517,11 +534,11 @@ void EngineCore::CreateMeshPipeline() {
     std::vector<Shader> shaders;
     shaders.reserve(2);
 
-    shaders.emplace_back(mSPContext.get(), "vertex",
+    shaders.emplace_back(mPContext.get(), "vertex",
                          "../../Shaders/Triangle.vert.spv",
                          ShaderStage::Vertex);
 
-    shaders.emplace_back(mSPContext.get(), "fragment",
+    shaders.emplace_back(mPContext.get(), "fragment",
                          "../../Shaders/Triangle.frag.spv",
                          ShaderStage::Fragment);
 
@@ -546,8 +563,10 @@ void EngineCore::CreateMeshPipeline() {
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
         .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
-        .SetColorAttachmentFormat(mDrawImage->GetTexFormat())
-        .SetDepthStencilFormat(mDepthImage->GetTexFormat())
+        .SetColorAttachmentFormat(
+            mRenderResManager->GetResource("DrawImage")->GetTexFormat())
+        .SetDepthStencilFormat(
+            mRenderResManager->GetResource("DepthImage")->GetTexFormat())
         .Build("TriangleDraw_Pipeline");
 
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
@@ -575,7 +594,7 @@ void EngineCore::CreateMeshDescriptors() {
 
     // mDescriptorManager->WriteImage(
     //     0,
-    //     {mSPContext->GetDefaultNearestSamplerHandle(),
+    //     {mPContext->GetDefaultNearestSamplerHandle(),
     //      mErrorCheckImage->GetTexViewHandle("Color-Whole"),
     //      vk::ImageLayout::eShaderReadOnlyOptimal},
     //     vk::DescriptorType::eCombinedImageSampler);
@@ -594,8 +613,9 @@ void EngineCore::CreateDrawQuadDescriptors() {
         mDescriptorManager->Allocate("Quad_Desc_0", quadSetLayout);
 
     mDescriptorManager->WriteImage(0,
-                                   {mSPContext->GetDefaultLinearSamplerHandle(),
-                                    mDrawImage->GetTexViewHandle("Color-Whole"),
+                                   {mPContext->GetDefaultLinearSamplerHandle(),
+                                    mRenderResManager->GetResource("DrawImage")
+                                        ->GetTexViewHandle("Color-Whole"),
                                     vk::ImageLayout::eShaderReadOnlyOptimal},
                                    vk::DescriptorType::eCombinedImageSampler);
 
@@ -606,10 +626,10 @@ void EngineCore::CreateDrawQuadPipeline() {
     std::vector<Shader> shaders;
     shaders.reserve(2);
 
-    shaders.emplace_back(mSPContext.get(), "vertex",
+    shaders.emplace_back(mPContext.get(), "vertex",
                          "../../Shaders/Quad.vert.spv", ShaderStage::Vertex);
 
-    shaders.emplace_back(mSPContext.get(), "fragment",
+    shaders.emplace_back(mPContext.get(), "fragment",
                          "../../Shaders/Quad.frag.spv", ShaderStage::Fragment);
 
     std::vector setLayouts {
@@ -628,7 +648,7 @@ void EngineCore::CreateDrawQuadPipeline() {
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
         .SetDepth(vk::False, vk::False)
-        .SetColorAttachmentFormat(mSPSwapchain->GetFormat())
+        .SetColorAttachmentFormat(mPSwapchain->GetFormat())
         .SetDepthStencilFormat(vk::Format::eUndefined)
         .Build("QuadDraw_Pipeline");
 
@@ -646,8 +666,9 @@ void EngineCore::DrawBackground(vk::CommandBuffer cmd) {
         vk::ImageAspectFlagBits::eColor, 0, vk::RemainingMipLevels, 0,
         vk::RemainingArrayLayers};
 
-    cmd.clearColorImage(mDrawImage->GetTexHandle(), vk::ImageLayout::eGeneral,
-                        clearValue, subresource);
+    cmd.clearColorImage(
+        mRenderResManager->GetResource("DrawImage")->GetTexHandle(),
+        vk::ImageLayout::eGeneral, clearValue, subresource);
 
     // Compute Draw
     {
@@ -660,8 +681,14 @@ void EngineCore::DrawBackground(vk::CommandBuffer cmd) {
             mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0,
             mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
 
-        cmd.dispatch(::std::ceil(mDrawImage->GetTexWidth() / 16.0),
-                     ::std::ceil(mDrawImage->GetTexHeight() / 16.0), 1);
+        cmd.dispatch(
+            ::std::ceil(
+                mRenderResManager->GetResource("DrawImage")->GetTexWidth()
+                / 16.0),
+            ::std::ceil(
+                mRenderResManager->GetResource("DrawImage")->GetTexHeight()
+                / 16.0),
+            1);
     }
 
     // CUDA Draw
@@ -710,13 +737,17 @@ void EngineCore::DrawBackground(vk::CommandBuffer cmd) {
 
 void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
     vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment.setImageView(mDrawImage->GetTexViewHandle("Color-Whole"))
+    colorAttachment
+        .setImageView(mRenderResManager->GetResource("DrawImage")
+                          ->GetTexViewHandle("Color-Whole"))
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
 
     vk::RenderingAttachmentInfo depthAttachment {};
-    depthAttachment.setImageView(mDepthImage->GetTexViewHandle("Depth-Whole"))
+    depthAttachment
+        .setImageView(mRenderResManager->GetResource("DepthImage")
+                          ->GetTexViewHandle("Depth-Whole"))
         .setImageLayout(vk::ImageLayout::eDepthAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eClear)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
@@ -725,7 +756,9 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
     vk::RenderingInfo renderInfo {};
     renderInfo
         .setRenderArea(vk::Rect2D {
-            {0, 0}, {mDrawImage->GetTexWidth(), mDrawImage->GetTexHeight()}})
+            {0, 0},
+            {mRenderResManager->GetResource("DrawImage")->GetTexWidth(),
+             mRenderResManager->GetResource("DrawImage")->GetTexHeight()}})
         .setLayerCount(1u)
         .setColorAttachments(colorAttachment)
         .setPDepthAttachment(&depthAttachment);
@@ -737,20 +770,24 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
         mPipelineManager->GetGraphicsPipeline("TriangleDraw_Pipeline"));
 
     vk::Viewport viewport {};
-    viewport.setWidth(mDrawImage->GetTexWidth())
-        .setHeight(mDrawImage->GetTexHeight())
+    viewport
+        .setWidth(mRenderResManager->GetResource("DrawImage")->GetTexWidth())
+        .setHeight(mRenderResManager->GetResource("DrawImage")->GetTexHeight())
         .setMinDepth(0.0f)
         .setMaxDepth(1.0f);
     cmd.setViewport(0, viewport);
 
     vk::Rect2D scissor {};
-    scissor.setExtent({mDrawImage->GetTexWidth(), mDrawImage->GetTexHeight()});
+    scissor.setExtent(
+        {mRenderResManager->GetResource("DrawImage")->GetTexWidth(),
+         mRenderResManager->GetResource("DrawImage")->GetTexHeight()});
     cmd.setScissor(0, scissor);
 
     mDescriptorManager->WriteImage(
         0,
-        {mSPContext->GetDefaultNearestSamplerHandle(),
-         mErrorCheckImage->GetTexViewHandle("Color-Whole"),
+        {mPContext->GetDefaultNearestSamplerHandle(),
+         mRenderResManager->GetResource("ErrorCheckImage")
+             ->GetTexViewHandle("Color-Whole"),
          vk::ImageLayout::eShaderReadOnlyOptimal},
         vk::DescriptorType::eCombinedImageSampler);
 
@@ -765,7 +802,10 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
         {});
 
     mDescriptorManager->WriteBuffer(
-        0, {mSceneUniformBuffer->GetBufferHandle(), 0, sizeof(SceneData)},
+        0,
+        {mRenderResManager->GetResource("SceneUniformBuffer")
+             ->GetBufferHandle(),
+         0, sizeof(SceneData)},
         vk::DescriptorType::eUniformBuffer);
 
     mDescriptorManager->UpdateSet(
@@ -794,9 +834,9 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
 }
 
 void EngineCore::DrawQuad(vk::CommandBuffer cmd) {
-    auto imageIndex = mSPSwapchain->GetCurrentImageIndex();
+    auto imageIndex = mPSwapchain->GetCurrentImageIndex();
     vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment.setImageView(mSPSwapchain->GetImageViewHandle(imageIndex))
+    colorAttachment.setImageView(mPSwapchain->GetImageViewHandle(imageIndex))
         .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eDontCare)
         .setStoreOp(vk::AttachmentStoreOp::eStore);
@@ -804,8 +844,8 @@ void EngineCore::DrawQuad(vk::CommandBuffer cmd) {
     vk::RenderingInfo renderInfo {};
     renderInfo
         .setRenderArea(vk::Rect2D {{0, 0},
-                                   {mSPSwapchain->GetExtent2D().width,
-                                    mSPSwapchain->GetExtent2D().height}})
+                                   {mPSwapchain->GetExtent2D().width,
+                                    mPSwapchain->GetExtent2D().height}})
         .setLayerCount(1u)
         .setColorAttachments(colorAttachment);
 
@@ -816,15 +856,15 @@ void EngineCore::DrawQuad(vk::CommandBuffer cmd) {
         mPipelineManager->GetGraphicsPipeline("QuadDraw_Pipeline"));
 
     vk::Viewport viewport {};
-    viewport.setWidth(mSPSwapchain->GetExtent2D().width)
-        .setHeight(mSPSwapchain->GetExtent2D().height)
+    viewport.setWidth(mPSwapchain->GetExtent2D().width)
+        .setHeight(mPSwapchain->GetExtent2D().height)
         .setMinDepth(0.0f)
         .setMaxDepth(1.0f);
     cmd.setViewport(0, viewport);
 
     vk::Rect2D scissor {};
-    scissor.setExtent({mSPSwapchain->GetExtent2D().width,
-                       mSPSwapchain->GetExtent2D().height});
+    scissor.setExtent(
+        {mPSwapchain->GetExtent2D().width, mPSwapchain->GetExtent2D().height});
     cmd.setScissor(0, scissor);
 
     cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,

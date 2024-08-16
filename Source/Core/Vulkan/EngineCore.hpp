@@ -29,6 +29,7 @@ class CommandPool;
 class DescriptorManager;
 class Shader;
 class RenderResource;
+class RenderResourceManager;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -52,7 +53,7 @@ public:
 
 public:
     ImmediateSubmitManager* GetImmediateSubmitManager() const {
-        return mSPImmediateSubmitManager.get();
+        return mPImmediateSubmitManager.get();
     }
 
 private:
@@ -61,14 +62,14 @@ private:
     UniquePtr<SDLWindow> CreateSDLWindow();
     UniquePtr<Context> CreateContext();
     UniquePtr<Swapchain> CreateSwapchain();
-    SharedPtr<RenderResource> CreateDrawImage();
-    SharedPtr<RenderResource> CreateDepthImage();
+    UniquePtr<RenderResourceManager> CreateRenderResourceManager();
     UniquePtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
     UniquePtr<CommandManager> CreateCommandManager();
-    SharedPtr<RenderResource> CreateErrorCheckTexture();
     UniquePtr<DescriptorManager> CreateDescriptorManager();
     UniquePtr<PipelineManager> CreatePipelineManager();
-
+    void CreateDrawImage();
+    void CreateDepthImage();
+    void CreateErrorCheckTexture();
     void CreatePipelines();
     void CreateDescriptors();
 
@@ -103,25 +104,19 @@ private:
     bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
-    UniquePtr<SDLWindow> mSPWindow;
-    UniquePtr<Context> mSPContext;
-    UniquePtr<Swapchain> mSPSwapchain;
+    UniquePtr<SDLWindow> mPWindow;
+    UniquePtr<Context> mPContext;
+    UniquePtr<Swapchain> mPSwapchain;
 
-    SharedPtr<RenderResource> mDrawImage;
-    SharedPtr<RenderResource> mDepthImage;
+    UniquePtr<RenderResourceManager> mRenderResManager;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 #endif
-    UniquePtr<CommandManager> mSPCmdManager;
-    UniquePtr<ImmediateSubmitManager> mSPImmediateSubmitManager;
-    SharedPtr<RenderResource> mErrorCheckImage;
+    UniquePtr<CommandManager> mPCmdManager;
+    UniquePtr<ImmediateSubmitManager> mPImmediateSubmitManager;
     UniquePtr<DescriptorManager> mDescriptorManager;
     UniquePtr<PipelineManager> mPipelineManager;
-
-    SharedPtr<RenderResource> mSceneUniformBuffer {};
-
-    SharedPtr<RenderResource> mRWBuffer {};
 
     Camera mMainCamera {};
 

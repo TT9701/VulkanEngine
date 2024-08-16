@@ -17,23 +17,20 @@ public:
     };
 
     // buffer
-    explicit RenderResource(Device* device,
-                                  MemoryAllocator* allocator, Type type,
-                                  size_t size, vk::BufferUsageFlags usage,
-                                  Buffer::MemoryType memType);
+    explicit RenderResource(Device* device, MemoryAllocator* allocator,
+                            Type type, size_t size, vk::BufferUsageFlags usage,
+                            Buffer::MemoryType memType);
 
     // texture
-    explicit RenderResource(Device* device,
-                                  MemoryAllocator* allocator, Type type,
-                                  vk::Format format, vk::Extent3D extent,
-                                  vk::ImageUsageFlags usage, uint32_t mipLevels,
-                                  uint32_t arraySize, uint32_t sampleCount);
+    explicit RenderResource(Device* device, MemoryAllocator* allocator,
+                            Type type, vk::Format format, vk::Extent3D extent,
+                            vk::ImageUsageFlags usage, uint32_t mipLevels,
+                            uint32_t arraySize, uint32_t sampleCount);
 
     // texture for existing vk::image (swapchain images)
-    explicit RenderResource(Device* device, vk::Image handle,
-                                  Type type, vk::Format format,
-                                  vk::Extent3D extent, uint32_t arraySize,
-                                  uint32_t sampleCount);
+    explicit RenderResource(Device* device, vk::Image handle, Type type,
+                            vk::Format format, vk::Extent3D extent,
+                            uint32_t arraySize, uint32_t sampleCount);
 
     ~RenderResource() = default;
 

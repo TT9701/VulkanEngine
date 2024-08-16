@@ -120,6 +120,9 @@ void Texture::CreateImageView(std::string_view name,
         .setViewType(type);
 
     auto view = pDevice->GetHandle().createImageView(info);
+
+    pDevice->SetObjectName(view, static_cast<::std::string>(name).c_str());
+
     mViews.emplace(static_cast<::std::string>(name), view);
 }
 
