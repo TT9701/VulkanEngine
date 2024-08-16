@@ -9,7 +9,7 @@ void VulkanQueueSubmitRequest::Wait_CPUBlocking() {
     while (*pTimelineValue < mFenceValue) {}
 }
 
-CmdBufferToBegin::CmdBufferToBegin(vk::CommandBuffer     cmd,
+CmdBufferToBegin::CmdBufferToBegin(vk::CommandBuffer cmd,
                                    VulkanCommandManager* manager)
     : pManager(manager), mBuffer(cmd) {
     mBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
@@ -50,22 +50,20 @@ VulkanQueueSubmitRequest VulkanCommandManager::Submit(
     ::std::span<SemSubmitInfo> signalInfos) {
     uint64_t signalValue {0ui64};
 
-    auto cmdInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
+    vk::CommandBufferSubmitInfo cmdInfo {cmd};
 
     ::std::vector<vk::SemaphoreSubmitInfo> waits {};
     for (auto& info : waitInfos) {
-        waits.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
-            info.flags, info.sem, info.value));
+        waits.emplace_back(info.sem, info.value, info.stage);
     }
 
     ::std::vector<vk::SemaphoreSubmitInfo> signals {};
     for (auto& info : signalInfos) {
-        signals.push_back(Utils::GetDefaultSemaphoreSubmitInfo(
-            info.flags, info.sem, info.value));
+        signals.emplace_back(info.sem, info.value, info.stage);
         signalValue = signalValue > info.value ? signalValue : info.value;
     }
 
-    auto submit = Utils::SubmitInfo(cmdInfo, signals, waits);
+    vk::SubmitInfo2 submit {{}, waits, cmdInfo, signals};
 
     pContex->GetDeviceHandle().resetFences(
         mSPFences[mFenceCurIdx]->GetHandle());
@@ -144,7 +142,7 @@ std::vector<SharedPtr<VulkanFence>> VulkanCommandManager::CreateFences() {
 }
 
 ImmediateSubmitManager::ImmediateSubmitManager(VulkanContext* ctx,
-                                               uint32_t       queueFamilyIndex)
+                                               uint32_t queueFamilyIndex)
     : pContex(ctx),
       mQueueFamilyIndex(queueFamilyIndex),
       mSPFence(CreateFence()),
@@ -173,8 +171,8 @@ void ImmediateSubmitManager::Submit(
 
     cmd.end();
 
-    auto cmdSubmitInfo = Utils::GetDefaultCommandBufferSubmitInfo(cmd);
-    auto submit        = Utils::SubmitInfo(cmdSubmitInfo, {}, {});
+    vk::CommandBufferSubmitInfo cmdSubmitInfo {cmd};
+    vk::SubmitInfo2 submit {{}, {}, cmdSubmitInfo, {}};
 
     pContex->GetDevice()->GetGraphicQueue().submit2(submit,
                                                     mSPFence->GetHandle());

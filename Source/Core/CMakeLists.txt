@@ -34,8 +34,8 @@ set (VULKAN_CORE_SRC
     VulkanCore/VulkanMemoryAllocator.cpp
     VulkanCore/VulkanSwapchain.hpp
     VulkanCore/VulkanSwapchain.cpp
-    VulkanCore/VulkanImage.hpp
-    VulkanCore/VulkanImage.cpp
+    VulkanCore/VulkanTexture.hpp
+    VulkanCore/VulkanTexture.cpp
     VulkanCore/VulkanSyncStructures.hpp
     VulkanCore/VulkanSyncStructures.cpp
     VulkanCore/VulkanCommands.hpp
@@ -52,6 +52,8 @@ set (VULKAN_CORE_SRC
     VulkanCore/VulkanSampler.cpp
     VulkanCore/VulkanShader.hpp
     VulkanCore/VulkanShader.cpp
+    VulkanCore/VulkanResource.cpp
+    VulkanCore/VulkanResource.h
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "VulkanCore")
 
@@ -173,5 +175,6 @@ target_precompile_headers(Core
         <span>
         <fstream>
         <iostream>
+        <variant>
         <filesystem>
         <unordered_map>)

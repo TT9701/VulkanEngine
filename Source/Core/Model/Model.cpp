@@ -9,11 +9,11 @@
 #include "Core/VulkanCore/VulkanContext.hpp"
 #include "Core/VulkanCore/VulkanEngine.hpp"
 
-Model::Model(std::string const& path, bool flipYZ)
+Model::Model(const char* path, bool flipYZ)
     : mFlipYZ(flipYZ),
       mPath(path),
-      mDirectory(Utils::GetDirectory(path)),
-      mName(Utils::GetFileName(path)) {
+      mDirectory(mPath.remove_filename()),
+      mName(mPath.stem().generic_string()) {
     LoadModel();
 }
 
@@ -40,30 +40,26 @@ Model::Model(std::vector<Mesh> const& meshes) : mMeshes(meshes) {
 
 void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
     const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
-    const size_t indexSize  = sizeof(mMeshes[0].mIndices[0]);
+    const size_t indexSize = sizeof(mMeshes[0].mIndices[0]);
 
     const size_t vertexBufferSize = mVertexCount * vertexSize;
-    const size_t indexBufferSize  = mIndexCount * indexSize;
+    const size_t indexBufferSize = mIndexCount * indexSize;
 
-    mBuffers.mVertexBuffer = context->CreatePersistentBuffer(
+    mBuffers.mVertexBuffer = context->CreateDeviceLocalBuffer(
         vertexBufferSize, vk::BufferUsageFlagBits::eStorageBuffer
                               | vk::BufferUsageFlagBits::eTransferDst
                               | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-    mBuffers.mIndexBuffer = context->CreatePersistentBuffer(
+    mBuffers.mIndexBuffer = context->CreateDeviceLocalBuffer(
         indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer
                              | vk::BufferUsageFlagBits::eTransferDst);
 
-    vk::BufferDeviceAddressInfo deviceAddrInfo {};
-    deviceAddrInfo.setBuffer(mBuffers.mVertexBuffer->GetHandle());
-
-    mBuffers.mVertexBufferAddress =
-        context->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+    mBuffers.mVertexBufferAddress = mBuffers.mVertexBuffer->GetBufferDeviceAddress();
 
     auto staging =
         context->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
 
-    void* data = staging->GetAllocationInfo().pMappedData;
+    void* data = staging->GetBufferMappedPtr();
     for (uint32_t i = 0; i < mMeshes.size(); ++i) {
         memcpy((Vertex*)data + mOffsets.vertexOffsets[i],
                mMeshes[i].mVertices.data(),
@@ -79,12 +75,13 @@ void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
     engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
         vk::BufferCopy vertexCopy {};
         vertexCopy.setSize(vertexBufferSize);
-        cmd.copyBuffer(staging->GetHandle(),
-                       mBuffers.mVertexBuffer->GetHandle(), vertexCopy);
+        cmd.copyBuffer(staging->GetBufferHandle(),
+                       mBuffers.mVertexBuffer->GetBufferHandle(), vertexCopy);
 
         vk::BufferCopy indexCopy {};
         indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
-        cmd.copyBuffer(staging->GetHandle(), mBuffers.mIndexBuffer->GetHandle(),
+        cmd.copyBuffer(staging->GetBufferHandle(),
+                       mBuffers.mIndexBuffer->GetBufferHandle(),
                        indexCopy);
     });
 
@@ -98,14 +95,14 @@ void Model::GenerateBuffers(VulkanContext* context, VulkanEngine* engine) {
 
         auto staging = context->CreateStagingBuffer(bufSize);
 
-        void* data = staging->GetAllocationInfo().pMappedData;
+        void* data = staging->GetBufferMappedPtr();
         memcpy(data, mIndirectCmds.data(), bufSize);
 
         engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mIndirectCmdBuffer->GetHandle(), cmdBufCopy);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mIndirectCmdBuffer->GetBufferHandle(), cmdBufCopy);
         });
     }
 }
@@ -124,8 +121,8 @@ void Model::Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix) {
 void Model::LoadModel() {
     Assimp::Importer importer {};
 
-    const auto scene =
-        importer.ReadFile(mPath, aiProcessPreset_TargetRealtime_Fast);
+    const auto scene = importer.ReadFile(mPath.generic_string().c_str(),
+                                         aiProcessPreset_TargetRealtime_Fast);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
         || !scene->mRootNode) {
@@ -149,12 +146,12 @@ void Model::ProcessNode(aiNode* node, const aiScene* scene) {
 }
 
 Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
-    ::std::vector<Vertex>   vertices;
+    ::std::vector<Vertex> vertices;
     ::std::vector<uint32_t> indices;
     // TODO: Texture
 
     for (uint32_t i = 0; i < mesh->mNumVertices; ++i) {
-        Vertex    vertex;
+        Vertex vertex;
         glm::vec3 temp;
 
         // position
@@ -186,8 +183,8 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
         // texcoords
         if (mesh->HasTextureCoords(i)) {
             glm::vec2 vec2;
-            vec2.x           = mesh->mTextureCoords[0][i].x;
-            vec2.y           = mesh->mTextureCoords[0][i].y;
+            vec2.x = mesh->mTextureCoords[0][i].x;
+            vec2.y = mesh->mTextureCoords[0][i].y;
             vertex.texcoords = vec2;
         }
 

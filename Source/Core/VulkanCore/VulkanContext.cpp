@@ -2,7 +2,7 @@
 
 #include "CUDA/CUDAVulkan.h"
 
-vk::PhysicalDeviceFeatures         VulkanContext::sPhysicalDeviceFeatures {};
+vk::PhysicalDeviceFeatures VulkanContext::sPhysicalDeviceFeatures {};
 vk::PhysicalDeviceVulkan11Features VulkanContext::sEnable11Features {};
 vk::PhysicalDeviceVulkan12Features VulkanContext::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features VulkanContext::sEnable13Features {};
@@ -27,53 +27,60 @@ VulkanContext::VulkanContext(
       mPExternalMemoryPool(CreateExternalMemoryPool())
 #endif
 {
+    mPDevice->SetObjectName(mPInstance->GetHandle(), "Default Instance");
+    mPDevice->SetObjectName(mPSurface->GetHandle(), "Default Surface");
+    mPDevice->SetObjectName(
+        mPPhysicalDevice->GetHandle(),
+        mPPhysicalDevice->GetHandle().getProperties2().properties.deviceName);
+    mPDevice->SetObjectName(mPDevice->GetHandle(), "Default Device");
+    mPDevice->SetObjectName(mPTimelineSemaphore->GetHandle(),
+                            "Main Timeline Semaphore");
+
     CreateDefaultSamplers();
+
+    mPDevice->SetObjectName(mDefaultSamplerLinear->GetHandle(),
+                            "Default Linear Sampler");
+    mPDevice->SetObjectName(mDefaultSamplerNearest->GetHandle(),
+                            "Default Nearest Sampler");
+
+    mPDevice->SetObjectName(mPTimelineSemaphore->GetHandle(),
+                            "Main Timeline Semaphore");
 }
 
-SharedPtr<VulkanImage> VulkanContext::CreateImage2D(
-    VmaAllocationCreateFlags flags, vk::Extent3D extent, vk::Format format,
-    vk::ImageUsageFlags usage, vk::ImageAspectFlags aspect, void* data,
-    VulkanEngine* engine, uint32_t mipmapLevel, uint32_t arrayLayers) {
-    return MakeShared<VulkanImage>(this, flags, extent, format, usage, aspect,
-                                   data, engine, mipmapLevel, arrayLayers,
-                                   vk::ImageType::e2D, vk::ImageViewType::e2D);
+SharedPtr<VulkanResource> VulkanContext::CreateTexture2D(
+    vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
+    uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount) {
+    return MakeShared<VulkanResource>(
+        mPDevice.get(), mPAllocator.get(), VulkanResource::Type::Texture2D,
+        format, extent, usage, mipLevels, arraySize, sampleCount);
 }
 
-SharedPtr<VulkanBuffer> VulkanContext::CreatePersistentBuffer(
+SharedPtr<VulkanResource> VulkanContext::CreateDeviceLocalBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return MakeShared<VulkanBuffer>(mPAllocator.get(), allocByteSize, usage,
-                                    VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    return MakeShared<VulkanResource>(
+        mPDevice.get(), mPAllocator.get(), VulkanResource::Type::Buffer,
+        allocByteSize, usage, BufferMemoryType::DeviceLocal);
 }
 
-SharedPtr<VulkanBuffer> VulkanContext::CreateStagingBuffer(
-    size_t allocByteSize) {
-    return MakeShared<VulkanBuffer>(
-        mPAllocator.get(), allocByteSize, vk::BufferUsageFlagBits::eTransferSrc,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-            | VMA_ALLOCATION_CREATE_MAPPED_BIT);
-}
-
-SharedPtr<VulkanBuffer> VulkanContext::CreateUniformBuffer(
+SharedPtr<VulkanResource> VulkanContext::CreateStagingBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return MakeShared<VulkanBuffer>(
-        mPAllocator.get(), allocByteSize,
-        usage | vk::BufferUsageFlagBits::eUniformBuffer,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-            | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE);
+    return MakeShared<VulkanResource>(
+        mPDevice.get(), mPAllocator.get(), VulkanResource::Type::Buffer,
+        allocByteSize, usage | vk::BufferUsageFlagBits::eTransferSrc,
+        BufferMemoryType::Staging);
 }
 
-SharedPtr<VulkanBuffer> VulkanContext::CreateStorageBuffer(
+SharedPtr<VulkanResource> VulkanContext::CreateStorageBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return CreatePersistentBuffer(
+    return CreateDeviceLocalBuffer(
         allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
-SharedPtr<VulkanBuffer> VulkanContext::CreateIndirectCmdBuffer(
+SharedPtr<VulkanResource> VulkanContext::CreateIndirectCmdBuffer(
     size_t allocByteSize) {
-    return CreatePersistentBuffer(allocByteSize,
-                                  vk::BufferUsageFlagBits::eIndirectBuffer
-                                      | vk::BufferUsageFlagBits::eTransferDst);
+    return CreateDeviceLocalBuffer(allocByteSize,
+                                   vk::BufferUsageFlagBits::eIndirectBuffer
+                                       | vk::BufferUsageFlagBits::eTransferDst);
 }
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -97,7 +104,7 @@ VulkanContext::CreateExternalPersistentBuffer(size_t allocByteSize,
 }
 
 SharedPtr<CUDA::VulkanExternalBuffer>
-VulkanContext::CreateExternalStagingBuffer(size_t               allocByteSize,
+VulkanContext::CreateExternalStagingBuffer(size_t allocByteSize,
                                            vk::BufferUsageFlags usage) {
     return MakeShared<CUDA::VulkanExternalBuffer>(
         mPDevice->GetHandle(), mPAllocator->GetHandle(), allocByteSize, usage,
@@ -115,6 +122,94 @@ SharedPtr<VulkanSampler> VulkanContext::CreateSampler(
     return MakeShared<VulkanSampler>(this, minFilter, magFilter, addressModeU,
                                      addressModeV, addressModeW, maxLod,
                                      compareEnable, compareOp);
+}
+
+VulkanInstance* VulkanContext::GetInstance() const {
+    return mPInstance.get();
+}
+
+#ifndef NDEBUG
+VulkanDebugUtils* VulkanContext::GetDebugMessenger() const {
+    return mPDebugUtilsMessenger.get();
+}
+#endif
+
+VulkanSurface* VulkanContext::GetSurface() const {
+    return mPSurface.get();
+}
+
+VulkanPhysicalDevice* VulkanContext::GetPhysicalDevice() const {
+    return mPPhysicalDevice.get();
+}
+
+VulkanDevice* VulkanContext::GetDevice() const {
+    return mPDevice.get();
+}
+
+VulkanMemoryAllocator* VulkanContext::GetVmaAllocator() const {
+    return mPAllocator.get();
+}
+
+VulkanTimelineSemaphore* VulkanContext::GetTimelineSemphore() const {
+    return mPTimelineSemaphore.get();
+}
+
+#ifdef CUDA_VULKAN_INTEROP
+VulkanExternalMemoryPool* VulkanContext::GetExternalMemoryPool() const {
+    return mPExternalMemoryPool.get();
+}
+#endif
+
+VulkanSampler* VulkanContext::GetDefaultNearestSampler() const {
+    return mDefaultSamplerNearest.get();
+}
+
+VulkanSampler* VulkanContext::GetDefaultLinearSampler() const {
+    return mDefaultSamplerLinear.get();
+}
+
+vk::Instance VulkanContext::GetInstanceHandle() const {
+    return mPInstance->GetHandle();
+}
+
+#ifndef NDEBUG
+vk::DebugUtilsMessengerEXT VulkanContext::GetDebugMessengerHandle() const {
+    return mPDebugUtilsMessenger->GetHandle();
+}
+#endif
+
+vk::SurfaceKHR VulkanContext::GetSurfaceHandle() const {
+    return mPSurface->GetHandle();
+}
+
+vk::PhysicalDevice VulkanContext::GetPhysicalDeviceHandle() const {
+    return mPPhysicalDevice->GetHandle();
+}
+
+vk::Device VulkanContext::GetDeviceHandle() const {
+    return mPDevice->GetHandle();
+}
+
+VmaAllocator VulkanContext::GetVmaAllocatorHandle() const {
+    return mPAllocator->GetHandle();
+}
+
+vk::Semaphore VulkanContext::GetTimelineSemaphoreHandle() const {
+    return mPTimelineSemaphore->GetHandle();
+}
+
+#ifdef CUDA_VULKAN_INTEROP
+VmaPool VulkanContext::GetExternalMemoryPoolHandle() const {
+    return mPExternalMemoryPool->GetHandle();
+}
+#endif
+
+vk::Sampler VulkanContext::GetDefaultNearestSamplerHandle() const {
+    return mDefaultSamplerNearest->GetHandle();
+}
+
+vk::Sampler VulkanContext::GetDefaultLinearSamplerHandle() const {
+    return mDefaultSamplerLinear->GetHandle();
 }
 
 UniquePtr<VulkanInstance> VulkanContext::CreateInstance(

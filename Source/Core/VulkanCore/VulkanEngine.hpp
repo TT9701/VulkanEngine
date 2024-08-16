@@ -20,12 +20,12 @@ class VulkanContext;
 class VulkanMemoryAllocator;
 class VulkanExternalMemoryPool;
 class VulkanSwapchain;
-class VulkanImage;
 class VulkanFence;
 class VulkanCommandBuffers;
 class VulkanCommandPool;
 class VulkanDescriptorManager;
 class VulkanShader;
+class VulkanResource;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -55,23 +55,19 @@ public:
 private:
     void Draw();
 
-    UniquePtr<SDLWindow>               CreateSDLWindow();
-    UniquePtr<VulkanContext>           CreateContext();
-    UniquePtr<VulkanSwapchain>         CreateSwapchain();
-    SharedPtr<VulkanImage>             CreateDrawImage();
-    SharedPtr<VulkanImage>             CreateDepthImage();
-    UniquePtr<ImmediateSubmitManager>  CreateImmediateSubmitManager();
-    UniquePtr<VulkanCommandManager>    CreateCommandManager();
-    SharedPtr<VulkanImage>             CreateErrorCheckTexture();
+    UniquePtr<SDLWindow> CreateSDLWindow();
+    UniquePtr<VulkanContext> CreateContext();
+    UniquePtr<VulkanSwapchain> CreateSwapchain();
+    SharedPtr<VulkanResource> CreateDrawImage();
+    SharedPtr<VulkanResource> CreateDepthImage();
+    UniquePtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
+    UniquePtr<VulkanCommandManager> CreateCommandManager();
+    SharedPtr<VulkanResource> CreateErrorCheckTexture();
     UniquePtr<VulkanDescriptorManager> CreateDescriptorManager();
-    UniquePtr<VulkanPipelineManager>   CreatePipelineManager();
+    UniquePtr<VulkanPipelineManager> CreatePipelineManager();
 
     void CreatePipelines();
     void CreateDescriptors();
-    void CreateBoxData();
-
-    GPUMeshBuffers UploadMeshData(::std::span<uint32_t> indices,
-                                  ::std::span<Vertex>   vertices);
 
     void UpdateScene();
     void UpdateSceneUBO();
@@ -101,32 +97,30 @@ private:
     void DrawQuad(vk::CommandBuffer cmd);
 
 private:
-    bool     mStopRendering {false};
+    bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
-    UniquePtr<SDLWindow>       mSPWindow;
-    UniquePtr<VulkanContext>   mSPContext;
+    UniquePtr<SDLWindow> mSPWindow;
+    UniquePtr<VulkanContext> mSPContext;
     UniquePtr<VulkanSwapchain> mSPSwapchain;
 
-    SharedPtr<VulkanImage> mDrawImage;
-    SharedPtr<VulkanImage> mDepthImage;
+    SharedPtr<VulkanResource> mDrawImage;
+    SharedPtr<VulkanResource> mDepthImage;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 #endif
-    UniquePtr<VulkanCommandManager>    mSPCmdManager;
-    UniquePtr<ImmediateSubmitManager>  mSPImmediateSubmitManager;
-    SharedPtr<VulkanImage>             mErrorCheckImage;
+    UniquePtr<VulkanCommandManager> mSPCmdManager;
+    UniquePtr<ImmediateSubmitManager> mSPImmediateSubmitManager;
+    SharedPtr<VulkanResource> mErrorCheckImage;
     UniquePtr<VulkanDescriptorManager> mDescriptorManager;
-    UniquePtr<VulkanPipelineManager>   mPipelineManager;
+    UniquePtr<VulkanPipelineManager> mPipelineManager;
 
-    SharedPtr<VulkanBuffer> mSceneUniformBuffer {};
+    SharedPtr<VulkanResource> mSceneUniformBuffer {};
 
-    SharedPtr<VulkanBuffer> mRWBuffer {};
+    SharedPtr<VulkanResource> mRWBuffer {};
 
     Camera mMainCamera {};
-
-    GPUMeshBuffers mBoxMesh {};
 
     SceneData mSceneData {};
 

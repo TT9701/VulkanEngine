@@ -2,7 +2,7 @@
 
 #include "Core/Utilities/Logger.hpp"
 #include "VulkanContext.hpp"
-#include "VulkanImage.hpp"
+#include "VulkanResource.h"
 
 VulkanSwapchain::VulkanSwapchain(VulkanContext* ctx, vk::Format format,
                                  vk::Extent2D extent2D)
@@ -16,6 +16,10 @@ VulkanSwapchain::VulkanSwapchain(VulkanContext* ctx, vk::Format format,
         "Vulkan Swapchain Created. PresentMode: %s. \n\t\t\t    "
         "Swapchain Image Count: %d",
         vk::to_string(mCreateInfo.presentMode).c_str(), mImages.size());
+
+    pContex->SetName(mAcquireFence.GetHandle(), "Swapchain Acquire");
+    pContex->SetName(mReady4Present.GetHandle(), "Swapchain Ready 4 Present");
+    pContex->SetName(mReady4Render.GetHandle(), "Swapchain Ready 4 Render");
 }
 
 VulkanSwapchain::~VulkanSwapchain() {
@@ -29,9 +33,13 @@ uint32_t VulkanSwapchain::AcquireNextImageIndex() {
 
     pContex->GetDeviceHandle().resetFences(mAcquireFence.GetHandle());
 
-    VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
+    auto e = pContex->GetDeviceHandle().acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
-        mAcquireFence.GetHandle(), &mCurrentImageIndex));
+        mAcquireFence.GetHandle(), &mCurrentImageIndex);
+
+    if (e == vk::Result::eErrorOutOfDateKHR) {
+        // TODO: window resize
+    }
 
     return mCurrentImageIndex;
 }
@@ -59,15 +67,17 @@ vk::SwapchainKHR VulkanSwapchain::RecreateSwapchain(vk::SwapchainKHR old) {
         .setClipped(vk::True)
         .setOldSwapchain(old);
 
-    return pContex->GetDeviceHandle().createSwapchainKHR(mCreateInfo);
+    auto handle = pContex->GetDeviceHandle().createSwapchainKHR(mCreateInfo);
+    pContex->SetName(handle, "Default Swapchain");
+    return handle;
 }
 
 vk::Image VulkanSwapchain::GetImageHandle(uint32_t index) const {
-    return mImages[index].GetHandle();
+    return mImages[index].GetTextureHandle();
 }
 
 vk::ImageView VulkanSwapchain::GetImageViewHandle(uint32_t index) const {
-    return mImages[index].GetViewHandle();
+    return mImages[index].GetTextureViewHandle("Color-Whole");
 }
 
 void VulkanSwapchain::SetSwapchainImages() {
@@ -75,7 +85,15 @@ void VulkanSwapchain::SetSwapchainImages() {
     mImages.reserve(images.size());
     for (auto& img : images) {
         mImages.emplace_back(
-            pContex, img, vk::Extent3D {mExtent2D.width, mExtent2D.height, 1},
-            mFormat, vk::ImageAspectFlagBits::eColor);
+            pContex->GetDevice(), img, VulkanResource::Type::Texture2D, mFormat,
+            vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
+
+        pContex->SetName(mImages.back().GetTextureHandle(), "Swapchain Images");
+
+        mImages.back().CreateTextureView("Color-Whole",
+                                       vk::ImageAspectFlagBits::eColor);
+
+        pContex->SetName(mImages.back().GetTextureViewHandle("Color-Whole"),
+                         "Swapchain Imageviews");
     }
 }

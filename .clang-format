@@ -3,8 +3,8 @@ BasedOnStyle: Google
 AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
 AlignOperands: AlignAfterOperator
-AlignConsecutiveAssignments: true
-AlignConsecutiveDeclarations : true
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations : false
 AllowAllArgumentsOnNextLine: true
 AllowAllConstructorInitializersOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true

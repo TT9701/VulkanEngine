@@ -3,35 +3,52 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
-#include "Core/Utilities/Defines.hpp"
-
+class VulkanDevice;
 class VulkanMemoryAllocator;
+
+enum class BufferMemoryType { DeviceLocal, Staging, ReadBack };
 
 class VulkanBuffer {
 public:
-    VulkanBuffer(VulkanMemoryAllocator* allocator, size_t allocByteSize,
-                 vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags,
-                 VmaMemoryUsage memoryUsage = VMA_MEMORY_USAGE_AUTO);
+    VulkanBuffer(VulkanDevice* device, VulkanMemoryAllocator* allocator,
+                 size_t size, vk::BufferUsageFlags usage,
+                 BufferMemoryType memType);
+
     ~VulkanBuffer();
-    MOVABLE_ONLY(VulkanBuffer);
 
 public:
-    vk::Buffer GetHandle() const { return mBuffer; }
+    vk::Buffer GetHandle() const;
 
-    VmaAllocation GetAllocation() const { return mAllocation; }
+    // for buffers include vk::BufferUsageFlagBits::eShaderDeviceAddress flagbits
+    // else return 0
+    vk::DeviceAddress GetDeviceAddress() const;
 
-    VmaAllocationInfo const& GetAllocationInfo() const { return mInfo; }
+    vk::BufferUsageFlags GetUsageFlags() const;
+
+    size_t GetSize() const;
+
+    BufferMemoryType GetMemoryType() const;
+
+    // for mapped buffers, non mapped buffers return nullptr
+    void* GetMapPtr() const;
 
 private:
-    vk::Buffer CreateBuffer(size_t allocByteSize, vk::BufferUsageFlags usage,
-                            VmaAllocationCreateFlags flags,
-                            VmaMemoryUsage           memoryUsage);
+    vk::Buffer CreateBufferResource();
 
 private:
-    VulkanMemoryAllocator* mAllocator;
+    VulkanDevice* pDevice;
+    VulkanMemoryAllocator* pAllocator;
 
-    VmaAllocation     mAllocation {};
-    VmaAllocationInfo mInfo {};
+    vk::BufferUsageFlags mUsageFlags;
+    BufferMemoryType mMemoryType;
 
-    vk::Buffer mBuffer;
+    size_t mSize;
+
+    bool bMapped {false};
+    bool bDeviceAddressEnabled {false};
+
+    VmaAllocation mAllocation {};
+    VmaAllocationInfo mAllocationInfo {};
+
+    vk::Buffer mHandle;
 };

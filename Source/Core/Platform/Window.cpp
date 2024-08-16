@@ -10,7 +10,8 @@ namespace {
 SDL_Window* CreateWindow(int width, int height) {
     SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+    SDL_WindowFlags window_flags =
+        (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
     return SDL_CreateWindow("Vulkan Engine", SDL_WINDOWPOS_UNDEFINED,
                             SDL_WINDOWPOS_UNDEFINED, width, height,
@@ -25,7 +26,7 @@ SDLWindow::SDLWindow(int width, int height)
       mWindow(CreateWindow(mWidth, mHeight)),
       mEvent(new SDL_Event()) {
     SDL_SetRelativeMouseMode(SDL_TRUE);
-    
+
     DBG_LOG_INFO("SDL_Window Created. Width: %d, Height: %d.", mWidth, mHeight);
 }
 

@@ -8,25 +8,8 @@ namespace Utils {
 ::std::vector<::std::string> FilterStringList(
     ::std::span<::std::string> available, ::std::span<::std::string> request);
 
-::std::string GetFileName(std::string const& path);
-
-::std::string GetDirectory(std::string const& path);
-
-vk::ImageSubresourceRange GetDefaultImageSubresourceRange(
-    vk::ImageAspectFlags flags);
-
 void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
                            vk::ImageLayout currentLayout,
                            vk::ImageLayout newLayout);
 
-vk::SemaphoreSubmitInfo GetDefaultSemaphoreSubmitInfo(
-    vk::PipelineStageFlagBits2 stageMask, vk::Semaphore semaphore, uint64_t value = 1ui64);
-
-vk::CommandBufferSubmitInfo GetDefaultCommandBufferSubmitInfo(
-    vk::CommandBuffer cmd);
-
-vk::SubmitInfo2 SubmitInfo(
-    vk::ArrayProxy<vk::CommandBufferSubmitInfo> const& cmd,
-    vk::ArrayProxy<vk::SemaphoreSubmitInfo> const&     signalSemaphoreInfo,
-    vk::ArrayProxy<vk::SemaphoreSubmitInfo> const&     waitSemaphoreInfo);
 }  // namespace Utils

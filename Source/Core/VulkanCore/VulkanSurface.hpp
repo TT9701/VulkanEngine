@@ -14,12 +14,12 @@ public:
     MOVABLE_ONLY(VulkanSurface);
 
 public:
-    VkSurfaceKHR const& GetHandle() const { return mSurface; }
+    vk::SurfaceKHR const& GetHandle() const { return mSurface; }
 
 private:
-    VkSurfaceKHR CreateSurface(const SDLWindow* window) const;
+    vk::SurfaceKHR CreateSurface(const SDLWindow* window) const;
 
 private:
     VulkanInstance* pInstance;
-    VkSurfaceKHR    mSurface;
+    vk::SurfaceKHR    mSurface;
 };

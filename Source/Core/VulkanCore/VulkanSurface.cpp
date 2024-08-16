@@ -15,7 +15,7 @@ VulkanSurface::~VulkanSurface() {
     pInstance->GetHandle().destroy(mSurface);
 }
 
-VkSurfaceKHR VulkanSurface::CreateSurface(const SDLWindow* window) const {
+vk::SurfaceKHR VulkanSurface::CreateSurface(const SDLWindow* window) const {
     VkSurfaceKHR surface;
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     SDL_Vulkan_CreateSurface(window->GetPtr(), pInstance->GetHandle(),

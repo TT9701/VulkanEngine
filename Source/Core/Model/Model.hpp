@@ -8,13 +8,13 @@ class VulkanContext;
 class VulkanEngine;
 
 struct PushConstants {
-    glm::mat4         mModelMatrix {glm::mat4(1.0f)};
+    glm::mat4 mModelMatrix {glm::mat4(1.0f)};
     vk::DeviceAddress mVertexBufferAddress {};
 };
 
 class Model {
 public:
-    Model(::std::string const& path, bool flipYZ = true);
+    Model(const char* path, bool flipYZ = true);
 
     Model(::std::vector<Mesh> const& meshes);
 
@@ -42,7 +42,7 @@ public:
 
     PushConstants GetPushContants() const { return mConstants; }
 
-    VulkanBuffer* GetIndirectCmdBuffer() const {
+    VulkanResource* GetIndirectCmdBuffer() const {
         return mIndirectCmdBuffer.get();
     }
 
@@ -62,8 +62,8 @@ private:
 
     ::std::vector<Mesh> mMeshes {};
 
-    ::std::string mPath;
-    ::std::string mDirectory;
+    ::std::filesystem::path mPath;
+    ::std::filesystem::path mDirectory;
     ::std::string mName;
 
     struct Offsets {
@@ -71,11 +71,11 @@ private:
         ::std::vector<uint32_t> indexOffsets;
     };
 
-    Offsets        mOffsets;
+    Offsets mOffsets;
     GPUMeshBuffers mBuffers {};
 
     PushConstants mConstants {};
 
     ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectCmds;
-    SharedPtr<VulkanBuffer>                       mIndirectCmdBuffer;
+    SharedPtr<VulkanResource> mIndirectCmdBuffer;
 };

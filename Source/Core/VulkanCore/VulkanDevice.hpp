@@ -32,6 +32,9 @@ public:
         return mTransferQueues[index];
     }
 
+    template <class VkCppHandle>
+    void SetObjectName(VkCppHandle handle, const char* name);
+
 private:
     vk::Device CreateDevice(std::span<std::string>      requestedLayers,
                             std::span<std::string>      requestedExtensions,
@@ -51,3 +54,14 @@ private:
     ::std::vector<vk::Queue> mComputeQueues {};
     ::std::vector<vk::Queue> mTransferQueues {};
 };
+
+// TODO: template requirements
+template <class VkCppHandle>
+void VulkanDevice::SetObjectName(VkCppHandle handle, const char* name) {
+    vk::DebugUtilsObjectNameInfoEXT info {};
+    using CType = typename VkCppHandle::CType;
+    info.setObjectHandle((uint64_t)(CType)handle)
+        .setObjectType(VkCppHandle::objectType)
+        .setPObjectName(name);
+    mDevice.setDebugUtilsObjectNameEXT(info);
+}
