@@ -29,19 +29,19 @@ namespace IntelliDesign_NS::Vulkan::Core {
 class Context {
 public:
     Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-                  ::std::span<::std::string> requestedInstanceLayers = {},
-                  ::std::span<::std::string> requestedInstanceExtensions = {},
-                  ::std::span<::std::string> requestedDeviceExtensions = {});
+            ::std::span<::std::string> requestedInstanceLayers = {},
+            ::std::span<::std::string> requestedInstanceExtensions = {},
+            ::std::span<::std::string> requestedDeviceExtensions = {});
     ~Context() = default;
     MOVABLE_ONLY(Context);
 
 public:
     SharedPtr<RenderResource> CreateTexture2D(vk::Extent3D extent,
-                                                    vk::Format format,
-                                                    vk::ImageUsageFlags usage,
-                                                    uint32_t mipLevels = 1,
-                                                    uint32_t arraySize = 1,
-                                                    uint32_t sampleCount = 1);
+                                              vk::Format format,
+                                              vk::ImageUsageFlags usage,
+                                              uint32_t mipLevels = 1,
+                                              uint32_t arraySize = 1,
+                                              uint32_t sampleCount = 1);
 
     SharedPtr<RenderResource> CreateDeviceLocalBuffer(
         size_t allocByteSize, vk::BufferUsageFlags usage);
@@ -54,8 +54,7 @@ public:
         size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
-    SharedPtr<RenderResource> CreateIndirectCmdBuffer(
-        size_t allocByteSize);
+    SharedPtr<RenderResource> CreateIndirectCmdBuffer(size_t allocByteSize);
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
@@ -80,6 +79,9 @@ public:
 
     template <class VkCppHandle>
     void SetName(VkCppHandle handle, const char* name);
+
+    template <class VkCppHandle>
+    void SetName(VkCppHandle handle, ::std::string_view name);
 
 public:
     // ptrs
@@ -172,6 +174,11 @@ namespace IntelliDesign_NS::Vulkan::Core {
 template <class VkCppHandle>
 void Context::SetName(VkCppHandle handle, const char* name) {
     mPDevice->SetObjectName(handle, name);
+}
+
+template <class VkCppHandle>
+void Context::SetName(VkCppHandle handle, std::string_view name) {
+    SetName(handle, ::std::string {name}.c_str());
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

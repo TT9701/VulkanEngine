@@ -258,6 +258,9 @@ UniquePtr<Context> EngineCore::CreateContext() {
     enabledDeivceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
         VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(VK_KHR_MAINTENANCE_6_EXTENSION_NAME);
+
+#ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
         VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
@@ -265,6 +268,7 @@ UniquePtr<Context> EngineCore::CreateContext() {
         VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
         VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
+#endif
 
     Context::EnableDefaultFeatures();
 
@@ -801,34 +805,37 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
          mDescriptorManager->GetDescriptor("Triangle_Desc_1")},
         {});
 
-    mDescriptorManager->WriteBuffer(
-        0,
-        {mRenderResManager->GetResource("SceneUniformBuffer")
-             ->GetBufferHandle(),
-         0, sizeof(SceneData)},
-        vk::DescriptorType::eUniformBuffer);
-
-    mDescriptorManager->UpdateSet(
-        mDescriptorManager->GetDescriptor("Triangle_Desc_0"));
-
     cmd.bindIndexBuffer(
         mFactoryModel->GetMeshBuffer().mIndexBuffer->GetBufferHandle(), 0,
         vk::IndexType::eUint32);
 
-    glm::mat4 model {1.0f};
-    model = glm::scale(model, glm::vec3 {0.0001f});
+    // for (uint32_t i = 0; i < 10000; ++i)
+    {
+        glm::mat4 model {1.0f};
+        model = glm::scale(model, glm::vec3 {0.0001f});
 
-    auto pushContants = mFactoryModel->GetPushContants();
-    pushContants.mModelMatrix = model;
+        auto pushContants = mFactoryModel->GetPushContants();
+        pushContants.mModelMatrix = model;
 
-    cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
-                      vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushContants),
-                      &pushContants);
+        cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+                          vk::ShaderStageFlagBits::eVertex, 0,
+                          sizeof(pushContants), &pushContants);
 
-    cmd.drawIndexedIndirect(
-        mFactoryModel->GetIndirectCmdBuffer()->GetBufferHandle(), 0,
-        mFactoryModel->GetMeshes().size(),
-        sizeof(vk::DrawIndexedIndirectCommand));
+        mDescriptorManager->WriteBuffer(
+            0,
+            {mRenderResManager->GetResource("SceneUniformBuffer")
+                 ->GetBufferHandle(),
+             0, sizeof(SceneData)},
+            vk::DescriptorType::eUniformBuffer);
+
+        mDescriptorManager->UpdateSet(
+            mDescriptorManager->GetDescriptor("Triangle_Desc_0"));
+
+        cmd.drawIndexedIndirect(
+            mFactoryModel->GetIndexedIndirectCmdBuffer()->GetBufferHandle(), 0,
+            mFactoryModel->GetMeshes().size(),
+            sizeof(vk::DrawIndexedIndirectCommand));
+    }
 
     cmd.endRendering();
 }

@@ -5,11 +5,11 @@
 
 enum class CameraMovement : uint32_t { Forward, Backward, Left, Right };
 
-constexpr float CAMERA_YAW         = -90.0f;
-constexpr float CAMERA_PITCH       = 0.0f;
-constexpr float CAMERA_SPEED       = 5.f;
-constexpr float CAMERA_SENSITIVITY = 0.1f;
-constexpr float CAMERA_ZOOM        = 45.0f;
+constexpr float CameraYaw = -90.0f;
+constexpr float CameraPitch = 0.0f;
+constexpr float CameraSpeed = 5.f;
+constexpr float CameraSensitivity = 0.1f;
+constexpr float CameraZoom = 45.0f;
 
 class Camera {
 public:
@@ -30,8 +30,8 @@ public:
     float mZoom;
 
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f),
-           glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = CAMERA_YAW,
-           float pitch = CAMERA_PITCH);
+           glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = CameraYaw,
+           float pitch = CameraPitch);
 
     Camera(float posX, float posY, float posZ, float upX, float upY, float upZ,
            float yaw, float pitch);

@@ -18,7 +18,8 @@ auto SetInstanceLayers(::std::span<::std::string> requestedLayers) {
     for (auto& prop : instanceLayersProps) {
         availableInstanceLayers.push_back(prop.layerName);
     }
-    return Utils::FilterStringList(availableInstanceLayers, requestedLayers);
+    return IntelliDesign_NS::Vulkan::Core::Utils::FilterStringList(
+        availableInstanceLayers, requestedLayers);
 }
 
 auto SetInstanceExtensions(std::span<std::string> requestedExtensions) {
@@ -34,17 +35,16 @@ auto SetInstanceExtensions(std::span<std::string> requestedExtensions) {
     for (auto& prop : instanceExtensionProps) {
         availableInstanceExtensions.push_back(prop.extensionName);
     }
-    return Utils::FilterStringList(availableInstanceExtensions,
-                                   requestedExtensions);
+    return IntelliDesign_NS::Vulkan::Core::Utils::FilterStringList(
+        availableInstanceExtensions, requestedExtensions);
 }
 
 }  // namespace
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Instance::Instance(
-    std::span<std::string> requestedInstanceLayers,
-    std::span<std::string> requestedInstanceExtensions)
+Instance::Instance(std::span<std::string> requestedInstanceLayers,
+                   std::span<std::string> requestedInstanceExtensions)
     : mEnabledInstanceLayers(SetInstanceLayers(requestedInstanceLayers)),
       mEnabledInstanceExtensions(
           SetInstanceExtensions(requestedInstanceExtensions)),

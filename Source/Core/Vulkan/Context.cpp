@@ -9,11 +9,10 @@ vk::PhysicalDeviceVulkan11Features Context::sEnable11Features {};
 vk::PhysicalDeviceVulkan12Features Context::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features Context::sEnable13Features {};
 
-Context::Context(
-    const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-    ::std::span<::std::string> requestedInstanceLayers,
-    ::std::span<::std::string> requestedInstanceExtensions,
-    ::std::span<::std::string> requestedDeviceExtensions)
+Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
+                 ::std::span<::std::string> requestedInstanceLayers,
+                 ::std::span<::std::string> requestedInstanceExtensions,
+                 ::std::span<::std::string> requestedDeviceExtensions)
     : mPInstance(
           CreateInstance(requestedInstanceLayers, requestedInstanceExtensions)),
 #ifndef NDEBUG
@@ -53,9 +52,8 @@ SharedPtr<RenderResource> Context::CreateTexture2D(
     vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
     uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount) {
     return MakeShared<RenderResource>(
-        mPDevice.get(), mPAllocator.get(),
-        RenderResource::Type::Texture2D, format, extent, usage, mipLevels,
-        arraySize, sampleCount);
+        mPDevice.get(), mPAllocator.get(), RenderResource::Type::Texture2D,
+        format, extent, usage, mipLevels, arraySize, sampleCount);
 }
 
 SharedPtr<RenderResource> Context::CreateDeviceLocalBuffer(
@@ -97,18 +95,16 @@ SharedPtr<CUDA::VulkanExternalImage> Context::CreateExternalImage2D(
         mipmapLevels, arrayLayers, vk::ImageType::e2D, vk::ImageViewType::e2D);
 }
 
-SharedPtr<CUDA::VulkanExternalBuffer>
-Context::CreateExternalPersistentBuffer(size_t allocByteSize,
-                                              vk::BufferUsageFlags usage) {
+SharedPtr<CUDA::VulkanExternalBuffer> Context::CreateExternalPersistentBuffer(
+    size_t allocByteSize, vk::BufferUsageFlags usage) {
     return MakeShared<CUDA::VulkanExternalBuffer>(
         mPDevice->GetHandle(), mPAllocator->GetHandle(), allocByteSize, usage,
         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         mPExternalMemoryPool->GetHandle());
 }
 
-SharedPtr<CUDA::VulkanExternalBuffer>
-Context::CreateExternalStagingBuffer(size_t allocByteSize,
-                                           vk::BufferUsageFlags usage) {
+SharedPtr<CUDA::VulkanExternalBuffer> Context::CreateExternalStagingBuffer(
+    size_t allocByteSize, vk::BufferUsageFlags usage) {
     return MakeShared<CUDA::VulkanExternalBuffer>(
         mPDevice->GetHandle(), mPAllocator->GetHandle(), allocByteSize, usage,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
@@ -117,14 +113,16 @@ Context::CreateExternalStagingBuffer(size_t allocByteSize,
 }
 #endif
 
-SharedPtr<Sampler> Context::CreateSampler(
-    vk::Filter minFilter, vk::Filter magFilter,
-    vk::SamplerAddressMode addressModeU, vk::SamplerAddressMode addressModeV,
-    vk::SamplerAddressMode addressModeW, float maxLod, bool compareEnable,
-    vk::CompareOp compareOp) {
+SharedPtr<Sampler> Context::CreateSampler(vk::Filter minFilter,
+                                          vk::Filter magFilter,
+                                          vk::SamplerAddressMode addressModeU,
+                                          vk::SamplerAddressMode addressModeV,
+                                          vk::SamplerAddressMode addressModeW,
+                                          float maxLod, bool compareEnable,
+                                          vk::CompareOp compareOp) {
     return MakeShared<Sampler>(this, minFilter, magFilter, addressModeU,
-                                     addressModeV, addressModeW, maxLod,
-                                     compareEnable, compareOp);
+                               addressModeV, addressModeW, maxLod,
+                               compareEnable, compareOp);
 }
 
 Instance* Context::GetInstance() const {
@@ -231,8 +229,7 @@ UniquePtr<Surface> Context::CreateSurface(const SDLWindow* window) {
     return MakeUnique<Surface>(mPInstance.get(), window);
 }
 
-UniquePtr<PhysicalDevice> Context::PickPhysicalDevice(
-    vk::QueueFlags flags) {
+UniquePtr<PhysicalDevice> Context::PickPhysicalDevice(vk::QueueFlags flags) {
     return MakeUnique<PhysicalDevice>(mPInstance.get(), flags);
 }
 
@@ -244,8 +241,8 @@ UniquePtr<Device> Context::CreateDevice(
 }
 
 UniquePtr<MemoryAllocator> Context::CreateVmaAllocator() {
-    return MakeUnique<MemoryAllocator>(mPPhysicalDevice.get(),
-                                             mPDevice.get(), mPInstance.get());
+    return MakeUnique<MemoryAllocator>(mPPhysicalDevice.get(), mPDevice.get(),
+                                       mPInstance.get());
 }
 
 UniquePtr<TimelineSemaphore> Context::CreateTimelineSem() {

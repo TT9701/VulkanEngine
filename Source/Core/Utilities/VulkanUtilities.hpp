@@ -3,7 +3,7 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
-namespace Utils {
+namespace IntelliDesign_NS::Vulkan::Core::Utils {
 
 ::std::vector<::std::string> FilterStringList(
     ::std::span<::std::string> available, ::std::span<::std::string> request);

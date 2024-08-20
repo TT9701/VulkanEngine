@@ -17,20 +17,20 @@ public:
     };
 
     // buffer
-    explicit RenderResource(Device* device, MemoryAllocator* allocator,
-                            Type type, size_t size, vk::BufferUsageFlags usage,
-                            Buffer::MemoryType memType);
+    RenderResource(Device* device, MemoryAllocator* allocator, Type type,
+                   size_t size, vk::BufferUsageFlags usage,
+                   Buffer::MemoryType memType);
 
     // texture
-    explicit RenderResource(Device* device, MemoryAllocator* allocator,
-                            Type type, vk::Format format, vk::Extent3D extent,
-                            vk::ImageUsageFlags usage, uint32_t mipLevels,
-                            uint32_t arraySize, uint32_t sampleCount);
+    RenderResource(Device* device, MemoryAllocator* allocator, Type type,
+                   vk::Format format, vk::Extent3D extent,
+                   vk::ImageUsageFlags usage, uint32_t mipLevels,
+                   uint32_t arraySize, uint32_t sampleCount);
 
     // texture for existing vk::image (swapchain images)
-    explicit RenderResource(Device* device, vk::Image handle, Type type,
-                            vk::Format format, vk::Extent3D extent,
-                            uint32_t arraySize, uint32_t sampleCount);
+    RenderResource(Device* device, vk::Image handle, Type type,
+                   vk::Format format, vk::Extent3D extent, uint32_t arraySize,
+                   uint32_t sampleCount);
 
     ~RenderResource() = default;
 
@@ -49,14 +49,14 @@ public:
     Buffer::MemoryType GetBufferMemType() const;
 
     // texture
-    void CreateTexView(::std::string_view name, vk::ImageAspectFlags aspect,
+    void CreateTexView(const char* name, vk::ImageAspectFlags aspect,
                        uint32_t mostDetailedMip = 0,
                        uint32_t mipCount = vk::RemainingMipLevels,
                        uint32_t firstArray = 0,
                        uint32_t arraySize = vk::RemainingArrayLayers);
 
     vk::Image GetTexHandle() const;
-    vk::ImageView GetTexViewHandle(::std::string_view name) const;
+    vk::ImageView GetTexViewHandle(const char* name) const;
     uint32_t GetTexWidth(uint32_t mipLevel = 0) const;
     uint32_t GetTexHeight(uint32_t mipLevel = 0) const;
     uint32_t GetTexDepth(uint32_t mipLevel = 0) const;

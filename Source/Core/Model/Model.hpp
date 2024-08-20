@@ -40,8 +40,8 @@ public:
 
     PushConstants GetPushContants() const { return mConstants; }
 
-    RenderResource* GetIndirectCmdBuffer() const {
-        return mIndirectCmdBuffer.get();
+    RenderResource* GetIndexedIndirectCmdBuffer() const {
+        return mIndirectIndexedCmdBuffer.get();
     }
 
 private:
@@ -74,8 +74,8 @@ private:
 
     PushConstants mConstants {};
 
-    ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectCmds;
-    SharedPtr<RenderResource> mIndirectCmdBuffer;
+    ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
+    SharedPtr<RenderResource> mIndirectIndexedCmdBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

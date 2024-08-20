@@ -19,20 +19,18 @@ public:
     };
 
     // No data source
-    Texture(Device* device, MemoryAllocator* allocator,
-                  Type type, vk::Format format, vk::Extent3D extent,
-                  vk::ImageUsageFlags usage, uint32_t mipLevels,
-                  uint32_t arraySize, uint32_t sampleCount);
+    Texture(Device* device, MemoryAllocator* allocator, Type type,
+            vk::Format format, vk::Extent3D extent, vk::ImageUsageFlags usage,
+            uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount);
 
     // from swapchain
-    Texture(Device* device, vk::Image handle, Type type,
-                  vk::Format format, vk::Extent3D extent, uint32_t arraySize,
-                  uint32_t sampleCount);
+    Texture(Device* device, vk::Image handle, Type type, vk::Format format,
+            vk::Extent3D extent, uint32_t arraySize, uint32_t sampleCount);
 
     ~Texture();
 
 public:
-    void CreateImageView(::std::string_view name, vk::ImageAspectFlags aspect,
+    void CreateImageView(const char* name, vk::ImageAspectFlags aspect,
                          uint32_t mostDetailedMip = 0,
                          uint32_t mipCount = vk::RemainingMipLevels,
                          uint32_t firstArray = 0,
@@ -47,7 +45,7 @@ public:
     uint32_t GetArraySize() const;
     vk::Format GetFormat() const;
     vk::Image GetHandle() const;
-    vk::ImageView GetViewHandle(::std::string_view name) const;
+    vk::ImageView GetViewHandle(const char* name) const;
 
 private:
     vk::Image CreateImage();

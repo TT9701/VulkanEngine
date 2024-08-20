@@ -8,9 +8,9 @@ Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
       mWorldUp(up),
       mYaw(yaw),
       mPitch(pitch),
-      mMovementSpeed(CAMERA_SPEED),
-      mMouseSensitivity(CAMERA_SENSITIVITY),
-      mZoom(CAMERA_ZOOM) {
+      mMovementSpeed(CameraSpeed),
+      mMouseSensitivity(CameraSensitivity),
+      mZoom(CameraZoom) {
     Update();
 }
 
@@ -21,9 +21,9 @@ Camera::Camera(float posX, float posY, float posZ, float upX, float upY,
       mWorldUp(glm::vec3(upX, upY, upZ)),
       mYaw(yaw),
       mPitch(pitch),
-      mMovementSpeed(CAMERA_SPEED),
-      mMouseSensitivity(CAMERA_SENSITIVITY),
-      mZoom(CAMERA_ZOOM) {
+      mMovementSpeed(CameraSpeed),
+      mMouseSensitivity(CameraSensitivity),
+      mZoom(CameraZoom) {
     Update();
 }
 
@@ -45,7 +45,7 @@ void Camera::Update() {
 
     mFront = glm::normalize(front);
     mRight = glm::normalize(glm::cross(mFront, mWorldUp));
-    mUp    = glm::normalize(glm::cross(mRight, mFront));
+    mUp = glm::normalize(glm::cross(mRight, mFront));
 }
 
 void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
@@ -70,7 +70,7 @@ void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
     }
 
     if (e->type == SDL_KEYUP) {
-        mMovementSpeed = CAMERA_SPEED;
+        mMovementSpeed = CameraSpeed;
     }
 }
 

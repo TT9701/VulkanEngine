@@ -4,30 +4,30 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderResource::RenderResource(Device* device,
-                                           MemoryAllocator* allocator,
-                                           Type type, size_t size,
-                                           vk::BufferUsageFlags usage,
-                                           Buffer::MemoryType memType)
-    : mResource(std::in_place_type<Buffer>, device, allocator, size,
-                usage, memType),
+RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
+                               Type type, size_t size,
+                               vk::BufferUsageFlags usage,
+                               Buffer::MemoryType memType)
+    : mResource(std::in_place_type<Buffer>, device, allocator, size, usage,
+                memType),
       mType(type) {}
 
-RenderResource::RenderResource(
-    Device* device, MemoryAllocator* allocator, Type type,
-    vk::Format format, vk::Extent3D extent, vk::ImageUsageFlags usage,
-    uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount)
+RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
+                               Type type, vk::Format format,
+                               vk::Extent3D extent, vk::ImageUsageFlags usage,
+                               uint32_t mipLevels, uint32_t arraySize,
+                               uint32_t sampleCount)
     : mResource(std::in_place_type<Texture>, device, allocator,
                 static_cast<Texture::Type>(type), format, extent, usage,
                 mipLevels, arraySize, sampleCount),
       mType(type) {}
 
-RenderResource::RenderResource(
-    Device* device, vk::Image handle, Type type, vk::Format format,
-    vk::Extent3D extent, uint32_t arraySize, uint32_t sampleCount)
+RenderResource::RenderResource(Device* device, vk::Image handle, Type type,
+                               vk::Format format, vk::Extent3D extent,
+                               uint32_t arraySize, uint32_t sampleCount)
     : mResource(std::in_place_type<Texture>, device, handle,
-                static_cast<Texture::Type>(type), format, extent,
-                arraySize, sampleCount),
+                static_cast<Texture::Type>(type), format, extent, arraySize,
+                sampleCount),
       mType(type) {}
 
 RenderResource::Type RenderResource::GetType() const {
@@ -63,11 +63,10 @@ Buffer::MemoryType RenderResource::GetBufferMemType() const {
     return ::std::get<Buffer>(mResource).GetMemoryType();
 }
 
-void RenderResource::CreateTexView(std::string_view name,
-                                         vk::ImageAspectFlags aspect,
-                                         uint32_t mostDetailedMip,
-                                         uint32_t mipCount, uint32_t firstArray,
-                                         uint32_t arraySize) {
+void RenderResource::CreateTexView(const char* name,
+                                   vk::ImageAspectFlags aspect,
+                                   uint32_t mostDetailedMip, uint32_t mipCount,
+                                   uint32_t firstArray, uint32_t arraySize) {
     ::std::get<Texture>(mResource).CreateImageView(
         name, aspect, mostDetailedMip, mipCount, firstArray, arraySize);
 }
@@ -76,8 +75,7 @@ vk::Image RenderResource::GetTexHandle() const {
     return ::std::get<Texture>(mResource).GetHandle();
 }
 
-vk::ImageView RenderResource::GetTexViewHandle(
-    std::string_view name) const {
+vk::ImageView RenderResource::GetTexViewHandle(const char* name) const {
     return ::std::get<Texture>(mResource).GetViewHandle(name);
 }
 

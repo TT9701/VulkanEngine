@@ -6,9 +6,8 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Buffer::Buffer(Device* device,
-                           MemoryAllocator* allocator, size_t size,
-                           vk::BufferUsageFlags usage, MemoryType memType)
+Buffer::Buffer(Device* device, MemoryAllocator* allocator, size_t size,
+               vk::BufferUsageFlags usage, MemoryType memType)
     : pDevice(device),
       pAllocator(allocator),
       mUsageFlags(usage),

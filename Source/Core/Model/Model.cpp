@@ -22,15 +22,15 @@ Model::Model(const char* path, bool flipYZ)
 Model::Model(::std::span<Mesh> meshes) : mMeshes(meshes.begin(), meshes.end()) {
     mOffsets.vertexOffsets.reserve(mMeshes.size());
     mOffsets.indexOffsets.reserve(mMeshes.size());
-    mIndirectCmds.reserve(mMeshes.size());
+    mIndirectIndexedCmds.reserve(mMeshes.size());
     for (auto& mesh : mMeshes) {
-        vk::DrawIndexedIndirectCommand cmd {};
-        cmd.setFirstInstance(0)
+        vk::DrawIndexedIndirectCommand indexedCmd {};
+        indexedCmd.setFirstInstance(0)
             .setInstanceCount(1)
             .setFirstIndex(mIndexCount)
             .setIndexCount(mesh.mIndices.size())
             .setVertexOffset(mVertexCount);
-        mIndirectCmds.push_back(cmd);
+        mIndirectIndexedCmds.push_back(indexedCmd);
 
         mOffsets.vertexOffsets.push_back(mVertexCount);
         mVertexCount += mesh.mVertices.size();
@@ -41,70 +41,77 @@ Model::Model(::std::span<Mesh> meshes) : mMeshes(meshes.begin(), meshes.end()) {
 }
 
 void Model::GenerateBuffers(Context* context, EngineCore* engine) {
-    const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
-    const size_t indexSize = sizeof(mMeshes[0].mIndices[0]);
-
-    const size_t vertexBufferSize = mVertexCount * vertexSize;
-    const size_t indexBufferSize = mIndexCount * indexSize;
-
-    mBuffers.mVertexBuffer = context->CreateDeviceLocalBuffer(
-        vertexBufferSize, vk::BufferUsageFlagBits::eStorageBuffer
-                              | vk::BufferUsageFlagBits::eTransferDst
-                              | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-    mBuffers.mIndexBuffer = context->CreateDeviceLocalBuffer(
-        indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer
-                             | vk::BufferUsageFlagBits::eTransferDst);
-
-    mBuffers.mVertexBufferAddress =
-        mBuffers.mVertexBuffer->GetBufferDeviceAddress();
-
-    auto staging =
-        context->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
-
-    void* data = staging->GetBufferMappedPtr();
-    for (uint32_t i = 0; i < mMeshes.size(); ++i) {
-        memcpy((Vertex*)data + mOffsets.vertexOffsets[i],
-               mMeshes[i].mVertices.data(),
-               mMeshes[i].mVertices.size() * vertexSize);
-    }
-    for (uint32_t i = 0; i < mMeshes.size(); ++i) {
-        memcpy((uint32_t*)((char*)data + vertexBufferSize)
-                   + mOffsets.indexOffsets[i],
-               mMeshes[i].mIndices.data(),
-               mMeshes[i].mIndices.size() * indexSize);
-    }
-
-    engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
-        vk::BufferCopy vertexCopy {};
-        vertexCopy.setSize(vertexBufferSize);
-        cmd.copyBuffer(staging->GetBufferHandle(),
-                       mBuffers.mVertexBuffer->GetBufferHandle(), vertexCopy);
-
-        vk::BufferCopy indexCopy {};
-        indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
-        cmd.copyBuffer(staging->GetBufferHandle(),
-                       mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
-    });
-
-    mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
-
-    // indirect command buffer
+    // Vertex & index buffer
     {
-        auto bufSize =
-            sizeof(vk::DrawIndexedIndirectCommand) * mIndirectCmds.size();
-        mIndirectCmdBuffer = context->CreateIndirectCmdBuffer(bufSize);
+        const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
+        const size_t indexSize = sizeof(mMeshes[0].mIndices[0]);
+
+        const size_t vertexBufferSize = mVertexCount * vertexSize;
+        const size_t indexBufferSize = mIndexCount * indexSize;
+
+        mBuffers.mVertexBuffer = context->CreateDeviceLocalBuffer(
+            vertexBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        mBuffers.mIndexBuffer = context->CreateDeviceLocalBuffer(
+            indexBufferSize,
+            vk::BufferUsageFlagBits::eIndexBuffer
+                | vk::BufferUsageFlagBits::eTransferDst);
+
+        mBuffers.mVertexBufferAddress =
+            mBuffers.mVertexBuffer->GetBufferDeviceAddress();
+
+        auto staging =
+            context->CreateStagingBuffer(vertexBufferSize + indexBufferSize);
+
+        void* data = staging->GetBufferMappedPtr();
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((Vertex*)data + mOffsets.vertexOffsets[i],
+                   mMeshes[i].mVertices.data(),
+                   mMeshes[i].mVertices.size() * vertexSize);
+        }
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((uint32_t*)((char*)data + vertexBufferSize)
+                       + mOffsets.indexOffsets[i],
+                   mMeshes[i].mIndices.data(),
+                   mMeshes[i].mIndices.size() * indexSize);
+        }
+
+        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+            vk::BufferCopy vertexCopy {};
+            vertexCopy.setSize(vertexBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mVertexBuffer->GetBufferHandle(),
+                           vertexCopy);
+
+            vk::BufferCopy indexCopy {};
+            indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
+        });
+
+        mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
+    }
+
+    // indirect indexed command buffer
+    {
+        auto bufSize = sizeof(vk::DrawIndexedIndirectCommand)
+                     * mIndirectIndexedCmds.size();
+        mIndirectIndexedCmdBuffer = context->CreateIndirectCmdBuffer(bufSize);
 
         auto staging = context->CreateStagingBuffer(bufSize);
 
         void* data = staging->GetBufferMappedPtr();
-        memcpy(data, mIndirectCmds.data(), bufSize);
+        memcpy(data, mIndirectIndexedCmds.data(), bufSize);
 
         engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
             cmd.copyBuffer(staging->GetBufferHandle(),
-                           mIndirectCmdBuffer->GetBufferHandle(), cmdBufCopy);
+                           mIndirectIndexedCmdBuffer->GetBufferHandle(),
+                           cmdBufCopy);
         });
     }
 }

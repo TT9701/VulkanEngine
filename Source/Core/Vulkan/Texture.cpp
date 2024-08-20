@@ -34,11 +34,10 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Texture::Texture(Device* device,
-                             MemoryAllocator* allocator, Type type,
-                             vk::Format format, vk::Extent3D extent,
-                             vk::ImageUsageFlags usage, uint32_t mipLevels,
-                             uint32_t arraySize, uint32_t sampleCount)
+Texture::Texture(Device* device, MemoryAllocator* allocator, Type type,
+                 vk::Format format, vk::Extent3D extent,
+                 vk::ImageUsageFlags usage, uint32_t mipLevels,
+                 uint32_t arraySize, uint32_t sampleCount)
     : pDevice(device),
       pAllocator(allocator),
       bOwnsImage(true),
@@ -51,9 +50,8 @@ Texture::Texture(Device* device,
       mSampleCount(sampleCount),
       mHandle(CreateImage()) {}
 
-Texture::Texture(Device* device, vk::Image handle, Type type,
-                             vk::Format format, vk::Extent3D extent,
-                             uint32_t arraySize, uint32_t sampleCount)
+Texture::Texture(Device* device, vk::Image handle, Type type, vk::Format format,
+                 vk::Extent3D extent, uint32_t arraySize, uint32_t sampleCount)
     : pDevice(device),
       pAllocator(nullptr),
       bOwnsImage(false),
@@ -74,10 +72,9 @@ Texture::~Texture() {
     }
 }
 
-void Texture::CreateImageView(std::string_view name,
-                                    vk::ImageAspectFlags aspect,
-                                    uint32_t mostDetailedMip, uint32_t mipCount,
-                                    uint32_t firstArray, uint32_t arraySize) {
+void Texture::CreateImageView(const char* name, vk::ImageAspectFlags aspect,
+                              uint32_t mostDetailedMip, uint32_t mipCount,
+                              uint32_t firstArray, uint32_t arraySize) {
     vk::ImageSubresourceRange range {};
     range.setAspectMask(aspect)
         .setBaseMipLevel(mostDetailedMip)
@@ -164,8 +161,8 @@ vk::Image Texture::GetHandle() const {
     return mHandle;
 }
 
-vk::ImageView Texture::GetViewHandle(::std::string_view name) const {
-    return mViews.at(static_cast<::std::string>(name));
+vk::ImageView Texture::GetViewHandle(const char* name) const {
+    return mViews.at(name);
 }
 
 vk::Image Texture::CreateImage() {
