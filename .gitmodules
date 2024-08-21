@@ -8,3 +8,7 @@
 [submodule "External/vma"]
 	path = External/vma
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "External/meshoptimizer"]
+	path = External/meshoptimizer
+	url = git@github.com:zeux/meshoptimizer.git
+	branch = master
