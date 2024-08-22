@@ -140,6 +140,10 @@ target_link_libraries(Core
     PUBLIC
         assimp::assimp)
 
+target_link_libraries(Core
+    PUBLIC
+        meshoptimizer)
+
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
 
 target_include_directories(Core

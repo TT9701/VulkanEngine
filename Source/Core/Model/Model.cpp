@@ -14,30 +14,15 @@ namespace IntelliDesign_NS::Vulkan::Core {
 Model::Model(const char* path, bool flipYZ)
     : mFlipYZ(flipYZ),
       mPath(path),
-      mDirectory(mPath.remove_filename()),
+      mDirectory(::std::filesystem::path {mPath}.remove_filename()),
       mName(mPath.stem().generic_string()) {
     LoadModel();
+    Optimize();
+    GenerateStats();
 }
 
 Model::Model(::std::span<Mesh> meshes) : mMeshes(meshes.begin(), meshes.end()) {
-    mOffsets.vertexOffsets.reserve(mMeshes.size());
-    mOffsets.indexOffsets.reserve(mMeshes.size());
-    mIndirectIndexedCmds.reserve(mMeshes.size());
-    for (auto& mesh : mMeshes) {
-        vk::DrawIndexedIndirectCommand indexedCmd {};
-        indexedCmd.setFirstInstance(0)
-            .setInstanceCount(1)
-            .setFirstIndex(mIndexCount)
-            .setIndexCount(mesh.mIndices.size())
-            .setVertexOffset(mVertexCount);
-        mIndirectIndexedCmds.push_back(indexedCmd);
-
-        mOffsets.vertexOffsets.push_back(mVertexCount);
-        mVertexCount += mesh.mVertices.size();
-        mOffsets.indexOffsets.push_back(mIndexCount);
-        mIndexCount += mesh.mIndices.size();
-    }
-    mTriangleCount = mIndexCount / 3;
+    GenerateStats();
 }
 
 void Model::GenerateBuffers(Context* context, EngineCore* engine) {
@@ -50,13 +35,13 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
         const size_t indexBufferSize = mIndexCount * indexSize;
 
         mBuffers.mVertexBuffer = context->CreateDeviceLocalBuffer(
-            vertexBufferSize,
+            (mName + " Vertex").c_str(), vertexBufferSize,
             vk::BufferUsageFlagBits::eStorageBuffer
                 | vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
         mBuffers.mIndexBuffer = context->CreateDeviceLocalBuffer(
-            indexBufferSize,
+            (mName + " Index").c_str(), indexBufferSize,
             vk::BufferUsageFlagBits::eIndexBuffer
                 | vk::BufferUsageFlagBits::eTransferDst);
 
@@ -99,7 +84,8 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
     {
         auto bufSize = sizeof(vk::DrawIndexedIndirectCommand)
                      * mIndirectIndexedCmds.size();
-        mIndirectIndexedCmdBuffer = context->CreateIndirectCmdBuffer(bufSize);
+        mIndirectIndexedCmdBuffer = context->CreateIndirectCmdBuffer(
+            (mName + " Indirect Command").c_str(), bufSize);
 
         auto staging = context->CreateStagingBuffer(bufSize);
 
@@ -113,6 +99,160 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
                            mIndirectIndexedCmdBuffer->GetBufferHandle(),
                            cmdBufCopy);
         });
+    }
+}
+
+void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
+    const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
+    const size_t indexSize = sizeof(mMeshes[0].mIndices[0]);
+
+    const size_t vertexBufferSize = mVertexCount * vertexSize;
+    const size_t indexBufferSize = mIndexCount * indexSize;
+
+    // Vertices and indices SSBO
+    {
+        mBuffers.mVertexBuffer = context->CreateDeviceLocalBuffer(
+            (mName + " Vertex").c_str(), vertexBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        mBuffers.mIndexBuffer = context->CreateDeviceLocalBuffer(
+            (mName + " Index").c_str(), indexBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        mBuffers.mVertexBufferAddress =
+            mBuffers.mVertexBuffer->GetBufferDeviceAddress();
+        mBuffers.mIndexBufferAddress =
+            mBuffers.mIndexBuffer->GetBufferDeviceAddress();
+    }
+    const size_t meshletSize = sizeof(mMeshes[0].mMeshlets[0]);
+    const size_t meshletVerticesSize = sizeof(mMeshes[0].mMeshletVertices[0]);
+    const size_t meshletTrianglesSize = sizeof(mMeshes[0].mMeshletTriangles[0]);
+    const size_t meshletBufferSize = mMeshletCount * meshletSize;
+    const size_t meshletVerticesBufferSize =
+        mMeshletVertexCount * meshletVerticesSize;
+    const size_t meshletTrianglesBufferSize =
+        mMeshletTriangleCount * meshletTrianglesSize;
+
+    // Meshlets buffers
+    {
+        mBuffers.mMeshletBuffer = context->CreateDeviceLocalBuffer(
+            (mName + " Meshlet").c_str(), meshletBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        mBuffers.mMeshletVertBuffer = context->CreateDeviceLocalBuffer(
+            (mName + " Meshlet vertices").c_str(), meshletVerticesBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        mBuffers.mMeshletTriBuffer = context->CreateDeviceLocalBuffer(
+            (mName + " Meshlet triangles").c_str(), meshletTrianglesBufferSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+
+        mBuffers.mMeshletBufferAddress =
+            mBuffers.mMeshletBuffer->GetBufferDeviceAddress();
+        mBuffers.mMeshletVertBufferAddress =
+            mBuffers.mMeshletVertBuffer->GetBufferDeviceAddress();
+        mBuffers.mMeshletTriBufferAddress =
+            mBuffers.mMeshletTriBuffer->GetBufferDeviceAddress();
+    }
+
+    // copy through staging buffer
+    {
+        auto staging = context->CreateStagingBuffer(
+            vertexBufferSize + indexBufferSize + meshletBufferSize
+            + meshletVerticesBufferSize + meshletTrianglesBufferSize);
+
+        void* data = staging->GetBufferMappedPtr();
+        // vetices
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((Vertex*)data + mOffsets.vertexOffsets[i],
+                   mMeshes[i].mVertices.data(),
+                   mMeshes[i].mVertices.size() * vertexSize);
+        }
+        // indices
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((uint32_t*)((char*)data + vertexBufferSize)
+                       + mOffsets.indexOffsets[i],
+                   mMeshes[i].mIndices.data(),
+                   mMeshes[i].mIndices.size() * indexSize);
+        }
+        // meshlets
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((meshopt_Meshlet*)((char*)data + vertexBufferSize
+                                      + indexBufferSize)
+                       + mOffsets.meshletOffsets[i],
+                   mMeshes[i].mMeshlets.data(),
+                   mMeshes[i].mMeshlets.size() * meshletSize);
+        }
+        // meshlet vertices
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((uint32_t*)((char*)data + vertexBufferSize + indexBufferSize
+                               + meshletBufferSize)
+                       + mOffsets.meshletVerticesOffsets[i],
+                   mMeshes[i].mMeshletVertices.data(),
+                   mMeshes[i].mMeshletVertices.size() * meshletVerticesSize);
+        }
+        //meshlet triangles
+        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
+            memcpy((uint8_t*)((char*)data + vertexBufferSize + indexBufferSize
+                              + meshletBufferSize + meshletVerticesBufferSize)
+                       + mOffsets.meshletTrianglesOffsets[i],
+                   mMeshes[i].mMeshletTriangles.data(),
+                   mMeshes[i].mMeshletTriangles.size() * meshletTrianglesSize);
+        }
+
+        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+            vk::BufferCopy vertexCopy {};
+            vertexCopy.setSize(vertexBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mVertexBuffer->GetBufferHandle(),
+                           vertexCopy);
+
+            vk::BufferCopy indexCopy {};
+            indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
+
+            vk::BufferCopy meshletCopy {};
+            meshletCopy.setSize(meshletBufferSize)
+                .setSrcOffset(vertexBufferSize + indexBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mMeshletBuffer->GetBufferHandle(),
+                           meshletCopy);
+
+            vk::BufferCopy meshletVertCopy {};
+            meshletVertCopy.setSize(meshletVerticesBufferSize)
+                .setSrcOffset(vertexBufferSize + indexBufferSize
+                              + meshletBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mMeshletVertBuffer->GetBufferHandle(),
+                           meshletVertCopy);
+
+            vk::BufferCopy meshletTriCopy {};
+            meshletTriCopy.setSize(meshletTrianglesBufferSize)
+                .setSrcOffset(vertexBufferSize + indexBufferSize
+                              + meshletBufferSize + meshletVerticesBufferSize);
+            cmd.copyBuffer(staging->GetBufferHandle(),
+                           mBuffers.mMeshletTriBuffer->GetBufferHandle(),
+                           meshletTriCopy);
+        });
+
+        mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
+        mConstants.mIndexBufferAddress = mBuffers.mIndexBufferAddress;
+        mConstants.mMeshletBufferAddress = mBuffers.mMeshletBufferAddress;
+        mConstants.mMeshletVertexBufferAddress =
+            mBuffers.mMeshletVertBufferAddress;
+        mConstants.mMeshletTriangleBufferAddress =
+            mBuffers.mMeshletTriBufferAddress;
     }
 }
 
@@ -173,7 +313,7 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
                 temp.y = mesh->mVertices[i].y;
                 temp.z = mesh->mVertices[i].z;
             }
-            vertex.position = glm::vec4 {temp, 0.0f};
+            vertex.position = glm::vec4 {temp, 1.0f};
         }
 
         // normal
@@ -234,10 +374,95 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
 
     // TODO: material
 
-    mVertexCount += vertices.size();
-    mTriangleCount += mesh->mNumFaces;
-
     return {vertices, indices};
+}
+
+void Model::GenerateStats() {
+    mOffsets.vertexOffsets.reserve(mMeshes.size());
+    mOffsets.indexOffsets.reserve(mMeshes.size());
+    mIndirectIndexedCmds.reserve(mMeshes.size());
+    for (auto& mesh : mMeshes) {
+        vk::DrawIndexedIndirectCommand indexedCmd {};
+        indexedCmd.setFirstInstance(0)
+            .setInstanceCount(1)
+            .setFirstIndex(mIndexCount)
+            .setIndexCount(mesh.mIndices.size())
+            .setVertexOffset(mVertexCount);
+        mIndirectIndexedCmds.push_back(indexedCmd);
+
+        mOffsets.vertexOffsets.push_back(mVertexCount);
+        mVertexCount += mesh.mVertices.size();
+        mOffsets.indexOffsets.push_back(mIndexCount);
+        mIndexCount += mesh.mIndices.size();
+        mOffsets.meshletOffsets.push_back(mMeshletCount);
+        mMeshletCount += mesh.mMeshlets.size();
+        mOffsets.meshletVerticesOffsets.push_back(mMeshletVertexCount);
+        mMeshletVertexCount += mesh.mMeshletVertices.size();
+        mOffsets.meshletTrianglesOffsets.push_back(mMeshletTriangleCount);
+        mMeshletTriangleCount += mesh.mMeshletTriangles.size();
+    }
+    mTriangleCount = mIndexCount / 3;
+}
+
+void Model::Optimize() {
+    for (auto& mesh : mMeshes) {
+        size_t indexCount = mesh.mIndices.size();
+        size_t vertexCount = mesh.mVertices.size();
+        // ::std::vector<uint32_t> remap(indexCount);
+        // size_t vertexCount = meshopt_generateVertexRemap(
+        //     remap.data(), mesh.mIndices.data(), indexCount,
+        //     mesh.mVertices.data(), mesh.mVertices.size(),
+        //     sizeof(mesh.mVertices[0]));
+        //
+        // optimizedIndices.resize(indexCount);
+        // optimizedVertices.resize(vertexCount);
+        // meshopt_remapIndexBuffer(optimizedIndices.data(), mesh.mIndices.data(),
+        //                          indexCount, remap.data());
+        // meshopt_remapVertexBuffer(optimizedVertices.data(),
+        //                           mesh.mVertices.data(), vertexCount,
+        //                           sizeof(mesh.mVertices[0]), remap.data());
+
+        meshopt_optimizeVertexCache(mesh.mIndices.data(), mesh.mIndices.data(),
+                                    indexCount, vertexCount);
+
+        meshopt_optimizeOverdraw(
+            mesh.mIndices.data(), mesh.mIndices.data(), indexCount,
+            (const float*)(&mesh.mVertices[0] + offsetof(Vertex, position)),
+            vertexCount, sizeof(Vertex), 1.05f);
+
+        const size_t maxVertices = 64;
+        const size_t maxTriangles = 124;
+        const float coneWeight = 0.0f;
+
+        size_t maxMeshlets = meshopt_buildMeshletsBound(
+            mesh.mIndices.size(), maxVertices, maxTriangles);
+
+        mesh.mMeshlets.resize(maxMeshlets);
+        mesh.mMeshletVertices.resize(maxMeshlets * maxVertices);
+        mesh.mMeshletTriangles.resize(maxMeshlets * maxTriangles * 3);
+
+        size_t meshletCount = meshopt_buildMeshlets(
+            mesh.mMeshlets.data(), mesh.mMeshletVertices.data(),
+            mesh.mMeshletTriangles.data(), mesh.mIndices.data(),
+            mesh.mIndices.size(),
+            (const float*)(&mesh.mVertices[0] + offsetof(Vertex, position)),
+            mesh.mVertices.size(), sizeof(Vertex), maxVertices, maxTriangles,
+            coneWeight);
+
+        const meshopt_Meshlet& last = mesh.mMeshlets[meshletCount - 1];
+
+        mesh.mMeshletVertices.resize(last.vertex_offset + last.vertex_count);
+        mesh.mMeshletTriangles.resize(last.triangle_offset
+                                      + ((last.triangle_count * 3 + 3) & ~3));
+        mesh.mMeshlets.resize(meshletCount);
+
+        for (auto& meshlet : mesh.mMeshlets) {
+            meshopt_optimizeMeshlet(
+                &mesh.mMeshletVertices[meshlet.vertex_offset],
+                &mesh.mMeshletTriangles[meshlet.triangle_offset],
+                meshlet.triangle_count, meshlet.vertex_count);
+        }
+    }
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

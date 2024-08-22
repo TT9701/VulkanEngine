@@ -35,6 +35,8 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/Shaders/*.frag"
     "${PROJECT_SOURCE_DIR}/Shaders/*.vert"
     "${PROJECT_SOURCE_DIR}/Shaders/*.comp"
+    "${PROJECT_SOURCE_DIR}/Shaders/*.task"
+    "${PROJECT_SOURCE_DIR}/Shaders/*.mesh"
 )
 
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -44,7 +46,7 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
     message(STATUS ${GLSL})
     add_custom_command(
         OUTPUT ${SPIRV}
-        COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV} -g
+        COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV} -g --target-env spirv1.4 --target-env vulkan1.2
         DEPENDS ${GLSL})
     list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)

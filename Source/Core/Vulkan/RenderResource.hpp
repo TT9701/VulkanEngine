@@ -38,7 +38,7 @@ public:
     Type GetType() const;
     ::std::string_view GetName() const;
 
-    void SetName(const char* name);
+    void SetName(Device* device, const char* name);
 
     // buffer
     vk::Buffer GetBufferHandle() const;

@@ -28,8 +28,8 @@ std::vector<uint32_t> LoadSPIRVCode(const std::string& filePath) {
 namespace IntelliDesign_NS::Vulkan::Core {
 
 Shader::Shader(Context* context, std::string name,
-                           std::vector<uint32_t> const& binaryCode,
-                           ShaderStage stage, std::string entry, void* pNext)
+               std::vector<uint32_t> const& binaryCode, ShaderStage stage,
+               std::string entry, void* pNext)
     : pContext(context),
       mName(std::move(name)),
       mEntry(std::move(entry)),
@@ -37,16 +37,15 @@ Shader::Shader(Context* context, std::string name,
       mShaderModule(CreateShaderModule(binaryCode, pNext)) {}
 
 Shader::Shader(Context* context, ::std::string const& name,
-                           std::string const& path, ShaderStage stage,
-                           std::string const& entry, void* pNext)
+               std::string const& path, ShaderStage stage,
+               std::string const& entry, void* pNext)
     : Shader(context, name, LoadSPIRVCode(path), stage, entry, pNext) {}
 
 Shader::~Shader() {
     pContext->GetDeviceHandle().destroy(mShaderModule);
 }
 
-vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(
-    void* pNext) const {
+vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
     vk::PipelineShaderStageCreateInfo info;
 
     vk::ShaderStageFlagBits stage;
@@ -59,6 +58,12 @@ vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(
             break;
         case ShaderStage::Fragment:
             stage = vk::ShaderStageFlagBits::eFragment;
+            break;
+        case ShaderStage::Task:
+            stage = vk::ShaderStageFlagBits::eTaskEXT;
+            break;
+        case ShaderStage::Mesh:
+            stage = vk::ShaderStageFlagBits::eMeshEXT;
             break;
         default: throw std::runtime_error("Unfinished shader stage!");
     }

@@ -6,7 +6,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-enum class ShaderStage { Compute, Vertex, Fragment };
+enum class ShaderStage { Compute, Vertex, Fragment, Task, Mesh };
 
 class Context;
 

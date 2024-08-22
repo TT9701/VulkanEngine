@@ -25,6 +25,10 @@ set_target_properties(zlibstatic PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 set (VMA_BUILD_SAMPLES OFF CACHE BOOL "Don't build vma sample" FORCE)
 add_subdirectory(vma EXCLUDE_FROM_ALL)
 
+set (MESHOPT_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared lib" FORCE)
+add_subdirectory(meshoptimizer EXCLUDE_FROM_ALL)
+set_target_properties(meshoptimizer PROPERTIES FOLDER ${DLL_FOLDER_NAME})
+
 # install (TARGETS SDL2
 #     CONFIGURATIONS Debug
 #         RUNTIME DESTINATION ${BIN_DIR}

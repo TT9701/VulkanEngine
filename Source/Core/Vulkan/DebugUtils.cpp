@@ -51,7 +51,8 @@ vk::DebugUtilsMessengerEXT DebugUtils::CreateDebugMessenger() {
         .setMessageSeverity(
             vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
             | vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
-            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo)
         .setMessageType(
             vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
             | vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |

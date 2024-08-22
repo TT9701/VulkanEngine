@@ -8,6 +8,8 @@
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
 
+#include <meshoptimizer.h>
+
 namespace {
 
 uint32_t CalcMeshCount(aiNode* node) {

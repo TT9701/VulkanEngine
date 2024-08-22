@@ -12,6 +12,10 @@ class EngineCore;
 struct PushConstants {
     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
     vk::DeviceAddress mVertexBufferAddress {};
+    vk::DeviceAddress mIndexBufferAddress {};
+    vk::DeviceAddress mMeshletBufferAddress {};
+    vk::DeviceAddress mMeshletVertexBufferAddress {};
+    vk::DeviceAddress mMeshletTriangleBufferAddress {};
 };
 
 class Model {
@@ -21,6 +25,8 @@ public:
     Model(::std::span<Mesh> meshes);
 
     void GenerateBuffers(Context* context, EngineCore* engine);
+
+    void GenerateMeshletBuffers(Context* context, EngineCore* engine);
 
     void Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix = glm::mat4(1.0f));
 
@@ -32,11 +38,17 @@ public:
 
     uint32_t GetTriangleCount() const { return mTriangleCount; }
 
+    uint32_t GetMeshletCount() const { return mMeshletCount; }
+
+    uint32_t GetMeshletVertexCount() const { return mMeshletVertexCount; }
+
+    uint32_t GetMeshletTriangleCount() const { return mMeshletTriangleCount; }
+
     ::std::span<uint32_t> GetVertexOffsets() { return mOffsets.vertexOffsets; }
 
     ::std::span<uint32_t> GetIndexOffsets() { return mOffsets.indexOffsets; }
 
-    GPUMeshBuffers GetMeshBuffer() const { return mBuffers; }
+    GPUMeshBuffers& GetMeshBuffer() { return mBuffers; }
 
     PushConstants GetPushContants() const { return mConstants; }
 
@@ -49,6 +61,9 @@ private:
     void ProcessNode(aiNode* node, const aiScene* scene);
     Mesh ProcessMesh(aiMesh* mesh, const aiScene* scene);
 
+    void GenerateStats();
+    void Optimize();
+
     // TODO: Texture
 
 private:
@@ -57,6 +72,9 @@ private:
     uint32_t mVertexCount {0};
     uint32_t mIndexCount {0};
     uint32_t mTriangleCount {0};
+    uint32_t mMeshletCount {0};
+    uint32_t mMeshletVertexCount {0};
+    uint32_t mMeshletTriangleCount {0};
 
     ::std::vector<Mesh> mMeshes {};
 
@@ -67,6 +85,9 @@ private:
     struct Offsets {
         ::std::vector<uint32_t> vertexOffsets;
         ::std::vector<uint32_t> indexOffsets;
+        ::std::vector<uint32_t> meshletOffsets;
+        ::std::vector<uint32_t> meshletVerticesOffsets;
+        ::std::vector<uint32_t> meshletTrianglesOffsets;
     };
 
     Offsets mOffsets;
@@ -75,7 +96,9 @@ private:
     PushConstants mConstants {};
 
     ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
+    // ::std::vector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
     SharedPtr<RenderResource> mIndirectIndexedCmdBuffer;
+    // SharedPtr<RenderResource> mMeshTaskIndirectCmdBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -8,6 +8,8 @@ vk::PhysicalDeviceFeatures Context::sPhysicalDeviceFeatures {};
 vk::PhysicalDeviceVulkan11Features Context::sEnable11Features {};
 vk::PhysicalDeviceVulkan12Features Context::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features Context::sEnable13Features {};
+vk::PhysicalDeviceMeshShaderFeaturesEXT
+    Context::sEnableMeshShaderFeaturesExt {};
 
 Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
                  ::std::span<::std::string> requestedInstanceLayers,
@@ -49,18 +51,23 @@ Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
 }
 
 SharedPtr<RenderResource> Context::CreateTexture2D(
-    vk::Extent3D extent, vk::Format format, vk::ImageUsageFlags usage,
-    uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount) {
-    return MakeShared<RenderResource>(
+    const char* name, vk::Extent3D extent, vk::Format format,
+    vk::ImageUsageFlags usage, uint32_t mipLevels, uint32_t arraySize,
+    uint32_t sampleCount) {
+    auto ptr = MakeShared<RenderResource>(
         mPDevice.get(), mPAllocator.get(), RenderResource::Type::Texture2D,
         format, extent, usage, mipLevels, arraySize, sampleCount);
+    ptr->SetName(mPDevice.get(), name);
+    return ptr;
 }
 
 SharedPtr<RenderResource> Context::CreateDeviceLocalBuffer(
-    size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return MakeShared<RenderResource>(
+    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
+    auto ptr = MakeShared<RenderResource>(
         mPDevice.get(), mPAllocator.get(), RenderResource::Type::Buffer,
         allocByteSize, usage, Buffer::MemoryType::DeviceLocal);
+    ptr->SetName(mPDevice.get(), name);
+    return ptr;
 }
 
 SharedPtr<RenderResource> Context::CreateStagingBuffer(
@@ -72,14 +79,14 @@ SharedPtr<RenderResource> Context::CreateStagingBuffer(
 }
 
 SharedPtr<RenderResource> Context::CreateStorageBuffer(
-    size_t allocByteSize, vk::BufferUsageFlags usage) {
+    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
     return CreateDeviceLocalBuffer(
-        allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
+        name, allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
 SharedPtr<RenderResource> Context::CreateIndirectCmdBuffer(
-    size_t allocByteSize) {
-    return CreateDeviceLocalBuffer(allocByteSize,
+    const char* name, size_t allocByteSize) {
+    return CreateDeviceLocalBuffer(name, allocByteSize,
                                    vk::BufferUsageFlagBits::eIndirectBuffer
                                        | vk::BufferUsageFlagBits::eTransferDst);
 }
@@ -275,6 +282,12 @@ void Context::EnableDefaultFeatures() {
 
     sEnable11Features.setPNext(&sEnable12Features);
     sEnable12Features.setPNext(&sEnable13Features);
+
+    sEnableMeshShaderFeaturesExt.setMeshShader(vk::True).setTaskShader(
+        vk::True);
+    sEnable13Features.setPNext(&sEnableMeshShaderFeaturesExt);
+
+    sEnable12Features.setStorageBuffer8BitAccess(vk::True);
 }
 
 void Context::EnableDynamicRendering() {

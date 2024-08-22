@@ -47,6 +47,34 @@ EngineCore::EngineCore()
         vk::BufferUsageFlagBits::eStorageBuffer,
         Buffer::MemoryType::DeviceLocal);
 
+    mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
+
+    // mFactoryModel =
+    //     MakeShared<Model>("../../../Models/RM_HP_59930007DR0130HP000.fbx");
+
+    // {
+    //     // CISDI_3DModelDataConverter converter {
+    //     //     "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
+    //     //
+    //     // converter.Execute();
+    //
+    //     auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
+    //
+    //     auto meshes =
+    //         CISDI_3DModelDataConverter::LoadCISDIModelData(cisdiModelPath);
+    //
+    //     mFactoryModel = MakeShared<Model>(meshes);
+    //
+    //     mFactoryModel->GenerateBuffers(mPContext.get(), this);
+    // }
+
+    {
+        // mFactoryModel = MakeShared<Model>("../../../Models/Foliage.fbx");
+        mFactoryModel = MakeShared<Model>("../../../Models/teapot.FBX");
+        // mFactoryModel = MakeShared<Model>("../../../Models/box.fbx");
+        mFactoryModel->GenerateMeshletBuffers(mPContext.get(), this);
+    }
+
     CreateDescriptors();
     CreatePipelines();
 
@@ -55,25 +83,6 @@ EngineCore::EngineCore()
     CreateCUDASyncStructures();
     CreateExternalTriangleData();
 #endif
-
-    mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
-
-    // mFactoryModel =
-    //     MakeShared<Model>("../../../Models/RM_HP_59930007DR0130HP000.fbx");
-    //
-    // CISDI_3DModelDataConverter converter {
-    //     "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
-    //
-    // converter.Execute();
-
-    auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
-
-    auto meshes =
-        CISDI_3DModelDataConverter::LoadCISDIModelData(cisdiModelPath);
-
-    mFactoryModel = MakeShared<Model>(meshes);
-
-    mFactoryModel->GenerateBuffers(mPContext.get(), this);
 }
 
 EngineCore::~EngineCore() {
@@ -150,7 +159,8 @@ void EngineCore::Draw() {
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthAttachmentOptimal);
 
-        DrawMesh(cmd.GetHandle());
+        // DrawMesh(cmd.GetHandle());
+        MeshShaderDraw(cmd.GetHandle());
 
         Utils::TransitionImageLayout(
             cmd.GetHandle(),
@@ -258,7 +268,10 @@ UniquePtr<Context> EngineCore::CreateContext() {
     enabledDeivceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
         VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(VK_KHR_MAINTENANCE_6_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(
+        VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 
 #ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
@@ -339,6 +352,7 @@ void EngineCore::CreatePipelines() {
     CreateBackgroundComputePipeline();
     CreateMeshPipeline();
     CreateDrawQuadPipeline();
+    CreateMeshShaderPipeline();
 }
 
 void EngineCore::CreateDescriptors() {
@@ -346,6 +360,7 @@ void EngineCore::CreateDescriptors() {
     CreateBackgroundComputeDescriptors();
     CreateMeshDescriptors();
     CreateDrawQuadDescriptors();
+    CreateMeshShaderDescriptors();
 }
 
 void EngineCore::CreateErrorCheckTexture() {
@@ -606,6 +621,74 @@ void EngineCore::CreateMeshDescriptors() {
     // mDescriptorManager->UpdateSet(triangleDesc1);
 }
 
+void EngineCore::CreateMeshShaderPipeline() {
+    std::vector<Shader> shaders;
+    shaders.reserve(3);
+
+    shaders.emplace_back(mPContext.get(), "task",
+                         "../../Shaders/MeshShader.task.spv",
+                         ShaderStage::Task);
+
+    shaders.emplace_back(mPContext.get(), "mesh",
+                         "../../Shaders/MeshShader.mesh.spv",
+                         ShaderStage::Mesh);
+
+    shaders.emplace_back(mPContext.get(), "fragment",
+                         "../../Shaders/MeshShader.frag.spv",
+                         ShaderStage::Fragment);
+
+    vk::PushConstantRange pushConstant {};
+    pushConstant.setSize(sizeof(PushConstants))
+        .setStageFlags(vk::ShaderStageFlagBits::eMeshEXT);
+
+    std::array setLayouts {
+        mDescriptorManager->GetDescSetLayout("MeshShader_Desc_Layout_0")};
+
+    auto meshShaderPipelineLayout = mPipelineManager->CreateLayout(
+        "MeshShader_Pipe_Layout", setLayouts, pushConstant);
+
+    auto& builder = mPipelineManager->GetGraphicsPipelineBuilder();
+    builder.SetLayout(meshShaderPipelineLayout->GetHandle())
+        .SetShaders(shaders)
+        // .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
+        .SetPolygonMode(vk::PolygonMode::eFill)
+        .SetCullMode(vk::CullModeFlagBits::eNone,
+                     vk::FrontFace::eCounterClockwise)
+        .SetMultisampling(vk::SampleCountFlagBits::e1)
+        .SetBlending(vk::False)
+        .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
+        .SetColorAttachmentFormat(
+            mRenderResManager->GetResource("DrawImage")->GetTexFormat())
+        .SetDepthStencilFormat(
+            mRenderResManager->GetResource("DepthImage")->GetTexFormat())
+        .Build("MeshShaderDraw_Pipeline");
+
+    DBG_LOG_INFO("Vulkan MeshShader Graphics Pipeline Created");
+}
+
+void EngineCore::CreateMeshShaderDescriptors() {
+    // set = 0, binding = 0, scene data UBO
+    {
+        mDescriptorManager->AddDescSetLayoutBinding(
+            0, 1, vk::DescriptorType::eUniformBuffer);
+
+        const auto meshShaderSetLayout = mDescriptorManager->BuildDescSetLayout(
+            "MeshShader_Desc_Layout_0", vk::ShaderStageFlagBits::eMeshEXT);
+
+        const auto meshShaderDesc = mDescriptorManager->Allocate(
+            "MeshShader_Desc_0_0", meshShaderSetLayout);
+
+        mDescriptorManager->WriteBuffer(
+            0,
+            {mRenderResManager->GetResource("SceneUniformBuffer")
+                 ->GetBufferHandle(),
+             0, sizeof(SceneData)},
+            vk::DescriptorType::eUniformBuffer);
+
+        mDescriptorManager->UpdateSet(meshShaderDesc);
+    }
+}
+
 void EngineCore::CreateDrawQuadDescriptors() {
     mDescriptorManager->AddDescSetLayoutBinding(
         0, 1, vk::DescriptorType::eCombinedImageSampler);
@@ -809,10 +892,9 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
         mFactoryModel->GetMeshBuffer().mIndexBuffer->GetBufferHandle(), 0,
         vk::IndexType::eUint32);
 
-    // for (uint32_t i = 0; i < 10000; ++i)
     {
         glm::mat4 model {1.0f};
-        model = glm::scale(model, glm::vec3 {0.0001f});
+        // model = glm::scale(model, glm::vec3 {0.0001f});
 
         auto pushContants = mFactoryModel->GetPushContants();
         pushContants.mModelMatrix = model;
@@ -880,6 +962,74 @@ void EngineCore::DrawQuad(vk::CommandBuffer cmd) {
                            {});
 
     cmd.draw(3, 1, 0, 0);
+
+    cmd.endRendering();
+}
+
+void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
+    vk::RenderingAttachmentInfo colorAttachment {};
+    colorAttachment
+        .setImageView(mRenderResManager->GetResource("DrawImage")
+                          ->GetTexViewHandle("Color-Whole"))
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+    vk::RenderingAttachmentInfo depthAttachment {};
+    depthAttachment
+        .setImageView(mRenderResManager->GetResource("DepthImage")
+                          ->GetTexViewHandle("Depth-Whole"))
+        .setImageLayout(vk::ImageLayout::eDepthAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eClear)
+        .setStoreOp(vk::AttachmentStoreOp::eStore)
+        .setClearValue(vk::ClearDepthStencilValue {0.0f});
+
+    vk::RenderingInfo renderInfo {};
+    renderInfo
+        .setRenderArea(vk::Rect2D {
+            {0, 0},
+            {mRenderResManager->GetResource("DrawImage")->GetTexWidth(),
+             mRenderResManager->GetResource("DrawImage")->GetTexHeight()}})
+        .setLayerCount(1u)
+        .setColorAttachments(colorAttachment)
+        .setPDepthAttachment(&depthAttachment);
+
+    cmd.beginRendering(renderInfo);
+
+    cmd.bindPipeline(
+        vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetGraphicsPipeline("MeshShaderDraw_Pipeline"));
+
+    vk::Viewport viewport {};
+    viewport
+        .setWidth(mRenderResManager->GetResource("DrawImage")->GetTexWidth())
+        .setHeight(mRenderResManager->GetResource("DrawImage")->GetTexHeight())
+        .setMinDepth(0.0f)
+        .setMaxDepth(1.0f);
+    cmd.setViewport(0, viewport);
+
+    vk::Rect2D scissor {};
+    scissor.setExtent(
+        {mRenderResManager->GetResource("DrawImage")->GetTexWidth(),
+         mRenderResManager->GetResource("DrawImage")->GetTexHeight()});
+    cmd.setScissor(0, scissor);
+
+    cmd.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"), 0,
+        {mDescriptorManager->GetDescriptor("MeshShader_Desc_0_0")},
+        {});
+
+    auto pushContants = mFactoryModel->GetPushContants();
+    cmd.pushConstants(
+        mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"),
+        vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(pushContants),
+        &pushContants);
+
+    uint32_t taskCount =
+        (mFactoryModel->GetMeshletCount() + MESHLET_COUNT_PER_MESH_TASK - 1)
+        / MESHLET_COUNT_PER_MESH_TASK;
+    cmd.drawMeshTasksEXT(taskCount, 1, 1);
 
     cmd.endRendering();
 }

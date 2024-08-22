@@ -36,25 +36,24 @@ public:
     MOVABLE_ONLY(Context);
 
 public:
-    SharedPtr<RenderResource> CreateTexture2D(vk::Extent3D extent,
-                                              vk::Format format,
-                                              vk::ImageUsageFlags usage,
-                                              uint32_t mipLevels = 1,
-                                              uint32_t arraySize = 1,
-                                              uint32_t sampleCount = 1);
+    SharedPtr<RenderResource> CreateTexture2D(
+        const char* name, vk::Extent3D extent, vk::Format format,
+        vk::ImageUsageFlags usage, uint32_t mipLevels = 1,
+        uint32_t arraySize = 1, uint32_t sampleCount = 1);
 
     SharedPtr<RenderResource> CreateDeviceLocalBuffer(
-        size_t allocByteSize, vk::BufferUsageFlags usage);
+        const char* name, size_t allocByteSize, vk::BufferUsageFlags usage);
 
     SharedPtr<RenderResource> CreateStagingBuffer(
         size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
     SharedPtr<RenderResource> CreateStorageBuffer(
-        size_t allocByteSize,
+        const char* name, size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
-    SharedPtr<RenderResource> CreateIndirectCmdBuffer(size_t allocByteSize);
+    SharedPtr<RenderResource> CreateIndirectCmdBuffer(const char* name,
+                                                      size_t allocByteSize);
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
@@ -149,6 +148,7 @@ private:
     static vk::PhysicalDeviceVulkan11Features sEnable11Features;
     static vk::PhysicalDeviceVulkan12Features sEnable12Features;
     static vk::PhysicalDeviceVulkan13Features sEnable13Features;
+    static vk::PhysicalDeviceMeshShaderFeaturesEXT sEnableMeshShaderFeaturesExt;
 
 private:
     UniquePtr<Instance> mPInstance;

@@ -34,8 +34,21 @@ RenderResource::Type RenderResource::GetType() const {
     return mType;
 }
 
-void RenderResource::SetName(const char* name) {
+template <class... Ts>
+struct overload : Ts... {
+    using Ts::operator()...;
+};
+template <class... Ts>
+overload(Ts...) -> overload<Ts...>;
 
+void RenderResource::SetName(Device* device, const char* name) {
+    ::std::visit(overload {[&](Texture const& v) {
+                               device->SetObjectName(v.GetHandle(), name);
+                           },
+                           [&](Buffer const& v) {
+                               device->SetObjectName(v.GetHandle(), name);
+                           }},
+                 mResource);
     mName = name;
 }
 

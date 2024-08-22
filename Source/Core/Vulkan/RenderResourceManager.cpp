@@ -15,8 +15,7 @@ RenderResource* RenderResourceManager::CreateBuffer(
                                           RenderResource::Type::Buffer, size,
                                           usage, memType);
 
-    pDevice->SetObjectName(ptr->GetBufferHandle(), name);
-    ptr->SetName(name);
+    ptr->SetName(pDevice, name);
 
     mResources.emplace(name, ptr);
 
@@ -31,8 +30,7 @@ RenderResource* RenderResourceManager::CreateTexture(
         MakeShared<RenderResource>(pDevice, pAllocator, type, format, extent,
                                    usage, mipLevels, arraySize, sampleCount);
 
-    pDevice->SetObjectName(ptr->GetTexHandle(), name);
-    ptr->SetName(name);
+    ptr->SetName(pDevice, name);
 
     mResources.emplace(name, ptr);
 
