@@ -12,7 +12,6 @@ class EngineCore;
 struct PushConstants {
     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
     vk::DeviceAddress mVertexBufferAddress {};
-    vk::DeviceAddress mIndexBufferAddress {};
     vk::DeviceAddress mMeshletBufferAddress {};
     vk::DeviceAddress mMeshletVertexBufferAddress {};
     vk::DeviceAddress mMeshletTriangleBufferAddress {};

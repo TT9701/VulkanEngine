@@ -116,7 +116,8 @@ target_compile_definitions(Core
 
 target_link_libraries(Core 
     PUBLIC
-        Vulkan::Headers)
+        Vulkan::Headers
+        Vulkan::shaderc_combined)
 
 target_link_libraries(CUDA
     PUBLIC

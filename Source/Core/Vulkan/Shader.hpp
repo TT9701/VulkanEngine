@@ -1,5 +1,6 @@
 #pragma once
 
+#include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
@@ -13,13 +14,17 @@ class Context;
 // TODO: Specialization parameters
 class Shader {
 public:
-    Shader(Context* context, ::std::string name,
-                 ::std::vector<uint32_t> const& binaryCode, ShaderStage stage,
-                 ::std::string entry = "main", void* pNext = nullptr);
+    // from spirv
+    Shader(Context* context, const char* name, const char* spirvPath,
+           ShaderStage stage, const char* entry = "main",
+           void* pNext = nullptr);
 
-    Shader(Context* context, ::std::string const& name,
-                 ::std::string const& path, ShaderStage stage,
-                 ::std::string const& entry = "main", void* pNext = nullptr);
+    // from glsl source code
+    Shader(
+        Context* context, const char* name, const char* sourcePath,
+        ShaderStage stage,
+        ::std::unordered_map<::std::string, ::std::string> const& defines,
+        const char* entry = "main", void* pNext = nullptr);
 
     ~Shader();
     MOVABLE_ONLY(Shader);
@@ -30,8 +35,8 @@ public:
     vk::PipelineShaderStageCreateInfo GetStageInfo(void* pNext = nullptr) const;
 
 public:
-    vk::ShaderModule CreateShaderModule(
-        ::std::vector<uint32_t> const& binaryCode, void* pNext) const;
+    vk::ShaderModule CreateShaderModule(::std::span<uint32_t> binaryCode,
+                                        void* pNext) const;
 
 private:
     Context* pContext;
@@ -40,7 +45,7 @@ private:
     ::std::string mEntry;
     ShaderStage mStage;
 
-    vk::ShaderModule mShaderModule;
+    vk::ShaderModule mShaderModule {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

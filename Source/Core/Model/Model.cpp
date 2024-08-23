@@ -104,12 +104,9 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
 
 void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
     const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
-    const size_t indexSize = sizeof(mMeshes[0].mIndices[0]);
-
     const size_t vertexBufferSize = mVertexCount * vertexSize;
-    const size_t indexBufferSize = mIndexCount * indexSize;
 
-    // Vertices and indices SSBO
+    // Vertices SSBO
     {
         mBuffers.mVertexBuffer = context->CreateDeviceLocalBuffer(
             (mName + " Vertex").c_str(), vertexBufferSize,
@@ -117,16 +114,8 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
                 | vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-        mBuffers.mIndexBuffer = context->CreateDeviceLocalBuffer(
-            (mName + " Index").c_str(), indexBufferSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
-                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
         mBuffers.mVertexBufferAddress =
             mBuffers.mVertexBuffer->GetBufferDeviceAddress();
-        mBuffers.mIndexBufferAddress =
-            mBuffers.mIndexBuffer->GetBufferDeviceAddress();
     }
     const size_t meshletSize = sizeof(mMeshes[0].mMeshlets[0]);
     const size_t meshletVerticesSize = sizeof(mMeshes[0].mMeshletVertices[0]);
@@ -168,8 +157,8 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
     // copy through staging buffer
     {
         auto staging = context->CreateStagingBuffer(
-            vertexBufferSize + indexBufferSize + meshletBufferSize
-            + meshletVerticesBufferSize + meshletTrianglesBufferSize);
+            vertexBufferSize + meshletBufferSize + meshletVerticesBufferSize
+            + meshletTrianglesBufferSize);
 
         void* data = staging->GetBufferMappedPtr();
         // vetices
@@ -178,33 +167,25 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
                    mMeshes[i].mVertices.data(),
                    mMeshes[i].mVertices.size() * vertexSize);
         }
-        // indices
-        for (uint32_t i = 0; i < mMeshes.size(); ++i) {
-            memcpy((uint32_t*)((char*)data + vertexBufferSize)
-                       + mOffsets.indexOffsets[i],
-                   mMeshes[i].mIndices.data(),
-                   mMeshes[i].mIndices.size() * indexSize);
-        }
         // meshlets
         for (uint32_t i = 0; i < mMeshes.size(); ++i) {
-            memcpy((meshopt_Meshlet*)((char*)data + vertexBufferSize
-                                      + indexBufferSize)
+            memcpy((meshopt_Meshlet*)((char*)data + vertexBufferSize)
                        + mOffsets.meshletOffsets[i],
                    mMeshes[i].mMeshlets.data(),
                    mMeshes[i].mMeshlets.size() * meshletSize);
         }
         // meshlet vertices
         for (uint32_t i = 0; i < mMeshes.size(); ++i) {
-            memcpy((uint32_t*)((char*)data + vertexBufferSize + indexBufferSize
-                               + meshletBufferSize)
-                       + mOffsets.meshletVerticesOffsets[i],
-                   mMeshes[i].mMeshletVertices.data(),
-                   mMeshes[i].mMeshletVertices.size() * meshletVerticesSize);
+            memcpy(
+                (uint32_t*)((char*)data + vertexBufferSize + meshletBufferSize)
+                    + mOffsets.meshletVerticesOffsets[i],
+                mMeshes[i].mMeshletVertices.data(),
+                mMeshes[i].mMeshletVertices.size() * meshletVerticesSize);
         }
         //meshlet triangles
         for (uint32_t i = 0; i < mMeshes.size(); ++i) {
-            memcpy((uint8_t*)((char*)data + vertexBufferSize + indexBufferSize
-                              + meshletBufferSize + meshletVerticesBufferSize)
+            memcpy((uint8_t*)((char*)data + vertexBufferSize + meshletBufferSize
+                              + meshletVerticesBufferSize)
                        + mOffsets.meshletTrianglesOffsets[i],
                    mMeshes[i].mMeshletTriangles.data(),
                    mMeshes[i].mMeshletTriangles.size() * meshletTrianglesSize);
@@ -217,37 +198,30 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
                            mBuffers.mVertexBuffer->GetBufferHandle(),
                            vertexCopy);
 
-            vk::BufferCopy indexCopy {};
-            indexCopy.setSize(indexBufferSize).setSrcOffset(vertexBufferSize);
-            cmd.copyBuffer(staging->GetBufferHandle(),
-                           mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
-
             vk::BufferCopy meshletCopy {};
             meshletCopy.setSize(meshletBufferSize)
-                .setSrcOffset(vertexBufferSize + indexBufferSize);
+                .setSrcOffset(vertexBufferSize);
             cmd.copyBuffer(staging->GetBufferHandle(),
                            mBuffers.mMeshletBuffer->GetBufferHandle(),
                            meshletCopy);
 
             vk::BufferCopy meshletVertCopy {};
             meshletVertCopy.setSize(meshletVerticesBufferSize)
-                .setSrcOffset(vertexBufferSize + indexBufferSize
-                              + meshletBufferSize);
+                .setSrcOffset(vertexBufferSize + meshletBufferSize);
             cmd.copyBuffer(staging->GetBufferHandle(),
                            mBuffers.mMeshletVertBuffer->GetBufferHandle(),
                            meshletVertCopy);
 
             vk::BufferCopy meshletTriCopy {};
             meshletTriCopy.setSize(meshletTrianglesBufferSize)
-                .setSrcOffset(vertexBufferSize + indexBufferSize
-                              + meshletBufferSize + meshletVerticesBufferSize);
+                .setSrcOffset(vertexBufferSize + meshletBufferSize
+                              + meshletVerticesBufferSize);
             cmd.copyBuffer(staging->GetBufferHandle(),
                            mBuffers.mMeshletTriBuffer->GetBufferHandle(),
                            meshletTriCopy);
         });
 
         mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
-        mConstants.mIndexBufferAddress = mBuffers.mIndexBufferAddress;
         mConstants.mMeshletBufferAddress = mBuffers.mMeshletBufferAddress;
         mConstants.mMeshletVertexBufferAddress =
             mBuffers.mMeshletVertBufferAddress;

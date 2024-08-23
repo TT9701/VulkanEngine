@@ -625,15 +625,15 @@ void EngineCore::CreateMeshShaderPipeline() {
     std::vector<Shader> shaders;
     shaders.reserve(3);
 
-    shaders.emplace_back(mPContext.get(), "task",
+    shaders.emplace_back(mPContext.get(), "Mesh shader task",
                          "../../Shaders/MeshShader.task.spv",
                          ShaderStage::Task);
 
-    shaders.emplace_back(mPContext.get(), "mesh",
+    shaders.emplace_back(mPContext.get(), "Mesh shader mesh",
                          "../../Shaders/MeshShader.mesh.spv",
                          ShaderStage::Mesh);
 
-    shaders.emplace_back(mPContext.get(), "fragment",
+    shaders.emplace_back(mPContext.get(), "Mesh shader fragment",
                          "../../Shaders/MeshShader.frag.spv",
                          ShaderStage::Fragment);
 

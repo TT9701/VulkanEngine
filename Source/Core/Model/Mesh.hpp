@@ -17,7 +17,6 @@ struct GPUMeshBuffers {
     SharedPtr<RenderResource> mMeshletVertBuffer {nullptr};
     SharedPtr<RenderResource> mMeshletTriBuffer {nullptr};
     vk::DeviceAddress mVertexBufferAddress {};
-    vk::DeviceAddress mIndexBufferAddress {};
     vk::DeviceAddress mMeshletBufferAddress {};
     vk::DeviceAddress mMeshletVertBufferAddress {};
     vk::DeviceAddress mMeshletTriBufferAddress {};

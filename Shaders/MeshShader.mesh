@@ -30,10 +30,6 @@ layout(buffer_reference, std430) readonly buffer VertexBuffer{
 	Vertex vertices[];
 };
 
-layout(buffer_reference, std430) readonly buffer IndexBuffer{ 
-	uint indices[];
-};
-
 struct Meshlet {
 	uint vertexOffset;
 	uint triangleOffset;
@@ -57,7 +53,6 @@ layout( push_constant ) uniform PushConstants
 {	
 	mat4 modelMatrix;
 	VertexBuffer vertexBuffer;
-	IndexBuffer indexBuffer;
 	MeshletBuffer meshletBuffer;
 	MeshletVertexBuffer meshletVertexBuffer;
 	MeshletTriangleBuffer meshletTriangleBuffer;

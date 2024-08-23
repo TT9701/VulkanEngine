@@ -11,7 +11,7 @@ project (VulkanEngine)
 
 enable_language(CUDA)
 
-find_package (Vulkan REQUIRED)
+find_package (Vulkan COMPONENTS glslang shaderc_combined SPIRV-Tools REQUIRED)
 
 if(${CMAKE_GENERATOR} MATCHES "Visual Studio*")
     set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Bin")
