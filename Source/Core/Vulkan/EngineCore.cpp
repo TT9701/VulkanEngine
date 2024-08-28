@@ -50,15 +50,16 @@ EngineCore::EngineCore()
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
     // mFactoryModel =
-    //     MakeShared<Model>("../../../Models/RM_HP_59930007DR0130HP000.fbx");
-
+    //     MakeShared<Model>(MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx"));
+    //
     // {
     //     // CISDI_3DModelDataConverter converter {
-    //     //     "../../../Models/RM_HP_59930007DR0130HP000.fbx"};
+    //     //     MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx")};
     //     //
     //     // converter.Execute();
     //
-    //     auto cisdiModelPath = "../../../Models/RM_HP_59930007DR0130HP000.cisdi";
+    //     auto cisdiModelPath =
+    //         MODEL_PATH_CSTR ("RM_HP_59930007DR0130HP000.cisdi");
     //
     //     auto meshes =
     //         CISDI_3DModelDataConverter::LoadCISDIModelData(cisdiModelPath);
@@ -69,9 +70,12 @@ EngineCore::EngineCore()
     // }
 
     {
-        // mFactoryModel = MakeShared<Model>("../../../Models/Foliage.fbx");
-        mFactoryModel = MakeShared<Model>("../../../Models/teapot.FBX");
-        // mFactoryModel = MakeShared<Model>("../../../Models/box.fbx");
+        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("sponza/sponza.obj"));
+        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("teapot.FBX"));
+        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("dragon.obj"), false);
+        mFactoryModel =
+            MakeShared<Model>(MODEL_PATH_CSTR("58360014DR2512ME021-2.STL"));
+
         mFactoryModel->GenerateMeshletBuffers(mPContext.get(), this);
     }
 
@@ -481,7 +485,7 @@ void EngineCore::UpdateScene() {
         glm::perspective(glm::radians(45.0f),
                          static_cast<float>(mPWindow->GetWidth())
                              / static_cast<float>(mPWindow->GetHeight()),
-                         10000.0f, 0.01f);
+                         10000.0f, 0.0001f);
 
     proj[1][1] *= -1;
 
@@ -536,7 +540,7 @@ void EngineCore::CreateBackgroundComputePipeline() {
         "BackgoundCompute_Layout", setLayouts, {});
 
     Shader computeDrawShader {mPContext.get(), "computeDraw",
-                              "../../Shaders/BackGround.comp.spv",
+                              SHADER_PATH_CSTR("BackGround.comp.spv"),
                               ShaderStage::Compute};
 
     auto& builder = mPipelineManager->GetComputePipelineBuilder();
@@ -554,11 +558,11 @@ void EngineCore::CreateMeshPipeline() {
     shaders.reserve(2);
 
     shaders.emplace_back(mPContext.get(), "vertex",
-                         "../../Shaders/Triangle.vert.spv",
+                         SHADER_PATH_CSTR("Triangle.vert.spv"),
                          ShaderStage::Vertex);
 
     shaders.emplace_back(mPContext.get(), "fragment",
-                         "../../Shaders/Triangle.frag.spv",
+                         SHADER_PATH_CSTR("Triangle.frag.spv"),
                          ShaderStage::Fragment);
 
     vk::PushConstantRange pushConstant {};
@@ -624,34 +628,43 @@ void EngineCore::CreateMeshDescriptors() {
 void EngineCore::CreateMeshShaderPipeline() {
     std::vector<Shader> shaders;
     shaders.reserve(3);
-
-    shaders.emplace_back(mPContext.get(), "Mesh shader task",
-                         "../../Shaders/MeshShader.task.spv",
-                         ShaderStage::Task);
-
-    shaders.emplace_back(mPContext.get(), "Mesh shader mesh",
-                         "../../Shaders/MeshShader.mesh.spv",
-                         ShaderStage::Mesh);
-
+    Type_ShaderMacros macros {};
     shaders.emplace_back(mPContext.get(), "Mesh shader fragment",
-                         "../../Shaders/MeshShader.frag.spv",
-                         ShaderStage::Fragment);
+                         SHADER_PATH_CSTR("MeshShader.frag"),
+                         ShaderStage::Fragment, false, macros);
 
-    vk::PushConstantRange pushConstant {};
-    pushConstant.setSize(sizeof(PushConstants))
+    macros.emplace("TASK_INVOCATION_COUNT",
+                   std::to_string(TASK_SHADER_INVOCATION_COUNT));
+    shaders.emplace_back(mPContext.get(), "Mesh shader task",
+                         SHADER_PATH_CSTR("MeshShader.task"), ShaderStage::Task,
+                         false, macros);
+
+    macros.clear();
+    macros.emplace("MESH_INVOCATION_COUNT",
+                   std::to_string(MESH_SHADER_INVOCATION_COUNT));
+    macros.emplace("MAX_VERTICES",
+                   std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES));
+    macros.emplace("MAX_PRIMITIVES",
+                   std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
+    shaders.emplace_back(mPContext.get(), "Mesh shader mesh",
+                         SHADER_PATH_CSTR("MeshShader.mesh"), ShaderStage::Mesh,
+                         true, macros);
+
+    vk::PushConstantRange meshPushConstants {};
+    meshPushConstants.setSize(sizeof(PushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eMeshEXT);
 
     std::array setLayouts {
         mDescriptorManager->GetDescSetLayout("MeshShader_Desc_Layout_0")};
 
     auto meshShaderPipelineLayout = mPipelineManager->CreateLayout(
-        "MeshShader_Pipe_Layout", setLayouts, pushConstant);
+        "MeshShader_Pipe_Layout", setLayouts, {meshPushConstants});
 
     auto& builder = mPipelineManager->GetGraphicsPipelineBuilder();
     builder.SetLayout(meshShaderPipelineLayout->GetHandle())
         .SetShaders(shaders)
         // .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
-        .SetPolygonMode(vk::PolygonMode::eFill)
+        .SetPolygonMode(vk::PolygonMode::eLine)
         .SetCullMode(vk::CullModeFlagBits::eNone,
                      vk::FrontFace::eCounterClockwise)
         .SetMultisampling(vk::SampleCountFlagBits::e1)
@@ -714,10 +727,12 @@ void EngineCore::CreateDrawQuadPipeline() {
     shaders.reserve(2);
 
     shaders.emplace_back(mPContext.get(), "vertex",
-                         "../../Shaders/Quad.vert.spv", ShaderStage::Vertex);
+                         SHADER_PATH_CSTR("Quad.vert.spv"),
+                         ShaderStage::Vertex);
 
     shaders.emplace_back(mPContext.get(), "fragment",
-                         "../../Shaders/Quad.frag.spv", ShaderStage::Fragment);
+                         SHADER_PATH_CSTR("Quad.frag.spv"),
+                         ShaderStage::Fragment);
 
     std::vector setLayouts {
         mDescriptorManager->GetDescSetLayout("Quad_Layout_0")};
@@ -1017,19 +1032,25 @@ void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
     cmd.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics,
         mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"), 0,
-        {mDescriptorManager->GetDescriptor("MeshShader_Desc_0_0")},
-        {});
+        {mDescriptorManager->GetDescriptor("MeshShader_Desc_0_0")}, {});
 
-    auto pushContants = mFactoryModel->GetPushContants();
+    auto meshPushContants = mFactoryModel->GetPushContants();
+    meshPushContants.mModelMatrix =
+        glm::scale(meshPushContants.mModelMatrix, glm::vec3 {0.0001f});
     cmd.pushConstants(
         mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"),
-        vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(pushContants),
-        &pushContants);
+        vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(meshPushContants),
+        &meshPushContants);
 
-    uint32_t taskCount =
-        (mFactoryModel->GetMeshletCount() + MESHLET_COUNT_PER_MESH_TASK - 1)
-        / MESHLET_COUNT_PER_MESH_TASK;
-    cmd.drawMeshTasksEXT(taskCount, 1, 1);
+    // uint32_t taskCount =
+    //     (mFactoryModel->GetMeshletCount() + TASK_SHADER_INVOCATION_COUNT - 1)
+    //     / TASK_SHADER_INVOCATION_COUNT;
+    // cmd.drawMeshTasksEXT(taskCount, 1, 1);
+    
+    cmd.drawMeshTasksIndirectEXT(
+        mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetBufferHandle(), 0,
+        mFactoryModel->GetMeshes().size(),
+        sizeof(vk::DrawMeshTasksIndirectCommandEXT));
 
     cmd.endRendering();
 }

@@ -3,9 +3,12 @@
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_control_flow_attributes: require
 
-#define MAX_VERTICES 64
-#define MAX_PRIMITIVES 124
+#define UNROLL_LOOP [[unroll]]
+
+const uint MESHLET_VERTEX_ITERATIONS    = ((MAX_VERTICES    + MESH_INVOCATION_COUNT - 1) / MESH_INVOCATION_COUNT);
+const uint MESHLET_PRIMITIVE_ITERATIONS = ((MAX_PRIMITIVES + MESH_INVOCATION_COUNT - 1) / MESH_INVOCATION_COUNT);
 
 #include "Include/Structures.glsl"
 
@@ -14,7 +17,7 @@ layout (set = 0, binding = 0) uniform UBO
 	SceneData data;
 } ubo;
 
-layout(local_size_x = 1) in;
+layout(local_size_x = MESH_INVOCATION_COUNT) in;
 layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_PRIMITIVES) out;
 
 struct Vertex {
@@ -49,6 +52,26 @@ layout(buffer_reference, std430) readonly buffer MeshletTriangleBuffer{
 	uint8_t meshletTriangles[];
 };
 
+layout(buffer_reference, std430) readonly buffer MeshOffsetBuffer{ 
+	uint meshOffsets[];
+};
+
+layout(buffer_reference, std430) readonly buffer MeshletOffsetBuffer{ 
+	uint meshletOffsets[];
+};
+
+layout(buffer_reference, std430) readonly buffer MeshletVertexOffsetBuffer{ 
+	uint meshletVertexOffsets[];
+};
+
+layout(buffer_reference, std430) readonly buffer MeshletTriangleOffsetBuffer{ 
+	uint meshletTriangleOffsets[];
+};
+
+layout(buffer_reference, std430) readonly buffer MeshletCountBuffer{ 
+	uint meshletCounts[];
+};
+
 layout( push_constant ) uniform PushConstants
 {	
 	mat4 modelMatrix;
@@ -56,19 +79,17 @@ layout( push_constant ) uniform PushConstants
 	MeshletBuffer meshletBuffer;
 	MeshletVertexBuffer meshletVertexBuffer;
 	MeshletTriangleBuffer meshletTriangleBuffer;
+	MeshOffsetBuffer meshOffsetBuffer;
+	MeshletOffsetBuffer meshletOffsetBuffer;
+	MeshletVertexOffsetBuffer meshletVertexOffsetBuffer;
+	MeshletTriangleOffsetBuffer meshletTriangleOffsetBuffer;
+	MeshletCountBuffer meshletCountBuffer;
 } constants;
 
 layout(location = 0) out VertexOutput
 {
 	vec4 color;
 } vertexOutput[];
-
-const vec4[4] positions = {
-	vec4( 0.0, -1.0, 0.0, 1.0),
-	vec4(-1.0,  1.0, 0.0, 1.0),
-	vec4( 1.0,  1.0, 0.0, 1.0),
-	vec4( 0.0,  0.0, -1.0, 1.0)
-};
 
 const vec4[3] colors = {
 	vec4(0.0, 1.0, 0.0, 1.0),
@@ -78,6 +99,7 @@ const vec4[3] colors = {
 
 struct Task {
 	uint baseID;
+	uint drawID;
 };
 
 taskPayloadSharedEXT Task IN;
@@ -89,29 +111,42 @@ float rand(vec2 co)
 
 void main()
 {
-	vertexOutput[0].color = colors[0];
-	vertexOutput[1].color = colors[1];
-	vertexOutput[2].color = colors[2];
+	uint meshletID = IN.baseID + gl_WorkGroupID.x;
 
-	uint meshletID = IN.baseID + gl_GlobalInvocationID.x;
-	if (meshletID >= 3236)		
-		SetMeshOutputsEXT(0, 0);
-	Meshlet meshlet = constants.meshletBuffer.meshlets[meshletID];
+	if (meshletID >= constants.meshletCountBuffer.meshletCounts[IN.drawID]) {
+		SetMeshOutputsEXT(0, 0);		
+		return;
+	}
 
-	SetMeshOutputsEXT(meshlet.vertexCount, meshlet.triangleCount);
+	uint meshVertexOffset = constants.meshOffsetBuffer.meshOffsets[IN.drawID];
+	uint meshletOffset = constants.meshletOffsetBuffer.meshletOffsets[IN.drawID];
+	uint meshletVertexOffset = constants.meshletVertexOffsetBuffer.meshletVertexOffsets[IN.drawID];
+	uint meshletTriangleOffset = constants.meshletTriangleOffsetBuffer.meshletTriangleOffsets[IN.drawID];
+	
+	Meshlet meshlet = constants.meshletBuffer.meshlets[meshletOffset + meshletID];
+	uint vertCount = meshlet.vertexCount;
+	uint triCount = meshlet.triangleCount;
+
+	if (gl_LocalInvocationID.x == 0) {
+		SetMeshOutputsEXT(vertCount, triCount);		
+	}
 
 	mat4 mvp = ubo.data.viewproj * constants.modelMatrix;
 
-	for (uint i = 0; i < meshlet.vertexCount; ++i) {
-		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshlet.vertexOffset + i];
-		gl_MeshVerticesEXT[i].gl_Position = mvp * constants.vertexBuffer.vertices[verticesID].position;
-		vertexOutput[i].color = vec4(rand(vec2(meshletID, IN.baseID)), rand(vec2(meshletID, gl_GlobalInvocationID.x)), rand(vec2(IN.baseID, gl_GlobalInvocationID.x)), 1.0);
+	// UNROLL_LOOP
+	for (uint i = 0; i < MESHLET_VERTEX_ITERATIONS; ++i) {
+		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
+		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
+		gl_MeshVerticesEXT[idx].gl_Position = mvp * constants.vertexBuffer.vertices[meshVertexOffset + verticesID].position;
+		vertexOutput[idx].color = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
 	}
 
-	for (uint i = 0; i < meshlet.triangleCount; ++i) {
-		uint triID_0 = constants.meshletTriangleBuffer.meshletTriangles[meshlet.triangleOffset + i * 3 + 0];
-		uint triID_1 = constants.meshletTriangleBuffer.meshletTriangles[meshlet.triangleOffset + i * 3 + 1];
-		uint triID_2 = constants.meshletTriangleBuffer.meshletTriangles[meshlet.triangleOffset + i * 3 + 2];
-		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(triID_0, triID_1, triID_2);
+	// UNROLL_LOOP
+	for (uint i = 0; i < MESHLET_PRIMITIVE_ITERATIONS; ++i) {
+		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
+		uint triID_0 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 0];
+		uint triID_1 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 1];
+		uint triID_2 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 2];
+		gl_PrimitiveTriangleIndicesEXT[idx] = uvec3(triID_0, triID_1, triID_2);
 	}
 }

@@ -33,8 +33,6 @@ class RenderResourceManager;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
-constexpr uint32_t MESHLET_COUNT_PER_MESH_TASK = 32;
-
 struct SceneData {
     glm::vec4 sunLightPos {-2.0f, 3.0f, 1.0f, 1.0f};
     glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};

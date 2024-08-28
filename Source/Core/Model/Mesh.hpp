@@ -16,10 +16,12 @@ struct GPUMeshBuffers {
     SharedPtr<RenderResource> mMeshletBuffer {nullptr};
     SharedPtr<RenderResource> mMeshletVertBuffer {nullptr};
     SharedPtr<RenderResource> mMeshletTriBuffer {nullptr};
+    SharedPtr<RenderResource> mMeshDataBuffer {nullptr};
     vk::DeviceAddress mVertexBufferAddress {};
     vk::DeviceAddress mMeshletBufferAddress {};
     vk::DeviceAddress mMeshletVertBufferAddress {};
     vk::DeviceAddress mMeshletTriBufferAddress {};
+    vk::DeviceAddress mMeshDataBufferAddress {};
 };
 
 struct ExternalGPUMeshBuffers {
@@ -36,6 +38,7 @@ public:
     ::std::vector<Vertex> mVertices {};
     ::std::vector<uint32_t> mIndices {};
 
+    // meshlet datas
     ::std::vector<meshopt_Meshlet> mMeshlets {};
     ::std::vector<uint32_t> mMeshletVertices {};
     ::std::vector<uint8_t> mMeshletTriangles {};

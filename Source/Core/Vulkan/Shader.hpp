@@ -20,11 +20,10 @@ public:
            void* pNext = nullptr);
 
     // from glsl source code
-    Shader(
-        Context* context, const char* name, const char* sourcePath,
-        ShaderStage stage,
-        ::std::unordered_map<::std::string, ::std::string> const& defines,
-        const char* entry = "main", void* pNext = nullptr);
+    Shader(Context* context, const char* name, const char* sourcePath,
+           ShaderStage stage, bool hasIncludes,
+           Type_ShaderMacros const& defines, const char* entry = "main",
+           void* pNext = nullptr);
 
     ~Shader();
     MOVABLE_ONLY(Shader);

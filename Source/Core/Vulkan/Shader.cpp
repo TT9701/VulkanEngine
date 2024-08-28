@@ -3,8 +3,50 @@
 #include <stdexcept>
 
 #include "Context.hpp"
+#include "Core/Utilities/Defines.hpp"
 
 namespace {
+
+class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface {
+    shaderc_include_result* GetInclude(const char* requested_source,
+                                       shaderc_include_type type,
+                                       const char* requesting_source,
+                                       size_t include_depth) override {
+        const std::string name = SHADER_PATH(requested_source);
+
+        std::ifstream file(name, std::ios::in);
+
+        if (!file.is_open()) {
+            throw ::std::runtime_error(
+                ::std::string("Cannot open shader source file: ") + name);
+        }
+
+        ::std::ostringstream sstr;
+        sstr << file.rdbuf();
+        ::std::string contents {sstr.str()};
+
+        auto container = new std::array<std::string, 2>;
+        (*container)[0] = name;
+        (*container)[1] = contents;
+
+        auto data = new shaderc_include_result;
+
+        data->user_data = container;
+
+        data->source_name = (*container)[0].data();
+        data->source_name_length = (*container)[0].size();
+
+        data->content = (*container)[1].data();
+        data->content_length = (*container)[1].size();
+
+        return data;
+    }
+
+    void ReleaseInclude(shaderc_include_result* data) override {
+        delete static_cast<std::array<std::string, 2>*>(data->user_data);
+        delete data;
+    }
+};
 
 std::vector<uint32_t> LoadSPIRVCode(const char* filePath) {
     std::ifstream file(filePath, std::ios::ate | std::ios::binary);
@@ -26,10 +68,10 @@ std::vector<uint32_t> LoadSPIRVCode(const char* filePath) {
 
 std::vector<uint32_t> CompileGLSLSource(
     const char* name, const char* filePath,
-    IntelliDesign_NS::Vulkan::Core::ShaderStage stage,
+    IntelliDesign_NS::Vulkan::Core::ShaderStage stage, bool hasInclude,
     ::std::unordered_map<::std::string, ::std::string> const& defines,
     const char* entry) {
-    std::ifstream file(filePath, std::ios::ate);
+    std::ifstream file(filePath, std::ios::in);
 
     if (!file.is_open()) {
         throw ::std::runtime_error(
@@ -38,7 +80,7 @@ std::vector<uint32_t> CompileGLSLSource(
 
     ::std::ostringstream sstr;
     sstr << file.rdbuf();
-    auto buffer = sstr.str();
+    ::std::string buffer {sstr.str()};
 
     shaderc::Compiler compiler {};
     shaderc::CompileOptions options {};
@@ -79,8 +121,23 @@ std::vector<uint32_t> CompileGLSLSource(
             break;
     }
 
-    auto spirvModule =
-        compiler.CompileGlslToSpv(buffer, kind, name, entry, options);
+    shaderc::SpvCompilationResult spirvModule {};
+    if (hasInclude) {
+        options.SetIncluder(::std::make_unique<ShaderIncluder>());
+        auto preprocess = compiler.PreprocessGlsl(buffer, kind, name, options);
+        if (preprocess.GetCompilationStatus()
+            != shaderc_compilation_status_success) {
+            ::std::cerr << preprocess.GetErrorMessage();
+            return {};
+        }
+        ::std::string preprocessedSource {preprocess.begin()};
+
+        spirvModule = compiler.CompileGlslToSpv(preprocessedSource, kind, name,
+                                                entry, options);
+    } else {
+        spirvModule =
+            compiler.CompileGlslToSpv(buffer, kind, name, entry, options);
+    }
 
     if (spirvModule.GetCompilationStatus()
         != shaderc_compilation_status_success) {
@@ -103,12 +160,11 @@ Shader::Shader(Context* context, const char* name, const char* path,
 }
 
 Shader::Shader(Context* context, const char* name, const char* sourcePath,
-               ShaderStage stage,
-               std::unordered_map<std::string, std::string> const& defines,
-               const char* entry, void* pNext)
+               ShaderStage stage, bool hasIncludes,
+               Type_ShaderMacros const& defines, const char* entry, void* pNext)
     : pContext(context), mName(name), mEntry(entry), mStage(stage) {
-    auto binaryCode =
-        CompileGLSLSource(name, sourcePath, stage, defines, mEntry.c_str());
+    auto binaryCode = CompileGLSLSource(name, sourcePath, stage, hasIncludes,
+                                        defines, mEntry.c_str());
     mShaderModule = CreateShaderModule(binaryCode, pNext);
     pContext->SetName(mShaderModule, name);
 }

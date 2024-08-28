@@ -11,10 +11,16 @@ class EngineCore;
 
 struct PushConstants {
     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
+
     vk::DeviceAddress mVertexBufferAddress {};
     vk::DeviceAddress mMeshletBufferAddress {};
     vk::DeviceAddress mMeshletVertexBufferAddress {};
     vk::DeviceAddress mMeshletTriangleBufferAddress {};
+    vk::DeviceAddress mVertexOffsetBufferAddress {};
+    vk::DeviceAddress mMeshletOffsetBufferAddress {};
+    vk::DeviceAddress mMeshletVertexOffsetBufferAddress {};
+    vk::DeviceAddress mMeshletTriangleoffsetBufferAddress {};
+    vk::DeviceAddress mMeshletCountBufferAddress {};
 };
 
 class Model {
@@ -43,9 +49,11 @@ public:
 
     uint32_t GetMeshletTriangleCount() const { return mMeshletTriangleCount; }
 
-    ::std::span<uint32_t> GetVertexOffsets() { return mOffsets.vertexOffsets; }
+    ::std::span<uint32_t> GetVertexOffsets() {
+        return mMeshDatas.vertexOffsets;
+    }
 
-    ::std::span<uint32_t> GetIndexOffsets() { return mOffsets.indexOffsets; }
+    ::std::span<uint32_t> GetIndexOffsets() { return mMeshDatas.indexOffsets; }
 
     GPUMeshBuffers& GetMeshBuffer() { return mBuffers; }
 
@@ -53,6 +61,14 @@ public:
 
     RenderResource* GetIndexedIndirectCmdBuffer() const {
         return mIndirectIndexedCmdBuffer.get();
+    }
+
+    RenderResource* GetMeshTaskIndirectCmdBuffer() const {
+        return mMeshTaskIndirectCmdBuffer.get();
+    }
+
+    ::std::span<vk::DrawMeshTasksIndirectCommandEXT> GetMeshTaskCmds() {
+        return mMeshTaskIndirectCmds;
     }
 
 private:
@@ -81,23 +97,24 @@ private:
     ::std::filesystem::path mDirectory;
     ::std::string mName;
 
-    struct Offsets {
+    struct MeshDatas {
         ::std::vector<uint32_t> vertexOffsets;
         ::std::vector<uint32_t> indexOffsets;
         ::std::vector<uint32_t> meshletOffsets;
         ::std::vector<uint32_t> meshletVerticesOffsets;
         ::std::vector<uint32_t> meshletTrianglesOffsets;
+        ::std::vector<uint32_t> meshletCounts;
     };
 
-    Offsets mOffsets;
+    MeshDatas mMeshDatas;
     GPUMeshBuffers mBuffers {};
 
     PushConstants mConstants {};
 
     ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
-    // ::std::vector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
+    ::std::vector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
     SharedPtr<RenderResource> mIndirectIndexedCmdBuffer;
-    // SharedPtr<RenderResource> mMeshTaskIndirectCmdBuffer;
+    SharedPtr<RenderResource> mMeshTaskIndirectCmdBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

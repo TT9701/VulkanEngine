@@ -1,19 +1,26 @@
 #version 460
 #extension GL_EXT_mesh_shader : require
 
-#define MESHLET_COUNT_PER_MESH_TASK 32
-#define TASK_COUNT 102
-
-layout(local_size_x = TASK_COUNT) in;
+layout(local_size_x = TASK_INVOCATION_COUNT) in;
 
 struct Task {
 	uint baseID;
+	uint drawID;
 };
 
 taskPayloadSharedEXT Task OUT;
 
 void main()
 {
-	OUT.baseID = gl_WorkGroupID.x * MESHLET_COUNT_PER_MESH_TASK;
-	EmitMeshTasksEXT(MESHLET_COUNT_PER_MESH_TASK, 1, 1);
+	if (gl_LocalInvocationID.x == 0) {
+		OUT.baseID = gl_WorkGroupID.x * TASK_INVOCATION_COUNT;
+		OUT.drawID = gl_DrawID;
+	}
+
+	// culling
+
+	// barrier();
+	if (gl_LocalInvocationID.x == 0) {
+		EmitMeshTasksEXT(TASK_INVOCATION_COUNT, 1, 1);
+	}
 }
