@@ -3,7 +3,13 @@
 #include <stdint.h>
 #include <vector>
 
+#include <meshoptimizer.h>
+
 #define CISDI_3DModel_Subfix ".cisdi"
+
+template <class T>
+using Vector = ::std::pmr::vector<T>;
+using String = ::std::pmr::string;
 
 struct CISDI_3DModelDataVersion {
     uint8_t  major;
@@ -12,7 +18,7 @@ struct CISDI_3DModelDataVersion {
 };
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
-constexpr CISDI_3DModelDataVersion CISDI_3DModel_VERSION = {0ui8, 0ui8, 1ui16};
+constexpr CISDI_3DModelDataVersion CISDI_3DModel_VERSION = {0ui8, 1ui8, 1ui16};
 
 struct CISDI_3DModelData {
     struct Header {
@@ -28,19 +34,29 @@ struct CISDI_3DModelData {
         } header;
 
         struct Vertices {
+            struct Float2 {
+                float x, y;
+            };
+
             struct Float3 {
                 float x, y, z;
             };
 
-            ::std::vector<Float3> positions;
-            ::std::vector<Float3> normals;
-            // TODO: other attributes
+            Vector<Float3> positions;
+            Vector<Float3> normals;
+            // Vector<Float2> uvs;
+            // Vector<Float3> tangents;
+            // Vector<Float3> bitangents;
+
+            // Vector<meshopt_Meshlet> meshlets;
+            // Vector<uint32_t> meshletVertices;
+            // Vector<uint8_t> meshletTriangles;
         } vertices;
 
-        ::std::vector<uint32_t> indices;
+        Vector<uint32_t> indices;
     };
 
-    ::std::vector<CISDI_Mesh> meshes;
+    Vector<CISDI_Mesh> meshes;
 
     static void Convert(const char* path, bool flipYZ, const char* output = nullptr);
 

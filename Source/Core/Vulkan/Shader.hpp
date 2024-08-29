@@ -4,12 +4,15 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 enum class ShaderStage { Compute, Vertex, Fragment, Task, Mesh };
 
 class Context;
+
+using Type_ShaderMacros = Type_STLUnorderedMap_String<Type_STLString>;
 
 // TODO: Specialization parameters
 class Shader {
@@ -40,8 +43,8 @@ public:
 private:
     Context* pContext;
 
-    ::std::string mName;
-    ::std::string mEntry;
+    Type_STLString mName;
+    Type_STLString mEntry;
     ShaderStage mStage;
 
     vk::ShaderModule mShaderModule {};

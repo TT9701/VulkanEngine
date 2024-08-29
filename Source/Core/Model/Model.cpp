@@ -338,8 +338,9 @@ void Model::LoadModel() {
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
         || !scene->mRootNode) {
         // TODO: Logging
-        DBG_LOG_INFO(::std::string("ERROR::ASSIMP::")
-                     + importer.GetErrorString());
+        DBG_LOG_INFO(
+            (Type_STLString("ERROR::ASSIMP::") + importer.GetErrorString())
+                .c_str());
         return;
     }
 
@@ -357,8 +358,8 @@ void Model::ProcessNode(aiNode* node, const aiScene* scene) {
 }
 
 Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
-    ::std::vector<Vertex> vertices;
-    ::std::vector<uint32_t> indices;
+    Type_STLVector<Vertex> vertices;
+    Type_STLVector<uint32_t> indices;
     // TODO: Texture
 
     for (uint32_t i = 0; i < mesh->mNumVertices; ++i) {
@@ -473,8 +474,7 @@ void Model::GenerateStats() {
         mMeshDatas.meshletCounts.push_back(mesh.mMeshlets.size());
 
         mMeshDatas.meshletVerticesOffsets.push_back(mMeshletVertexCount);
-        mMeshletVertexCount += mesh.mMeshlets.back().vertex_offset
-                             + mesh.mMeshlets.back().vertex_count;
+        mMeshletVertexCount += mesh.mMeshletVertices.size();
 
         mMeshDatas.meshletTrianglesOffsets.push_back(mMeshletTriangleCount);
         mMeshletTriangleCount += mesh.mMeshletTriangles.size();
@@ -487,15 +487,15 @@ void Model::Optimize() {
         size_t indexCount = mesh.mIndices.size();
         size_t vertexCount = mesh.mVertices.size();
 
-        ::std::vector<Vertex> optimizedVertices;
-        ::std::vector<uint32_t> optimizedIndices;
+        Type_STLVector<Vertex> optimizedVertices;
+        Type_STLVector<uint32_t> optimizedIndices;
 
-        ::std::vector<uint32_t> remap(indexCount);
+        Type_STLVector<uint32_t> remap(indexCount);
         vertexCount = meshopt_generateVertexRemap(
             remap.data(), mesh.mIndices.data(), indexCount,
             mesh.mVertices.data(), mesh.mVertices.size(),
             sizeof(mesh.mVertices[0]));
-        
+
         optimizedIndices.resize(indexCount);
         optimizedVertices.resize(vertexCount);
         meshopt_remapIndexBuffer(optimizedIndices.data(), mesh.mIndices.data(),
@@ -543,8 +543,6 @@ void Model::Optimize() {
         mesh.mMeshletVertices.resize(last.vertex_offset + last.vertex_count);
         mesh.mMeshletTriangles.resize(last.triangle_offset
                                       + ((last.triangle_count * 3 + 3) & ~3));
-        // mesh.mMeshletTriangles.resize(last.triangle_offset
-        //                               + last.triangle_count * 3);
         mesh.mMeshlets.resize(meshletCount);
 
         for (auto& meshlet : mesh.mMeshlets) {

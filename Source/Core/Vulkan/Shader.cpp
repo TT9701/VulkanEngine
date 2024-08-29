@@ -7,25 +7,28 @@
 
 namespace {
 
+using namespace IntelliDesign_NS::Core::MemoryPool;
+
 class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface {
     shaderc_include_result* GetInclude(const char* requested_source,
                                        shaderc_include_type type,
                                        const char* requesting_source,
                                        size_t include_depth) override {
-        const std::string name = SHADER_PATH(requested_source);
+        const Type_STLString name = SHADER_PATH(requested_source);
 
-        std::ifstream file(name, std::ios::in);
+        std::ifstream file(name.c_str(), std::ios::in);
 
         if (!file.is_open()) {
             throw ::std::runtime_error(
-                ::std::string("Cannot open shader source file: ") + name);
+                (Type_STLString("Cannot open shader source file: ") + name)
+                    .c_str());
         }
 
         ::std::ostringstream sstr;
         sstr << file.rdbuf();
-        ::std::string contents {sstr.str()};
+        Type_STLString contents {sstr.str()};
 
-        auto container = new std::array<std::string, 2>;
+        auto container = new std::array<Type_STLString, 2>;
         (*container)[0] = name;
         (*container)[1] = contents;
 
@@ -43,22 +46,22 @@ class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface {
     }
 
     void ReleaseInclude(shaderc_include_result* data) override {
-        delete static_cast<std::array<std::string, 2>*>(data->user_data);
+        delete static_cast<std::array<Type_STLString, 2>*>(data->user_data);
         delete data;
     }
 };
 
-std::vector<uint32_t> LoadSPIRVCode(const char* filePath) {
+Type_STLVector<uint32_t> LoadSPIRVCode(const char* filePath) {
     std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
-        throw ::std::runtime_error(::std::string("Cannot open binary file: ")
-                                   + filePath);
+        throw ::std::runtime_error(
+            (Type_STLString("Cannot open binary file: ") + filePath).c_str());
     }
 
     uint32_t fileSize = file.tellg();
 
-    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+    Type_STLVector<uint32_t> buffer(fileSize / sizeof(uint32_t));
     file.seekg(0);
     file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
     file.close();
@@ -66,27 +69,28 @@ std::vector<uint32_t> LoadSPIRVCode(const char* filePath) {
     return buffer;
 }
 
-std::vector<uint32_t> CompileGLSLSource(
+Type_STLVector<uint32_t> CompileGLSLSource(
     const char* name, const char* filePath,
     IntelliDesign_NS::Vulkan::Core::ShaderStage stage, bool hasInclude,
-    ::std::unordered_map<::std::string, ::std::string> const& defines,
+    IntelliDesign_NS::Vulkan::Core::Type_ShaderMacros const& defines,
     const char* entry) {
     std::ifstream file(filePath, std::ios::in);
 
     if (!file.is_open()) {
         throw ::std::runtime_error(
-            ::std::string("Cannot open shader source file: ") + filePath);
+            (Type_STLString("Cannot open shader source file: ") + filePath)
+                .c_str());
     }
 
     ::std::ostringstream sstr;
     sstr << file.rdbuf();
-    ::std::string buffer {sstr.str()};
+    Type_STLString buffer {sstr.str()};
 
     shaderc::Compiler compiler {};
     shaderc::CompileOptions options {};
 
     for (auto& [macro, value] : defines) {
-        options.AddMacroDefinition(macro, value);
+        options.AddMacroDefinition(::std::string(macro), ::std::string(value));
     }
 #ifndef NDEBUG
     options.SetGenerateDebugInfo();
@@ -124,19 +128,20 @@ std::vector<uint32_t> CompileGLSLSource(
     shaderc::SpvCompilationResult spirvModule {};
     if (hasInclude) {
         options.SetIncluder(::std::make_unique<ShaderIncluder>());
-        auto preprocess = compiler.PreprocessGlsl(buffer, kind, name, options);
+        auto preprocess =
+            compiler.PreprocessGlsl(buffer.c_str(), kind, name, options);
         if (preprocess.GetCompilationStatus()
             != shaderc_compilation_status_success) {
             ::std::cerr << preprocess.GetErrorMessage();
             return {};
         }
-        ::std::string preprocessedSource {preprocess.begin()};
+        Type_STLString preprocessedSource {preprocess.begin()};
 
-        spirvModule = compiler.CompileGlslToSpv(preprocessedSource, kind, name,
-                                                entry, options);
+        spirvModule = compiler.CompileGlslToSpv(preprocessedSource.c_str(),
+                                                kind, name, entry, options);
     } else {
-        spirvModule =
-            compiler.CompileGlslToSpv(buffer, kind, name, entry, options);
+        spirvModule = compiler.CompileGlslToSpv(buffer.c_str(), kind, name,
+                                                entry, options);
     }
 
     if (spirvModule.GetCompilationStatus()

@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -11,10 +12,9 @@ class PhysicalDevice;
 class Device {
 public:
     Device(PhysicalDevice* physicalDevice,
-                 ::std::span<::std::string> requestedLayers = {},
-                 ::std::span<::std::string> requestedExtensions = {},
-                 vk::PhysicalDeviceFeatures* pFeatures = {},
-                 void* pNext = nullptr);
+           ::std::span<Type_STLString> requestedLayers = {},
+           ::std::span<Type_STLString> requestedExtensions = {},
+           vk::PhysicalDeviceFeatures* pFeatures = {}, void* pNext = nullptr);
 
     ~Device();
     MOVABLE_ONLY(Device);
@@ -38,8 +38,8 @@ public:
     void SetObjectName(VkCppHandle handle, const char* name);
 
 private:
-    vk::Device CreateDevice(std::span<std::string> requestedLayers,
-                            std::span<std::string> requestedExtensions,
+    vk::Device CreateDevice(std::span<Type_STLString> requestedLayers,
+                            std::span<Type_STLString> requestedExtensions,
                             vk::PhysicalDeviceFeatures* pFeatures, void* pNext);
 
     void SetQueues();
@@ -47,14 +47,14 @@ private:
 private:
     PhysicalDevice* pPhysicalDevice;
 
-    ::std::vector<::std::string> enabledLayers {};
-    ::std::vector<::std::string> enabledExtensions {};
+    Type_STLVector<Type_STLString> enabledLayers {};
+    Type_STLVector<Type_STLString> enabledExtensions {};
 
     vk::Device mDevice;
 
-    ::std::vector<vk::Queue> mGraphicQueues {};
-    ::std::vector<vk::Queue> mComputeQueues {};
-    ::std::vector<vk::Queue> mTransferQueues {};
+    Type_STLVector<vk::Queue> mGraphicQueues {};
+    Type_STLVector<vk::Queue> mComputeQueues {};
+    Type_STLVector<vk::Queue> mTransferQueues {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

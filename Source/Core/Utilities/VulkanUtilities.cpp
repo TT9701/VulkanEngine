@@ -6,11 +6,11 @@
 
 namespace IntelliDesign_NS::Vulkan::Core::Utils {
 
-std::vector<std::string> FilterStringList(std::span<std::string> available,
-                                          std::span<std::string> request) {
+Type_STLVector<Type_STLString> FilterStringList(
+    std::span<Type_STLString> available, std::span<Type_STLString> request) {
     ::std::ranges::sort(available);
     ::std::ranges::sort(request);
-    ::std::vector<::std::string> result {};
+    Type_STLVector<Type_STLString> result {};
     ::std::ranges::set_intersection(available, request,
                                     ::std::back_inserter(result));
     return result;

@@ -6,9 +6,8 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-CommandPool::CommandPool(Context* ctx,
-                                     uint32_t queueFamilysIndex,
-                                     vk::CommandPoolCreateFlags flags)
+CommandPool::CommandPool(Context* ctx, uint32_t queueFamilysIndex,
+                         vk::CommandPoolCreateFlags flags)
     : pCtx(std::move(ctx)),
       mFlags(flags),
       mQueueFamilysIndex(queueFamilysIndex),
@@ -25,23 +24,22 @@ vk::CommandPool CommandPool::CreateCommandPool() {
     return pCtx->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
 }
 
-CommandBuffers::CommandBuffers(Context* ctx,
-                                           CommandPool* pool,
-                                           uint32_t count,
-                                           vk::CommandBufferLevel level)
+CommandBuffers::CommandBuffers(Context* ctx, CommandPool* pool, uint32_t count,
+                               vk::CommandBufferLevel level)
     : pContex(ctx),
       pCmdPool(pool),
       mLevel(level),
       mCmdBuffer(CreateCommandBuffers(count)) {}
 
-::std::vector<vk::CommandBuffer> CommandBuffers::CreateCommandBuffers(
+Type_STLVector<vk::CommandBuffer> CommandBuffers::CreateCommandBuffers(
     uint32_t count) {
     vk::CommandBufferAllocateInfo cmdAllocInfo {};
     cmdAllocInfo.setCommandPool(pCmdPool->GetHandle())
         .setLevel(mLevel)
         .setCommandBufferCount(count);
 
-    return pContex->GetDeviceHandle().allocateCommandBuffers(cmdAllocInfo);
+    auto vec = pContex->GetDeviceHandle().allocateCommandBuffers(cmdAllocInfo);
+    return {vec.begin(), vec.end()};
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

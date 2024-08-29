@@ -49,34 +49,30 @@ EngineCore::EngineCore()
 
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
-    // mFactoryModel =
-    //     MakeShared<Model>(MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx"));
-    //
-    // {
-    //     // CISDI_3DModelDataConverter converter {
-    //     //     MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx")};
-    //     //
-    //     // converter.Execute();
-    //
-    //     auto cisdiModelPath =
-    //         MODEL_PATH_CSTR ("RM_HP_59930007DR0130HP000.cisdi");
-    //
-    //     auto meshes =
-    //         CISDI_3DModelDataConverter::LoadCISDIModelData(cisdiModelPath);
-    //
-    //     mFactoryModel = MakeShared<Model>(meshes);
-    //
-    //     mFactoryModel->GenerateBuffers(mPContext.get(), this);
-    // }
+    {
+        CISDI_3DModelDataConverter converter {
+            MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx")};
+
+        converter.Execute();
+
+        auto cisdiModelPath = MODEL_PATH("RM_HP_59930007DR0130HP000.cisdi");
+
+        auto meshes = CISDI_3DModelDataConverter::LoadCISDIModelData(
+            cisdiModelPath.c_str());
+
+        mFactoryModel = MakeShared<Model>(meshes);
+
+        mFactoryModel->GenerateBuffers(mPContext.get(), this);
+    }
 
     {
         // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("sponza/sponza.obj"));
         // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("teapot.FBX"));
         // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("dragon.obj"), false);
-        mFactoryModel =
-            MakeShared<Model>(MODEL_PATH_CSTR("58360014DR2512ME021-2.STL"));
-
-        mFactoryModel->GenerateMeshletBuffers(mPContext.get(), this);
+        // mFactoryModel =
+        //     MakeShared<Model>(MODEL_PATH_CSTR("58360014DR2512ME021-2.STL"));
+        //
+        // mFactoryModel->GenerateMeshletBuffers(mPContext.get(), this);
     }
 
     CreateDescriptors();
@@ -132,13 +128,13 @@ void EngineCore::Draw() {
 
         cmd.End();
 
-        ::std::vector<SemSubmitInfo> waits = {
+        Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
              mPSwapchain->GetReady4RenderSemHandle(), 0ui64},
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
              mPContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
 
-        ::std::vector<SemSubmitInfo> signals = {
+        Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
@@ -163,8 +159,8 @@ void EngineCore::Draw() {
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthAttachmentOptimal);
 
-        // DrawMesh(cmd.GetHandle());
-        MeshShaderDraw(cmd.GetHandle());
+        DrawMesh(cmd.GetHandle());
+        // MeshShaderDraw(cmd.GetHandle());
 
         Utils::TransitionImageLayout(
             cmd.GetHandle(),
@@ -184,11 +180,11 @@ void EngineCore::Draw() {
 
         cmd.End();
 
-        ::std::vector<SemSubmitInfo> waits = {
+        Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eComputeShader,
              mPContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
-        ::std::vector<SemSubmitInfo> signals = {
+        Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mPContext->GetTimelineSemaphoreHandle(), allFinished},
             {vk::PipelineStageFlagBits2::eAllGraphics,
@@ -203,7 +199,7 @@ void EngineCore::Draw() {
         auto cmd = mPCmdManager->GetCmdBufferToBegin();
         cmd.End();
 
-        ::std::vector<SemSubmitInfo> signals = {
+        Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mPContext->GetTimelineSemaphoreHandle(), allFinished + 1}};
 
@@ -252,14 +248,14 @@ UniquePtr<SDLWindow> EngineCore::CreateSDLWindow() {
 }
 
 UniquePtr<Context> EngineCore::CreateContext() {
-    ::std::vector<::std::string> requestedInstanceLayers {};
+    Type_STLVector<Type_STLString> requestedInstanceLayers {};
 #ifndef NDEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
 #endif
 
     auto sdlRequestedInstanceExtensions =
         mPWindow->GetVulkanInstanceExtension();
-    ::std::vector<::std::string> requestedInstanceExtensions {};
+    Type_STLVector<Type_STLString> requestedInstanceExtensions {};
     requestedInstanceExtensions.insert(requestedInstanceExtensions.end(),
                                        sdlRequestedInstanceExtensions.begin(),
                                        sdlRequestedInstanceExtensions.end());
@@ -267,7 +263,7 @@ UniquePtr<Context> EngineCore::CreateContext() {
     requestedInstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
-    ::std::vector<::std::string> enabledDeivceExtensions {};
+    Type_STLVector<Type_STLString> enabledDeivceExtensions {};
 
     enabledDeivceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
@@ -413,7 +409,7 @@ void EngineCore::CreateErrorCheckTexture() {
 }
 
 UniquePtr<DescriptorManager> EngineCore::CreateDescriptorManager() {
-    std::vector<DescPoolSizeRatio> sizes {
+    Type_STLVector<DescPoolSizeRatio> sizes {
         {vk::DescriptorType::eStorageImage, 1},
         {vk::DescriptorType::eCombinedImageSampler, 1}};
 
@@ -533,7 +529,7 @@ void EngineCore::CreateBackgroundComputeDescriptors() {
 }
 
 void EngineCore::CreateBackgroundComputePipeline() {
-    ::std::vector setLayouts {
+    Type_STLVector<vk::DescriptorSetLayout> setLayouts {
         mDescriptorManager->GetDescSetLayout("DrawImage_Layout_0")};
 
     auto backgroundPipelineLayout = mPipelineManager->CreateLayout(
@@ -554,7 +550,7 @@ void EngineCore::CreateBackgroundComputePipeline() {
 }
 
 void EngineCore::CreateMeshPipeline() {
-    std::vector<Shader> shaders;
+    Type_STLVector<Shader> shaders;
     shaders.reserve(2);
 
     shaders.emplace_back(mPContext.get(), "vertex",
@@ -565,16 +561,17 @@ void EngineCore::CreateMeshPipeline() {
                          SHADER_PATH_CSTR("Triangle.frag.spv"),
                          ShaderStage::Fragment);
 
-    vk::PushConstantRange pushConstant {};
-    pushConstant.setSize(sizeof(PushConstants))
+    Type_STLVector<vk::PushConstantRange> pushConstants(1);
+    pushConstants[0]
+        .setSize(sizeof(PushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
-    std::vector setLayouts {
+    Type_STLVector<vk::DescriptorSetLayout> setLayouts {
         mDescriptorManager->GetDescSetLayout("Triangle_Layout_0"),
         mDescriptorManager->GetDescSetLayout("Triangle_Layout_1")};
 
     auto trianglePipelineLayout = mPipelineManager->CreateLayout(
-        "Triangle_Layout", setLayouts, pushConstant);
+        "Triangle_Layout", setLayouts, pushConstants);
 
     auto& builder = mPipelineManager->GetGraphicsPipelineBuilder();
     builder.SetLayout(trianglePipelineLayout->GetHandle())
@@ -626,7 +623,7 @@ void EngineCore::CreateMeshDescriptors() {
 }
 
 void EngineCore::CreateMeshShaderPipeline() {
-    std::vector<Shader> shaders;
+    Type_STLVector<Shader> shaders;
     shaders.reserve(3);
     Type_ShaderMacros macros {};
     shaders.emplace_back(mPContext.get(), "Mesh shader fragment",
@@ -650,21 +647,22 @@ void EngineCore::CreateMeshShaderPipeline() {
                          SHADER_PATH_CSTR("MeshShader.mesh"), ShaderStage::Mesh,
                          true, macros);
 
-    vk::PushConstantRange meshPushConstants {};
-    meshPushConstants.setSize(sizeof(PushConstants))
+    Type_STLVector<vk::PushConstantRange> meshPushConstants(1);
+    meshPushConstants[0]
+        .setSize(sizeof(PushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eMeshEXT);
 
     std::array setLayouts {
         mDescriptorManager->GetDescSetLayout("MeshShader_Desc_Layout_0")};
 
     auto meshShaderPipelineLayout = mPipelineManager->CreateLayout(
-        "MeshShader_Pipe_Layout", setLayouts, {meshPushConstants});
+        "MeshShader_Pipe_Layout", setLayouts, meshPushConstants);
 
     auto& builder = mPipelineManager->GetGraphicsPipelineBuilder();
     builder.SetLayout(meshShaderPipelineLayout->GetHandle())
         .SetShaders(shaders)
         // .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
-        .SetPolygonMode(vk::PolygonMode::eLine)
+        .SetPolygonMode(vk::PolygonMode::eFill)
         .SetCullMode(vk::CullModeFlagBits::eNone,
                      vk::FrontFace::eCounterClockwise)
         .SetMultisampling(vk::SampleCountFlagBits::e1)
@@ -723,7 +721,7 @@ void EngineCore::CreateDrawQuadDescriptors() {
 }
 
 void EngineCore::CreateDrawQuadPipeline() {
-    std::vector<Shader> shaders;
+    Type_STLVector<Shader> shaders;
     shaders.reserve(2);
 
     shaders.emplace_back(mPContext.get(), "vertex",
@@ -734,7 +732,7 @@ void EngineCore::CreateDrawQuadPipeline() {
                          SHADER_PATH_CSTR("Quad.frag.spv"),
                          ShaderStage::Fragment);
 
-    std::vector setLayouts {
+    Type_STLVector<vk::DescriptorSetLayout> setLayouts {
         mDescriptorManager->GetDescSetLayout("Quad_Layout_0")};
 
     auto quadPipelineLayout =
@@ -909,7 +907,7 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
 
     {
         glm::mat4 model {1.0f};
-        // model = glm::scale(model, glm::vec3 {0.0001f});
+        model = glm::scale(model, glm::vec3 {0.0001f});
 
         auto pushContants = mFactoryModel->GetPushContants();
         pushContants.mModelMatrix = model;
@@ -1046,7 +1044,7 @@ void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
     //     (mFactoryModel->GetMeshletCount() + TASK_SHADER_INVOCATION_COUNT - 1)
     //     / TASK_SHADER_INVOCATION_COUNT;
     // cmd.drawMeshTasksEXT(taskCount, 1, 1);
-    
+
     cmd.drawMeshTasksIndirectEXT(
         mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetBufferHandle(), 0,
         mFactoryModel->GetMeshes().size(),

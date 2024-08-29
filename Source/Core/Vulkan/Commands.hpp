@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -11,8 +12,8 @@ class Context;
 class CommandPool {
 public:
     CommandPool(Context* ctx, uint32_t queueFamilysIndex,
-                      vk::CommandPoolCreateFlags flags =
-                          vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+                vk::CommandPoolCreateFlags flags =
+                    vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
     ~CommandPool();
     MOVABLE_ONLY(CommandPool);
 
@@ -48,14 +49,14 @@ public:
     }
 
 private:
-    ::std::vector<vk::CommandBuffer> CreateCommandBuffers(uint32_t count);
+    Type_STLVector<vk::CommandBuffer> CreateCommandBuffers(uint32_t count);
 
 private:
     Context* pContex;
     CommandPool* pCmdPool;
     vk::CommandBufferLevel mLevel;
 
-    ::std::vector<vk::CommandBuffer> mCmdBuffer;
+    Type_STLVector<vk::CommandBuffer> mCmdBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

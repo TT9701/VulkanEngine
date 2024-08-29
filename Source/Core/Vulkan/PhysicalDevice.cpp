@@ -24,7 +24,7 @@ vk::PhysicalDevice PhysicalDevice::PickPhysicalDevice(
     vk::PhysicalDevice picked;
 
     for (auto& device : deviceList) {
-        std::string devicename(device.getProperties().deviceName.data());
+        Type_STLString devicename(device.getProperties().deviceName.data());
         const auto result = devicename.find("NVIDIA");
         if (result != std::string::npos) {
             picked = device;

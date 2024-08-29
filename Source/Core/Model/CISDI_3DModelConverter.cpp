@@ -17,14 +17,14 @@ void CISDI_3DModelDataConverter::Execute() {
     }
 }
 
-std::vector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
+Type_STLVector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
     const char* path) {
     auto data = CISDI_3DModelData::Load(path);
 
-    ::std::vector<Mesh> meshes;
+    Type_STLVector<Mesh> meshes;
     meshes.reserve(data.header.meshCount);
     for (uint32_t i = 0; i < data.header.meshCount; ++i) {
-        ::std::vector<Vertex> vertices;
+        Type_STLVector<Vertex> vertices;
         vertices.reserve(data.meshes[i].header.vertexCount);
         for (uint32_t j = 0; j < data.meshes[i].header.vertexCount; ++j) {
             Vertex v {};

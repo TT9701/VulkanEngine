@@ -5,11 +5,10 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-PipelineLayout::PipelineLayout(
-    Context* context,
-    vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-    vk::ArrayProxy<vk::PushConstantRange> const& pushContants,
-    vk::PipelineLayoutCreateFlags flags, void* pNext)
+PipelineLayout::PipelineLayout(Context* context,
+                               ::std::span<vk::DescriptorSetLayout> setLayouts,
+                               ::std::span<vk::PushConstantRange> pushContants,
+                               vk::PipelineLayoutCreateFlags flags, void* pNext)
     : pContext(context),
       mLayout(CreateLayout(setLayouts, pushContants, flags, pNext)) {}
 
@@ -18,8 +17,8 @@ PipelineLayout::~PipelineLayout() {
 }
 
 vk::PipelineLayout PipelineLayout::CreateLayout(
-    vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-    vk::ArrayProxy<vk::PushConstantRange> const& pushContants,
+    ::std::span<vk::DescriptorSetLayout> setLayouts,
+    ::std::span<vk::PushConstantRange> pushContants,
     vk::PipelineLayoutCreateFlags flags, void* pNext) const {
     vk::PipelineLayoutCreateInfo info {};
     info.setSetLayouts(setLayouts)
@@ -65,8 +64,8 @@ PipelineBuilder<PipelineType::Graphics>::PipelineBuilder(
     Clear();
 }
 
-PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
-    PipelineType::Graphics>::SetLayout(vk::PipelineLayout layout) {
+PipelineBuilder<PipelineType::Graphics>&
+PipelineBuilder<PipelineType::Graphics>::SetLayout(vk::PipelineLayout layout) {
     mPipelineLayout = layout;
     return *this;
 }
@@ -86,15 +85,15 @@ PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
     return *this;
 }
 
-PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
-    PipelineType::Graphics>::SetPolygonMode(vk::PolygonMode mode) {
+PipelineBuilder<PipelineType::Graphics>&
+PipelineBuilder<PipelineType::Graphics>::SetPolygonMode(vk::PolygonMode mode) {
     mRasterizer.setPolygonMode(mode).setLineWidth(1.0f);
     return *this;
 }
 
 PipelineBuilder<PipelineType::Graphics>&
-PipelineBuilder<PipelineType::Graphics>::SetCullMode(
-    vk::CullModeFlags cullMode, vk::FrontFace frontFace) {
+PipelineBuilder<PipelineType::Graphics>::SetCullMode(vk::CullModeFlags cullMode,
+                                                     vk::FrontFace frontFace) {
     mRasterizer.setCullMode(cullMode).setFrontFace(frontFace);
     return *this;
 }
@@ -136,8 +135,8 @@ PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
 
 PipelineBuilder<PipelineType::Graphics>&
 PipelineBuilder<PipelineType::Graphics>::SetDepth(vk::Bool32 depthTest,
-                                                        vk::Bool32 depthWrite,
-                                                        vk::CompareOp compare) {
+                                                  vk::Bool32 depthWrite,
+                                                  vk::CompareOp compare) {
     mDepthStencil.setDepthTestEnable(depthTest)
         .setDepthWriteEnable(depthWrite)
         .setDepthCompareOp(compare)
@@ -152,9 +151,9 @@ PipelineBuilder<PipelineType::Graphics>::SetStencil(vk::Bool32 stencil) {
 }
 
 SharedPtr<Pipeline<PipelineType::Graphics>>
-PipelineBuilder<PipelineType::Graphics>::Build(std::string const& name,
-                                                     vk::PipelineCache cache,
-                                                     void* pNext) {
+PipelineBuilder<PipelineType::Graphics>::Build(std::string_view name,
+                                               vk::PipelineCache cache,
+                                               void* pNext) {
     vk::PipelineViewportStateCreateInfo viewportState {};
     viewportState.setViewportCount(1u).setScissorCount(1u);
 
@@ -186,8 +185,8 @@ PipelineBuilder<PipelineType::Graphics>::Build(std::string const& name,
         .setLayout(mPipelineLayout)
         .setPDynamicState(&dynamicInfo);
 
-    auto ptr = MakeShared<Pipeline<PipelineType::Graphics>>(
-        pManager->pContext, createInfo, cache);
+    auto ptr = MakeShared<Pipeline<PipelineType::Graphics>>(pManager->pContext,
+                                                            createInfo, cache);
 
     pManager->mGraphicsPipelines.emplace(name, ptr);
 
@@ -214,8 +213,8 @@ PipelineBuilder<PipelineType::Compute>::PipelineBuilder(
     Clear();
 }
 
-PipelineBuilder<PipelineType::Compute>& PipelineBuilder<
-    PipelineType::Compute>::SetShader(Shader const& shader) {
+PipelineBuilder<PipelineType::Compute>&
+PipelineBuilder<PipelineType::Compute>::SetShader(Shader const& shader) {
     mStageInfo = shader.GetStageInfo();
     return *this;
 }
@@ -232,8 +231,8 @@ PipelineBuilder<PipelineType::Compute>& PipelineBuilder<
     return *this;
 }
 
-PipelineBuilder<PipelineType::Compute>& PipelineBuilder<
-    PipelineType::Compute>::SetBaseHandle(vk::Pipeline baseHandle) {
+PipelineBuilder<PipelineType::Compute>&
+PipelineBuilder<PipelineType::Compute>::SetBaseHandle(vk::Pipeline baseHandle) {
     mBaseHandle = baseHandle;
     return *this;
 }
@@ -245,9 +244,9 @@ PipelineBuilder<PipelineType::Compute>::SetBaseIndex(int32_t index) {
 }
 
 SharedPtr<Pipeline<PipelineType::Compute>>
-PipelineBuilder<PipelineType::Compute>::Build(::std::string const& name,
-                                                    vk::PipelineCache cache,
-                                                    void* pNext) {
+PipelineBuilder<PipelineType::Compute>::Build(::std::string_view name,
+                                              vk::PipelineCache cache,
+                                              void* pNext) {
     vk::ComputePipelineCreateInfo info {};
     info.setFlags(mFlags)
         .setLayout(mPipelineLayout)
@@ -258,8 +257,8 @@ PipelineBuilder<PipelineType::Compute>::Build(::std::string const& name,
 
     Clear();
 
-    auto ptr = MakeShared<Pipeline<PipelineType::Compute>>(
-        pManager->pContext, info, cache);
+    auto ptr = MakeShared<Pipeline<PipelineType::Compute>>(pManager->pContext,
+                                                           info, cache);
 
     pManager->mComputePipelines.emplace(name, ptr);
 
@@ -280,12 +279,11 @@ PipelineManager::PipelineManager(Context* contex)
       mGraphicsPipelineBuilder {this} {}
 
 SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
-    ::std::string const& name,
-    vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-    vk::ArrayProxy<vk::PushConstantRange> const& pushContants,
+    ::std::string_view name, ::std::span<vk::DescriptorSetLayout> setLayouts,
+    ::std::span<vk::PushConstantRange> pushContants,
     vk::PipelineLayoutCreateFlags flags, void* pNext) {
-    const auto ptr = MakeShared<PipelineLayout>(
-        pContext, setLayouts, pushContants, flags, pNext);
+    const auto ptr = MakeShared<PipelineLayout>(pContext, setLayouts,
+                                                pushContants, flags, pNext);
 
     mPipelineLayouts.emplace(name, ptr);
 
@@ -293,27 +291,23 @@ SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
 }
 
 vk::PipelineLayout PipelineManager::GetLayoutHandle(
-    std::string const& name) const {
-    return mPipelineLayouts.at(name)->GetHandle();
+    std::string_view name) const {
+    return mPipelineLayouts.at(Type_STLString {name})->GetHandle();
 }
 
-vk::Pipeline PipelineManager::GetComputePipeline(
-    std::string const& name) const {
-    return mComputePipelines.at(name)->GetHandle();
+vk::Pipeline PipelineManager::GetComputePipeline(std::string_view name) const {
+    return mComputePipelines.at(Type_STLString {name})->GetHandle();
 }
 
-vk::Pipeline PipelineManager::GetGraphicsPipeline(
-    std::string const& name) const {
-    return mGraphicsPipelines.at(name)->GetHandle();
+vk::Pipeline PipelineManager::GetGraphicsPipeline(std::string_view name) const {
+    return mGraphicsPipelines.at(Type_STLString {name})->GetHandle();
 }
 
-PipelineManager::CPBuilder&
-PipelineManager::GetComputePipelineBuilder() {
+PipelineManager::Type_CPBuilder& PipelineManager::GetComputePipelineBuilder() {
     return mComputePipelineBuilder;
 }
 
-PipelineManager::GPBuilder&
-PipelineManager::GetGraphicsPipelineBuilder() {
+PipelineManager::Type_GPBuilder& PipelineManager::GetGraphicsPipelineBuilder() {
     return mGraphicsPipelineBuilder;
 }
 

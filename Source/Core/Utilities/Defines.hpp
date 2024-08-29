@@ -1,12 +1,16 @@
 #pragma once
 
-#define SHADER_PATH(name) (::std::string("../../Shaders/") + name)
+#include "Core/Utilities/Defines.hpp"
+
+#define SHADER_PATH(name)                                                 \
+    (IntelliDesign_NS::Core::MemoryPool::Type_STLString("../../Shaders/") \
+     + name)
 #define SHADER_PATH_CSTR(name) SHADER_PATH(name).c_str()
 
-#define MODEL_PATH(name) (::std::string("../../../Models/") + name)
+#define MODEL_PATH(name)                                                    \
+    (IntelliDesign_NS::Core::MemoryPool::Type_STLString("../../../Models/") \
+     + name)
 #define MODEL_PATH_CSTR(name) MODEL_PATH(name).c_str()
-
-using Type_ShaderMacros = ::std::unordered_map<::std::string, ::std::string>;
 
 #define NV_PREFERRED_MESH_SHADER_MAX_VERTICES 64
 #define NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES 124

@@ -1,14 +1,15 @@
 #pragma once
 
 #include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Instance {
 public:
-    Instance(::std::span<::std::string> requestedInstanceLayers,
-                   ::std::span<::std::string> requestedInstanceExtensions);
+    Instance(::std::span<Type_STLString> requestedInstanceLayers,
+             ::std::span<Type_STLString> requestedInstanceExtensions);
     ~Instance();
     MOVABLE_ONLY(Instance);
 
@@ -18,8 +19,8 @@ private:
     vk::Instance CreateInstance();
 
 private:
-    ::std::vector<::std::string> mEnabledInstanceLayers;
-    ::std::vector<::std::string> mEnabledInstanceExtensions;
+    Type_STLVector<Type_STLString> mEnabledInstanceLayers;
+    Type_STLVector<Type_STLString> mEnabledInstanceExtensions;
     vk::Instance mInstance;
 };
 

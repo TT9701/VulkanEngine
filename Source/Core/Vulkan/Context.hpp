@@ -29,9 +29,9 @@ namespace IntelliDesign_NS::Vulkan::Core {
 class Context {
 public:
     Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-            ::std::span<::std::string> requestedInstanceLayers = {},
-            ::std::span<::std::string> requestedInstanceExtensions = {},
-            ::std::span<::std::string> requestedDeviceExtensions = {});
+            ::std::span<Type_STLString> requestedInstanceLayers = {},
+            ::std::span<Type_STLString> requestedInstanceExtensions = {},
+            ::std::span<Type_STLString> requestedDeviceExtensions = {});
     ~Context() = default;
     MOVABLE_ONLY(Context);
 
@@ -117,8 +117,8 @@ public:
 
 private:
     UniquePtr<Instance> CreateInstance(
-        ::std::span<::std::string> requestedLayers,
-        ::std::span<::std::string> requestedExtensions);
+        ::std::span<Type_STLString> requestedLayers,
+        ::std::span<Type_STLString> requestedExtensions);
 
 #ifndef NDEBUG
     UniquePtr<DebugUtils> CreateDebugUtilsMessenger();
@@ -126,7 +126,7 @@ private:
     UniquePtr<Surface> CreateSurface(const SDLWindow* window);
     UniquePtr<PhysicalDevice> PickPhysicalDevice(vk::QueueFlags flags);
     UniquePtr<Device> CreateDevice(
-        ::std::span<::std::string> requestedExtensions);
+        ::std::span<Type_STLString> requestedExtensions);
     UniquePtr<MemoryAllocator> CreateVmaAllocator();
     UniquePtr<TimelineSemaphore> CreateTimelineSem();
 #ifdef CUDA_VULKAN_INTEROP
@@ -178,7 +178,7 @@ void Context::SetName(VkCppHandle handle, const char* name) {
 
 template <class VkCppHandle>
 void Context::SetName(VkCppHandle handle, std::string_view name) {
-    SetName(handle, ::std::string {name}.c_str());
+    SetName(handle, Type_STLString {name}.c_str());
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

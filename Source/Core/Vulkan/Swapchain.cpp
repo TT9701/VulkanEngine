@@ -6,8 +6,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Swapchain::Swapchain(Context* ctx, vk::Format format,
-                                 vk::Extent2D extent2D)
+Swapchain::Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D)
     : pContex(ctx),
       mFormat(format),
       mExtent2D(extent2D),
@@ -30,8 +29,7 @@ Swapchain::~Swapchain() {
 
 uint32_t Swapchain::AcquireNextImageIndex() {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mAcquireFence.GetHandle(), vk::True,
-        Fence::TIME_OUT_NANO_SECONDS));
+        mAcquireFence.GetHandle(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
 
     pContex->GetDeviceHandle().resetFences(mAcquireFence.GetHandle());
 
@@ -74,6 +72,10 @@ vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::SwapchainKHR old) {
     return handle;
 }
 
+vk::SwapchainKHR Swapchain::GetHandle() const {
+    return mSwapchain;
+}
+
 vk::Image Swapchain::GetImageHandle(uint32_t index) const {
     return mImages[index].GetTexHandle();
 }
@@ -82,13 +84,45 @@ vk::ImageView Swapchain::GetImageViewHandle(uint32_t index) const {
     return mImages[index].GetTexViewHandle("Color-Whole");
 }
 
+vk::Format Swapchain::GetFormat() const {
+    return mFormat;
+}
+
+vk::Extent2D Swapchain::GetExtent2D() const {
+    return mExtent2D;
+}
+
+uint32_t Swapchain::GetImageCount() const {
+    return mImages.size();
+}
+
+uint32_t Swapchain::GetCurrentImageIndex() const {
+    return mCurrentImageIndex;
+}
+
+RenderResource const& Swapchain::GetCurrentImage() const {
+    return mImages[mCurrentImageIndex];
+}
+
+vk::Fence Swapchain::GetAquireFenceHandle() const {
+    return mAcquireFence.GetHandle();
+}
+
+vk::Semaphore Swapchain::GetReady4PresentSemHandle() const {
+    return mReady4Present.GetHandle();
+}
+
+vk::Semaphore Swapchain::GetReady4RenderSemHandle() const {
+    return mReady4Render.GetHandle();
+}
+
 void Swapchain::SetSwapchainImages() {
     auto images = pContex->GetDeviceHandle().getSwapchainImagesKHR(mSwapchain);
     mImages.reserve(images.size());
     for (auto& img : images) {
         mImages.emplace_back(
-            pContex->GetDevice(), img, RenderResource::Type::Texture2D,
-            mFormat, vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
+            pContex->GetDevice(), img, RenderResource::Type::Texture2D, mFormat,
+            vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
 
         pContex->SetName(mImages.back().GetTexHandle(), "Swapchain Images");
 

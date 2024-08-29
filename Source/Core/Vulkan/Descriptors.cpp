@@ -120,7 +120,7 @@ vk::DescriptorPool DescriptorAllocator::GetPool(Context* context) {
 vk::DescriptorPool DescriptorAllocator::CreatePool(
     Context* context, uint32_t setCount,
     std::span<DescPoolSizeRatio> poolRatios) {
-    std::vector<vk::DescriptorPoolSize> poolSizes;
+    Type_STLVector<vk::DescriptorPoolSize> poolSizes;
     for (auto& ratio : poolRatios) {
         poolSizes.emplace_back(ratio.mType,
                                static_cast<uint32_t>(ratio.mRatio * setCount));
@@ -165,8 +165,7 @@ void DescriptorWriter::Clear() {
     mBufferInfos.clear();
 }
 
-void DescriptorWriter::UpdateSet(Context* context,
-                                 vk::DescriptorSet set) {
+void DescriptorWriter::UpdateSet(Context* context, vk::DescriptorSet set) {
     for (auto& write : mWrites) {
         write.setDstSet(set);
     }
@@ -175,11 +174,10 @@ void DescriptorWriter::UpdateSet(Context* context,
     Clear();
 }
 
-}  // namespace VulkanCore::__Detail
+}  // namespace __Detail
 
-DescriptorManager::DescriptorManager(
-    Context* context, uint32_t initialSets,
-    ::std::span<DescPoolSizeRatio> poolRatio)
+DescriptorManager::DescriptorManager(Context* context, uint32_t initialSets,
+                                     ::std::span<DescPoolSizeRatio> poolRatio)
     : pContext(context) {
     mDescAllocator.InitPool(context, initialSets, poolRatio);
 }
@@ -193,13 +191,13 @@ DescriptorManager::~DescriptorManager() {
 }
 
 void DescriptorManager::AddDescSetLayoutBinding(uint32_t binding,
-                                                      uint32_t descCount,
-                                                      vk::DescriptorType type) {
+                                                uint32_t descCount,
+                                                vk::DescriptorType type) {
     mSetLayoutBuilder.AddBinding(binding, descCount, type);
 }
 
 vk::DescriptorSetLayout DescriptorManager::BuildDescSetLayout(
-    ::std::string const& name, vk::ShaderStageFlags shaderStages,
+    Type_STLString const& name, vk::ShaderStageFlags shaderStages,
     vk::DescriptorSetLayoutCreateFlags flags, void* pNext) {
     const auto layout =
         mSetLayoutBuilder.Build(pContext, shaderStages, flags, pNext);
@@ -212,7 +210,7 @@ vk::DescriptorSetLayout DescriptorManager::BuildDescSetLayout(
 }
 
 vk::DescriptorSetLayout DescriptorManager::GetDescSetLayout(
-    std::string const& name) const {
+    Type_STLString const& name) const {
     return mSetLayouts.at(name);
 }
 
@@ -220,8 +218,9 @@ void DescriptorManager::ClearSetLayout() {
     mSetLayoutBuilder.Clear();
 }
 
-vk::DescriptorSet DescriptorManager::Allocate(
-    ::std::string const& name, vk::DescriptorSetLayout layout, void* pNext) {
+vk::DescriptorSet DescriptorManager::Allocate(Type_STLString const& name,
+                                              vk::DescriptorSetLayout layout,
+                                              void* pNext) {
     const auto desc = mDescAllocator.Allocate(pContext, layout, pNext);
 
     mDescriptors.emplace(name, desc);
@@ -230,7 +229,7 @@ vk::DescriptorSet DescriptorManager::Allocate(
 }
 
 vk::DescriptorSet DescriptorManager::GetDescriptor(
-    std::string const& name) const {
+    Type_STLString const& name) const {
     return mDescriptors.at(name);
 }
 
@@ -239,14 +238,14 @@ void DescriptorManager::ClearDescriptors() {
 }
 
 void DescriptorManager::WriteImage(int binding,
-                                         vk::DescriptorImageInfo imageInfo,
-                                         vk::DescriptorType type) {
+                                   vk::DescriptorImageInfo imageInfo,
+                                   vk::DescriptorType type) {
     mDescWriter.WriteImage(binding, imageInfo, type);
 }
 
 void DescriptorManager::WriteBuffer(int binding,
-                                          vk::DescriptorBufferInfo bufferInfo,
-                                          vk::DescriptorType type) {
+                                    vk::DescriptorBufferInfo bufferInfo,
+                                    vk::DescriptorType type) {
     mDescWriter.WriteBuffer(binding, bufferInfo, type);
 }
 

@@ -12,13 +12,13 @@ public:
 
     void Execute();
 
-    static ::std::vector<Mesh> LoadCISDIModelData(const char* path);
+    static Type_STLVector<Mesh> LoadCISDIModelData(const char* path);
 
 private:
     bool mFlipYZ;
 
-    ::std::string mPath;
-    ::std::string mOutputDirectory;
+    Type_STLString mPath;
+    Type_STLString mOutputDirectory;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

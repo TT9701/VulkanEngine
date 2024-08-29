@@ -4,6 +4,7 @@
 
 #include "Core/Utilities/Defines.hpp"
 #include "SyncStructures.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -14,8 +15,7 @@ class RenderResource;
 
 class Swapchain {
 public:
-    Swapchain(Context* ctx, vk::Format format,
-                    vk::Extent2D extent2D);
+    Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D);
     ~Swapchain();
     MOVABLE_ONLY(Swapchain);
 
@@ -29,33 +29,17 @@ public:
     vk::SwapchainKHR RecreateSwapchain(vk::SwapchainKHR old = VK_NULL_HANDLE);
 
 public:
-    vk::SwapchainKHR GetHandle() const { return mSwapchain; }
-
+    vk::SwapchainKHR GetHandle() const;
     vk::Image GetImageHandle(uint32_t index) const;
-
     vk::ImageView GetImageViewHandle(uint32_t index) const;
-
-    vk::Format GetFormat() const { return mFormat; }
-
-    vk::Extent2D GetExtent2D() const { return mExtent2D; }
-
-    uint32_t GetImageCount() const { return mImages.size(); }
-
-    uint32_t GetCurrentImageIndex() const { return mCurrentImageIndex; }
-
-    RenderResource const& GetCurrentImage() const {
-        return mImages[mCurrentImageIndex];
-    }
-
-    vk::Fence GetAquireFenceHandle() const { return mAcquireFence.GetHandle(); }
-
-    vk::Semaphore GetReady4PresentSemHandle() const {
-        return mReady4Present.GetHandle();
-    }
-
-    vk::Semaphore GetReady4RenderSemHandle() const {
-        return mReady4Render.GetHandle();
-    }
+    vk::Format GetFormat() const;
+    vk::Extent2D GetExtent2D() const;
+    uint32_t GetImageCount() const;
+    uint32_t GetCurrentImageIndex() const;
+    RenderResource const& GetCurrentImage() const;
+    vk::Fence GetAquireFenceHandle() const;
+    vk::Semaphore GetReady4PresentSemHandle() const;
+    vk::Semaphore GetReady4RenderSemHandle() const;
 
 private:
     // TODO: resize window
@@ -74,7 +58,7 @@ private:
     Semaphore mReady4Render {pContex};
     Fence mAcquireFence {pContex};
 
-    ::std::vector<RenderResource> mImages {};
+    Type_STLVector<RenderResource> mImages {};
     uint32_t mCurrentImageIndex {0};
 };
 

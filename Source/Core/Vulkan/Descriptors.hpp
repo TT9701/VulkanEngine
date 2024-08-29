@@ -18,7 +18,7 @@ namespace __Detail {
 
 class SetLayoutBuilder {
 public:
-    std::vector<vk::DescriptorSetLayoutBinding> mBindings;
+    Type_STLVector<vk::DescriptorSetLayoutBinding> mBindings;
 
     void AddBinding(uint32_t binding, uint32_t descCount,
                     vk::DescriptorType type);
@@ -37,8 +37,7 @@ public:
     void ClearDescriptors(Context* context);
     void DestroyPool(Context* context);
 
-    vk::DescriptorSet Allocate(Context* context,
-                               vk::DescriptorSetLayout layout,
+    vk::DescriptorSet Allocate(Context* context, vk::DescriptorSetLayout layout,
                                void* pNext = nullptr);
 
 private:
@@ -47,17 +46,17 @@ private:
     vk::DescriptorPool CreatePool(Context* context, uint32_t setCount,
                                   std::span<DescPoolSizeRatio> poolRatios);
 
-    ::std::vector<DescPoolSizeRatio> mRatios {};
-    ::std::vector<vk::DescriptorPool> mFullPools {};
-    ::std::vector<vk::DescriptorPool> mReadyPools {};
+    Type_STLVector<DescPoolSizeRatio> mRatios {};
+    Type_STLVector<vk::DescriptorPool> mFullPools {};
+    Type_STLVector<vk::DescriptorPool> mReadyPools {};
     uint32_t mSetsPerPool {};
 };
 
 class DescriptorWriter {
 public:
-    ::std::deque<vk::DescriptorImageInfo> mImageInfos {};
-    ::std::deque<vk::DescriptorBufferInfo> mBufferInfos {};
-    ::std::vector<vk::WriteDescriptorSet> mWrites {};
+    Type_STLDeque<vk::DescriptorImageInfo> mImageInfos {};
+    Type_STLDeque<vk::DescriptorBufferInfo> mBufferInfos {};
+    Type_STLVector<vk::WriteDescriptorSet> mWrites {};
 
     void WriteImage(int binding, vk::DescriptorImageInfo const& imageInfo,
                     vk::DescriptorType type);
@@ -70,12 +69,16 @@ public:
     void UpdateSet(Context* context, vk::DescriptorSet set);
 };
 
-}  // namespace VulkanCore::__Detail
+}  // namespace __Detail
 
 class DescriptorManager {
+    using Type_DescSetLayouts =
+        Type_STLUnorderedMap_String<vk::DescriptorSetLayout>;
+    using Type_Descriptors = Type_STLUnorderedMap_String<vk::DescriptorSet>;
+
 public:
     DescriptorManager(Context* context, uint32_t initialSets,
-                            ::std::span<DescPoolSizeRatio> poolRatio);
+                      ::std::span<DescPoolSizeRatio> poolRatio);
     ~DescriptorManager();
     MOVABLE_ONLY(DescriptorManager);
 
@@ -85,19 +88,19 @@ public:
                                  vk::DescriptorType type);
 
     vk::DescriptorSetLayout BuildDescSetLayout(
-        ::std::string const& name, vk::ShaderStageFlags shaderStages,
+        Type_STLString const& name, vk::ShaderStageFlags shaderStages,
         vk::DescriptorSetLayoutCreateFlags flags = {}, void* pNext = nullptr);
 
-    vk::DescriptorSetLayout GetDescSetLayout(::std::string const& name) const;
+    vk::DescriptorSetLayout GetDescSetLayout(Type_STLString const& name) const;
 
     void ClearSetLayout();
 
     // Descriptors
-    vk::DescriptorSet Allocate(::std::string const& name,
+    vk::DescriptorSet Allocate(Type_STLString const& name,
                                vk::DescriptorSetLayout layout,
                                void* pNext = nullptr);
 
-    vk::DescriptorSet GetDescriptor(::std::string const& name) const;
+    vk::DescriptorSet GetDescriptor(Type_STLString const& name) const;
 
     void ClearDescriptors();
 
@@ -122,10 +125,10 @@ private:
 
     __Detail::DescriptorWriter mDescWriter {};
 
-    ::std::unordered_map<::std::string, vk::DescriptorSetLayout> mSetLayouts {};
+    Type_DescSetLayouts mSetLayouts {};
 
     // TODO: classify descriptors in different layouts
-    ::std::unordered_map<::std::string, vk::DescriptorSet> mDescriptors {};
+    Type_Descriptors mDescriptors {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

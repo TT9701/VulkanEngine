@@ -5,7 +5,9 @@
 namespace {
 bool LoadDispatcher = false;
 
-auto SetInstanceLayers(::std::span<::std::string> requestedLayers) {
+using namespace IntelliDesign_NS::Core::MemoryPool;
+
+auto SetInstanceLayers(::std::span<Type_STLString> requestedLayers) {
     if (!LoadDispatcher) {
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
@@ -14,15 +16,15 @@ auto SetInstanceLayers(::std::span<::std::string> requestedLayers) {
     }
 
     auto instanceLayersProps = vk::enumerateInstanceLayerProperties();
-    ::std::vector<::std::string> availableInstanceLayers {};
+    Type_STLVector<Type_STLString> availableInstanceLayers {};
     for (auto& prop : instanceLayersProps) {
-        availableInstanceLayers.push_back(prop.layerName);
+        availableInstanceLayers.push_back(prop.layerName.data());
     }
     return IntelliDesign_NS::Vulkan::Core::Utils::FilterStringList(
         availableInstanceLayers, requestedLayers);
 }
 
-auto SetInstanceExtensions(std::span<std::string> requestedExtensions) {
+auto SetInstanceExtensions(std::span<Type_STLString> requestedExtensions) {
     if (!LoadDispatcher) {
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
         VULKAN_HPP_DEFAULT_DISPATCHER.init();
@@ -31,9 +33,9 @@ auto SetInstanceExtensions(std::span<std::string> requestedExtensions) {
     }
 
     auto instanceExtensionProps = vk::enumerateInstanceExtensionProperties();
-    ::std::vector<::std::string> availableInstanceExtensions {};
+    Type_STLVector<Type_STLString> availableInstanceExtensions {};
     for (auto& prop : instanceExtensionProps) {
-        availableInstanceExtensions.push_back(prop.extensionName);
+        availableInstanceExtensions.push_back(prop.extensionName.data());
     }
     return IntelliDesign_NS::Vulkan::Core::Utils::FilterStringList(
         availableInstanceExtensions, requestedExtensions);
@@ -43,8 +45,8 @@ auto SetInstanceExtensions(std::span<std::string> requestedExtensions) {
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Instance::Instance(std::span<std::string> requestedInstanceLayers,
-                   std::span<std::string> requestedInstanceExtensions)
+Instance::Instance(std::span<Type_STLString> requestedInstanceLayers,
+                   std::span<Type_STLString> requestedInstanceExtensions)
     : mEnabledInstanceLayers(SetInstanceLayers(requestedInstanceLayers)),
       mEnabledInstanceExtensions(
           SetInstanceExtensions(requestedInstanceExtensions)),
@@ -68,12 +70,13 @@ vk::Instance Instance::CreateInstance() {
         LoadDispatcher = !LoadDispatcher;
     }
 
-    ::std::vector<const char*> enabledLayersCStr(mEnabledInstanceLayers.size());
+    Type_STLVector<const char*> enabledLayersCStr(
+        mEnabledInstanceLayers.size());
     for (int i = 0; i < mEnabledInstanceLayers.size(); ++i) {
         enabledLayersCStr[i] = mEnabledInstanceLayers[i].c_str();
     }
 
-    ::std::vector<const char*> enabledExtensionsCStr(
+    Type_STLVector<const char*> enabledExtensionsCStr(
         mEnabledInstanceExtensions.size());
     for (int i = 0; i < mEnabledInstanceExtensions.size(); ++i) {
         enabledExtensionsCStr[i] = mEnabledInstanceExtensions[i].c_str();

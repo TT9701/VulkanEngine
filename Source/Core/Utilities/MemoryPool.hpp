@@ -3,6 +3,8 @@
 #include "Core/System/MemoryPool/MemoryPool.h"
 #include "Defines.hpp"
 
+namespace IntelliDesign_NS::Vulkan::Core {
+
 class MemoryPoolInstance {
 public:
     MemoryPoolInstance() : mResource(::std::pmr::get_default_resource()) {}
@@ -45,3 +47,7 @@ SharedPtr<T> MakeShared(Types&&... val) {
         MemoryPoolInstance::Get()->GetMemPoolResource(),
         ::std::forward<Types>(val)...);
 }
+
+using namespace IntelliDesign_NS::Core::MemoryPool;
+
+}  // namespace IntelliDesign_NS::Vulkan::Core

@@ -12,9 +12,9 @@ vk::PhysicalDeviceMeshShaderFeaturesEXT
     Context::sEnableMeshShaderFeaturesExt {};
 
 Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
-                 ::std::span<::std::string> requestedInstanceLayers,
-                 ::std::span<::std::string> requestedInstanceExtensions,
-                 ::std::span<::std::string> requestedDeviceExtensions)
+                 ::std::span<Type_STLString> requestedInstanceLayers,
+                 ::std::span<Type_STLString> requestedInstanceExtensions,
+                 ::std::span<Type_STLString> requestedDeviceExtensions)
     : mPInstance(
           CreateInstance(requestedInstanceLayers, requestedInstanceExtensions)),
 #ifndef NDEBUG
@@ -221,8 +221,8 @@ vk::Sampler Context::GetDefaultLinearSamplerHandle() const {
 }
 
 UniquePtr<Instance> Context::CreateInstance(
-    ::std::span<::std::string> requestedLayers,
-    ::std::span<::std::string> requestedExtensions) {
+    ::std::span<Type_STLString> requestedLayers,
+    ::std::span<Type_STLString> requestedExtensions) {
     return MakeUnique<Instance>(requestedLayers, requestedExtensions);
 }
 
@@ -241,9 +241,9 @@ UniquePtr<PhysicalDevice> Context::PickPhysicalDevice(vk::QueueFlags flags) {
 }
 
 UniquePtr<Device> Context::CreateDevice(
-    ::std::span<::std::string> requestedExtensions) {
+    ::std::span<Type_STLString> requestedExtensions) {
     return MakeUnique<Device>(
-        mPPhysicalDevice.get(), ::std::span<::std::string> {},
+        mPPhysicalDevice.get(), ::std::span<Type_STLString> {},
         requestedExtensions, &sPhysicalDeviceFeatures, &sEnable11Features);
 }
 

@@ -6,6 +6,9 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class RenderResourceManager {
+    using Type_RenderResources =
+        Type_STLUnorderedMap_String<SharedPtr<RenderResource>>;
+
 public:
     RenderResourceManager(Device* device, MemoryAllocator* allocator);
 
@@ -26,8 +29,7 @@ private:
     Device* pDevice;
     MemoryAllocator* pAllocator;
 
-    ::std::unordered_map<::std::string, SharedPtr<RenderResource>>
-        mResources {};
+    Type_RenderResources mResources {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

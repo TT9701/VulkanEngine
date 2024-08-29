@@ -118,9 +118,9 @@ void Texture::CreateImageView(const char* name, vk::ImageAspectFlags aspect,
 
     auto view = pDevice->GetHandle().createImageView(info);
 
-    pDevice->SetObjectName(view, static_cast<::std::string>(name).c_str());
+    pDevice->SetObjectName(view, static_cast<Type_STLString>(name).c_str());
 
-    mViews.emplace(static_cast<::std::string>(name), view);
+    mViews.emplace(static_cast<Type_STLString>(name), view);
 }
 
 uint32_t Texture::GetWidth(uint32_t mipLevel) const {

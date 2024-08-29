@@ -3,10 +3,12 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
+#include "MemoryPool.hpp"
+
 namespace IntelliDesign_NS::Vulkan::Core::Utils {
 
-::std::vector<::std::string> FilterStringList(
-    ::std::span<::std::string> available, ::std::span<::std::string> request);
+Type_STLVector<Type_STLString> FilterStringList(
+    ::std::span<Type_STLString> available, ::std::span<Type_STLString> request);
 
 void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
                            vk::ImageLayout currentLayout,

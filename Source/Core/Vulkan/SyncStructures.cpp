@@ -17,8 +17,7 @@ vk::Fence Fence::CreateFence(vk::FenceCreateFlags flags) {
     return pContext->GetDeviceHandle().createFence(fenceCreateInfo);
 }
 
-Semaphore::Semaphore(Context* ctx)
-    : pContext(ctx), mSemaphore(CreateSem()) {}
+Semaphore::Semaphore(Context* ctx) : pContext(ctx), mSemaphore(CreateSem()) {}
 
 Semaphore::~Semaphore() {
     pContext->GetDeviceHandle().destroy(mSemaphore);
@@ -30,8 +29,7 @@ vk::Semaphore Semaphore::CreateSem() {
     return pContext->GetDeviceHandle().createSemaphore(semaphoreCreateInfo);
 }
 
-TimelineSemaphore::TimelineSemaphore(Context* ctx,
-                                                 uint64_t initialValue)
+TimelineSemaphore::TimelineSemaphore(Context* ctx, uint64_t initialValue)
     : pContext(ctx),
       mValue(initialValue),
       mSemaphore(CreateTimelineSemaphore()) {}

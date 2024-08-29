@@ -1,8 +1,8 @@
 #include "CommandManager.hpp"
 
+#include "Commands.hpp"
 #include "Context.hpp"
 #include "Core/Utilities/Logger.hpp"
-#include "Commands.hpp"
 #include "SyncStructures.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -34,9 +34,9 @@ void CmdBufferToBegin::End() {
 }
 
 CommandManager::CommandManager(Context* ctx, uint32_t count,
-                                           uint32_t concurrentCommandsCount,
-                                           uint32_t queueFamilyIndex,
-                                           vk::CommandPoolCreateFlags flags)
+                               uint32_t concurrentCommandsCount,
+                               uint32_t queueFamilyIndex,
+                               vk::CommandPoolCreateFlags flags)
     : pContex(ctx),
       mCommandInFlight(concurrentCommandsCount),
       mGraphicsQueueFamilyIndex(queueFamilyIndex),
@@ -54,12 +54,12 @@ QueueSubmitRequest CommandManager::Submit(
 
     vk::CommandBufferSubmitInfo cmdInfo {cmd};
 
-    ::std::vector<vk::SemaphoreSubmitInfo> waits {};
+    Type_STLVector<vk::SemaphoreSubmitInfo> waits {};
     for (auto& info : waitInfos) {
         waits.emplace_back(info.sem, info.value, info.stage);
     }
 
-    ::std::vector<vk::SemaphoreSubmitInfo> signals {};
+    Type_STLVector<vk::SemaphoreSubmitInfo> signals {};
     for (auto& info : signalInfos) {
         signals.emplace_back(info.sem, info.value, info.stage);
         signalValue = signalValue > info.value ? signalValue : info.value;
@@ -125,18 +125,15 @@ vk::Fence CommandManager::GetCurrentFence() const {
 
 SharedPtr<CommandPool> CommandManager::CreateCommandPool(
     vk::CommandPoolCreateFlags flags) {
-    return MakeShared<CommandPool>(pContex, mGraphicsQueueFamilyIndex,
-                                         flags);
+    return MakeShared<CommandPool>(pContex, mGraphicsQueueFamilyIndex, flags);
 }
 
-SharedPtr<CommandBuffers> CommandManager::CreateCommandBuffers(
-    uint32_t count) {
-    return MakeShared<CommandBuffers>(pContex, mSPCommandPool.get(),
-                                            count);
+SharedPtr<CommandBuffers> CommandManager::CreateCommandBuffers(uint32_t count) {
+    return MakeShared<CommandBuffers>(pContex, mSPCommandPool.get(), count);
 }
 
-std::vector<SharedPtr<Fence>> CommandManager::CreateFences() {
-    ::std::vector<SharedPtr<Fence>> vec;
+Type_STLVector<SharedPtr<Fence>> CommandManager::CreateFences() {
+    Type_STLVector<SharedPtr<Fence>> vec;
     for (uint32_t i = 0; i < mCommandInFlight; ++i) {
         vec.push_back(MakeShared<Fence>(pContex));
     }

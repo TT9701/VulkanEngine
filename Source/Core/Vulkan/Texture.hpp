@@ -3,12 +3,16 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
+#include "Core/Utilities/MemoryPool.hpp"
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Device;
 class MemoryAllocator;
 
 class Texture {
+    using Type_ImageViews = Type_STLUnorderedMap_String<vk::ImageView>;
+
 public:
     enum class Type {
         Texture1D,
@@ -70,7 +74,7 @@ private:
 
     vk::Image mHandle;
 
-    ::std::unordered_map<::std::string, vk::ImageView> mViews;
+    Type_ImageViews mViews;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

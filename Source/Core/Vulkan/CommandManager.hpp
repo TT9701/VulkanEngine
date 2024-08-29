@@ -47,21 +47,19 @@ private:
 
 class CommandManager {
 public:
-    CommandManager(
-        Context* ctx, uint32_t count, uint32_t concurrentCommandsCount,
-        uint32_t queueFamilyIndex,
-        vk::CommandPoolCreateFlags flags =
-            vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+    CommandManager(Context* ctx, uint32_t count,
+                   uint32_t concurrentCommandsCount, uint32_t queueFamilyIndex,
+                   vk::CommandPoolCreateFlags flags =
+                       vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
     ~CommandManager() = default;
 
     MOVABLE_ONLY(CommandManager);
 
 public:
-    QueueSubmitRequest Submit(
-        vk::CommandBuffer cmd, vk::Queue queue,
-        ::std::span<SemSubmitInfo> waitInfos = {},
-        ::std::span<SemSubmitInfo> signalInfos = {});
+    QueueSubmitRequest Submit(vk::CommandBuffer cmd, vk::Queue queue,
+                              ::std::span<SemSubmitInfo> waitInfos = {},
+                              ::std::span<SemSubmitInfo> signalInfos = {});
 
     void WaitUntilSubmitIsComplete();
 
@@ -72,12 +70,11 @@ public:
     vk::Fence GetCurrentFence() const;
 
 private:
-    SharedPtr<CommandPool> CreateCommandPool(
-        vk::CommandPoolCreateFlags flags);
+    SharedPtr<CommandPool> CreateCommandPool(vk::CommandPoolCreateFlags flags);
 
     SharedPtr<CommandBuffers> CreateCommandBuffers(uint32_t count);
 
-    ::std::vector<SharedPtr<Fence>> CreateFences();
+    Type_STLVector<SharedPtr<Fence>> CreateFences();
 
 private:
     Context* pContex;
@@ -88,9 +85,9 @@ private:
 
     SharedPtr<CommandPool> mSPCommandPool;
     SharedPtr<CommandBuffers> mSPCommandbuffers;
-    ::std::vector<SharedPtr<Fence>> mSPFences;
+    Type_STLVector<SharedPtr<Fence>> mSPFences;
 
-    ::std::vector<bool> mIsSubmitted {};
+    Type_STLVector<bool> mIsSubmitted {};
     uint32_t mFenceCurIdx {};
     uint32_t mCmdBufferCurIdx {};
 };

@@ -10,8 +10,8 @@ class Context;
 
 class Fence {
 public:
-    Fence(Context* ctx, vk::FenceCreateFlags flags =
-                                        vk::FenceCreateFlagBits::eSignaled);
+    Fence(Context* ctx,
+          vk::FenceCreateFlags flags = vk::FenceCreateFlagBits::eSignaled);
     ~Fence();
     MOVABLE_ONLY(Fence);
 

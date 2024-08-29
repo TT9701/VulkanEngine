@@ -7,9 +7,9 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 Device::Device(PhysicalDevice* physicalDevice,
-                           std::span<std::string> requestedLayers,
-                           std::span<std::string> requestedExtensions,
-                           vk::PhysicalDeviceFeatures* pFeatures, void* pNext)
+               std::span<Type_STLString> requestedLayers,
+               std::span<Type_STLString> requestedExtensions,
+               vk::PhysicalDeviceFeatures* pFeatures, void* pNext)
     : pPhysicalDevice(physicalDevice),
       mDevice(CreateDevice(requestedLayers, requestedExtensions, pFeatures,
                            pNext)) {
@@ -26,11 +26,11 @@ Device::~Device() {
     mDevice.destroy();
 }
 
-vk::Device Device::CreateDevice(
-    std::span<std::string> requestedLayers,
-    std::span<std::string> requestedExtensions,
-    vk::PhysicalDeviceFeatures* pFeatures, void* pNext) {
-    ::std::vector<float> queuePriorities(16, 1.0f);
+vk::Device Device::CreateDevice(std::span<Type_STLString> requestedLayers,
+                                std::span<Type_STLString> requestedExtensions,
+                                vk::PhysicalDeviceFeatures* pFeatures,
+                                void* pNext) {
+    Type_STLVector<float> queuePriorities(16, 1.0f);
 
     /**
      * TODO: Device layers & extensions
@@ -38,28 +38,28 @@ vk::Device Device::CreateDevice(
 
     auto availableLayerProps =
         pPhysicalDevice->GetHandle().enumerateDeviceLayerProperties();
-    ::std::vector<::std::string> availableLayers {};
+    Type_STLVector<Type_STLString> availableLayers {};
     for (auto& prop : availableLayerProps) {
-        availableLayers.push_back(prop.layerName);
+        availableLayers.push_back(prop.layerName.data());
     }
     enabledLayers = Utils::FilterStringList(availableLayers, requestedLayers);
-    ::std::vector<const char*> enabledLayersCStr(enabledLayers.size());
+    Type_STLVector<const char*> enabledLayersCStr(enabledLayers.size());
     ::std::ranges::transform(enabledLayers, enabledLayersCStr.begin(),
-                             ::std::mem_fn(&::std::string::c_str));
+                             ::std::mem_fn(&Type_STLString::c_str));
 
     auto availableExtensionProps =
         pPhysicalDevice->GetHandle().enumerateDeviceExtensionProperties();
-    ::std::vector<::std::string> availableExtensions {};
+    Type_STLVector<Type_STLString> availableExtensions {};
     for (auto& prop : availableExtensionProps) {
-        availableExtensions.push_back(prop.extensionName);
+        availableExtensions.push_back(prop.extensionName.data());
     }
     enabledExtensions =
         Utils::FilterStringList(availableExtensions, requestedExtensions);
-    ::std::vector<const char*> enabledExtensionsCStr(enabledExtensions.size());
+    Type_STLVector<const char*> enabledExtensionsCStr(enabledExtensions.size());
     ::std::ranges::transform(enabledExtensions, enabledExtensionsCStr.begin(),
-                             ::std::mem_fn(&::std::string::c_str));
+                             ::std::mem_fn(&Type_STLString::c_str));
 
-    ::std::vector<vk::DeviceQueueCreateInfo> queueCIs {};
+    Type_STLVector<vk::DeviceQueueCreateInfo> queueCIs {};
     if (pPhysicalDevice->GetGraphicsQueueFamilyIndex().has_value())
         queueCIs.push_back(
             {{},

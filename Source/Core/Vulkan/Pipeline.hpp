@@ -13,11 +13,11 @@ class Shader;
 
 class PipelineLayout {
 public:
-    PipelineLayout(
-        Context* context,
-        vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-        vk::ArrayProxy<vk::PushConstantRange> const& pushContants,
-        vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
+    PipelineLayout(Context* context,
+                   ::std::span<vk::DescriptorSetLayout> setLayouts,
+                   ::std::span<vk::PushConstantRange> pushContants,
+                   vk::PipelineLayoutCreateFlags flags = {},
+                   void* pNext = nullptr);
     ~PipelineLayout();
     MOVABLE_ONLY(PipelineLayout);
 
@@ -26,8 +26,8 @@ public:
 
 private:
     vk::PipelineLayout CreateLayout(
-        vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-        vk::ArrayProxy<vk::PushConstantRange> const& pushContants,
+        ::std::span<vk::DescriptorSetLayout> setLayouts,
+        ::std::span<vk::PushConstantRange> pushContants,
         vk::PipelineLayoutCreateFlags flags, void* pNext) const;
 
 private:
@@ -42,9 +42,8 @@ class Pipeline;
 template <>
 class Pipeline<PipelineType::Graphics> {
 public:
-    Pipeline(Context* context,
-                   vk::GraphicsPipelineCreateInfo const& info,
-                   vk::PipelineCache cache = {});
+    Pipeline(Context* context, vk::GraphicsPipelineCreateInfo const& info,
+             vk::PipelineCache cache = {});
     ~Pipeline();
     MOVABLE_ONLY(Pipeline);
 
@@ -65,9 +64,8 @@ private:
 template <>
 class Pipeline<PipelineType::Compute> {
 public:
-    Pipeline(Context* context,
-                   vk::ComputePipelineCreateInfo const& info,
-                   vk::PipelineCache cache = {});
+    Pipeline(Context* context, vk::ComputePipelineCreateInfo const& info,
+             vk::PipelineCache cache = {});
     ~Pipeline();
     MOVABLE_ONLY(Pipeline);
 
@@ -107,7 +105,7 @@ public:
     PipelineBuilder& SetPolygonMode(vk::PolygonMode mode);
 
     PipelineBuilder& SetCullMode(vk::CullModeFlags cullMode,
-                                       vk::FrontFace frontFace);
+                                 vk::FrontFace frontFace);
 
     // TODO: finish multisampling - pipeline settings
     PipelineBuilder& SetMultisampling(
@@ -128,7 +126,7 @@ public:
     PipelineBuilder& SetStencil(vk::Bool32 stencil = vk::False);
 
     SharedPtr<Pipeline<PipelineType::Graphics>> Build(
-        ::std::string const& name, vk::PipelineCache cache = {},
+        ::std::string_view name, vk::PipelineCache cache = {},
         void* pNext = nullptr);
 
     void Clear();
@@ -136,7 +134,7 @@ public:
 private:
     PipelineManager* pManager;
 
-    ::std::vector<vk::PipelineShaderStageCreateInfo> mShaderStages {};
+    Type_STLVector<vk::PipelineShaderStageCreateInfo> mShaderStages {};
 
     vk::PipelineInputAssemblyStateCreateInfo mInputAssembly;
     vk::PipelineRasterizationStateCreateInfo mRasterizer;
@@ -167,7 +165,7 @@ public:
     PipelineBuilder& SetBaseIndex(int32_t index);
 
     SharedPtr<Pipeline<PipelineType::Compute>> Build(
-        ::std::string const& name, vk::PipelineCache cache = {},
+        ::std::string_view name, vk::PipelineCache cache = {},
         void* pNext = nullptr);
 
     void Clear();
@@ -187,49 +185,51 @@ private:
  * Use PipelineBuilder to build Pipelines
  */
 class PipelineManager {
-    using CPBuilder = PipelineBuilder<PipelineType::Compute>;
-    using GPBuilder = PipelineBuilder<PipelineType::Graphics>;
-    using ComPipeline = Pipeline<PipelineType::Compute>;
-    using GrapPipeline = Pipeline<PipelineType::Graphics>;
+    using Type_CPBuilder = PipelineBuilder<PipelineType::Compute>;
+    using Type_GPBuilder = PipelineBuilder<PipelineType::Graphics>;
+    using Type_ComPipeline = Pipeline<PipelineType::Compute>;
+    using Type_GrapPipeline = Pipeline<PipelineType::Graphics>;
+
+    using Type_PipelineLayouts =
+        Type_STLUnorderedMap_String<SharedPtr<PipelineLayout>>;
+    using Type_ComputePipelines =
+        Type_STLUnorderedMap_String<SharedPtr<Type_ComPipeline>>;
+    using Type_GraphicsPipelines =
+        Type_STLUnorderedMap_String<SharedPtr<Type_GrapPipeline>>;
 
 public:
     PipelineManager(Context* contex);
     ~PipelineManager() = default;
     MOVABLE_ONLY(PipelineManager);
 
-    friend CPBuilder;
-    friend GPBuilder;
+    friend Type_CPBuilder;
+    friend Type_GPBuilder;
 
 public:
     SharedPtr<PipelineLayout> CreateLayout(
-        ::std::string const& name,
-        vk::ArrayProxy<vk::DescriptorSetLayout> const& setLayouts,
-        vk::ArrayProxy<vk::PushConstantRange> const& pushContants = {},
+        ::std::string_view name,
+        ::std::span<vk::DescriptorSetLayout> setLayouts,
+        ::std::span<vk::PushConstantRange> pushContants = {},
         vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
 
 public:
-    vk::PipelineLayout GetLayoutHandle(::std::string const& name) const;
+    vk::PipelineLayout GetLayoutHandle(::std::string_view name) const;
 
-    vk::Pipeline GetComputePipeline(::std::string const& name) const;
-    vk::Pipeline GetGraphicsPipeline(::std::string const& name) const;
+    vk::Pipeline GetComputePipeline(::std::string_view name) const;
+    vk::Pipeline GetGraphicsPipeline(::std::string_view name) const;
 
-    CPBuilder& GetComputePipelineBuilder();
-    GPBuilder& GetGraphicsPipelineBuilder();
+    Type_CPBuilder& GetComputePipelineBuilder();
+    Type_GPBuilder& GetGraphicsPipelineBuilder();
 
 private:
     Context* pContext;
 
-    CPBuilder mComputePipelineBuilder;
-    GPBuilder mGraphicsPipelineBuilder;
+    Type_CPBuilder mComputePipelineBuilder;
+    Type_GPBuilder mGraphicsPipelineBuilder;
 
-    ::std::unordered_map<::std::string, SharedPtr<PipelineLayout>>
-        mPipelineLayouts;
-
-    ::std::unordered_map<::std::string, SharedPtr<ComPipeline>>
-        mComputePipelines;
-
-    ::std::unordered_map<::std::string, SharedPtr<GrapPipeline>>
-        mGraphicsPipelines;
+    Type_PipelineLayouts mPipelineLayouts;
+    Type_ComputePipelines mComputePipelines;
+    Type_GraphicsPipelines mGraphicsPipelines;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

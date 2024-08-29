@@ -91,19 +91,19 @@ private:
     uint32_t mMeshletVertexCount {0};
     uint32_t mMeshletTriangleCount {0};
 
-    ::std::vector<Mesh> mMeshes {};
+    Type_STLVector<Mesh> mMeshes {};
 
     ::std::filesystem::path mPath;
     ::std::filesystem::path mDirectory;
-    ::std::string mName;
+    Type_STLString mName;
 
     struct MeshDatas {
-        ::std::vector<uint32_t> vertexOffsets;
-        ::std::vector<uint32_t> indexOffsets;
-        ::std::vector<uint32_t> meshletOffsets;
-        ::std::vector<uint32_t> meshletVerticesOffsets;
-        ::std::vector<uint32_t> meshletTrianglesOffsets;
-        ::std::vector<uint32_t> meshletCounts;
+        Type_STLVector<uint32_t> vertexOffsets;
+        Type_STLVector<uint32_t> indexOffsets;
+        Type_STLVector<uint32_t> meshletOffsets;
+        Type_STLVector<uint32_t> meshletVerticesOffsets;
+        Type_STLVector<uint32_t> meshletTrianglesOffsets;
+        Type_STLVector<uint32_t> meshletCounts;
     };
 
     MeshDatas mMeshDatas;
@@ -111,8 +111,8 @@ private:
 
     PushConstants mConstants {};
 
-    ::std::vector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
-    ::std::vector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
+    Type_STLVector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
+    Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
     SharedPtr<RenderResource> mIndirectIndexedCmdBuffer;
     SharedPtr<RenderResource> mMeshTaskIndirectCmdBuffer;
 };

@@ -32,16 +32,16 @@ struct ExternalGPUMeshBuffers {
 
 class Mesh {
 public:
-    Mesh(::std::vector<Vertex> const& vertices,
-         ::std::vector<uint32_t> const& indices);
+    Mesh(Type_STLVector<Vertex> const& vertices,
+         Type_STLVector<uint32_t> const& indices);
 
-    ::std::vector<Vertex> mVertices {};
-    ::std::vector<uint32_t> mIndices {};
+    Type_STLVector<Vertex> mVertices {};
+    Type_STLVector<uint32_t> mIndices {};
 
     // meshlet datas
-    ::std::vector<meshopt_Meshlet> mMeshlets {};
-    ::std::vector<uint32_t> mMeshletVertices {};
-    ::std::vector<uint8_t> mMeshletTriangles {};
+    Type_STLVector<meshopt_Meshlet> mMeshlets {};
+    Type_STLVector<uint32_t> mMeshletVertices {};
+    Type_STLVector<uint8_t> mMeshletTriangles {};
 
     // TODO: Textures
 };

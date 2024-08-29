@@ -69,7 +69,7 @@ private:
     ::std::variant<Buffer, Texture> mResource;
 
     Type mType;
-    ::std::string mName;
+    Type_STLString mName;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -8,8 +8,6 @@
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
 
-#include <meshoptimizer.h>
-
 namespace {
 
 uint32_t CalcMeshCount(aiNode* node) {
@@ -24,7 +22,7 @@ void WriteDataHeader(std::ofstream& ofs, CISDI_3DModelData::Header header) {
     ofs.write((char*)&header, sizeof(header));
 }
 
-void WriteMeshHeader(std::ofstream&                            ofs,
+void WriteMeshHeader(std::ofstream& ofs,
                      CISDI_3DModelData::CISDI_Mesh::MeshHeader meshHeader) {
     ofs.write((char*)&meshHeader, sizeof(meshHeader));
 }
@@ -144,15 +142,17 @@ void CISDI_3DModelData::Convert(const char* path, bool flipYZ,
         || !scene->mRootNode) {
         // TODO: Logging
         throw ::std::runtime_error(
-            ::std::string("ERROR::CISDI_3DMODELDATA::CONVERT::ASSIMP: ")
-            + importer.GetErrorString());
+            (String("ERROR::CISDI_3DMODELDATA::CONVERT::ASSIMP: ")
+             + importer.GetErrorString())
+                .c_str());
     }
 
     ::std::ofstream out(outputPath, ::std::ios::out | ::std::ios::binary);
 
     if (!out.is_open()) {
-        throw ::std::runtime_error(::std::string("fail to open file: ")
-                                   + outputPath.string());
+        throw ::std::runtime_error(
+            (String("fail to open file: ") + outputPath.string().c_str())
+                .c_str());
     }
 
     WriteDataHeader(out, {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
@@ -164,7 +164,8 @@ void CISDI_3DModelData::Convert(const char* path, bool flipYZ,
 CISDI_3DModelData CISDI_3DModelData::Load(const char* path) {
     ::std::ifstream in(path, ::std::ios::binary);
     if (!in.is_open()) {
-        throw ::std::runtime_error(::std::string("fail to open file: ") + path);
+        throw ::std::runtime_error(
+            (String("fail to open file: ") + path).c_str());
     }
 
     CISDI_3DModelData data {};
@@ -173,8 +174,8 @@ CISDI_3DModelData CISDI_3DModelData::Load(const char* path) {
     in.read((char*)&data, sizeof(data.header));
     if (CISDI_3DModel_HEADER_UINT64 != data.header.header) {
         throw ::std::runtime_error(
-            ::std::string("Error::Cisdi3DModelConverter::LoadCISDIModelData ")
-            + path);
+            (String("Error::Cisdi3DModelConverter::LoadCISDIModelData ") + path)
+                .c_str());
     }
 
     // TODO: Version Check
