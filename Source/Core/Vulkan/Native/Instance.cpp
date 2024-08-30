@@ -1,6 +1,6 @@
 #include "Instance.hpp"
 
-#include "Core/Utilities/Logger.hpp"
+#include "Core/Utilities/VulkanUtilities.hpp"
 
 namespace {
 bool LoadDispatcher = false;

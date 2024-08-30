@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Utilities/MemoryPool.hpp"
-#include "RenderResource.hpp"
+#include "Core/Vulkan/Native/RenderResource.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

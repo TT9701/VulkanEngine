@@ -4,42 +4,52 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+using IntelliDesign_NS::ModelData::CISDI_3DModel;
+
 CISDI_3DModelDataConverter::CISDI_3DModelDataConverter(
     const char* path, const char* outputDirectory, bool flipYZ)
     : mFlipYZ(flipYZ), mPath(path), mOutputDirectory(outputDirectory) {}
 
 void CISDI_3DModelDataConverter::Execute() {
     if (mOutputDirectory.empty()) {
-        CISDI_3DModelData::Convert(mPath.c_str(), mFlipYZ, nullptr);
+        CISDI_3DModel::Convert(mPath.c_str(), mFlipYZ, nullptr);
     } else {
-        CISDI_3DModelData::Convert(mPath.c_str(), mFlipYZ,
+        CISDI_3DModel::Convert(mPath.c_str(), mFlipYZ,
                                    mOutputDirectory.c_str());
     }
 }
 
 Type_STLVector<Mesh> CISDI_3DModelDataConverter::LoadCISDIModelData(
     const char* path) {
-    auto data = CISDI_3DModelData::Load(path);
+    auto data = CISDI_3DModel::Load(path);
 
     Type_STLVector<Mesh> meshes;
     meshes.reserve(data.header.meshCount);
-    for (uint32_t i = 0; i < data.header.meshCount; ++i) {
+    for (auto& mesh : data.meshes) {
         Type_STLVector<Vertex> vertices;
-        vertices.reserve(data.meshes[i].header.vertexCount);
-        for (uint32_t j = 0; j < data.meshes[i].header.vertexCount; ++j) {
+        vertices.reserve(mesh.header.vertexCount);
+        for (uint32_t j = 0; j < mesh.header.vertexCount; ++j) {
             Vertex v {};
-            v.position.x = data.meshes[i].vertices.positions[j].x;
-            v.position.y = data.meshes[i].vertices.positions[j].y;
-            v.position.z = data.meshes[i].vertices.positions[j].z;
-            v.normal.x = data.meshes[i].vertices.normals[j].x;
-            v.normal.y = data.meshes[i].vertices.normals[j].y;
-            v.normal.z = data.meshes[i].vertices.normals[j].z;
+            v.position.x = mesh.vertices.positions[j][0];
+            v.position.y = mesh.vertices.positions[j][1];
+            v.position.z = mesh.vertices.positions[j][2];
+            v.position.w = 1.0f;
+            v.normal.x = mesh.vertices.normals[j][0];
+            v.normal.y = mesh.vertices.normals[j][1];
+            v.normal.z = mesh.vertices.normals[j][2];
 
             vertices.push_back(v);
         }
+        Mesh temp {vertices, mesh.indices};
 
-        meshes.emplace_back(std::move(vertices),
-                            std::move(data.meshes[i].indices));
+        if (!mesh.meshlets.empty())
+            temp.mMeshlets = mesh.meshlets;
+        if (!mesh.meshletVertices.empty())
+            temp.mMeshletVertices = mesh.meshletVertices;
+        if (!mesh.meshletTriangles.empty())
+            temp.mMeshletTriangles = mesh.meshletTriangles;
+
+        meshes.emplace_back(temp);
     }
 
     return meshes;

@@ -1,7 +1,6 @@
 #include "Descriptors.hpp"
 
-#include "Context.hpp"
-#include "VulkanHelper.hpp"
+#include "Core/Vulkan/Manager/Context.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

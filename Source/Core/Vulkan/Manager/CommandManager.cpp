@@ -1,9 +1,9 @@
 #include "CommandManager.hpp"
 
-#include "Commands.hpp"
 #include "Context.hpp"
-#include "Core/Utilities/Logger.hpp"
-#include "SyncStructures.hpp"
+#include "Core/Utilities/VulkanUtilities.hpp"
+#include "Core/Vulkan/Native/Commands.hpp"
+#include "Core/Vulkan/Native/SyncStructures.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

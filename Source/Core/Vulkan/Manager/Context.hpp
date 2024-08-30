@@ -4,18 +4,17 @@
 
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Device.hpp"
-#include "VulkanHelper.hpp"
+#include "Core/Vulkan/Native/Device.hpp"
 #ifndef NDEBUG
-#include "DebugUtils.hpp"
+#include "Core/Vulkan/Native/DebugUtils.hpp"
 #endif
-#include "Instance.hpp"
-#include "MemoryAllocator.hpp"
-#include "PhysicalDevice.hpp"
-#include "RenderResource.hpp"
-#include "Sampler.hpp"
-#include "Surface.hpp"
-#include "SyncStructures.hpp"
+#include "Core/Vulkan/Native/Instance.hpp"
+#include "Core/Vulkan/Native/MemoryAllocator.hpp"
+#include "Core/Vulkan/Native/PhysicalDevice.hpp"
+#include "Core/Vulkan/Native/RenderResource.hpp"
+#include "Core/Vulkan/Native/Sampler.hpp"
+#include "Core/Vulkan/Native/Surface.hpp"
+#include "Core/Vulkan/Native/SyncStructures.hpp"
 
 class SDLWindow;
 

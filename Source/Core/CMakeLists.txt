@@ -15,47 +15,49 @@ set (UTILITIES_SRC
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
 set (VULKAN_CORE_SRC 
-    Vulkan/VulkanHelper.hpp
+    Vulkan/Native/Instance.hpp
+    Vulkan/Native/Instance.cpp
+    Vulkan/Native/DebugUtils.hpp
+    Vulkan/Native/DebugUtils.cpp
+    Vulkan/Native/Surface.hpp
+    Vulkan/Native/Surface.cpp
+    Vulkan/Native/PhysicalDevice.hpp
+    Vulkan/Native/PhysicalDevice.cpp
+    Vulkan/Native/Device.hpp
+    Vulkan/Native/Device.cpp
+    Vulkan/Native/MemoryAllocator.hpp
+    Vulkan/Native/MemoryAllocator.cpp
+    Vulkan/Native/Swapchain.hpp
+    Vulkan/Native/Swapchain.cpp
+    Vulkan/Native/Texture.hpp
+    Vulkan/Native/Texture.cpp
+    Vulkan/Native/SyncStructures.hpp
+    Vulkan/Native/SyncStructures.cpp
+    Vulkan/Native/Commands.hpp
+    Vulkan/Native/Commands.cpp
+    Vulkan/Native/Descriptors.hpp
+    Vulkan/Native/Descriptors.cpp
+    Vulkan/Native/Pipeline.hpp
+    Vulkan/Native/Pipeline.cpp
+    Vulkan/Native/Buffer.hpp
+    Vulkan/Native/Buffer.cpp
+    Vulkan/Native/Sampler.hpp
+    Vulkan/Native/Sampler.cpp
+    Vulkan/Native/Shader.hpp
+    Vulkan/Native/Shader.cpp
+    Vulkan/Native/RenderResource.cpp
+    Vulkan/Native/RenderResource.hpp
+
+    Vulkan/Manager/Context.hpp
+    Vulkan/Manager/Context.cpp
+    Vulkan/Manager/CommandManager.cpp
+    Vulkan/Manager/CommandManager.hpp
+    Vulkan/Manager/RenderResourceManager.hpp
+    Vulkan/Manager/RenderResourceManager.cpp
+
     Vulkan/EngineCore.hpp
     Vulkan/EngineCore.cpp
-    Vulkan/Instance.hpp
-    Vulkan/Instance.cpp
-    Vulkan/DebugUtils.hpp
-    Vulkan/DebugUtils.cpp
-    Vulkan/Surface.hpp
-    Vulkan/Surface.cpp
-    Vulkan/PhysicalDevice.hpp
-    Vulkan/PhysicalDevice.cpp
-    Vulkan/Device.hpp
-    Vulkan/Device.cpp
-    Vulkan/Context.hpp
-    Vulkan/Context.cpp
-    Vulkan/MemoryAllocator.hpp
-    Vulkan/MemoryAllocator.cpp
-    Vulkan/Swapchain.hpp
-    Vulkan/Swapchain.cpp
-    Vulkan/Texture.hpp
-    Vulkan/Texture.cpp
-    Vulkan/SyncStructures.hpp
-    Vulkan/SyncStructures.cpp
-    Vulkan/Commands.hpp
-    Vulkan/Commands.cpp
-    Vulkan/CommandManager.cpp
-    Vulkan/CommandManager.hpp
-    Vulkan/Descriptors.hpp
-    Vulkan/Descriptors.cpp
-    Vulkan/Pipeline.hpp
-    Vulkan/Pipeline.cpp
-    Vulkan/Buffer.hpp
-    Vulkan/Buffer.cpp
-    Vulkan/Sampler.hpp
-    Vulkan/Sampler.cpp
-    Vulkan/Shader.hpp
-    Vulkan/Shader.cpp
-    Vulkan/RenderResource.cpp
-    Vulkan/RenderResource.hpp
-    Vulkan/RenderResourceManager.hpp
-    Vulkan/RenderResourceManager.cpp
+    
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 

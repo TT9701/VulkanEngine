@@ -1,7 +1,5 @@
 #include "EngineCore.hpp"
 
-#include "Buffer.hpp"
-
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
@@ -9,15 +7,15 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <glm/glm.hpp>
 #include "glm/gtx/transform.hpp"
 
-#include "Context.hpp"
 #include "Core/Model/CISDI_3DModelConverter.hpp"
 #include "Core/Platform/Window.hpp"
-#include "Descriptors.hpp"
-#include "RenderResource.hpp"
-#include "RenderResourceManager.hpp"
-#include "Shader.hpp"
-#include "Swapchain.hpp"
-#include "VulkanHelper.hpp"
+#include "Core/Vulkan/Manager/Context.hpp"
+#include "Core/Vulkan/Manager/RenderResourceManager.hpp"
+#include "Core/Vulkan/Native/Buffer.hpp"
+#include "Core/Vulkan/Native/Descriptors.hpp"
+#include "Core/Vulkan/Native/RenderResource.hpp"
+#include "Core/Vulkan/Native/Shader.hpp"
+#include "Core/Vulkan/Native/Swapchain.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -50,10 +48,10 @@ EngineCore::EngineCore()
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
     {
-        CISDI_3DModelDataConverter converter {
-            MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx")};
-
-        converter.Execute();
+        // CISDI_3DModelDataConverter converter {
+        //     MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx")};
+        //
+        // converter.Execute();
 
         auto cisdiModelPath = MODEL_PATH("RM_HP_59930007DR0130HP000.cisdi");
 
@@ -62,17 +60,8 @@ EngineCore::EngineCore()
 
         mFactoryModel = MakeShared<Model>(meshes);
 
-        mFactoryModel->GenerateBuffers(mPContext.get(), this);
-    }
-
-    {
-        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("sponza/sponza.obj"));
-        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("teapot.FBX"));
-        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("dragon.obj"), false);
-        // mFactoryModel =
-        //     MakeShared<Model>(MODEL_PATH_CSTR("58360014DR2512ME021-2.STL"));
-        //
-        // mFactoryModel->GenerateMeshletBuffers(mPContext.get(), this);
+        // mFactoryModel->GenerateBuffers(mPContext.get(), this);
+        mFactoryModel->GenerateMeshletBuffers(mPContext.get(), this);
     }
 
     CreateDescriptors();
@@ -159,8 +148,8 @@ void EngineCore::Draw() {
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthAttachmentOptimal);
 
-        DrawMesh(cmd.GetHandle());
-        // MeshShaderDraw(cmd.GetHandle());
+        // DrawMesh(cmd.GetHandle());
+        MeshShaderDraw(cmd.GetHandle());
 
         Utils::TransitionImageLayout(
             cmd.GetHandle(),
@@ -1039,11 +1028,6 @@ void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
         mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"),
         vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(meshPushContants),
         &meshPushContants);
-
-    // uint32_t taskCount =
-    //     (mFactoryModel->GetMeshletCount() + TASK_SHADER_INVOCATION_COUNT - 1)
-    //     / TASK_SHADER_INVOCATION_COUNT;
-    // cmd.drawMeshTasksEXT(taskCount, 1, 1);
 
     cmd.drawMeshTasksIndirectEXT(
         mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetBufferHandle(), 0,

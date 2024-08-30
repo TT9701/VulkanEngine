@@ -7,58 +7,76 @@
 
 #define CISDI_3DModel_Subfix ".cisdi"
 
-template <class T>
-using Vector = ::std::pmr::vector<T>;
-using String = ::std::pmr::string;
+// #ifdef USING_NVIDIA_GPU
+#define MESHLET_MAX_VERTEX_COUNT 64
+#define MESHLET_MAX_TRIANGLE_COUNT 124
 
-struct CISDI_3DModelDataVersion {
-    uint8_t  major;
-    uint8_t  minor;
+// #endif
+
+namespace IntelliDesign_NS::ModelData {
+
+template <class T>
+using Type_STLVector = ::std::pmr::vector<T>;
+using Type_STLString = ::std::pmr::string;
+
+struct Version {
+    uint8_t major;
+    uint8_t minor;
     uint16_t patch;
 };
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
-constexpr CISDI_3DModelDataVersion CISDI_3DModel_VERSION = {0ui8, 1ui8, 1ui16};
+constexpr Version CISDI_3DModel_VERSION = {0ui8, 1ui8, 1ui16};
 
-struct CISDI_3DModelData {
+template <class T, uint32_t Dim>
+struct Vec {
+    T elem[Dim];
+
+    T& operator[](uint32_t idx) { return elem[idx]; }
+};
+
+using Float2 = Vec<float, 2>;
+using Float3 = Vec<float, 3>;
+
+struct CISDI_3DModel {
     struct Header {
-        uint64_t                 header;
-        CISDI_3DModelDataVersion version;
-        uint32_t                 meshCount;
+        uint64_t header;
+        Version version;
+        uint32_t meshCount {0};
+        bool buildMeshlet;
     } header;
 
-    struct CISDI_Mesh {
+    struct Mesh {
         struct MeshHeader {
-            uint32_t vertexCount;
-            uint32_t indexCount;
+            uint32_t vertexCount {0};
+            uint32_t indexCount {0};
+            uint32_t meshletCount {0};
+            uint32_t meshletVertexCount {0};
+            uint32_t meshletTriangleCount {0};
         } header;
 
         struct Vertices {
-            struct Float2 {
-                float x, y;
-            };
-
-            struct Float3 {
-                float x, y, z;
-            };
-
-            Vector<Float3> positions;
-            Vector<Float3> normals;
-            // Vector<Float2> uvs;
-            // Vector<Float3> tangents;
-            // Vector<Float3> bitangents;
-
-            // Vector<meshopt_Meshlet> meshlets;
-            // Vector<uint32_t> meshletVertices;
-            // Vector<uint8_t> meshletTriangles;
+            Type_STLVector<Float3> positions;
+            Type_STLVector<Float3> normals;
+            // Type_STLVector<Float2> uvs;
+            // Type_STLVector<Float3> tangents;
+            // Type_STLVector<Float3> bitangents;
         } vertices;
 
-        Vector<uint32_t> indices;
+        Type_STLVector<uint32_t> indices;
+
+        Type_STLVector<meshopt_Meshlet> meshlets;
+        Type_STLVector<uint32_t> meshletVertices;
+        Type_STLVector<uint8_t> meshletTriangles;
     };
 
-    Vector<CISDI_Mesh> meshes;
+    Type_STLVector<Mesh> meshes;
 
-    static void Convert(const char* path, bool flipYZ, const char* output = nullptr);
+    static void Convert(const char* path, bool flipYZ,
+                        const char* output = nullptr, bool optimizeMesh = true,
+                        bool buildMeshlet = true, bool optimizeMeshlet = true);
 
-    static CISDI_3DModelData Load(const char* path);
+    static CISDI_3DModel Load(const char* path);
 };
+
+}  // namespace IntelliDesign_NS::Model

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <vulkan/vulkan.hpp>
+
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Core/Utilities/VulkanUtilities.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

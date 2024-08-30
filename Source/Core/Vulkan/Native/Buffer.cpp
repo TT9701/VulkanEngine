@@ -2,7 +2,7 @@
 
 #include "Device.hpp"
 #include "MemoryAllocator.hpp"
-#include "VulkanHelper.hpp"
+#include "Core/Utilities/VulkanUtilities.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

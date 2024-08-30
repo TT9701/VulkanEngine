@@ -1,14 +1,14 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "CommandManager.hpp"
 #include "Core/Model/Mesh.hpp"
 #include "Core/Model/Model.hpp"
 #include "Core/Utilities/Camera.hpp"
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
-#include "Pipeline.hpp"
+#include "Core/Vulkan/Manager/CommandManager.hpp"
+#include "Core/Vulkan/Native/Pipeline.hpp"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"

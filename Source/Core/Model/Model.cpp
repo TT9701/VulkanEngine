@@ -4,9 +4,8 @@
 #include <assimp/Importer.hpp>
 // #include <assimp/DefaultLogger.hpp>
 
-#include "Core/Utilities/Logger.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
-#include "Core/Vulkan/Context.hpp"
+#include "Core/Vulkan/Manager/Context.hpp"
 #include "Core/Vulkan/EngineCore.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -515,9 +514,9 @@ void Model::Optimize() {
             (const float*)(&mesh.mVertices[0] + offsetof(Vertex, position)),
             vertexCount, sizeof(Vertex), 1.05f);
 
-        meshopt_optimizeVertexFetch(mesh.mVertices.data(), mesh.mIndices.data(),
-                                    indexCount, mesh.mVertices.data(),
-                                    vertexCount, sizeof(Vertex));
+        // meshopt_optimizeVertexFetch(mesh.mVertices.data(), mesh.mIndices.data(),
+        //                             indexCount, mesh.mVertices.data(),
+        //                             vertexCount, sizeof(Vertex));
 
         const size_t maxVertices = 64;
         const size_t maxTriangles = 124;
