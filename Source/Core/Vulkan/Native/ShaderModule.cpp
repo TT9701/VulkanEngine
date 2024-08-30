@@ -1,9 +1,9 @@
-#include "Shader.hpp"
+#include "ShaderModule.hpp"
 
 #include <stdexcept>
 
-#include "Core/Vulkan/Manager/Context.hpp"
 #include "Core/Utilities/Defines.hpp"
+#include "Core/Vulkan/Manager/Context.hpp"
 
 namespace {
 
@@ -156,29 +156,29 @@ Type_STLVector<uint32_t> CompileGLSLSource(
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Shader::Shader(Context* context, const char* name, const char* path,
-               ShaderStage stage, const char* entry, void* pNext)
-    : pContext(context), mName(name), mEntry(entry), mStage(stage) {
+ShaderModule::ShaderModule(Context* context, const char* path,
+                           ShaderStage stage, const char* entry, void* pNext)
+    : pContext(context), mEntry(entry), mStage(stage) {
     auto binarycode = LoadSPIRVCode(path);
     mShaderModule = CreateShaderModule(binarycode, pNext);
-    pContext->SetName(mShaderModule, name);
 }
 
-Shader::Shader(Context* context, const char* name, const char* sourcePath,
-               ShaderStage stage, bool hasIncludes,
-               Type_ShaderMacros const& defines, const char* entry, void* pNext)
-    : pContext(context), mName(name), mEntry(entry), mStage(stage) {
-    auto binaryCode = CompileGLSLSource(name, sourcePath, stage, hasIncludes,
+ShaderModule::ShaderModule(Context* context, const char* sourcePath,
+                           ShaderStage stage, bool hasIncludes,
+                           Type_ShaderMacros const& defines, const char* entry,
+                           void* pNext)
+    : pContext(context), mEntry(entry), mStage(stage) {
+    auto binaryCode = CompileGLSLSource("", sourcePath, stage, hasIncludes,
                                         defines, mEntry.c_str());
     mShaderModule = CreateShaderModule(binaryCode, pNext);
-    pContext->SetName(mShaderModule, name);
 }
 
-Shader::~Shader() {
+ShaderModule::~ShaderModule() {
     pContext->GetDeviceHandle().destroy(mShaderModule);
 }
 
-vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
+vk::PipelineShaderStageCreateInfo ShaderModule::GetStageInfo(
+    void* pNext) const {
     vk::PipelineShaderStageCreateInfo info;
 
     vk::ShaderStageFlagBits stage;
@@ -208,8 +208,8 @@ vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
     return info;
 }
 
-vk::ShaderModule Shader::CreateShaderModule(::std::span<uint32_t> binaryCode,
-                                            void* pNext) const {
+vk::ShaderModule ShaderModule::CreateShaderModule(
+    ::std::span<uint32_t> binaryCode, void* pNext) const {
     vk::ShaderModuleCreateInfo createInfo {};
     createInfo.setCode(binaryCode).setPNext(pNext);
 

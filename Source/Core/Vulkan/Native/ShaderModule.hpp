@@ -15,21 +15,21 @@ class Context;
 using Type_ShaderMacros = Type_STLUnorderedMap_String<Type_STLString>;
 
 // TODO: Specialization parameters
-class Shader {
+class ShaderModule {
 public:
     // from spirv
-    Shader(Context* context, const char* name, const char* spirvPath,
-           ShaderStage stage, const char* entry = "main",
-           void* pNext = nullptr);
+    ShaderModule(Context* context, const char* spirvPath,
+                 ShaderStage stage, const char* entry = "main",
+                 void* pNext = nullptr);
 
     // from glsl source code
-    Shader(Context* context, const char* name, const char* sourcePath,
-           ShaderStage stage, bool hasIncludes,
-           Type_ShaderMacros const& defines, const char* entry = "main",
-           void* pNext = nullptr);
+    ShaderModule(Context* context, const char* sourcePath,
+                 ShaderStage stage, bool hasIncludes,
+                 Type_ShaderMacros const& defines, const char* entry = "main",
+                 void* pNext = nullptr);
 
-    ~Shader();
-    MOVABLE_ONLY(Shader);
+    ~ShaderModule();
+    MOVABLE_ONLY(ShaderModule);
 
 public:
     vk::ShaderModule GetHandle() const { return mShaderModule; }
@@ -43,7 +43,6 @@ public:
 private:
     Context* pContext;
 
-    Type_STLString mName;
     Type_STLString mEntry;
     ShaderStage mStage;
 

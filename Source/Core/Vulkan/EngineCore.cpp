@@ -5,16 +5,18 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
 
 #include <glm/glm.hpp>
-#include "glm/gtx/transform.hpp"
+#include <glm/gtx/transform.hpp>
 
 #include "Core/Model/CISDI_3DModelConverter.hpp"
 #include "Core/Platform/Window.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
+#include "Core/Vulkan/Manager/PipelineManager.hpp"
 #include "Core/Vulkan/Manager/RenderResourceManager.hpp"
+#include "Core/Vulkan/Manager/ShaderModuleManager.hpp"
 #include "Core/Vulkan/Native/Buffer.hpp"
 #include "Core/Vulkan/Native/Descriptors.hpp"
 #include "Core/Vulkan/Native/RenderResource.hpp"
-#include "Core/Vulkan/Native/Shader.hpp"
+#include "Core/Vulkan/Native/ShaderModule.hpp"
 #include "Core/Vulkan/Native/Swapchain.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -30,7 +32,8 @@ EngineCore::EngineCore()
       mPCmdManager(CreateCommandManager()),
       mPImmediateSubmitManager(CreateImmediateSubmitManager()),
       mDescriptorManager(CreateDescriptorManager()),
-      mPipelineManager(CreatePipelineManager()) {
+      mPipelineManager(CreatePipelineManager()),
+      mShaderModuleManager(CreateShaderModuleManager()) {
     CreateDrawImage();
     CreateDepthImage();
     CreateErrorCheckTexture();
@@ -409,6 +412,10 @@ UniquePtr<PipelineManager> EngineCore::CreatePipelineManager() {
     return MakeUnique<PipelineManager>(mPContext.get());
 }
 
+UniquePtr<ShaderModuleManager> EngineCore::CreateShaderModuleManager() {
+    return MakeUnique<ShaderModuleManager>(mPContext.get());
+}
+
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<CUDA::VulkanExternalImage> EngineCore::CreateExternalImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mPWindow->GetWidth()),
@@ -524,9 +531,9 @@ void EngineCore::CreateBackgroundComputePipeline() {
     auto backgroundPipelineLayout = mPipelineManager->CreateLayout(
         "BackgoundCompute_Layout", setLayouts, {});
 
-    Shader computeDrawShader {mPContext.get(), "computeDraw",
-                              SHADER_PATH_CSTR("BackGround.comp.spv"),
-                              ShaderStage::Compute};
+    auto computeDrawShader = mShaderModuleManager->CreateShaderModule(
+        "computeDraw", SHADER_PATH_CSTR("BackGround.comp.spv"),
+        ShaderStage::Compute);
 
     auto& builder = mPipelineManager->GetComputePipelineBuilder();
 
@@ -539,16 +546,14 @@ void EngineCore::CreateBackgroundComputePipeline() {
 }
 
 void EngineCore::CreateMeshPipeline() {
-    Type_STLVector<Shader> shaders;
+    Type_STLVector<SharedPtr<ShaderModule>> shaders;
     shaders.reserve(2);
 
-    shaders.emplace_back(mPContext.get(), "vertex",
-                         SHADER_PATH_CSTR("Triangle.vert.spv"),
-                         ShaderStage::Vertex);
-
-    shaders.emplace_back(mPContext.get(), "fragment",
-                         SHADER_PATH_CSTR("Triangle.frag.spv"),
-                         ShaderStage::Fragment);
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "vertex", SHADER_PATH_CSTR("Triangle.vert.spv"), ShaderStage::Vertex));
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "fragment", SHADER_PATH_CSTR("Triangle.frag.spv"),
+        ShaderStage::Fragment));
 
     Type_STLVector<vk::PushConstantRange> pushConstants(1);
     pushConstants[0]
@@ -612,18 +617,18 @@ void EngineCore::CreateMeshDescriptors() {
 }
 
 void EngineCore::CreateMeshShaderPipeline() {
-    Type_STLVector<Shader> shaders;
+    Type_STLVector<SharedPtr<ShaderModule>> shaders;
     shaders.reserve(3);
     Type_ShaderMacros macros {};
-    shaders.emplace_back(mPContext.get(), "Mesh shader fragment",
-                         SHADER_PATH_CSTR("MeshShader.frag"),
-                         ShaderStage::Fragment, false, macros);
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "Mesh shader fragment", SHADER_PATH_CSTR("MeshShader.frag"),
+        ShaderStage::Fragment, false, macros));
 
     macros.emplace("TASK_INVOCATION_COUNT",
                    std::to_string(TASK_SHADER_INVOCATION_COUNT));
-    shaders.emplace_back(mPContext.get(), "Mesh shader task",
-                         SHADER_PATH_CSTR("MeshShader.task"), ShaderStage::Task,
-                         false, macros);
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "Mesh shader task", SHADER_PATH_CSTR("MeshShader.task"),
+        ShaderStage::Task, false, macros));
 
     macros.clear();
     macros.emplace("MESH_INVOCATION_COUNT",
@@ -632,9 +637,9 @@ void EngineCore::CreateMeshShaderPipeline() {
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES));
     macros.emplace("MAX_PRIMITIVES",
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
-    shaders.emplace_back(mPContext.get(), "Mesh shader mesh",
-                         SHADER_PATH_CSTR("MeshShader.mesh"), ShaderStage::Mesh,
-                         true, macros);
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
+        ShaderStage::Mesh, true, macros));
 
     Type_STLVector<vk::PushConstantRange> meshPushConstants(1);
     meshPushConstants[0]
@@ -710,16 +715,14 @@ void EngineCore::CreateDrawQuadDescriptors() {
 }
 
 void EngineCore::CreateDrawQuadPipeline() {
-    Type_STLVector<Shader> shaders;
+    Type_STLVector<SharedPtr<ShaderModule>> shaders;
     shaders.reserve(2);
 
-    shaders.emplace_back(mPContext.get(), "vertex",
-                         SHADER_PATH_CSTR("Quad.vert.spv"),
-                         ShaderStage::Vertex);
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "vertex", SHADER_PATH_CSTR("Quad.vert.spv"), ShaderStage::Vertex));
 
-    shaders.emplace_back(mPContext.get(), "fragment",
-                         SHADER_PATH_CSTR("Quad.frag.spv"),
-                         ShaderStage::Fragment);
+    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+        "fragment", SHADER_PATH_CSTR("Quad.frag.spv"), ShaderStage::Fragment));
 
     Type_STLVector<vk::DescriptorSetLayout> setLayouts {
         mDescriptorManager->GetDescSetLayout("Quad_Layout_0")};

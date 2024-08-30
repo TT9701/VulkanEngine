@@ -43,8 +43,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/Buffer.cpp
     Vulkan/Native/Sampler.hpp
     Vulkan/Native/Sampler.cpp
-    Vulkan/Native/Shader.hpp
-    Vulkan/Native/Shader.cpp
+    Vulkan/Native/ShaderModule.hpp
+    Vulkan/Native/ShaderModule.cpp
     Vulkan/Native/RenderResource.cpp
     Vulkan/Native/RenderResource.hpp
 
@@ -54,6 +54,10 @@ set (VULKAN_CORE_SRC
     Vulkan/Manager/CommandManager.hpp
     Vulkan/Manager/RenderResourceManager.hpp
     Vulkan/Manager/RenderResourceManager.cpp
+    Vulkan/Manager/PipelineManager.hpp
+    Vulkan/Manager/PipelineManager.cpp
+    Vulkan/Manager/ShaderModuleManager.hpp
+    Vulkan/Manager/ShaderModuleManager.cpp
 
     Vulkan/EngineCore.hpp
     Vulkan/EngineCore.cpp

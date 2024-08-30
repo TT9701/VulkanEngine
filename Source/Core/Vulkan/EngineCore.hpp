@@ -8,7 +8,6 @@
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "Core/Vulkan/Manager/CommandManager.hpp"
-#include "Core/Vulkan/Native/Pipeline.hpp"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"
@@ -27,9 +26,11 @@ class Fence;
 class CommandBuffers;
 class CommandPool;
 class DescriptorManager;
-class Shader;
+class ShaderModule;
 class RenderResource;
 class RenderResourceManager;
+class ShaderModuleManager;
+class PipelineManager;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -67,6 +68,7 @@ private:
     UniquePtr<CommandManager> CreateCommandManager();
     UniquePtr<DescriptorManager> CreateDescriptorManager();
     UniquePtr<PipelineManager> CreatePipelineManager();
+    UniquePtr<ShaderModuleManager> CreateShaderModuleManager();
     void CreateDrawImage();
     void CreateDepthImage();
     void CreateErrorCheckTexture();
@@ -121,6 +123,7 @@ private:
     UniquePtr<ImmediateSubmitManager> mPImmediateSubmitManager;
     UniquePtr<DescriptorManager> mDescriptorManager;
     UniquePtr<PipelineManager> mPipelineManager;
+    UniquePtr<ShaderModuleManager> mShaderModuleManager;
 
     Camera mMainCamera {};
 
