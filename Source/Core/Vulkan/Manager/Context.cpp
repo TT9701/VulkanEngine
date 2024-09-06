@@ -10,6 +10,9 @@ vk::PhysicalDeviceVulkan12Features Context::sEnable12Features {};
 vk::PhysicalDeviceVulkan13Features Context::sEnable13Features {};
 vk::PhysicalDeviceMeshShaderFeaturesEXT
     Context::sEnableMeshShaderFeaturesExt {};
+vk::PhysicalDeviceDescriptorBufferFeaturesEXT
+    Context::sEnableDescriptorBufferFeaturesExt {};
+vk::PhysicalDeviceMaintenance6FeaturesKHR Context::sEnableMaintenance6KHR {};
 
 Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
                  ::std::span<Type_STLString> requestedInstanceLayers,
@@ -50,42 +53,56 @@ Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
                             "Main Timeline Semaphore");
 }
 
-SharedPtr<RenderResource> Context::CreateTexture2D(
+SharedPtr<Texture> Context::CreateTexture2D(
     const char* name, vk::Extent3D extent, vk::Format format,
     vk::ImageUsageFlags usage, uint32_t mipLevels, uint32_t arraySize,
     uint32_t sampleCount) {
-    auto ptr = MakeShared<RenderResource>(
-        mPDevice.get(), mPAllocator.get(), RenderResource::Type::Texture2D,
-        format, extent, usage, mipLevels, arraySize, sampleCount);
-    ptr->SetName(mPDevice.get(), name);
+    auto ptr = MakeShared<Texture>(mPDevice.get(), mPAllocator.get(),
+                                   Texture::Type::Texture2D, format, extent,
+                                   usage, mipLevels, arraySize, sampleCount);
+    ptr->SetName(name);
     return ptr;
 }
 
-SharedPtr<RenderResource> Context::CreateDeviceLocalBuffer(
+SharedPtr<RenderResource> Context::CreateDeviceLocalBufferResource(
     const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
     auto ptr = MakeShared<RenderResource>(
         mPDevice.get(), mPAllocator.get(), RenderResource::Type::Buffer,
         allocByteSize, usage, Buffer::MemoryType::DeviceLocal);
-    ptr->SetName(mPDevice.get(), name);
+    ptr->SetName(name);
     return ptr;
 }
 
-SharedPtr<RenderResource> Context::CreateStagingBuffer(
-    size_t allocByteSize, vk::BufferUsageFlags usage) {
-    return MakeShared<RenderResource>(
-        mPDevice.get(), mPAllocator.get(), RenderResource::Type::Buffer,
-        allocByteSize, usage | vk::BufferUsageFlagBits::eTransferSrc,
-        Buffer::MemoryType::Staging);
+SharedPtr<Buffer> Context::CreateDeviceLocalBuffer(const char* name,
+                                                   size_t allocByteSize,
+                                                   vk::BufferUsageFlags usage) {
+    auto ptr =
+        MakeShared<Buffer>(mPDevice.get(), mPAllocator.get(), allocByteSize,
+                           usage, Buffer::MemoryType::DeviceLocal);
+    ptr->SetName(name);
+    return ptr;
 }
 
-SharedPtr<RenderResource> Context::CreateStorageBuffer(
-    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
+SharedPtr<Buffer> Context::CreateStagingBuffer(const char* name,
+                                               size_t allocByteSize,
+                                               vk::BufferUsageFlags usage) {
+    auto ptr =
+        MakeShared<Buffer>(mPDevice.get(), mPAllocator.get(), allocByteSize,
+                           usage | vk::BufferUsageFlagBits::eTransferSrc,
+                           Buffer::MemoryType::Staging);
+    ptr->SetName(name);
+    return ptr;
+}
+
+SharedPtr<Buffer> Context::CreateStorageBuffer(const char* name,
+                                               size_t allocByteSize,
+                                               vk::BufferUsageFlags usage) {
     return CreateDeviceLocalBuffer(
         name, allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
-SharedPtr<RenderResource> Context::CreateIndirectCmdBuffer(
-    const char* name, size_t allocByteSize) {
+SharedPtr<Buffer> Context::CreateIndirectCmdBuffer(const char* name,
+                                                   size_t allocByteSize) {
     return CreateDeviceLocalBuffer(name, allocByteSize,
                                    vk::BufferUsageFlagBits::eIndirectBuffer
                                        | vk::BufferUsageFlagBits::eTransferDst);
@@ -283,9 +300,16 @@ void Context::EnableDefaultFeatures() {
     sEnable11Features.setPNext(&sEnable12Features);
     sEnable12Features.setPNext(&sEnable13Features);
 
-    sEnableMeshShaderFeaturesExt.setMeshShader(vk::True).setTaskShader(
-        vk::True);
-    sEnable13Features.setPNext(&sEnableMeshShaderFeaturesExt);
+    sEnableMaintenance6KHR.setMaintenance6(vk::True);
+
+    sEnableMeshShaderFeaturesExt.setMeshShader(vk::True)
+        .setTaskShader(vk::True)
+        .setPNext(&sEnableMaintenance6KHR);
+    
+    sEnableDescriptorBufferFeaturesExt.setDescriptorBuffer(vk::True).setPNext(
+        &sEnableMeshShaderFeaturesExt);
+
+    sEnable13Features.setPNext(&sEnableDescriptorBufferFeaturesExt);
 
     sEnable12Features.setStorageBuffer8BitAccess(vk::True);
 }

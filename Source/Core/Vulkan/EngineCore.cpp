@@ -10,13 +10,13 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "Core/Model/CISDI_3DModelConverter.hpp"
 #include "Core/Platform/Window.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
+#include "Core/Vulkan/Manager/DescriptorManager.hpp"
 #include "Core/Vulkan/Manager/PipelineManager.hpp"
 #include "Core/Vulkan/Manager/RenderResourceManager.hpp"
-#include "Core/Vulkan/Manager/ShaderModuleManager.hpp"
+#include "Core/Vulkan/Manager/ShaderManager.hpp"
 #include "Core/Vulkan/Native/Buffer.hpp"
-#include "Core/Vulkan/Native/Descriptors.hpp"
 #include "Core/Vulkan/Native/RenderResource.hpp"
-#include "Core/Vulkan/Native/ShaderModule.hpp"
+#include "Core/Vulkan/Native/Shader.hpp"
 #include "Core/Vulkan/Native/Swapchain.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -31,28 +31,35 @@ EngineCore::EngineCore()
 #endif
       mPCmdManager(CreateCommandManager()),
       mPImmediateSubmitManager(CreateImmediateSubmitManager()),
-      mDescriptorManager(CreateDescriptorManager()),
+      mDescriptorManager(CreateDescriptorBufferManager()),
       mPipelineManager(CreatePipelineManager()),
       mShaderModuleManager(CreateShaderModuleManager()) {
     CreateDrawImage();
     CreateDepthImage();
     CreateErrorCheckTexture();
 
-    mRenderResManager->CreateBuffer("SceneUniformBuffer", sizeof(SceneData),
-                                    vk::BufferUsageFlagBits::eUniformBuffer,
-                                    Buffer::MemoryType::Staging);
+    mRenderResManager->CreateBuffer(
+        "SceneUniformBuffer", sizeof(SceneData),
+        vk::BufferUsageFlagBits::eUniformBuffer
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        Buffer::MemoryType::Staging);
 
     mRenderResManager->CreateBuffer(
         "RWBuffer",
         sizeof(glm::vec4) * mPWindow->GetWidth() * mPWindow->GetHeight(),
-        vk::BufferUsageFlagBits::eStorageBuffer,
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
         Buffer::MemoryType::DeviceLocal);
 
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
+    // models: teapot.FBX sphere.fbx dragon.obj buddha.obj sponza/sponza.obj
+    //         RM_HP_59930007DR0130HP000.fbx Foliage.fbx
     {
+        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("sponza/sponza.obj"));
+
         // CISDI_3DModelDataConverter converter {
-        //     MODEL_PATH_CSTR("RM_HP_59930007DR0130HP000.fbx")};
+        //     MODEL_PATH_CSTR("sponza/sponza.obj")};
         //
         // converter.Execute();
 
@@ -260,10 +267,15 @@ UniquePtr<Context> EngineCore::CreateContext() {
     enabledDeivceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
         VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(
+        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
         VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(VK_KHR_MAINTENANCE_6_EXTENSION_NAME);
 
 #ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
@@ -376,8 +388,8 @@ void EngineCore::CreateErrorCheckTexture() {
     {
         size_t dataSize = extent.width * extent.height * 4;
 
-        auto uploadBuffer = mPContext->CreateStagingBuffer(dataSize);
-        memcpy(uploadBuffer->GetBufferMappedPtr(), pixels.data(), dataSize);
+        auto uploadBuffer = mPContext->CreateStagingBuffer("", dataSize);
+        memcpy(uploadBuffer->GetMapPtr(), pixels.data(), dataSize);
 
         mPImmediateSubmitManager->Submit([&](vk::CommandBuffer cmd) {
             Utils::TransitionImageLayout(cmd, ptr->GetTexHandle(),
@@ -390,7 +402,7 @@ void EngineCore::CreateErrorCheckTexture() {
                 .setImageExtent(extent);
 
             cmd.copyBufferToImage(
-                uploadBuffer->GetBufferHandle(), ptr->GetTexHandle(),
+                uploadBuffer->GetHandle(), ptr->GetTexHandle(),
                 vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
             Utils::TransitionImageLayout(
@@ -400,20 +412,16 @@ void EngineCore::CreateErrorCheckTexture() {
     }
 }
 
-UniquePtr<DescriptorManager> EngineCore::CreateDescriptorManager() {
-    Type_STLVector<DescPoolSizeRatio> sizes {
-        {vk::DescriptorType::eStorageImage, 1},
-        {vk::DescriptorType::eCombinedImageSampler, 1}};
-
-    return MakeUnique<DescriptorManager>(mPContext.get(), 10, sizes);
-}
-
 UniquePtr<PipelineManager> EngineCore::CreatePipelineManager() {
     return MakeUnique<PipelineManager>(mPContext.get());
 }
 
-UniquePtr<ShaderModuleManager> EngineCore::CreateShaderModuleManager() {
-    return MakeUnique<ShaderModuleManager>(mPContext.get());
+UniquePtr<ShaderManager> EngineCore::CreateShaderModuleManager() {
+    return MakeUnique<ShaderManager>(mPContext.get());
+}
+
+UniquePtr<DescriptorManager> EngineCore::CreateDescriptorBufferManager() {
+    return MakeUnique<DescriptorManager>(mPContext.get());
 }
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -495,74 +503,85 @@ void EngineCore::UpdateSceneUBO() {
 }
 
 void EngineCore::CreateBackgroundComputeDescriptors() {
-    mDescriptorManager->AddDescSetLayoutBinding(
-        0, 1, vk::DescriptorType::eStorageImage);
-    mDescriptorManager->AddDescSetLayoutBinding(
-        1, 1, vk::DescriptorType::eStorageBuffer);
+    Type_STLVector<vk::DescriptorSetLayoutBinding> bindings {};
+    bindings.emplace_back(0, vk::DescriptorType::eStorageImage, 1,
+                          vk::ShaderStageFlagBits::eCompute);
+    bindings.emplace_back(1, vk::DescriptorType::eStorageBuffer, 1,
+                          vk::ShaderStageFlagBits::eCompute);
 
-    const auto drawImageSetLayout = mDescriptorManager->BuildDescSetLayout(
-        "DrawImage_Layout_0", vk::ShaderStageFlagBits::eCompute);
+    auto setLayout =
+        mDescriptorManager->CreateDescLayout("DrawImage_Desc_Layout", bindings);
 
-    const auto drawImageDesc =
-        mDescriptorManager->Allocate("DrawImage_Desc_0", drawImageSetLayout);
+    mDescriptorManager->CreateDescriptorSet("DrawImage",
+                                            "DrawImage_Desc_Layout", 0);
 
-    mDescriptorManager->WriteImage(0,
-                                   {VK_NULL_HANDLE,
-                                    mRenderResManager->GetResource("DrawImage")
-                                        ->GetTexViewHandle("Color-Whole"),
-                                    vk::ImageLayout::eGeneral},
-                                   vk::DescriptorType::eStorageImage);
+    vk::DescriptorImageInfo imageInfo {};
+    imageInfo
+        .setImageView(mRenderResManager->GetResource("DrawImage")
+                          ->GetTexViewHandle("Color-Whole"))
+        .setImageLayout(vk::ImageLayout::eGeneral);
 
-    mDescriptorManager->WriteBuffer(
-        1,
-        {mRenderResManager->GetResource("RWBuffer")->GetBufferHandle(), 0,
-         sizeof(glm::vec4) * mPWindow->GetWidth() * mPWindow->GetHeight()},
-        vk::DescriptorType::eStorageBuffer);
+    mDescriptorManager->CreateImageDescriptor(
+        mDescriptorManager->GetDescriptorSet("DrawImage"), 0,
+        vk::DescriptorType::eStorageImage, &imageInfo);
 
-    mDescriptorManager->UpdateSet(drawImageDesc);
+    vk::DescriptorAddressInfoEXT bufferInfo {};
+    bufferInfo
+        .setAddress(mRenderResManager->GetResource("RWBuffer")
+                        ->GetBufferDeviceAddress())
+        .setRange(mRenderResManager->GetResource("RWBuffer")->GetBufferSize());
+
+    mDescriptorManager->CreateBufferDescriptor(
+        mDescriptorManager->GetDescriptorSet("DrawImage"), 1,
+        vk::DescriptorType::eStorageBuffer, &bufferInfo);
 
     DBG_LOG_INFO("Vulkan Background Compute Descriptors Created");
 }
 
 void EngineCore::CreateBackgroundComputePipeline() {
-    Type_STLVector<vk::DescriptorSetLayout> setLayouts {
-        mDescriptorManager->GetDescSetLayout("DrawImage_Layout_0")};
+    ::std::array setLayouts {
+        mDescriptorManager->GetDescSetLayoutHandle("DrawImage_Desc_Layout")};
 
     auto backgroundPipelineLayout = mPipelineManager->CreateLayout(
         "BackgoundCompute_Layout", setLayouts, {});
 
-    auto computeDrawShader = mShaderModuleManager->CreateShaderModule(
-        "computeDraw", SHADER_PATH_CSTR("BackGround.comp.spv"),
+    auto computeDrawShader = mShaderModuleManager->CreateShaderFromSource(
+        "computeDraw", SHADER_PATH_CSTR("BackGround.comp"),
         ShaderStage::Compute);
 
     auto& builder = mPipelineManager->GetComputePipelineBuilder();
 
     auto backgroundComputePipeline =
-        builder.SetShader(computeDrawShader)
+        builder
+            .SetShader(mShaderModuleManager->GetShader("computeDraw",
+                                                       ShaderStage::Compute))
             .SetLayout(backgroundPipelineLayout->GetHandle())
+            .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
             .Build("BackgroundCompute_Pipeline");
+
+    mShaderModuleManager->ReleaseShader("computeDraw", ShaderStage::Compute);
 
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
 
 void EngineCore::CreateMeshPipeline() {
-    Type_STLVector<SharedPtr<ShaderModule>> shaders;
+    Type_STLVector<SharedPtr<Shader>> shaders;
     shaders.reserve(2);
-
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
-        "vertex", SHADER_PATH_CSTR("Triangle.vert.spv"), ShaderStage::Vertex));
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
-        "fragment", SHADER_PATH_CSTR("Triangle.frag.spv"),
-        ShaderStage::Fragment));
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
+        "vertex", SHADER_PATH_CSTR("Triangle.vert"), ShaderStage::Vertex,
+        true));
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
+        "fragment", SHADER_PATH_CSTR("Triangle.frag"), ShaderStage::Fragment,
+        true));
 
     Type_STLVector<vk::PushConstantRange> pushConstants(1);
     pushConstants[0]
         .setSize(sizeof(PushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
-    Type_STLVector<vk::DescriptorSetLayout> setLayouts {
-        mDescriptorManager->GetDescSetLayout("Triangle_Layout_0"),
-        mDescriptorManager->GetDescSetLayout("Triangle_Layout_1")};
+    ::std::array setLayouts {
+        mDescriptorManager->GetDescSetLayoutHandle("DrawMesh_Desc_Layout_0"),
+        mDescriptorManager->GetDescSetLayoutHandle("DrawMesh_Desc_Layout_1")};
 
     auto trianglePipelineLayout = mPipelineManager->CreateLayout(
         "Triangle_Layout", setLayouts, pushConstants);
@@ -581,52 +600,72 @@ void EngineCore::CreateMeshPipeline() {
             mRenderResManager->GetResource("DrawImage")->GetTexFormat())
         .SetDepthStencilFormat(
             mRenderResManager->GetResource("DepthImage")->GetTexFormat())
+        .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .Build("TriangleDraw_Pipeline");
 
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
 
 void EngineCore::CreateMeshDescriptors() {
-    mDescriptorManager->AddDescSetLayoutBinding(
-        0, 1, vk::DescriptorType::eUniformBuffer);
-
-    const auto triangleSetLayout0 = mDescriptorManager->BuildDescSetLayout(
-        "Triangle_Layout_0",
-        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
-
-    mDescriptorManager->AddDescSetLayoutBinding(
-        0, 1, vk::DescriptorType::eCombinedImageSampler);
-
-    const auto triangleSetLayout1 = mDescriptorManager->BuildDescSetLayout(
-        "Triangle_Layout_1", vk::ShaderStageFlagBits::eFragment);
-
-    const auto triangleDesc0 =
-        mDescriptorManager->Allocate("Triangle_Desc_0", triangleSetLayout0);
-
-    const auto triangleDesc1 =
-        mDescriptorManager->Allocate("Triangle_Desc_1", triangleSetLayout1);
-
-    // mDescriptorManager->WriteImage(
-    //     0,
-    //     {mPContext->GetDefaultNearestSamplerHandle(),
-    //      mErrorCheckImage->GetTexViewHandle("Color-Whole"),
-    //      vk::ImageLayout::eShaderReadOnlyOptimal},
-    //     vk::DescriptorType::eCombinedImageSampler);
+    // Type_STLVector<vk::DescriptorSetLayoutBinding> bindings {};
+    // bindings.emplace_back(
+    //     0, vk::DescriptorType::eUniformBuffer, 1,
+    //     vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+    // auto setLayout0 =
+    //     mDescriptorManager->CreateDescLayout("DrawMesh_0", bindings);
     //
-    // mDescriptorManager->UpdateSet(triangleDesc1);
+    // bindings.clear();
+    // bindings.emplace_back(0, vk::DescriptorType::eCombinedImageSampler, 1,
+    //                       vk::ShaderStageFlagBits::eFragment);
+    // auto setLayout1 =
+    //     mDescriptorManager->CreateDescLayout("DrawMesh_1", bindings);
+
+    mDescriptorManager->CreateDescLayouts(
+        "DrawMesh_Desc_Layout",
+        {{0, 0, vk::DescriptorType::eUniformBuffer,
+          vk::ShaderStageFlagBits::eVertex
+              | vk::ShaderStageFlagBits::eFragment},
+         {1, 0, vk::DescriptorType::eCombinedImageSampler,
+          vk::ShaderStageFlagBits::eFragment}});
+
+    auto set0 = mDescriptorManager->CreateDescriptorSet(
+        "DrawMesh_DescSet_0", "DrawMesh_Desc_Layout_0", 0);
+
+    auto set1 = mDescriptorManager->CreateDescriptorSet(
+        "DrawMesh_DescSet_1", "DrawMesh_Desc_Layout_1", 0);
+
+    vk::DescriptorAddressInfoEXT bufferInfo {};
+    bufferInfo
+        .setAddress(mRenderResManager->GetResource("SceneUniformBuffer")
+                        ->GetBufferDeviceAddress())
+        .setRange(mRenderResManager->GetResource("SceneUniformBuffer")
+                      ->GetBufferSize());
+
+    mDescriptorManager->CreateBufferDescriptor(
+        set0.get(), 0, vk::DescriptorType::eUniformBuffer, &bufferInfo);
+
+    vk::DescriptorImageInfo imageInfo {};
+    imageInfo
+        .setImageView(mRenderResManager->GetResource("ErrorCheckImage")
+                          ->GetTexViewHandle("Color-Whole"))
+        .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(mPContext->GetDefaultNearestSamplerHandle());
+
+    mDescriptorManager->CreateImageDescriptor(
+        set1.get(), 0, vk::DescriptorType::eCombinedImageSampler, &imageInfo);
 }
 
 void EngineCore::CreateMeshShaderPipeline() {
-    Type_STLVector<SharedPtr<ShaderModule>> shaders;
+    Type_STLVector<SharedPtr<Shader>> shaders;
     shaders.reserve(3);
     Type_ShaderMacros macros {};
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
         "Mesh shader fragment", SHADER_PATH_CSTR("MeshShader.frag"),
-        ShaderStage::Fragment, false, macros));
+        ShaderStage::Fragment));
 
     macros.emplace("TASK_INVOCATION_COUNT",
                    std::to_string(TASK_SHADER_INVOCATION_COUNT));
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
         "Mesh shader task", SHADER_PATH_CSTR("MeshShader.task"),
         ShaderStage::Task, false, macros));
 
@@ -637,7 +676,7 @@ void EngineCore::CreateMeshShaderPipeline() {
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES));
     macros.emplace("MAX_PRIMITIVES",
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
         "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
         ShaderStage::Mesh, true, macros));
 
@@ -646,8 +685,8 @@ void EngineCore::CreateMeshShaderPipeline() {
         .setSize(sizeof(PushConstants))
         .setStageFlags(vk::ShaderStageFlagBits::eMeshEXT);
 
-    std::array setLayouts {
-        mDescriptorManager->GetDescSetLayout("MeshShader_Desc_Layout_0")};
+    std::array setLayouts {mDescriptorManager->GetDescSetLayoutHandle(
+        "MeshShaderDraw_Desc_Layout")};
 
     auto meshShaderPipelineLayout = mPipelineManager->CreateLayout(
         "MeshShader_Pipe_Layout", setLayouts, meshPushConstants);
@@ -666,6 +705,7 @@ void EngineCore::CreateMeshShaderPipeline() {
             mRenderResManager->GetResource("DrawImage")->GetTexFormat())
         .SetDepthStencilFormat(
             mRenderResManager->GetResource("DepthImage")->GetTexFormat())
+        .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .Build("MeshShaderDraw_Pipeline");
 
     DBG_LOG_INFO("Vulkan MeshShader Graphics Pipeline Created");
@@ -673,59 +713,59 @@ void EngineCore::CreateMeshShaderPipeline() {
 
 void EngineCore::CreateMeshShaderDescriptors() {
     // set = 0, binding = 0, scene data UBO
-    {
-        mDescriptorManager->AddDescSetLayoutBinding(
-            0, 1, vk::DescriptorType::eUniformBuffer);
+    Type_STLVector<vk::DescriptorSetLayoutBinding> bindings {};
+    bindings.emplace_back(0, vk::DescriptorType::eUniformBuffer, 1,
+                          vk::ShaderStageFlagBits::eMeshEXT);
+    auto setLayout = mDescriptorManager->CreateDescLayout(
+        "MeshShaderDraw_Desc_Layout", bindings);
 
-        const auto meshShaderSetLayout = mDescriptorManager->BuildDescSetLayout(
-            "MeshShader_Desc_Layout_0", vk::ShaderStageFlagBits::eMeshEXT);
+    auto set = mDescriptorManager->CreateDescriptorSet(
+        "MeshShaderDraw", "MeshShaderDraw_Desc_Layout", 0);
 
-        const auto meshShaderDesc = mDescriptorManager->Allocate(
-            "MeshShader_Desc_0_0", meshShaderSetLayout);
+    vk::DescriptorAddressInfoEXT bufferInfo {};
+    bufferInfo
+        .setAddress(mRenderResManager->GetResource("SceneUniformBuffer")
+                        ->GetBufferDeviceAddress())
+        .setRange(mRenderResManager->GetResource("SceneUniformBuffer")
+                      ->GetBufferSize());
 
-        mDescriptorManager->WriteBuffer(
-            0,
-            {mRenderResManager->GetResource("SceneUniformBuffer")
-                 ->GetBufferHandle(),
-             0, sizeof(SceneData)},
-            vk::DescriptorType::eUniformBuffer);
-
-        mDescriptorManager->UpdateSet(meshShaderDesc);
-    }
+    mDescriptorManager->CreateBufferDescriptor(
+        set.get(), 0, vk::DescriptorType::eUniformBuffer, &bufferInfo);
 }
 
 void EngineCore::CreateDrawQuadDescriptors() {
-    mDescriptorManager->AddDescSetLayoutBinding(
-        0, 1, vk::DescriptorType::eCombinedImageSampler);
+    Type_STLVector<vk::DescriptorSetLayoutBinding> bindings {};
+    bindings.emplace_back(0, vk::DescriptorType::eCombinedImageSampler, 1,
+                          vk::ShaderStageFlagBits::eFragment);
+    auto setLayout =
+        mDescriptorManager->CreateDescLayout("DrawQuad_Desc_Layout", bindings);
 
-    const auto quadSetLayout = mDescriptorManager->BuildDescSetLayout(
-        "Quad_Layout_0", vk::ShaderStageFlagBits::eFragment);
+    auto set = mDescriptorManager->CreateDescriptorSet(
+        "DrawQuad", "DrawQuad_Desc_Layout", 0);
 
-    const auto quadDesc =
-        mDescriptorManager->Allocate("Quad_Desc_0", quadSetLayout);
+    vk::DescriptorImageInfo imageInfo {};
+    imageInfo
+        .setImageView(mRenderResManager->GetResource("DrawImage")
+                          ->GetTexViewHandle("Color-Whole"))
+        .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(mPContext->GetDefaultLinearSamplerHandle());
 
-    mDescriptorManager->WriteImage(0,
-                                   {mPContext->GetDefaultLinearSamplerHandle(),
-                                    mRenderResManager->GetResource("DrawImage")
-                                        ->GetTexViewHandle("Color-Whole"),
-                                    vk::ImageLayout::eShaderReadOnlyOptimal},
-                                   vk::DescriptorType::eCombinedImageSampler);
-
-    mDescriptorManager->UpdateSet(quadDesc);
+    mDescriptorManager->CreateImageDescriptor(
+        set.get(), 0, vk::DescriptorType::eCombinedImageSampler, &imageInfo);
 }
 
 void EngineCore::CreateDrawQuadPipeline() {
-    Type_STLVector<SharedPtr<ShaderModule>> shaders;
+    Type_STLVector<SharedPtr<Shader>> shaders;
     shaders.reserve(2);
 
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
-        "vertex", SHADER_PATH_CSTR("Quad.vert.spv"), ShaderStage::Vertex));
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
+        "Quad vertex", SHADER_PATH_CSTR("Quad.vert"), ShaderStage::Vertex));
 
-    shaders.emplace_back(mShaderModuleManager->CreateShaderModule(
-        "fragment", SHADER_PATH_CSTR("Quad.frag.spv"), ShaderStage::Fragment));
+    shaders.emplace_back(mShaderModuleManager->CreateShaderFromSource(
+        "Quad fragment", SHADER_PATH_CSTR("Quad.frag"), ShaderStage::Fragment));
 
-    Type_STLVector<vk::DescriptorSetLayout> setLayouts {
-        mDescriptorManager->GetDescSetLayout("Quad_Layout_0")};
+    ::std::array setLayouts {
+        mDescriptorManager->GetDescSetLayoutHandle("DrawQuad_Desc_Layout")};
 
     auto quadPipelineLayout =
         mPipelineManager->CreateLayout("Quad_Layout", setLayouts);
@@ -742,6 +782,7 @@ void EngineCore::CreateDrawQuadPipeline() {
         .SetDepth(vk::False, vk::False)
         .SetColorAttachmentFormat(mPSwapchain->GetFormat())
         .SetDepthStencilFormat(vk::Format::eUndefined)
+        .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .Build("QuadDraw_Pipeline");
 
     DBG_LOG_INFO("Vulkan Quad Graphics Pipeline Created");
@@ -764,14 +805,18 @@ void EngineCore::DrawBackground(vk::CommandBuffer cmd) {
 
     // Compute Draw
     {
-        cmd.bindPipeline(
-            vk::PipelineBindPoint::eCompute,
-            mPipelineManager->GetComputePipeline("BackgroundCompute_Pipeline"));
+        mPipelineManager->BindComputePipeline(cmd,
+                                              "BackgroundCompute_Pipeline");
 
-        cmd.bindDescriptorSets(
-            vk::PipelineBindPoint::eCompute,
-            mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0,
-            mDescriptorManager->GetDescriptor("DrawImage_Desc_0"), {});
+        ::std::array bufferIndex {0ui32};
+        mDescriptorManager->BindDescBuffers(cmd, bufferIndex);
+
+        ::std::array setBufferIndex = {0ui32};
+        ::std::array<Type_STLString, 1> descSetNames {"DrawImage"};
+        mDescriptorManager->BindDescriptorSets(
+            cmd, vk::PipelineBindPoint::eCompute,
+            mPipelineManager->GetLayoutHandle("BackgoundCompute_Layout"), 0ui32,
+            setBufferIndex, descSetNames);
 
         cmd.dispatch(
             ::std::ceil(
@@ -857,10 +902,6 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
 
     cmd.beginRendering(renderInfo);
 
-    cmd.bindPipeline(
-        vk::PipelineBindPoint::eGraphics,
-        mPipelineManager->GetGraphicsPipeline("TriangleDraw_Pipeline"));
-
     vk::Viewport viewport {};
     viewport
         .setWidth(mRenderResManager->GetResource("DrawImage")->GetTexWidth())
@@ -875,23 +916,18 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
          mRenderResManager->GetResource("DrawImage")->GetTexHeight()});
     cmd.setScissor(0, scissor);
 
-    mDescriptorManager->WriteImage(
-        0,
-        {mPContext->GetDefaultNearestSamplerHandle(),
-         mRenderResManager->GetResource("ErrorCheckImage")
-             ->GetTexViewHandle("Color-Whole"),
-         vk::ImageLayout::eShaderReadOnlyOptimal},
-        vk::DescriptorType::eCombinedImageSampler);
+    mPipelineManager->BindGraphicsPipeline(cmd, "TriangleDraw_Pipeline");
 
-    mDescriptorManager->UpdateSet(
-        mDescriptorManager->GetDescriptor("Triangle_Desc_1"));
+    ::std::array bufferIndex {0ui32};
+    mDescriptorManager->BindDescBuffers(cmd, bufferIndex);
 
-    cmd.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        mPipelineManager->GetLayoutHandle("Triangle_Layout"), 0,
-        {mDescriptorManager->GetDescriptor("Triangle_Desc_0"),
-         mDescriptorManager->GetDescriptor("Triangle_Desc_1")},
-        {});
+    ::std::array setBufferIndices = {0ui32, 0ui32};
+    ::std::array<Type_STLString, 2> descSetNames {"DrawMesh_DescSet_0",
+                                                  "DrawMesh_DescSet_1"};
+    mDescriptorManager->BindDescriptorSets(
+        cmd, vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetLayoutHandle("Triangle_Layout"), 0ui32,
+        setBufferIndices, descSetNames);
 
     cmd.bindIndexBuffer(
         mFactoryModel->GetMeshBuffer().mIndexBuffer->GetBufferHandle(), 0,
@@ -900,7 +936,6 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
     {
         glm::mat4 model {1.0f};
         model = glm::scale(model, glm::vec3 {0.0001f});
-
         auto pushContants = mFactoryModel->GetPushContants();
         pushContants.mModelMatrix = model;
 
@@ -908,18 +943,8 @@ void EngineCore::DrawMesh(vk::CommandBuffer cmd) {
                           vk::ShaderStageFlagBits::eVertex, 0,
                           sizeof(pushContants), &pushContants);
 
-        mDescriptorManager->WriteBuffer(
-            0,
-            {mRenderResManager->GetResource("SceneUniformBuffer")
-                 ->GetBufferHandle(),
-             0, sizeof(SceneData)},
-            vk::DescriptorType::eUniformBuffer);
-
-        mDescriptorManager->UpdateSet(
-            mDescriptorManager->GetDescriptor("Triangle_Desc_0"));
-
         cmd.drawIndexedIndirect(
-            mFactoryModel->GetIndexedIndirectCmdBuffer()->GetBufferHandle(), 0,
+            mFactoryModel->GetIndexedIndirectCmdBuffer()->GetHandle(), 0,
             mFactoryModel->GetMeshes().size(),
             sizeof(vk::DrawIndexedIndirectCommand));
     }
@@ -945,10 +970,6 @@ void EngineCore::DrawQuad(vk::CommandBuffer cmd) {
 
     cmd.beginRendering(renderInfo);
 
-    cmd.bindPipeline(
-        vk::PipelineBindPoint::eGraphics,
-        mPipelineManager->GetGraphicsPipeline("QuadDraw_Pipeline"));
-
     vk::Viewport viewport {};
     viewport.setWidth(mPSwapchain->GetExtent2D().width)
         .setHeight(mPSwapchain->GetExtent2D().height)
@@ -961,10 +982,17 @@ void EngineCore::DrawQuad(vk::CommandBuffer cmd) {
         {mPSwapchain->GetExtent2D().width, mPSwapchain->GetExtent2D().height});
     cmd.setScissor(0, scissor);
 
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                           mPipelineManager->GetLayoutHandle("Quad_Layout"), 0,
-                           mDescriptorManager->GetDescriptor("Quad_Desc_0"),
-                           {});
+    mPipelineManager->BindGraphicsPipeline(cmd, "QuadDraw_Pipeline");
+
+    ::std::array bufferIndex {0ui32};
+    mDescriptorManager->BindDescBuffers(cmd, bufferIndex);
+
+    ::std::array setBufferIndices = {0ui32};
+    ::std::array<Type_STLString, 1> descSetNames {"DrawQuad"};
+    mDescriptorManager->BindDescriptorSets(
+        cmd, vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetLayoutHandle("Quad_Layout"), 0ui32,
+        setBufferIndices, descSetNames);
 
     cmd.draw(3, 1, 0, 0);
 
@@ -1001,10 +1029,6 @@ void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
 
     cmd.beginRendering(renderInfo);
 
-    cmd.bindPipeline(
-        vk::PipelineBindPoint::eGraphics,
-        mPipelineManager->GetGraphicsPipeline("MeshShaderDraw_Pipeline"));
-
     vk::Viewport viewport {};
     viewport
         .setWidth(mRenderResManager->GetResource("DrawImage")->GetTexWidth())
@@ -1019,10 +1043,17 @@ void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
          mRenderResManager->GetResource("DrawImage")->GetTexHeight()});
     cmd.setScissor(0, scissor);
 
-    cmd.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"), 0,
-        {mDescriptorManager->GetDescriptor("MeshShader_Desc_0_0")}, {});
+    mPipelineManager->BindGraphicsPipeline(cmd, "MeshShaderDraw_Pipeline");
+
+    ::std::array bufferIndex {0ui32};
+    mDescriptorManager->BindDescBuffers(cmd, bufferIndex);
+
+    ::std::array setBufferIndices = {0ui32};
+    ::std::array<Type_STLString, 1> descSetNames {"MeshShaderDraw"};
+    mDescriptorManager->BindDescriptorSets(
+        cmd, vk::PipelineBindPoint::eGraphics,
+        mPipelineManager->GetLayoutHandle("MeshShader_Pipe_Layout"), 0ui32,
+        setBufferIndices, descSetNames);
 
     auto meshPushContants = mFactoryModel->GetPushContants();
     meshPushContants.mModelMatrix =
@@ -1033,7 +1064,7 @@ void EngineCore::MeshShaderDraw(vk::CommandBuffer cmd) {
         &meshPushContants);
 
     cmd.drawMeshTasksIndirectEXT(
-        mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetBufferHandle(), 0,
+        mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
         mFactoryModel->GetMeshes().size(),
         sizeof(vk::DrawMeshTasksIndirectCommandEXT));
 

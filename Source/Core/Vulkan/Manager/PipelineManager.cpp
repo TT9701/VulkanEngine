@@ -1,7 +1,7 @@
 #include "PipelineManager.hpp"
 
 #include "Context.hpp"
-#include "Core/Vulkan/Native/ShaderModule.hpp"
+#include "Core/Vulkan/Native/Shader.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -19,9 +19,11 @@ PipelineBuilder<PipelineType::Graphics>::SetLayout(vk::PipelineLayout layout) {
 
 PipelineBuilder<PipelineType::Graphics>&
 PipelineBuilder<PipelineType::Graphics>::SetShaders(
-    ::std::span<SharedPtr<ShaderModule>> shaders) {
+    ::std::span<SharedPtr<Shader>> shaders) {
     mShaderStages.clear();
     for (const auto& shader : shaders) {
+        shader->GetMutex().lock();
+        pShaders.push_back(shader.get());
         mShaderStages.push_back(shader->GetStageInfo());
     }
     return *this;
@@ -110,6 +112,12 @@ PipelineBuilder<PipelineType::Graphics>::SetBaseIndex(int32_t index) {
     return *this;
 }
 
+PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
+    PipelineType::Graphics>::SetFlags(vk::PipelineCreateFlags flags) {
+    mFlags = flags;
+    return *this;
+}
+
 SharedPtr<Pipeline<PipelineType::Graphics>>
 PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
                                                vk::PipelineCache cache,
@@ -145,11 +153,15 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
         .setLayout(mPipelineLayout)
         .setPDynamicState(&dynamicInfo)
         .setBasePipelineHandle(mBaseHandle)
-        .setBasePipelineIndex(mBaseIndex);
+        .setBasePipelineIndex(mBaseIndex)
+        .setFlags(mFlags);
 
     auto ptr = MakeShared<Pipeline<PipelineType::Graphics>>(pManager->pContext,
                                                             createInfo, cache);
 
+    for (const auto& modules : pShaders) {
+        modules->GetMutex().unlock();
+    }
     pManager->pContext->SetName(ptr->GetHandle(), name);
     pManager->mGraphicsPipelines.emplace(name, ptr);
 
@@ -160,6 +172,7 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
 
 void PipelineBuilder<PipelineType::Graphics>::Clear() {
     mShaderStages.clear();
+    pShaders.clear();
     mPipelineLayout = vk::PipelineLayout {};
     mInputAssembly = vk::PipelineInputAssemblyStateCreateInfo {};
     mRasterizer = vk::PipelineRasterizationStateCreateInfo {};
@@ -168,6 +181,7 @@ void PipelineBuilder<PipelineType::Graphics>::Clear() {
     mDepthStencil = vk::PipelineDepthStencilStateCreateInfo {};
     mRenderInfo = vk::PipelineRenderingCreateInfo {};
     mColorAttachmentformat = vk::Format {};
+    mFlags = {};
 }
 
 PipelineBuilder<PipelineType::Compute>::PipelineBuilder(
@@ -176,8 +190,10 @@ PipelineBuilder<PipelineType::Compute>::PipelineBuilder(
     Clear();
 }
 
-PipelineBuilder<PipelineType::Compute>& PipelineBuilder<
-    PipelineType::Compute>::SetShader(SharedPtr<ShaderModule> shader) {
+PipelineBuilder<PipelineType::Compute>&
+PipelineBuilder<PipelineType::Compute>::SetShader(SharedPtr<Shader> shader) {
+    shader->GetMutex().lock();
+    pShader = shader.get();
     mStageInfo = shader->GetStageInfo();
     return *this;
 }
@@ -223,6 +239,7 @@ PipelineBuilder<PipelineType::Compute>::Build(const char* name,
     auto ptr = MakeShared<Pipeline<PipelineType::Compute>>(pManager->pContext,
                                                            info, cache);
 
+    pShader->GetMutex().unlock();
     pManager->pContext->SetName(ptr->GetHandle(), name);
     pManager->mComputePipelines.emplace(name, ptr);
 
@@ -259,11 +276,12 @@ vk::PipelineLayout PipelineManager::GetLayoutHandle(const char* name) const {
     return mPipelineLayouts.at(name)->GetHandle();
 }
 
-vk::Pipeline PipelineManager::GetComputePipeline(const char* name) const {
+vk::Pipeline PipelineManager::GetComputePipelineHandle(const char* name) const {
     return mComputePipelines.at(name)->GetHandle();
 }
 
-vk::Pipeline PipelineManager::GetGraphicsPipeline(const char* name) const {
+vk::Pipeline PipelineManager::GetGraphicsPipelineHandle(
+    const char* name) const {
     return mGraphicsPipelines.at(name)->GetHandle();
 }
 
@@ -273,6 +291,18 @@ PipelineManager::Type_CPBuilder& PipelineManager::GetComputePipelineBuilder() {
 
 PipelineManager::Type_GPBuilder& PipelineManager::GetGraphicsPipelineBuilder() {
     return mGraphicsPipelineBuilder;
+}
+
+void PipelineManager::BindComputePipeline(vk::CommandBuffer cmd,
+                                          const char* name) {
+    cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
+                     GetComputePipelineHandle(name));
+}
+
+void PipelineManager::BindGraphicsPipeline(vk::CommandBuffer cmd,
+                                           const char* name) {
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics,
+                     GetGraphicsPipelineHandle(name));
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

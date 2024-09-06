@@ -5,7 +5,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class ShaderModule;
+class Shader;
 class PipelineManager;
 
 template <PipelineType Type>
@@ -20,13 +20,9 @@ public:
 
 public:
     PipelineBuilder& SetLayout(vk::PipelineLayout layout);
-
-    PipelineBuilder& SetShaders(::std::span<SharedPtr<ShaderModule>> shaders);
-
+    PipelineBuilder& SetShaders(::std::span<SharedPtr<Shader>> shaders);
     PipelineBuilder& SetInputTopology(vk::PrimitiveTopology topology);
-
     PipelineBuilder& SetPolygonMode(vk::PolygonMode mode);
-
     PipelineBuilder& SetCullMode(vk::CullModeFlags cullMode,
                                  vk::FrontFace frontFace);
 
@@ -38,19 +34,16 @@ public:
     PipelineBuilder& SetBlending(vk::Bool32 enable = vk::False);
 
     PipelineBuilder& SetColorAttachmentFormat(vk::Format format);
-
     PipelineBuilder& SetDepthStencilFormat(vk::Format format);
-
     PipelineBuilder& SetDepth(
         vk::Bool32 depthTest = vk::False, vk::Bool32 depthWrite = vk::False,
         vk::CompareOp compare = vk::CompareOp::eLessOrEqual);
 
     // TODO: specify stencil - pipeline settings
     PipelineBuilder& SetStencil(vk::Bool32 stencil = vk::False);
-
     PipelineBuilder& SetBaseHandle(vk::Pipeline baseHandle);
-
     PipelineBuilder& SetBaseIndex(int32_t index);
+    PipelineBuilder& SetFlags(vk::PipelineCreateFlags flags);
 
     SharedPtr<Pipeline<PipelineType::Graphics>> Build(
         const char* name, vk::PipelineCache cache = {}, void* pNext = nullptr);
@@ -59,6 +52,7 @@ public:
 
 private:
     PipelineManager* pManager;
+    Type_STLVector<Shader*> pShaders;
 
     Type_STLVector<vk::PipelineShaderStageCreateInfo> mShaderStages {};
 
@@ -72,6 +66,7 @@ private:
     vk::Format mColorAttachmentformat;
     vk::Pipeline mBaseHandle {};
     int32_t mBaseIndex {};
+    vk::PipelineCreateFlags mFlags {};
 };
 
 template <>
@@ -82,14 +77,10 @@ public:
     MOVABLE_ONLY(PipelineBuilder);
 
 public:
-    PipelineBuilder& SetShader(SharedPtr<ShaderModule> shader);
-
+    PipelineBuilder& SetShader(SharedPtr<Shader> shader);
     PipelineBuilder& SetLayout(vk::PipelineLayout pipelineLayout);
-
     PipelineBuilder& SetFlags(vk::PipelineCreateFlags flags);
-
     PipelineBuilder& SetBaseHandle(vk::Pipeline baseHandle);
-
     PipelineBuilder& SetBaseIndex(int32_t index);
 
     SharedPtr<Pipeline<PipelineType::Compute>> Build(
@@ -99,7 +90,7 @@ public:
 
 private:
     PipelineManager* pManager;
-
+    Shader* pShader;
     vk::PipelineShaderStageCreateInfo mStageInfo {};
     vk::PipelineLayout mPipelineLayout {};
     vk::PipelineCreateFlags mFlags {};
@@ -141,11 +132,14 @@ public:
 public:
     vk::PipelineLayout GetLayoutHandle(const char* name) const;
 
-    vk::Pipeline GetComputePipeline(const char* name) const;
-    vk::Pipeline GetGraphicsPipeline(const char* name) const;
+    vk::Pipeline GetComputePipelineHandle(const char* name) const;
+    vk::Pipeline GetGraphicsPipelineHandle(const char* name) const;
 
     Type_CPBuilder& GetComputePipelineBuilder();
     Type_GPBuilder& GetGraphicsPipelineBuilder();
+
+    void BindComputePipeline(vk::CommandBuffer cmd, const char* name);
+    void BindGraphicsPipeline(vk::CommandBuffer cmd, const char* name);
 
 private:
     Context* pContext;

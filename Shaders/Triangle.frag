@@ -14,10 +14,12 @@ layout (set = 0, binding = 0) uniform SceneDataUBO{
 
 layout (set = 1, binding = 0) uniform sampler2D tex0;
 
-const vec3 objectColor = vec3(0.8, 0.8, 0.8);
+// const vec3 objectColor = vec3(0.8, 0.8, 0.8);
 
 void main() 
 {
+	vec3 objectColor = texture(tex0, inUV).xyz;
+
 	float ambientStrenth = 0.1;
 	vec3 lightPos = ubo.data.sunLightPos.xyz;
 	vec3 lightColor = ubo.data.sunLightColor.xyz;
@@ -39,6 +41,6 @@ void main()
 
 	vec3 result = (ambient + diffuse + specular) * objectColor;
 
-	outFragColor = vec4(normal * 0.5 + vec3(0.5), 1.0);
-	// outFragColor = vec4(normal, 1.0);
+	// outFragColor = vec4(normal * 0.5 + vec3(0.5), 1.0);
+	outFragColor = vec4(result, 1.0);
 }

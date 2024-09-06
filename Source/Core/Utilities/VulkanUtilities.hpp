@@ -10,6 +10,11 @@
 
 namespace IntelliDesign_NS::Vulkan::Core::Utils {
 
+template <class T>
+T AlignedSize(T value, T alignment) {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
 Type_STLVector<Type_STLString> FilterStringList(
     ::std::span<Type_STLString> available, ::std::span<Type_STLString> request);
 

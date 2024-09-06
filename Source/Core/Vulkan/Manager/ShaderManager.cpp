@@ -1,0 +1,98 @@
+#include "ShaderManager.hpp"
+
+#include "Context.hpp"
+
+namespace IntelliDesign_NS::Vulkan::Core {
+
+ShaderManager::ShaderManager(Context* context) : pContext(context) {}
+
+SharedPtr<Shader> ShaderManager::CreateShaderFromSPIRV(const char* name,
+                                                       const char* spirvPath,
+                                                       ShaderStage stage,
+                                                       const char* entry,
+                                                       void* pNext) {
+    auto shaderName = ParseShaderName(name, stage, {}, entry);
+    auto ptr = MakeShared<Shader>(pContext, spirvPath, stage, entry, pNext);
+    pContext->SetName(ptr->GetHandle(), shaderName.c_str());
+
+    ::std::unique_lock<::std::mutex> lock {mMutex};
+    mShaders.emplace(shaderName, ptr);
+    return ptr;
+}
+
+SharedPtr<Shader> ShaderManager::CreateShaderFromSource(
+    const char* name, const char* sourcePath, ShaderStage stage,
+    bool hasIncludes, Type_ShaderMacros const& defines, const char* entry,
+    void* pNext) {
+    auto shaderName = ParseShaderName(name, stage, defines, entry);
+    auto ptr = MakeShared<Shader>(pContext, sourcePath, stage, hasIncludes,
+                                  defines, entry, pNext);
+    pContext->SetName(ptr->GetHandle(), shaderName.c_str());
+
+    ::std::unique_lock<::std::mutex> lock {mMutex};
+    mShaders.emplace(shaderName, ptr);
+    return ptr;
+}
+
+void ShaderManager::ReleaseShader(const char* name, ShaderStage stage,
+                                  Type_ShaderMacros const& defines,
+                                  const char* entry) {
+    auto shaderName = ParseShaderName(name, stage, defines, entry);
+    ::std::unique_lock<::std::mutex> lock {mMutex};
+    auto it = mShaders.find(shaderName);
+    if (it != mShaders.end()) {
+        ::std::unique_lock<::std::mutex> ll {it->second->GetMutex()};
+        mShaders.erase(it);
+    }
+}
+
+SharedPtr<Shader> ShaderManager::GetShader(const char* name, ShaderStage stage,
+                                           Type_ShaderMacros const& defines,
+                                           const char* entry) {
+    auto shaderName = ParseShaderName(name, stage, defines, entry);
+    ::std::unique_lock<::std::mutex> lock {mMutex};
+    return mShaders.at(shaderName);
+}
+
+struct Comp {
+    template <typename T>
+    bool operator()(const T& l, const T& r) const {
+        if (l.first != r.first) {
+            return l.first < r.first;
+        }
+        return l.second < r.second;
+    }
+};
+
+Type_STLString ShaderManager::ParseShaderName(const char* name,
+                                              ShaderStage stage,
+                                              Type_ShaderMacros const& defines,
+                                              const char* entry) {
+    Type_STLString res {};
+    res = name;
+
+    // TODO: hlsl
+    res.append("_glsl460");
+
+    switch (stage) {
+        case ShaderStage::Vertex: res.append("_vert"); break;
+        case ShaderStage::Fragment: res.append("_frag"); break;
+        case ShaderStage::Compute: res.append("_comp"); break;
+        case ShaderStage::Task: res.append("_task"); break;
+        case ShaderStage::Mesh: res.append("_mesh"); break;
+    }
+
+    if (!defines.empty()) {
+        ::std::set<::std::pair<Type_STLString, Type_STLString>, Comp> temp {
+            defines.begin(), defines.end()};
+        for (auto const& [macro, value] : temp) {
+            res.append("_" + macro + "_" + value);
+        }
+    }
+
+    res.append(Type_STLString("_") + entry);
+
+    return res;
+}
+
+}  // namespace IntelliDesign_NS::Vulkan::Core

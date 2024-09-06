@@ -35,24 +35,30 @@ public:
     MOVABLE_ONLY(Context);
 
 public:
-    SharedPtr<RenderResource> CreateTexture2D(
-        const char* name, vk::Extent3D extent, vk::Format format,
-        vk::ImageUsageFlags usage, uint32_t mipLevels = 1,
-        uint32_t arraySize = 1, uint32_t sampleCount = 1);
+    SharedPtr<Texture> CreateTexture2D(const char* name, vk::Extent3D extent,
+                                       vk::Format format,
+                                       vk::ImageUsageFlags usage,
+                                       uint32_t mipLevels = 1,
+                                       uint32_t arraySize = 1,
+                                       uint32_t sampleCount = 1);
 
-    SharedPtr<RenderResource> CreateDeviceLocalBuffer(
+    SharedPtr<RenderResource> CreateDeviceLocalBufferResource(
         const char* name, size_t allocByteSize, vk::BufferUsageFlags usage);
 
-    SharedPtr<RenderResource> CreateStagingBuffer(
+    SharedPtr<Buffer> CreateDeviceLocalBuffer(const char* name,
+                                              size_t allocByteSize,
+                                              vk::BufferUsageFlags usage);
+
+    SharedPtr<Buffer> CreateStagingBuffer(const char* name,
         size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
-    SharedPtr<RenderResource> CreateStorageBuffer(
+    SharedPtr<Buffer> CreateStorageBuffer(
         const char* name, size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
-    SharedPtr<RenderResource> CreateIndirectCmdBuffer(const char* name,
-                                                      size_t allocByteSize);
+    SharedPtr<Buffer> CreateIndirectCmdBuffer(const char* name,
+                                              size_t allocByteSize);
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
@@ -148,6 +154,9 @@ private:
     static vk::PhysicalDeviceVulkan12Features sEnable12Features;
     static vk::PhysicalDeviceVulkan13Features sEnable13Features;
     static vk::PhysicalDeviceMeshShaderFeaturesEXT sEnableMeshShaderFeaturesExt;
+    static vk::PhysicalDeviceDescriptorBufferFeaturesEXT
+        sEnableDescriptorBufferFeaturesExt;
+    static vk::PhysicalDeviceMaintenance6FeaturesKHR sEnableMaintenance6KHR;
 
 private:
     UniquePtr<Instance> mPInstance;

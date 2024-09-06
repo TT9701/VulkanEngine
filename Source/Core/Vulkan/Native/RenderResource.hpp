@@ -32,13 +32,16 @@ public:
                    vk::Format format, vk::Extent3D extent, uint32_t arraySize,
                    uint32_t sampleCount);
 
+    RenderResource(Buffer&& buffer);
+    RenderResource(Texture&& texture);
+
     ~RenderResource() = default;
 
 public:
     Type GetType() const;
     ::std::string_view GetName() const;
 
-    void SetName(Device* device, const char* name);
+    void SetName(const char* name);
 
     // buffer
     vk::Buffer GetBufferHandle() const;

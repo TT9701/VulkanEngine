@@ -59,11 +59,11 @@ public:
 
     PushConstants GetPushContants() const { return mConstants; }
 
-    RenderResource* GetIndexedIndirectCmdBuffer() const {
+    Buffer* GetIndexedIndirectCmdBuffer() const {
         return mIndirectIndexedCmdBuffer.get();
     }
 
-    RenderResource* GetMeshTaskIndirectCmdBuffer() const {
+    Buffer* GetMeshTaskIndirectCmdBuffer() const {
         return mMeshTaskIndirectCmdBuffer.get();
     }
 
@@ -113,8 +113,8 @@ private:
 
     Type_STLVector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
     Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
-    SharedPtr<RenderResource> mIndirectIndexedCmdBuffer;
-    SharedPtr<RenderResource> mMeshTaskIndirectCmdBuffer;
+    SharedPtr<Buffer> mIndirectIndexedCmdBuffer;
+    SharedPtr<Buffer> mMeshTaskIndirectCmdBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

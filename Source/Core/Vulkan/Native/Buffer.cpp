@@ -42,6 +42,12 @@ void* Buffer::GetMapPtr() const {
     return nullptr;
 }
 
+void Buffer::SetName(const char* name) const {
+    pDevice->SetObjectName(mHandle, name);
+    pDevice->SetObjectName(vk::DeviceMemory(mAllocationInfo.deviceMemory),
+                           name);
+}
+
 vk::Buffer Buffer::CreateBufferResource() {
     bMapped = mMemoryType != MemoryType::DeviceLocal;
     if (mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddress

@@ -91,12 +91,6 @@ layout(location = 0) out VertexOutput
 	vec4 color;
 } vertexOutput[];
 
-const vec4[3] colors = {
-	vec4(0.0, 1.0, 0.0, 1.0),
-	vec4(0.0, 0.0, 1.0, 1.0),
-	vec4(1.0, 0.0, 0.0, 1.0)
-};
-
 struct Task {
 	uint baseID;
 	uint drawID;
@@ -133,7 +127,7 @@ void main()
 
 	mat4 mvp = ubo.data.viewproj * constants.modelMatrix;
 
-	// UNROLL_LOOP
+	UNROLL_LOOP
 	for (uint i = 0; i < MESHLET_VERTEX_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
 		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
@@ -141,7 +135,7 @@ void main()
 		vertexOutput[idx].color = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
 	}
 
-	// UNROLL_LOOP
+	UNROLL_LOOP
 	for (uint i = 0; i < MESHLET_PRIMITIVE_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
 		uint triID_0 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 0];

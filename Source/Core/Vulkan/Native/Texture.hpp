@@ -49,7 +49,10 @@ public:
     uint32_t GetArraySize() const;
     vk::Format GetFormat() const;
     vk::Image GetHandle() const;
+    Type GetType() const;
     vk::ImageView GetViewHandle(const char* name) const;
+
+    void SetName(const char* name) const;
 
 private:
     vk::Image CreateImage();

@@ -43,8 +43,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/Buffer.cpp
     Vulkan/Native/Sampler.hpp
     Vulkan/Native/Sampler.cpp
-    Vulkan/Native/ShaderModule.hpp
-    Vulkan/Native/ShaderModule.cpp
+    Vulkan/Native/Shader.hpp
+    Vulkan/Native/Shader.cpp
     Vulkan/Native/RenderResource.cpp
     Vulkan/Native/RenderResource.hpp
 
@@ -56,8 +56,10 @@ set (VULKAN_CORE_SRC
     Vulkan/Manager/RenderResourceManager.cpp
     Vulkan/Manager/PipelineManager.hpp
     Vulkan/Manager/PipelineManager.cpp
-    Vulkan/Manager/ShaderModuleManager.hpp
-    Vulkan/Manager/ShaderModuleManager.cpp
+    Vulkan/Manager/ShaderManager.hpp
+    Vulkan/Manager/ShaderManager.cpp
+    Vulkan/Manager/DescriptorManager.hpp
+    Vulkan/Manager/DescriptorManager.cpp
 
     Vulkan/EngineCore.hpp
     Vulkan/EngineCore.cpp
@@ -150,6 +152,10 @@ target_link_libraries(Core
 target_link_libraries(Core
     PUBLIC
         meshoptimizer)
+
+target_link_libraries(Core
+    PUBLIC
+        spirv-cross-c-shared)
 
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
 

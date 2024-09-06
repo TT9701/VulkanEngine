@@ -26,10 +26,10 @@ class Fence;
 class CommandBuffers;
 class CommandPool;
 class DescriptorManager;
-class ShaderModule;
+class Shader;
 class RenderResource;
 class RenderResourceManager;
-class ShaderModuleManager;
+class ShaderManager;
 class PipelineManager;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
@@ -66,9 +66,9 @@ private:
     UniquePtr<RenderResourceManager> CreateRenderResourceManager();
     UniquePtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
     UniquePtr<CommandManager> CreateCommandManager();
-    UniquePtr<DescriptorManager> CreateDescriptorManager();
     UniquePtr<PipelineManager> CreatePipelineManager();
-    UniquePtr<ShaderModuleManager> CreateShaderModuleManager();
+    UniquePtr<ShaderManager> CreateShaderModuleManager();
+    UniquePtr<DescriptorManager> CreateDescriptorBufferManager();
     void CreateDrawImage();
     void CreateDepthImage();
     void CreateErrorCheckTexture();
@@ -123,7 +123,7 @@ private:
     UniquePtr<ImmediateSubmitManager> mPImmediateSubmitManager;
     UniquePtr<DescriptorManager> mDescriptorManager;
     UniquePtr<PipelineManager> mPipelineManager;
-    UniquePtr<ShaderModuleManager> mShaderModuleManager;
+    UniquePtr<ShaderManager> mShaderModuleManager;
 
     Camera mMainCamera {};
 

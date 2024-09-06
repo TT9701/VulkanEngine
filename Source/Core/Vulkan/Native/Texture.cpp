@@ -161,8 +161,18 @@ vk::Image Texture::GetHandle() const {
     return mHandle;
 }
 
+Texture::Type Texture::GetType() const {
+    return mType;
+}
+
 vk::ImageView Texture::GetViewHandle(const char* name) const {
     return mViews.at(name);
+}
+
+void Texture::SetName(const char* name) const {
+    pDevice->SetObjectName(mHandle, name);
+    pDevice->SetObjectName(vk::DeviceMemory(mAllocationInfo.deviceMemory),
+                           name);
 }
 
 vk::Image Texture::CreateImage() {

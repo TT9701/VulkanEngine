@@ -30,6 +30,15 @@ RenderResource::RenderResource(Device* device, vk::Image handle, Type type,
                 sampleCount),
       mType(type) {}
 
+RenderResource::RenderResource(Buffer&& buffer) : mResource(std::move(buffer)) {
+    mType = Type::Buffer;
+}
+
+RenderResource::RenderResource(Texture&& texture)
+    : mResource(std::move(texture)) {
+    mType = static_cast<Type>(texture.GetType());
+}
+
 RenderResource::Type RenderResource::GetType() const {
     return mType;
 }
@@ -41,12 +50,10 @@ struct overload : Ts... {
 template <class... Ts>
 overload(Ts...) -> overload<Ts...>;
 
-void RenderResource::SetName(Device* device, const char* name) {
-    ::std::visit(overload {[&](Texture const& v) {
-                               device->SetObjectName(v.GetHandle(), name);
-                           },
+void RenderResource::SetName(const char* name) {
+    ::std::visit(overload {[&](Texture const& v) { v.SetName(name); },
                            [&](Buffer const& v) {
-                               device->SetObjectName(v.GetHandle(), name);
+                               v.SetName(name);
                            }},
                  mResource);
     mName = name;

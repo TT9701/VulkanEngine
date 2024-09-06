@@ -29,6 +29,14 @@ set (MESHOPT_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared lib" FORCE)
 add_subdirectory(meshoptimizer EXCLUDE_FROM_ALL)
 set_target_properties(meshoptimizer PROPERTIES FOLDER ${DLL_FOLDER_NAME})
 
+set (SPIRV_CROSS_SHARED ON CACHE BOOL "Build shared lib" FORCE)
+set (SPIRV_CROSS_STATIC OFF CACHE BOOL "" FORCE)
+set (SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
+set (SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "No test" FORCE)
+add_subdirectory(SPIRV-Cross EXCLUDE_FROM_ALL)
+set_target_properties(spirv-cross-c-shared PROPERTIES FOLDER ${DLL_FOLDER_NAME})
+
+
 # install (TARGETS SDL2
 #     CONFIGURATIONS Debug
 #         RUNTIME DESTINATION ${BIN_DIR}

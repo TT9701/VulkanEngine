@@ -8,127 +8,56 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
+class Buffer;
+class DescriptorSetLayout;
 
-struct DescPoolSizeRatio {
-    vk::DescriptorType mType;
-    float mRatio;
-};
-
-namespace __Detail {
-
-class SetLayoutBuilder {
+class DescriptorSet {
 public:
-    Type_STLVector<vk::DescriptorSetLayoutBinding> mBindings;
+    DescriptorSet(Context* context, DescriptorSetLayout* setLayout);
 
-    void AddBinding(uint32_t binding, uint32_t descCount,
-                    vk::DescriptorType type);
-    void Clear();
+    uint32_t GetBindingCount() const;
+    vk::DeviceSize GetBingdingOffset(uint32_t binding) const;
+    vk::DescriptorType GetBingdingType(uint32_t binding) const;
+    uint32_t GetBingdingDescCount(uint32_t binding) const;
 
-    vk::DescriptorSetLayout Build(Context* context,
-                                  vk::ShaderStageFlags shaderStages,
-                                  vk::DescriptorSetLayoutCreateFlags flags = {},
-                                  void* pNext = nullptr);
-};
-
-class DescriptorAllocator {
-public:
-    void InitPool(Context* context, uint32_t initialSets,
-                  ::std::span<DescPoolSizeRatio> poolRatios);
-    void ClearDescriptors(Context* context);
-    void DestroyPool(Context* context);
-
-    vk::DescriptorSet Allocate(Context* context, vk::DescriptorSetLayout layout,
-                               void* pNext = nullptr);
+    void SetBufferDatas(uint32_t idx, vk::DeviceSize offset);
+    vk::DeviceSize GetOffsetInBuffer() const;
+    uint32_t GetBufferIndex() const;
 
 private:
-    vk::DescriptorPool GetPool(Context* context);
+    DescriptorSetLayout* pSetLayout;
 
-    vk::DescriptorPool CreatePool(Context* context, uint32_t setCount,
-                                  std::span<DescPoolSizeRatio> poolRatios);
+    Type_STLVector<vk::DeviceSize> mBindingOffsets {};
 
-    Type_STLVector<DescPoolSizeRatio> mRatios {};
-    Type_STLVector<vk::DescriptorPool> mFullPools {};
-    Type_STLVector<vk::DescriptorPool> mReadyPools {};
-    uint32_t mSetsPerPool {};
+    uint32_t mBufferIndex {0};
+    vk::DeviceSize mOffsetInBuffer {0};
 };
 
-class DescriptorWriter {
+class DescriptorSetLayout {
 public:
-    Type_STLDeque<vk::DescriptorImageInfo> mImageInfos {};
-    Type_STLDeque<vk::DescriptorBufferInfo> mBufferInfos {};
-    Type_STLVector<vk::WriteDescriptorSet> mWrites {};
+    DescriptorSetLayout(
+        Context* context,
+        Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
+        vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
+        const void* pNext);
+    ~DescriptorSetLayout();
 
-    void WriteImage(int binding, vk::DescriptorImageInfo const& imageInfo,
-                    vk::DescriptorType type);
+    vk::DescriptorSetLayout GetHandle() const;
+    vk::DeviceSize GetSize() const;
+    Type_STLVector<vk::DescriptorSetLayoutBinding> const& GetBindings() const;
 
-    void WriteBuffer(int binding, vk::DescriptorBufferInfo const& bufferInfo,
-                     vk::DescriptorType type);
-
-    void Clear();
-
-    void UpdateSet(Context* context, vk::DescriptorSet set);
-};
-
-}  // namespace __Detail
-
-class DescriptorManager {
-    using Type_DescSetLayouts =
-        Type_STLUnorderedMap_String<vk::DescriptorSetLayout>;
-    using Type_Descriptors = Type_STLUnorderedMap_String<vk::DescriptorSet>;
-
-public:
-    DescriptorManager(Context* context, uint32_t initialSets,
-                      ::std::span<DescPoolSizeRatio> poolRatio);
-    ~DescriptorManager();
-    MOVABLE_ONLY(DescriptorManager);
-
-public:
-    // Descriptor Set Layout
-    void AddDescSetLayoutBinding(uint32_t binding, uint32_t descCount,
-                                 vk::DescriptorType type);
-
-    vk::DescriptorSetLayout BuildDescSetLayout(
-        Type_STLString const& name, vk::ShaderStageFlags shaderStages,
-        vk::DescriptorSetLayoutCreateFlags flags = {}, void* pNext = nullptr);
-
-    vk::DescriptorSetLayout GetDescSetLayout(Type_STLString const& name) const;
-
-    void ClearSetLayout();
-
-    // Descriptors
-    vk::DescriptorSet Allocate(Type_STLString const& name,
-                               vk::DescriptorSetLayout layout,
-                               void* pNext = nullptr);
-
-    vk::DescriptorSet GetDescriptor(Type_STLString const& name) const;
-
-    void ClearDescriptors();
-
-    // Descriptor Writes
-
-    void WriteImage(int binding, vk::DescriptorImageInfo imageInfo,
-                    vk::DescriptorType type);
-
-    void WriteBuffer(int binding, vk::DescriptorBufferInfo bufferInfo,
-                     vk::DescriptorType type);
-
-    void Clear();
-
-    void UpdateSet(vk::DescriptorSet set);
+private:
+    void CreateDescSetLayout(
+        std::span<vk::DescriptorSetLayoutBinding> bindings,
+        vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
+        const void* pNext);
 
 private:
     Context* pContext;
+    Type_STLVector<vk::DescriptorSetLayoutBinding> mBindings;
 
-    __Detail::SetLayoutBuilder mSetLayoutBuilder {};
-
-    __Detail::DescriptorAllocator mDescAllocator {};
-
-    __Detail::DescriptorWriter mDescWriter {};
-
-    Type_DescSetLayouts mSetLayouts {};
-
-    // TODO: classify descriptors in different layouts
-    Type_Descriptors mDescriptors {};
+    vk::DescriptorSetLayout mHandle {};
+    vk::DeviceSize mSize {0};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

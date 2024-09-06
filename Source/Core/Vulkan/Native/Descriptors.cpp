@@ -4,256 +4,92 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-namespace __Detail {
+DescriptorSet::DescriptorSet(Context* context, DescriptorSetLayout* setLayout)
+    : pSetLayout(setLayout) {
+    auto bindings = setLayout->GetBindings();
+    auto bindingCount = bindings.size();
 
-void SetLayoutBuilder::AddBinding(uint32_t binding, uint32_t descCount,
-                                  vk::DescriptorType type) {
-    vk::DescriptorSetLayoutBinding newbind {};
-    newbind.setBinding(binding).setDescriptorCount(descCount).setDescriptorType(
-        type);
-
-    mBindings.push_back(newbind);
-}
-
-void SetLayoutBuilder::Clear() {
-    mBindings.clear();
-}
-
-vk::DescriptorSetLayout SetLayoutBuilder::Build(
-    Context* context, vk::ShaderStageFlags shaderStages,
-    vk::DescriptorSetLayoutCreateFlags flags, void* pNext) {
-    for (auto& b : mBindings) {
-        b.stageFlags |= shaderStages;
+    mBindingOffsets.resize(bindings.size());
+    for (uint32_t i = 0; i < bindingCount; ++i) {
+        mBindingOffsets[i] =
+            context->GetDeviceHandle().getDescriptorSetLayoutBindingOffsetEXT(
+                setLayout->GetHandle(), i);
     }
-
-    vk::DescriptorSetLayoutCreateInfo info {};
-    info.setPNext(pNext).setBindings(mBindings).setFlags(flags);
-    return context->GetDeviceHandle().createDescriptorSetLayout(info);
 }
 
-void DescriptorAllocator::InitPool(Context* context, uint32_t initialSets,
-                                   std::span<DescPoolSizeRatio> poolRatios) {
-    mRatios.clear();
-
-    for (auto r : poolRatios) {
-        mRatios.push_back(r);
-    }
-
-    auto newPool = CreatePool(context, initialSets, poolRatios);
-
-    mSetsPerPool =
-        static_cast<uint32_t>(static_cast<double>(initialSets) * 1.5);
-
-    mReadyPools.emplace_back(newPool);
+uint32_t DescriptorSet::GetBindingCount() const {
+    return mBindingOffsets.size();
 }
 
-void DescriptorAllocator::ClearDescriptors(Context* context) {
-    for (auto p : mReadyPools) {
-        context->GetDeviceHandle().resetDescriptorPool(p);
-    }
-    for (auto p : mFullPools) {
-        context->GetDeviceHandle().resetDescriptorPool(p);
-        mReadyPools.push_back(p);
-    }
-    mFullPools.clear();
+vk::DeviceSize DescriptorSet::GetBingdingOffset(uint32_t binding) const {
+    VE_ASSERT(binding < mBindingOffsets.size(), "Invalid binding");
+    return mBindingOffsets[binding];
 }
 
-void DescriptorAllocator::DestroyPool(Context* context) {
-    for (auto p : mReadyPools) {
-        context->GetDeviceHandle().destroy(p);
-    }
-    mReadyPools.clear();
-    for (auto p : mFullPools) {
-        context->GetDeviceHandle().destroy(p);
-    }
-    mFullPools.clear();
+vk::DescriptorType DescriptorSet::GetBingdingType(uint32_t binding) const {
+    VE_ASSERT(binding < mBindingOffsets.size(), "Invalid binding");
+    return pSetLayout->GetBindings()[binding].descriptorType;
 }
 
-vk::DescriptorSet DescriptorAllocator::Allocate(Context* context,
-                                                vk::DescriptorSetLayout layout,
-                                                void* pNext) {
-    auto poolToUse = GetPool(context);
-
-    vk::DescriptorSetAllocateInfo allocInfo {};
-    allocInfo.setDescriptorPool(poolToUse).setSetLayouts(layout).setPNext(
-        pNext);
-
-    vk::DescriptorSet ds;
-
-    vk::Result result =
-        context->GetDeviceHandle().allocateDescriptorSets(&allocInfo, &ds);
-
-    if (result == vk::Result::eErrorOutOfPoolMemory
-        || result == vk::Result::eErrorFragmentedPool) {
-
-        mFullPools.push_back(poolToUse);
-
-        poolToUse = GetPool(context);
-        allocInfo.descriptorPool = poolToUse;
-
-        ds = context->GetDeviceHandle().allocateDescriptorSets(allocInfo)[0];
-    }
-
-    mReadyPools.push_back(poolToUse);
-    return ds;
+uint32_t DescriptorSet::GetBingdingDescCount(uint32_t binding) const {
+    VE_ASSERT(binding < mBindingOffsets.size(), "Invalid binding");
+    return pSetLayout->GetBindings()[binding].descriptorCount;
 }
 
-vk::DescriptorPool DescriptorAllocator::GetPool(Context* context) {
-    vk::DescriptorPool newPool;
-    if (!mReadyPools.empty()) {
-        newPool = mReadyPools.back();
-        mReadyPools.pop_back();
-    } else {
-        newPool = CreatePool(context, mSetsPerPool, mRatios);
-
-        mSetsPerPool =
-            static_cast<uint32_t>(static_cast<double>(mSetsPerPool) * 1.5);
-        if (mSetsPerPool > 4092) {
-            mSetsPerPool = 4092;
-        }
-    }
-
-    return newPool;
+void DescriptorSet::SetBufferDatas(uint32_t idx, vk::DeviceSize offset) {
+    mBufferIndex = idx;
+    mOffsetInBuffer = offset;
 }
 
-vk::DescriptorPool DescriptorAllocator::CreatePool(
-    Context* context, uint32_t setCount,
-    std::span<DescPoolSizeRatio> poolRatios) {
-    Type_STLVector<vk::DescriptorPoolSize> poolSizes;
-    for (auto& ratio : poolRatios) {
-        poolSizes.emplace_back(ratio.mType,
-                               static_cast<uint32_t>(ratio.mRatio * setCount));
-    }
-    vk::DescriptorPoolCreateInfo poolInfo {};
-    poolInfo.setMaxSets(setCount).setPoolSizes(poolSizes);
-
-    return context->GetDeviceHandle().createDescriptorPool(poolInfo);
+vk::DeviceSize DescriptorSet::GetOffsetInBuffer() const {
+    return mOffsetInBuffer;
 }
 
-void DescriptorWriter::WriteImage(int binding,
-                                  vk::DescriptorImageInfo const& imageInfo,
-                                  vk::DescriptorType type) {
-    mImageInfos.push_back(imageInfo);
-
-    vk::WriteDescriptorSet write {};
-    write.setDstBinding(binding)
-        .setDescriptorCount(1u)
-        .setDescriptorType(type)
-        .setImageInfo(mImageInfos.back());
-
-    mWrites.push_back(write);
+uint32_t DescriptorSet::GetBufferIndex() const {
+    return mBufferIndex;
 }
 
-void DescriptorWriter::WriteBuffer(int binding,
-                                   vk::DescriptorBufferInfo const& bufferInfo,
-                                   vk::DescriptorType type) {
-    mBufferInfos.push_back(bufferInfo);
-
-    vk::WriteDescriptorSet write {};
-    write.setDstBinding(binding)
-        .setDescriptorCount(1u)
-        .setDescriptorType(type)
-        .setBufferInfo(mBufferInfos.back());
-
-    mWrites.push_back(write);
+DescriptorSetLayout::DescriptorSetLayout(
+    Context* context,
+    Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
+    vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
+    const void* pNext)
+    : pContext(context), mBindings(bindings) {
+    CreateDescSetLayout(mBindings, props, pNext);
 }
 
-void DescriptorWriter::Clear() {
-    mImageInfos.clear();
-    mWrites.clear();
-    mBufferInfos.clear();
+DescriptorSetLayout::~DescriptorSetLayout() {
+    pContext->GetDeviceHandle().destroy(mHandle);
 }
 
-void DescriptorWriter::UpdateSet(Context* context, vk::DescriptorSet set) {
-    for (auto& write : mWrites) {
-        write.setDstSet(set);
-    }
-    context->GetDeviceHandle().updateDescriptorSets(mWrites, {});
-
-    Clear();
+vk::DescriptorSetLayout DescriptorSetLayout::GetHandle() const {
+    return mHandle;
 }
 
-}  // namespace __Detail
-
-DescriptorManager::DescriptorManager(Context* context, uint32_t initialSets,
-                                     ::std::span<DescPoolSizeRatio> poolRatio)
-    : pContext(context) {
-    mDescAllocator.InitPool(context, initialSets, poolRatio);
+vk::DeviceSize DescriptorSetLayout::GetSize() const {
+    return mSize;
 }
 
-DescriptorManager::~DescriptorManager() {
-    for (auto& layout : mSetLayouts) {
-        pContext->GetDeviceHandle().destroy(layout.second);
-    }
-
-    mDescAllocator.DestroyPool(pContext);
+Type_STLVector<vk::DescriptorSetLayoutBinding> const&
+DescriptorSetLayout::GetBindings() const {
+    return mBindings;
 }
 
-void DescriptorManager::AddDescSetLayoutBinding(uint32_t binding,
-                                                uint32_t descCount,
-                                                vk::DescriptorType type) {
-    mSetLayoutBuilder.AddBinding(binding, descCount, type);
-}
+void DescriptorSetLayout::CreateDescSetLayout(
+    std::span<vk::DescriptorSetLayoutBinding> bindings,
+    vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
+    const void* pNext) {
+    vk::DescriptorSetLayoutCreateInfo layoutInfo {};
+    layoutInfo
+        .setFlags(vk::DescriptorSetLayoutCreateFlagBits::eDescriptorBufferEXT)
+        .setBindings(bindings)
+        .setPNext(pNext);
 
-vk::DescriptorSetLayout DescriptorManager::BuildDescSetLayout(
-    Type_STLString const& name, vk::ShaderStageFlags shaderStages,
-    vk::DescriptorSetLayoutCreateFlags flags, void* pNext) {
-    const auto layout =
-        mSetLayoutBuilder.Build(pContext, shaderStages, flags, pNext);
+    mHandle = pContext->GetDeviceHandle().createDescriptorSetLayout(layoutInfo);
 
-    mSetLayouts.emplace(name, layout);
-
-    mSetLayoutBuilder.Clear();
-
-    return layout;
-}
-
-vk::DescriptorSetLayout DescriptorManager::GetDescSetLayout(
-    Type_STLString const& name) const {
-    return mSetLayouts.at(name);
-}
-
-void DescriptorManager::ClearSetLayout() {
-    mSetLayoutBuilder.Clear();
-}
-
-vk::DescriptorSet DescriptorManager::Allocate(Type_STLString const& name,
-                                              vk::DescriptorSetLayout layout,
-                                              void* pNext) {
-    const auto desc = mDescAllocator.Allocate(pContext, layout, pNext);
-
-    mDescriptors.emplace(name, desc);
-
-    return desc;
-}
-
-vk::DescriptorSet DescriptorManager::GetDescriptor(
-    Type_STLString const& name) const {
-    return mDescriptors.at(name);
-}
-
-void DescriptorManager::ClearDescriptors() {
-    mDescAllocator.ClearDescriptors(pContext);
-}
-
-void DescriptorManager::WriteImage(int binding,
-                                   vk::DescriptorImageInfo imageInfo,
-                                   vk::DescriptorType type) {
-    mDescWriter.WriteImage(binding, imageInfo, type);
-}
-
-void DescriptorManager::WriteBuffer(int binding,
-                                    vk::DescriptorBufferInfo bufferInfo,
-                                    vk::DescriptorType type) {
-    mDescWriter.WriteBuffer(binding, bufferInfo, type);
-}
-
-void DescriptorManager::Clear() {
-    mDescWriter.Clear();
-}
-
-void DescriptorManager::UpdateSet(vk::DescriptorSet set) {
-    mDescWriter.UpdateSet(pContext, set);
+    mSize = Utils::AlignedSize(
+        pContext->GetDeviceHandle().getDescriptorSetLayoutSizeEXT(mHandle),
+        props.descriptorBufferOffsetAlignment);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

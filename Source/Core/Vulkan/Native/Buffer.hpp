@@ -33,6 +33,8 @@ public:
     // for mapped buffers, non mapped buffers return nullptr
     void* GetMapPtr() const;
 
+    void SetName(const char* name) const;
+
 private:
     vk::Buffer CreateBufferResource();
 
