@@ -12,3 +12,7 @@
 	path = External/meshoptimizer
 	url = git@github.com:zeux/meshoptimizer.git
 	branch = master
+[submodule "External/SPIRV-Cross"]
+	path = External/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git
+	branch = vulkan-sdk-1.3.283
