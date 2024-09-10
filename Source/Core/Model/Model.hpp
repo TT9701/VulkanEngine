@@ -9,6 +9,12 @@ namespace IntelliDesign_NS::Vulkan::Core {
 class Context;
 class EngineCore;
 
+struct IndexDrawPushConstants {
+    glm::mat4 mModelMatrix {glm::mat4(1.0f)};
+
+    vk::DeviceAddress mVertexBufferAddress {};
+};
+
 struct PushConstants {
     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
 

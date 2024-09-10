@@ -78,6 +78,8 @@ private:
     void UpdateScene();
     void UpdateSceneUBO();
 
+    void LoadShaders();
+
     // Compute
     void CreateBackgroundComputeDescriptors();
     void CreateBackgroundComputePipeline();
@@ -123,7 +125,7 @@ private:
     UniquePtr<ImmediateSubmitManager> mPImmediateSubmitManager;
     UniquePtr<DescriptorManager> mDescriptorManager;
     UniquePtr<PipelineManager> mPipelineManager;
-    UniquePtr<ShaderManager> mShaderModuleManager;
+    UniquePtr<ShaderManager> mShaderManager;
 
     Camera mMainCamera {};
 

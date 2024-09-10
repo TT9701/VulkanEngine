@@ -28,22 +28,44 @@ SharedPtr<DescriptorSetLayout> DescriptorManager::CreateDescLayout(
     return ptr;
 }
 
-void DescriptorManager::CreateDescLayouts(
-    const char* name,
+Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
+    const char* shaderName,
     ::std::initializer_list<DescriptorSetLayoutData> const& datas,
     const void* pNext) {
-    Type_STLMap<uint32_t, Type_STLVector<vk::DescriptorSetLayoutBinding>>
-        sets {};
-    for (auto const& data : datas) {
-        sets[data.setIdx].emplace_back(data.bindingIdx, data.type,
-                                       data.descCount, data.stage);
+    Type_STLVector<DescriptorSetLayoutData> d(datas);
+    return CreateDescLayouts(shaderName, d, pNext);
+}
+
+struct Comp {
+    template <typename T>
+    bool operator()(const T& l, const T& r) const {
+        if (l.setIdx != r.setIdx) {
+            return l.setIdx < r.setIdx;
+        }
+        return l.bindingIdx < r.bindingIdx;
+    }
+};
+
+Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
+    const char* shaderName, std::span<DescriptorSetLayoutData> datas,
+    const void* pNext) {
+    Type_STLVector<Type_STLString> names {};
+    auto it = datas.begin();
+    for (uint32_t setIdx = 0; setIdx <= datas.rbegin()->setIdx; ++setIdx) {
+        Type_STLString setName {};
+        Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
+        for (; it != datas.end() && it->setIdx == setIdx; ++it) {
+            setName.append("_");
+            setName.append(it->name);
+            bindings.emplace_back(it->bindingIdx, it->type, it->descCount,
+                                  it->stage, nullptr);
+        }
+        CreateDescLayout((Type_STLString(shaderName) + setName).c_str(),
+                         bindings, pNext);
+        names.emplace_back(setName);
     }
 
-    for (auto const& set: sets) {
-        Type_STLString setName(name);
-        setName.append("_" + ::std::to_string(set.first));
-        CreateDescLayout(setName.c_str(), set.second, pNext);
-    }
+    return names;
 }
 
 vk::DescriptorSetLayout DescriptorManager::GetDescSetLayoutHandle(

@@ -21,26 +21,26 @@ public:
     // persist shader module from spir-v binary code
     SharedPtr<Shader> CreateShaderFromSPIRV(const char* name,
                                             const char* spirvPath,
-                                            ShaderStage stage,
+                                            vk::ShaderStageFlagBits stage,
                                             const char* entry = "main",
                                             void* pNext = nullptr);
 
     // persist shader module from glsl source code
     SharedPtr<Shader> CreateShaderFromSource(
-        const char* name, const char* sourcePath, ShaderStage stage,
+        const char* name, const char* sourcePath, vk::ShaderStageFlagBits stage,
         bool hasIncludes = false, Type_ShaderMacros const& defines = {},
         const char* entry = "main", void* pNext = nullptr);
 
-    void ReleaseShader(const char* name, ShaderStage stage,
+    void ReleaseShader(const char* name, vk::ShaderStageFlagBits stage,
                        Type_ShaderMacros const& defines = {},
                        const char* entry = "main");
 
-    SharedPtr<Shader> GetShader(const char* name, ShaderStage stage,
+    SharedPtr<Shader> GetShader(const char* name, vk::ShaderStageFlagBits stage,
                                 Type_ShaderMacros const& defines = {},
                                 const char* entry = "main");
 
-private:
-    Type_STLString ParseShaderName(const char* name, ShaderStage stage,
+    Type_STLString ParseShaderName(const char* name,
+                                   vk::ShaderStageFlagBits stage,
                                    Type_ShaderMacros const& defines = {},
                                    const char* entry = "main");
 

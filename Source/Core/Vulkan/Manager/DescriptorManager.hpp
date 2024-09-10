@@ -13,6 +13,7 @@ class Context;
 class Buffer;
 
 struct DescriptorSetLayoutData {
+    Type_STLString name;
     uint32_t setIdx;
     uint32_t bindingIdx;
     vk::DescriptorType type;
@@ -34,9 +35,14 @@ public:
         Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
         const void* pNext = nullptr);
 
-    void CreateDescLayouts(
-        const char* name,
+    Type_STLVector<Type_STLString> CreateDescLayouts(
+        const char* shaderName,
         ::std::initializer_list<DescriptorSetLayoutData> const& datas,
+        const void* pNext = nullptr);
+
+    Type_STLVector<Type_STLString> CreateDescLayouts(
+        const char* shaderName,
+        ::std::span<DescriptorSetLayoutData> datas,
         const void* pNext = nullptr);
 
     vk::DescriptorSetLayout GetDescSetLayoutHandle(const char* name) const;
@@ -46,7 +52,7 @@ public:
 
     SharedPtr<DescriptorSet> CreateDescriptorSet(const char* name,
                                                  const char* setLayout,
-                                                 uint32_t bufferIndex);
+                                                 uint32_t bufferIndex = 0);
 
     DescriptorSet* GetDescriptorSet(const char* name);
 

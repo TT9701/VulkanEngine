@@ -155,7 +155,8 @@ target_link_libraries(Core
 
 target_link_libraries(Core
     PUBLIC
-        spirv-cross-c-shared)
+        spirv-cross-c)
+
 
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
 

@@ -6,7 +6,13 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Shader;
+class DescriptorManager;
 class PipelineManager;
+
+struct ShaderStats {
+    Type_STLVector<vk::DescriptorSetLayout> descSetLayouts;
+    Type_STLVector<vk::PushConstantRange> pushContant;
+};
 
 template <PipelineType Type>
 class PipelineBuilder;
@@ -14,13 +20,14 @@ class PipelineBuilder;
 template <>
 class PipelineBuilder<PipelineType::Graphics> {
 public:
-    PipelineBuilder(PipelineManager* manager);
+    PipelineBuilder(PipelineManager* manager,
+                    DescriptorManager* descriptorManager);
     ~PipelineBuilder() = default;
     MOVABLE_ONLY(PipelineBuilder);
 
 public:
     PipelineBuilder& SetLayout(vk::PipelineLayout layout);
-    PipelineBuilder& SetShaders(::std::span<SharedPtr<Shader>> shaders);
+    PipelineBuilder& SetShaders(::std::span<Shader*> shaders);
     PipelineBuilder& SetInputTopology(vk::PrimitiveTopology topology);
     PipelineBuilder& SetPolygonMode(vk::PolygonMode mode);
     PipelineBuilder& SetCullMode(vk::CullModeFlags cullMode,
@@ -52,9 +59,11 @@ public:
 
 private:
     PipelineManager* pManager;
+    DescriptorManager* pDescriptorManager;
     Type_STLVector<Shader*> pShaders;
 
     Type_STLVector<vk::PipelineShaderStageCreateInfo> mShaderStages {};
+    Type_STLVector<vk::DescriptorSetLayout> mDescriptorSetLayouts {};
 
     vk::PipelineInputAssemblyStateCreateInfo mInputAssembly;
     vk::PipelineRasterizationStateCreateInfo mRasterizer;
@@ -72,12 +81,13 @@ private:
 template <>
 class PipelineBuilder<PipelineType::Compute> {
 public:
-    PipelineBuilder(PipelineManager* manager);
+    PipelineBuilder(PipelineManager* manager,
+                    DescriptorManager* descriptorManager);
     ~PipelineBuilder() = default;
     MOVABLE_ONLY(PipelineBuilder);
 
 public:
-    PipelineBuilder& SetShader(SharedPtr<Shader> shader);
+    PipelineBuilder& SetShader(Shader* shader);
     PipelineBuilder& SetLayout(vk::PipelineLayout pipelineLayout);
     PipelineBuilder& SetFlags(vk::PipelineCreateFlags flags);
     PipelineBuilder& SetBaseHandle(vk::Pipeline baseHandle);
@@ -90,6 +100,8 @@ public:
 
 private:
     PipelineManager* pManager;
+    DescriptorManager* pDescriptorManager;
+
     Shader* pShader;
     vk::PipelineShaderStageCreateInfo mStageInfo {};
     vk::PipelineLayout mPipelineLayout {};
@@ -99,7 +111,6 @@ private:
 };
 
 /**
- * Use CreateLayout() to build Pipeline Layouts
  * Use PipelineBuilder to build Pipelines
  */
 class PipelineManager {
@@ -124,28 +135,32 @@ public:
     friend Type_GPBuilder;
 
 public:
-    SharedPtr<PipelineLayout> CreateLayout(
-        const char* name, ::std::span<vk::DescriptorSetLayout> setLayouts,
-        ::std::span<vk::PushConstantRange> pushContants = {},
-        vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
-
-public:
     vk::PipelineLayout GetLayoutHandle(const char* name) const;
 
     vk::Pipeline GetComputePipelineHandle(const char* name) const;
     vk::Pipeline GetGraphicsPipelineHandle(const char* name) const;
 
-    Type_CPBuilder& GetComputePipelineBuilder();
-    Type_GPBuilder& GetGraphicsPipelineBuilder();
+    Type_CPBuilder GetComputePipelineBuilder(DescriptorManager* descManager);
+    Type_GPBuilder GetGraphicsPipelineBuilder(DescriptorManager* descManager);
 
     void BindComputePipeline(vk::CommandBuffer cmd, const char* name);
     void BindGraphicsPipeline(vk::CommandBuffer cmd, const char* name);
 
 private:
-    Context* pContext;
+    SharedPtr<PipelineLayout> CreateLayout(
+        const char* name, ::std::span<vk::DescriptorSetLayout> setLayouts,
+        ::std::span<vk::PushConstantRange> pushContants = {},
+        vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
 
-    Type_CPBuilder mComputePipelineBuilder;
-    Type_GPBuilder mGraphicsPipelineBuilder;
+    ShaderStats ReflectShaderStats(const char* pipelineName,
+                                   DescriptorManager* descManager,
+                                   ::std::span<Shader*> shaders);
+
+    Type_STLString ParsePipelineName(const char* pipelineName) const;
+    Type_STLString ParsePipelineLayoutName(const char* pipelineName) const;
+
+private:
+    Context* pContext;
 
     Type_PipelineLayouts mPipelineLayouts;
     Type_ComputePipelines mComputePipelines;

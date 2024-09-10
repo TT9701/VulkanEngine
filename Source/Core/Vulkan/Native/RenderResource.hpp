@@ -5,6 +5,8 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+class DescriptorManager;
+
 class RenderResource {
 public:
     enum class Type {

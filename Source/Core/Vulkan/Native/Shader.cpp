@@ -2,6 +2,9 @@
 
 #include <stdexcept>
 
+#include <shaderc/shaderc.hpp>
+#include <spirv_glsl.hpp>
+
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
 
@@ -70,8 +73,8 @@ Type_STLVector<uint32_t> LoadSPIRVCode(const char* filePath) {
 }
 
 Type_STLVector<uint32_t> CompileGLSLSource(
-    const char* name, const char* filePath,
-    IntelliDesign_NS::Vulkan::Core::ShaderStage stage, bool hasInclude,
+    const char* name, const char* filePath, vk::ShaderStageFlagBits stage,
+    bool hasInclude,
     IntelliDesign_NS::Vulkan::Core::Type_ShaderMacros const& defines,
     const char* entry) {
     std::ifstream file(filePath, std::ios::in);
@@ -104,19 +107,19 @@ Type_STLVector<uint32_t> CompileGLSLSource(
     shaderc_shader_kind kind {};
 
     switch (stage) {
-        case IntelliDesign_NS::Vulkan::Core::ShaderStage::Vertex:
+        case vk::ShaderStageFlagBits::eVertex:
             kind = shaderc_glsl_vertex_shader;
             break;
-        case IntelliDesign_NS::Vulkan::Core::ShaderStage::Fragment:
+        case vk::ShaderStageFlagBits::eFragment:
             kind = shaderc_glsl_fragment_shader;
             break;
-        case IntelliDesign_NS::Vulkan::Core::ShaderStage::Compute:
+        case vk::ShaderStageFlagBits::eCompute:
             kind = shaderc_glsl_compute_shader;
             break;
-        case IntelliDesign_NS::Vulkan::Core::ShaderStage::Task:
+        case vk::ShaderStageFlagBits::eTaskEXT:
             kind = shaderc_glsl_task_shader;
             break;
-        case IntelliDesign_NS::Vulkan::Core::ShaderStage::Mesh:
+        case vk::ShaderStageFlagBits::eMeshEXT:
             kind = shaderc_glsl_mesh_shader;
             break;
         default:
@@ -156,20 +159,22 @@ Type_STLVector<uint32_t> CompileGLSLSource(
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Shader::Shader(Context* context, const char* path, ShaderStage stage,
-               const char* entry, void* pNext)
-    : pContext(context), mEntry(entry), mStage(stage) {
-    auto binarycode = LoadSPIRVCode(path);
-    mShader = CreateShader(binarycode, pNext);
+Shader::Shader(Context* context, const char* name, const char* path,
+               vk::ShaderStageFlagBits stage, const char* entry, void* pNext)
+    : pContext(context), mName(name), mEntry(entry), mStage(stage) {
+    mSPIRVBinaryCode = LoadSPIRVCode(path);
+    mShader = CreateShader(pNext);
+    ReflectDescSetLayouts();
 }
 
-Shader::Shader(Context* context, const char* sourcePath, ShaderStage stage,
-               bool hasIncludes, Type_ShaderMacros const& defines,
-               const char* entry, void* pNext)
-    : pContext(context), mEntry(entry), mStage(stage) {
-    auto binaryCode = CompileGLSLSource("", sourcePath, stage, hasIncludes,
-                                        defines, mEntry.c_str());
-    mShader = CreateShader(binaryCode, pNext);
+Shader::Shader(Context* context, const char* name, const char* sourcePath,
+               vk::ShaderStageFlagBits stage, bool hasIncludes,
+               Type_ShaderMacros const& defines, const char* entry, void* pNext)
+    : pContext(context), mName(name), mEntry(entry), mStage(stage) {
+    mSPIRVBinaryCode = CompileGLSLSource("", sourcePath, stage, hasIncludes,
+                                         defines, mEntry.c_str());
+    mShader = CreateShader(pNext);
+    ReflectDescSetLayouts();
 }
 
 Shader::~Shader() {
@@ -178,44 +183,94 @@ Shader::~Shader() {
 
 vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
     vk::PipelineShaderStageCreateInfo info;
-
-    vk::ShaderStageFlagBits stage;
-    switch (mStage) {
-        case ShaderStage::Compute:
-            stage = vk::ShaderStageFlagBits::eCompute;
-            break;
-        case ShaderStage::Vertex:
-            stage = vk::ShaderStageFlagBits::eVertex;
-            break;
-        case ShaderStage::Fragment:
-            stage = vk::ShaderStageFlagBits::eFragment;
-            break;
-        case ShaderStage::Task:
-            stage = vk::ShaderStageFlagBits::eTaskEXT;
-            break;
-        case ShaderStage::Mesh:
-            stage = vk::ShaderStageFlagBits::eMeshEXT;
-            break;
-        default: throw std::runtime_error("Unfinished shader stage!");
-    }
     info.setModule(mShader)
-        .setStage(stage)
+        .setStage(mStage)
         .setPName(mEntry.c_str())
         .setPNext(pNext);
 
     return info;
 }
 
+std::span<uint32_t> Shader::GetBinaryCode() {
+    return mSPIRVBinaryCode;
+}
+
+std::span<DescriptorSetLayoutData> Shader::GetDescSetLayoutDatas() {
+    return mDescSetLayoutDatas;
+}
+
+::std::optional<vk::PushConstantRange> const& Shader::GetPushContantData()
+    const {
+    return mPushContantData;
+}
+
+Type_STLString const& Shader::GetName() const {
+    return mName;
+}
+
+Type_STLVector<vk::DescriptorSetLayout>& Shader::GetAllDescSetLayoutHandles() {
+    return mDescSetLayouts;
+}
+
 std::mutex& Shader::GetMutex() {
     return mMutex;
 }
 
-vk::ShaderModule Shader::CreateShader(::std::span<uint32_t> binaryCode,
-                                      void* pNext) const {
+vk::ShaderModule Shader::CreateShader(void* pNext) const {
     vk::ShaderModuleCreateInfo createInfo {};
-    createInfo.setCode(binaryCode).setPNext(pNext);
+    createInfo.setCode(mSPIRVBinaryCode).setPNext(pNext);
 
     return pContext->GetDeviceHandle().createShaderModule(createInfo);
+}
+
+void Shader::ReflectDescSetLayouts() {
+    spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
+                                        mSPIRVBinaryCode.size()};
+
+    auto resources = compiler.get_shader_resources();
+
+    auto parseFunc = [&](spirv_cross::Resource const& resource,
+                         vk::DescriptorType type) {
+        Type_STLString name {resource.name};
+        uint32_t setIdx =
+            compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+        uint32_t binding =
+            compiler.get_decoration(resource.id, spv::DecorationBinding);
+        uint32_t descCount = 1;  // TODO: Parse Desc Count
+        mDescSetLayoutDatas.emplace_back(name.c_str(), setIdx, binding, type,
+                                         mStage, descCount);
+    };
+
+    // Uniform buffers
+    for (auto& resource : resources.uniform_buffers) {
+        parseFunc(resource, vk::DescriptorType::eUniformBuffer);
+    }
+
+    // Storage buffers
+    for (auto& resource : resources.storage_buffers) {
+        parseFunc(resource, vk::DescriptorType::eStorageBuffer);
+    }
+
+    // Storage images
+    for (auto& resource : resources.storage_images) {
+        parseFunc(resource, vk::DescriptorType::eStorageImage);
+    }
+
+    // combined image sampler
+    for (auto& resource : resources.sampled_images) {
+        parseFunc(resource, vk::DescriptorType::eCombinedImageSampler);
+    }
+
+    // push constant
+    for (auto& resource : resources.push_constant_buffers) {
+        const spirv_cross::SPIRType& type =
+            compiler.get_type(resource.base_type_id);
+        vk::PushConstantRange pushConstant;
+        pushConstant.size = compiler.get_declared_struct_size(type);
+        pushConstant.stageFlags = mStage;
+        pushConstant.offset = 0;
+        mPushContantData.emplace(pushConstant);
+    }
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
