@@ -55,7 +55,9 @@ void RenderResourceManager::CreateDescriptorSet(
 
     Type_STLString descSetLayoutName;
     descSetLayoutName.append(pipelineName);
-    descSetLayoutName.append("@" + vk::to_string(stage));
+    auto s = vk::to_string(stage);
+    s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
+    descSetLayoutName.append("@" + s);
     descSetLayoutName.append("@Set" + ::std::to_string(setIndex));
 
     // create descriptor set

@@ -43,7 +43,9 @@ Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
     for (uint32_t setIdx = 0; setIdx <= datas.rbegin()->setIdx; ++setIdx) {
         Type_STLString setName {};
         Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
-        setName.append("@" + vk::to_string(it->stage));
+        auto stage = vk::to_string(it->stage);
+        stage.erase(std::remove(stage.begin(), stage.end(), ' '), stage.end());
+        setName.append("@" + stage);
         for (; it != datas.end() && it->setIdx == setIdx; ++it) {
             bindings.emplace_back(it->bindingIdx, it->type, it->descCount,
                                   it->stage, nullptr);
