@@ -20,10 +20,9 @@ SharedPtr<DescriptorSetLayout> DescriptorManager::CreateDescLayout(
     auto ptr =
         MakeShared<DescriptorSetLayout>(pContext, bindings, mProperties, pNext);
 
-    auto layoutName = ParseDescSetLayoutName(name);
-    pContext->SetName(ptr->GetHandle(), layoutName);
+    pContext->SetName(ptr->GetHandle(), name);
 
-    mDescSetLayouts.emplace(layoutName, ptr);
+    mDescSetLayouts.emplace(name, ptr);
 
     return ptr;
 }
@@ -36,16 +35,6 @@ Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
     return CreateDescLayouts(shaderName, d, pNext);
 }
 
-struct Comp {
-    template <typename T>
-    bool operator()(const T& l, const T& r) const {
-        if (l.setIdx != r.setIdx) {
-            return l.setIdx < r.setIdx;
-        }
-        return l.bindingIdx < r.bindingIdx;
-    }
-};
-
 Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
     const char* shaderName, std::span<DescriptorSetLayoutData> datas,
     const void* pNext) {
@@ -54,12 +43,12 @@ Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
     for (uint32_t setIdx = 0; setIdx <= datas.rbegin()->setIdx; ++setIdx) {
         Type_STLString setName {};
         Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
+        setName.append("@" + vk::to_string(it->stage));
         for (; it != datas.end() && it->setIdx == setIdx; ++it) {
-            setName.append("_");
-            setName.append(it->name);
             bindings.emplace_back(it->bindingIdx, it->type, it->descCount,
                                   it->stage, nullptr);
         }
+        setName.append("@Set" + ::std::to_string(setIdx));
         CreateDescLayout((Type_STLString(shaderName) + setName).c_str(),
                          bindings, pNext);
         names.emplace_back(setName);
@@ -70,12 +59,12 @@ Type_STLVector<Type_STLString> DescriptorManager::CreateDescLayouts(
 
 vk::DescriptorSetLayout DescriptorManager::GetDescSetLayoutHandle(
     const char* name) const {
-    return mDescSetLayouts.at(ParseDescSetLayoutName(name))->GetHandle();
+    return mDescSetLayouts.at(name)->GetHandle();
 }
 
 DescriptorSetLayout* DescriptorManager::GetDescSetLayout(
     const char* name) const {
-    return mDescSetLayouts.at(ParseDescSetLayoutName(name)).get();
+    return mDescSetLayouts.at(name).get();
 }
 
 vk::DeviceAddress DescriptorManager::GetDescBufferAddress(
@@ -93,13 +82,12 @@ SharedPtr<DescriptorSet> DescriptorManager::CreateDescriptorSet(
                             mDescBuffers[bufferIndex].mBufferUsedSize);
         mDescBuffers[bufferIndex].mBufferUsedSize += setLayout->GetSize();
     }
-    auto setName = ParseDescSetLayoutName(name);
-    mDescSets.emplace(setName, ptr);
+    mDescSets.emplace(name, ptr);
     return ptr;
 }
 
 DescriptorSet* DescriptorManager::GetDescriptorSet(const char* name) {
-    return mDescSets.at(ParseDescSetName(name)).get();
+    return mDescSets.at(name).get();
 }
 
 void DescriptorManager::CreateBufferDescriptor(
@@ -114,8 +102,8 @@ void DescriptorManager::CreateImageDescriptor(
     CreateDescriptor(set, binding, type, imageInfo, pNext);
 }
 
-void DescriptorManager::BindDescBuffers(vk::CommandBuffer cmd,
-                                        ::std::span<uint32_t> bufferIndices) {
+void DescriptorManager::BindDescBuffers(
+    vk::CommandBuffer cmd, Type_STLVector<uint32_t> const& bufferIndices) {
     auto bufferCount = bufferIndices.size();
     Type_STLVector<vk::DescriptorBufferBindingInfoEXT> infos(bufferCount);
 
@@ -132,8 +120,8 @@ void DescriptorManager::BindDescBuffers(vk::CommandBuffer cmd,
 void DescriptorManager::BindDescriptorSets(
     vk::CommandBuffer cmd, vk::PipelineBindPoint bindPoint,
     vk::PipelineLayout layout, uint32_t firstSet,
-    ::std::span<uint32_t> bufferIndices,
-    ::std::span<Type_STLString> descSetNames) {
+    Type_STLVector<Type_STLString> const& descSetNames,
+    Type_STLVector<uint32_t> const& bufferIndices) {
     auto descSetCount = descSetNames.size();
     Type_STLVector<vk::DeviceSize> offsets(descSetCount);
     for (uint32_t i = 0; i < descSetCount; ++i) {
@@ -220,15 +208,6 @@ void DescriptorManager::CreateDescriptor(DescriptorSet* set, uint32_t binding,
         descInfo, descSize,
         (char*)mDescBuffers[set->GetBufferIndex()].basePtr
             + set->GetOffsetInBuffer() + set->GetBingdingOffset(binding));
-}
-
-Type_STLString DescriptorManager::ParseDescSetLayoutName(
-    const char* name) const {
-    return name;
-}
-
-Type_STLString DescriptorManager::ParseDescSetName(const char* name) const {
-    return name;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -7,7 +7,8 @@
 namespace IntelliDesign_NS::Vulkan::Core::Utils {
 
 Type_STLVector<Type_STLString> FilterStringList(
-    ::std::span<Type_STLString> available, ::std::span<Type_STLString> request) {
+    ::std::span<Type_STLString> available,
+    ::std::span<Type_STLString> request) {
     ::std::ranges::sort(available);
     ::std::ranges::sort(request);
     Type_STLVector<Type_STLString> result {};
@@ -30,6 +31,9 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
         .setSubresourceRange(
             {newLayout == vk::ImageLayout::eDepthAttachmentOptimal
                  ? vk::ImageAspectFlagBits::eDepth
+             : newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal
+                 ? vk::ImageAspectFlagBits::eDepth
+                       | vk::ImageAspectFlagBits::eStencil
                  : vk::ImageAspectFlagBits::eColor,
              0, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers})
         .setImage(img);

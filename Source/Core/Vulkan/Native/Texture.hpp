@@ -9,6 +9,8 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class Device;
 class MemoryAllocator;
+class Sampler;
+class DescriptorManager;
 
 class Texture {
     using Type_ImageViews = Type_STLUnorderedMap_String<vk::ImageView>;
@@ -53,6 +55,11 @@ public:
     vk::ImageView GetViewHandle(const char* name) const;
 
     void SetName(const char* name) const;
+
+    void AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
+                            const char* descSetName, vk::DescriptorType type,
+                            const char* viewName,
+                            Sampler* sampler = nullptr) const;
 
 private:
     vk::Image CreateImage();

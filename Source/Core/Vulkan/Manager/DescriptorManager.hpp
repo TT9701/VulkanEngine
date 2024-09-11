@@ -41,8 +41,7 @@ public:
         const void* pNext = nullptr);
 
     Type_STLVector<Type_STLString> CreateDescLayouts(
-        const char* shaderName,
-        ::std::span<DescriptorSetLayoutData> datas,
+        const char* shaderName, ::std::span<DescriptorSetLayoutData> datas,
         const void* pNext = nullptr);
 
     vk::DescriptorSetLayout GetDescSetLayoutHandle(const char* name) const;
@@ -67,13 +66,15 @@ public:
                                const void* pNext = nullptr);
 
     void BindDescBuffers(vk::CommandBuffer cmd,
-                         ::std::span<uint32_t> bufferIndices);
+                         Type_STLVector<uint32_t> const& bufferIndices = {
+                             0ui32});
 
     void BindDescriptorSets(vk::CommandBuffer cmd,
                             vk::PipelineBindPoint bindPoint,
                             vk::PipelineLayout layout, uint32_t firstSet,
-                            ::std::span<uint32_t> bufferIndices,
-                            ::std::span<Type_STLString> descSetNames);
+                            Type_STLVector<Type_STLString> const& descSetNames,
+                            Type_STLVector<uint32_t> const& bufferIndices = {
+                                0ui32});
 
 private:
     void CreateDescBuffers(uint32_t count);
@@ -82,9 +83,6 @@ private:
                           vk::DescriptorType type,
                           vk::DescriptorDataEXT const& data,
                           const void* pNext = nullptr);
-
-    Type_STLString ParseDescSetLayoutName(const char* name) const;
-    Type_STLString ParseDescSetName(const char* name) const;
 
 private:
     Context* pContext;

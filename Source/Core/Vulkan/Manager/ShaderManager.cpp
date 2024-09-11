@@ -46,13 +46,13 @@ void ShaderManager::ReleaseShader(const char* name,
     }
 }
 
-SharedPtr<Shader> ShaderManager::GetShader(const char* name,
-                                           vk::ShaderStageFlagBits stage,
-                                           Type_ShaderMacros const& defines,
-                                           const char* entry) {
+Shader* ShaderManager::GetShader(const char* name,
+                                 vk::ShaderStageFlagBits stage,
+                                 Type_ShaderMacros const& defines,
+                                 const char* entry) {
     auto shaderName = ParseShaderName(name, stage, defines, entry);
     ::std::unique_lock<::std::mutex> lock {mMutex};
-    return mShaders.at(shaderName);
+    return mShaders.at(shaderName).get();
 }
 
 struct Comp {
@@ -68,7 +68,7 @@ struct Comp {
 Type_STLString ShaderManager::ParseShaderName(const char* name,
                                               vk::ShaderStageFlagBits stage,
                                               Type_ShaderMacros const& defines,
-                                              const char* entry) {
+                                              const char* entry) const {
     Type_STLString res {};
     res = name;
 

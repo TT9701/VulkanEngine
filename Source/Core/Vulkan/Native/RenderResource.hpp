@@ -5,6 +5,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+class Sampler;
 class DescriptorManager;
 
 class RenderResource {
@@ -45,6 +46,8 @@ public:
 
     void SetName(const char* name);
 
+    ::std::variant<Buffer, Texture> const& GetResource() const;
+
     // buffer
     vk::Buffer GetBufferHandle() const;
     void* GetBufferMappedPtr() const;
@@ -69,6 +72,15 @@ public:
     uint32_t GetTexSampleCount() const;
     uint32_t GetTexArraySize() const;
     vk::Format GetTexFormat() const;
+
+    void AllocateBufferDescriptor(DescriptorManager* manager, uint32_t binding,
+                                  const char* descSetName,
+                                  vk::DescriptorType type) const;
+
+    void AllocateImageDescriptor(DescriptorManager* manager, uint32_t binding,
+                                 const char* descSetName,
+                                 vk::DescriptorType type, const char* viewName,
+                                 Sampler* sampler = nullptr);
 
 private:
     ::std::variant<Buffer, Texture> mResource;

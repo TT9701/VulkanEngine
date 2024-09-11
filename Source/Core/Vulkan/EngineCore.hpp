@@ -8,6 +8,10 @@
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "Core/Vulkan/Manager/CommandManager.hpp"
+#include "Core/Vulkan/Manager/DescriptorManager.hpp"
+#include "Core/Vulkan/Manager/PipelineManager.hpp"
+#include "Core/Vulkan/Manager/RenderResourceManager.hpp"
+#include "Core/Vulkan/Manager/ShaderManager.hpp"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"
@@ -23,14 +27,6 @@ class MemoryAllocator;
 class ExternalMemoryPool;
 class Swapchain;
 class Fence;
-class CommandBuffers;
-class CommandPool;
-class DescriptorManager;
-class Shader;
-class RenderResource;
-class RenderResourceManager;
-class ShaderManager;
-class PipelineManager;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
@@ -53,8 +49,8 @@ public:
     void Run();
 
 public:
-    ImmediateSubmitManager* GetImmediateSubmitManager() const {
-        return mPImmediateSubmitManager.get();
+    ImmediateSubmitManager const* GetImmediateSubmitManager() const {
+        return &mImmSubmitMgr;
     }
 
 private:
@@ -63,36 +59,27 @@ private:
     UniquePtr<SDLWindow> CreateSDLWindow();
     UniquePtr<Context> CreateContext();
     UniquePtr<Swapchain> CreateSwapchain();
-    UniquePtr<RenderResourceManager> CreateRenderResourceManager();
-    UniquePtr<ImmediateSubmitManager> CreateImmediateSubmitManager();
-    UniquePtr<CommandManager> CreateCommandManager();
-    UniquePtr<PipelineManager> CreatePipelineManager();
-    UniquePtr<ShaderManager> CreateShaderModuleManager();
-    UniquePtr<DescriptorManager> CreateDescriptorBufferManager();
+
+    RenderResourceManager CreateRenderResourceManager();
+    ImmediateSubmitManager CreateImmediateSubmitManager();
+    CommandManager CreateCommandManager();
+    PipelineManager CreatePipelineManager();
+    ShaderManager CreateShaderManager();
+    DescriptorManager CreateDescriptorManager();
+
     void CreateDrawImage();
     void CreateDepthImage();
     void CreateErrorCheckTexture();
     void CreatePipelines();
-    void CreateDescriptors();
 
     void UpdateScene();
     void UpdateSceneUBO();
 
     void LoadShaders();
 
-    // Compute
-    void CreateBackgroundComputeDescriptors();
     void CreateBackgroundComputePipeline();
-
-    // Graphics
     void CreateMeshPipeline();
-    void CreateMeshDescriptors();
-
     void CreateMeshShaderPipeline();
-    void CreateMeshShaderDescriptors();
-
-    // Draw quad
-    void CreateDrawQuadDescriptors();
     void CreateDrawQuadPipeline();
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -112,24 +99,24 @@ private:
     bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
-    UniquePtr<SDLWindow> mPWindow;
-    UniquePtr<Context> mPContext;
-    UniquePtr<Swapchain> mPSwapchain;
+    UniquePtr<SDLWindow> mWindow;
+    UniquePtr<Context> mContext;
+    UniquePtr<Swapchain> mSwapchain;
 
-    UniquePtr<RenderResourceManager> mRenderResManager;
+    DescriptorManager mDescMgr;
+    RenderResourceManager mRenderResMgr;
+    CommandManager mCmdMgr;
+    ImmediateSubmitManager mImmSubmitMgr;
+    PipelineManager mPipelineMgr;
+    ShaderManager mShaderMgr;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 #endif
-    UniquePtr<CommandManager> mPCmdManager;
-    UniquePtr<ImmediateSubmitManager> mPImmediateSubmitManager;
-    UniquePtr<DescriptorManager> mDescriptorManager;
-    UniquePtr<PipelineManager> mPipelineManager;
-    UniquePtr<ShaderManager> mShaderManager;
 
     Camera mMainCamera {};
-
     SceneData mSceneData {};
+    SharedPtr<Model> mFactoryModel {};
 
 #ifdef CUDA_VULKAN_INTEROP
     ExternalGPUMeshBuffers mTriangleExternalMesh {};
@@ -139,8 +126,6 @@ private:
 
     CUDA::CUDAStream mCUDAStream {};
 #endif
-
-    SharedPtr<Model> mFactoryModel;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

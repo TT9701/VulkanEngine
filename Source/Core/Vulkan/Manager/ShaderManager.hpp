@@ -35,14 +35,14 @@ public:
                        Type_ShaderMacros const& defines = {},
                        const char* entry = "main");
 
-    SharedPtr<Shader> GetShader(const char* name, vk::ShaderStageFlagBits stage,
-                                Type_ShaderMacros const& defines = {},
-                                const char* entry = "main");
+    Shader* GetShader(const char* name, vk::ShaderStageFlagBits stage,
+                      Type_ShaderMacros const& defines = {},
+                      const char* entry = "main");
 
     Type_STLString ParseShaderName(const char* name,
                                    vk::ShaderStageFlagBits stage,
                                    Type_ShaderMacros const& defines = {},
-                                   const char* entry = "main");
+                                   const char* entry = "main") const;
 
 private:
     Context* pContext;

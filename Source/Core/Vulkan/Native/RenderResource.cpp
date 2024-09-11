@@ -59,6 +59,10 @@ void RenderResource::SetName(const char* name) {
     mName = name;
 }
 
+std::variant<Buffer, Texture> const& RenderResource::GetResource() const {
+    return mResource;
+}
+
 vk::Buffer RenderResource::GetBufferHandle() const {
     return ::std::get<Buffer>(mResource).GetHandle();
 }
@@ -125,6 +129,21 @@ uint32_t RenderResource::GetTexArraySize() const {
 
 vk::Format RenderResource::GetTexFormat() const {
     return ::std::get<Texture>(mResource).GetFormat();
+}
+
+void RenderResource::AllocateBufferDescriptor(DescriptorManager* manager,
+                                              uint32_t binding,
+                                              const char* descSetName,
+                                              vk::DescriptorType type) const {
+    ::std::get<Buffer>(mResource).AllocateDescriptor(manager, binding,
+                                                     descSetName, type);
+}
+
+void RenderResource::AllocateImageDescriptor(
+    DescriptorManager* manager, uint32_t binding, const char* descSetName,
+    vk::DescriptorType type, const char* viewName, Sampler* sampler) {
+    ::std::get<Texture>(mResource).AllocateDescriptor(
+        manager, binding, descSetName, type, viewName, sampler);
 }
 
 std::string_view RenderResource::GetName() const {

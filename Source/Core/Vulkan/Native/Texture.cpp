@@ -1,8 +1,10 @@
 #include "Texture.hpp"
 
 #include "Core/Utilities/VulkanUtilities.hpp"
+#include "Core/Vulkan/Manager/DescriptorManager.hpp"
 #include "Device.hpp"
 #include "MemoryAllocator.hpp"
+#include "Sampler.hpp"
 
 //
 // void Texture::CopyToImage(vk::CommandBuffer cmd, vk::Image dstImage,
@@ -173,6 +175,30 @@ void Texture::SetName(const char* name) const {
     pDevice->SetObjectName(mHandle, name);
     pDevice->SetObjectName(vk::DeviceMemory(mAllocationInfo.deviceMemory),
                            name);
+}
+
+void Texture::AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
+                                 const char* descSetName,
+                                 vk::DescriptorType type, const char* viewName,
+                                 Sampler* sampler) const {
+    vk::ImageLayout imageLayout;
+    if (type == vk::DescriptorType::eStorageImage)
+        imageLayout = vk::ImageLayout::eGeneral;
+    else if (type == vk::DescriptorType::eCombinedImageSampler
+             || type == vk::DescriptorType::eSampledImage)
+        imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    else
+        throw ::std::runtime_error("un-implemented type");
+
+    vk::DescriptorImageInfo imageInfo {};
+    imageInfo.setImageView(GetViewHandle(viewName))
+        .setImageLayout(imageLayout);
+    if (sampler) {
+        imageInfo.setSampler(sampler->GetHandle());
+    }
+
+    manager->CreateImageDescriptor(manager->GetDescriptorSet(descSetName), 0,
+                                   type, &imageInfo);
 }
 
 vk::Image Texture::CreateImage() {

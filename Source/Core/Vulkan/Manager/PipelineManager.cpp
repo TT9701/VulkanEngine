@@ -329,16 +329,6 @@ void PipelineManager::BindGraphicsPipeline(vk::CommandBuffer cmd,
                      GetGraphicsPipelineHandle(name));
 }
 
-struct Comp {
-    template <typename T>
-    bool operator()(const T& l, const T& r) const {
-        if (l.setIdx != r.setIdx) {
-            return l.setIdx < r.setIdx;
-        }
-        return l.bindingIdx < r.bindingIdx;
-    }
-};
-
 ShaderStats PipelineManager::ReflectShaderStats(const char* pipelineName,
                                                 DescriptorManager* descManager,
                                                 ::std::span<Shader*> shaders) {
@@ -352,7 +342,13 @@ ShaderStats PipelineManager::ReflectShaderStats(const char* pipelineName,
             ::std::make_move_iterator(shader->GetDescSetLayoutDatas().end()));
     }
 
-    std::ranges::sort(datas, Comp {});
+    std::ranges::sort(datas, [](DescriptorSetLayoutData const& l,
+                                DescriptorSetLayoutData const& r) {
+        if (l.setIdx != r.setIdx) {
+            return l.setIdx < r.setIdx;
+        }
+        return l.bindingIdx < r.bindingIdx;
+    });
 
     auto makeUniqueSet =
         [&](const Type_STLVector<DescriptorSetLayoutData>::iterator& prev,
@@ -390,8 +386,6 @@ ShaderStats PipelineManager::ReflectShaderStats(const char* pipelineName,
             for (uint32_t i = 1; i < bindings.size(); ++i) {
                 data.stage |= bindings[i].stage;
             }
-            prefix += vk::to_string(data.stage) + "_";
-            data.name = prefix + data.name;
             return data;
         };
 
@@ -451,12 +445,12 @@ ShaderStats PipelineManager::ReflectShaderStats(const char* pipelineName,
 
 Type_STLString PipelineManager::ParsePipelineName(
     const char* pipelineName) const {
-    return Type_STLString {pipelineName} + "_pipeline";
+    return Type_STLString {pipelineName};
 }
 
 Type_STLString PipelineManager::ParsePipelineLayoutName(
     const char* pipelineName) const {
-    return Type_STLString {pipelineName} + "_pipeline_layout";
+    return Type_STLString {pipelineName};
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

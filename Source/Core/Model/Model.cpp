@@ -323,7 +323,7 @@ void Model::Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix) {
     //
     // mConstants.mModelMatrix = modelMatrix;
     //
-    // cmd.pushConstants(mPipelineManager->GetLayoutHandle("Triangle_Layout"),
+    // cmd.pushConstants(mPipelineMgr->GetLayoutHandle("Triangle_Layout"),
     //                   vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushContants),
     //                   &pushContants);
 }
