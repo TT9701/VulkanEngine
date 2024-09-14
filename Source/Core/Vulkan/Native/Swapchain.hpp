@@ -3,8 +3,8 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
-#include "SyncStructures.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
+#include "SyncStructures.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -32,6 +32,7 @@ public:
     vk::SwapchainKHR GetHandle() const;
     vk::Image GetImageHandle(uint32_t index) const;
     vk::ImageView GetImageViewHandle(uint32_t index) const;
+    vk::RenderingAttachmentInfo GetColorAttachmentInfo(uint32_t index) const;
     vk::Format GetFormat() const;
     vk::Extent2D GetExtent2D() const;
     uint32_t GetImageCount() const;

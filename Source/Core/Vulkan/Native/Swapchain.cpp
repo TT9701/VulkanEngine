@@ -84,6 +84,17 @@ vk::ImageView Swapchain::GetImageViewHandle(uint32_t index) const {
     return mImages[index].GetTexViewHandle("Color-Whole");
 }
 
+vk::RenderingAttachmentInfo Swapchain::GetColorAttachmentInfo(
+    uint32_t index) const {
+    vk::RenderingAttachmentInfo info {};
+    info.setImageView(mImages[index].GetTexViewHandle("Color-Whole"))
+        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+        .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+    return info;
+}
+
 vk::Format Swapchain::GetFormat() const {
     return mFormat;
 }

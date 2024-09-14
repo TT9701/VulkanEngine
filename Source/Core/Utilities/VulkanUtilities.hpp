@@ -22,6 +22,8 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
                            vk::ImageLayout currentLayout,
                            vk::ImageLayout newLayout);
 
+vk::ImageSubresourceRange GetWholeImageSubresource(vk::ImageAspectFlags aspect);
+
 #define VK_CHECK(x)                                                        \
     {                                                                      \
         vk::Result err = x;                                                \

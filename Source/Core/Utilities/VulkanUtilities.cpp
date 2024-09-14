@@ -44,4 +44,8 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
     cmd.pipelineBarrier2(depInfo);
 }
 
+vk::ImageSubresourceRange GetWholeImageSubresource(vk::ImageAspectFlags aspect) {
+    return {aspect, 0, vk::RemainingMipLevels, 0, vk::RemainingArrayLayers};
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core::Utils

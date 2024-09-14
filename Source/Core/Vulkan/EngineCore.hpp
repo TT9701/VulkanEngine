@@ -9,6 +9,7 @@
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "Core/Vulkan/Manager/CommandManager.hpp"
 #include "Core/Vulkan/Manager/DescriptorManager.hpp"
+#include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Manager/PipelineManager.hpp"
 #include "Core/Vulkan/Manager/RenderResourceManager.hpp"
 #include "Core/Vulkan/Manager/ShaderManager.hpp"
@@ -90,10 +91,10 @@ private:
     void SetCudaInterop();
 #endif
 
-    void DrawBackground(vk::CommandBuffer cmd);
-    void DrawMesh(vk::CommandBuffer cmd);
-    void DrawQuad(vk::CommandBuffer cmd);
-    void MeshShaderDraw(vk::CommandBuffer cmd);
+    void RecordDrawBackgroundCmds();
+    void RecordDrawMeshCmds();
+    void RecordDrawQuadCmds();
+    void RecordMeshShaderDrawCmds();
 
 private:
     bool mStopRendering {false};
@@ -109,6 +110,11 @@ private:
     ImmediateSubmitManager mImmSubmitMgr;
     PipelineManager mPipelineMgr;
     ShaderManager mShaderMgr;
+
+    DrawCallManager mBackgroundDrawCallMgr {};
+    DrawCallManager mMeshDrawCallMgr {};
+    DrawCallManager mMeshShaderDrawCallMgr {};
+    DrawCallManager mQuadDrawCallMgr {};
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
@@ -127,5 +133,4 @@ private:
     CUDA::CUDAStream mCUDAStream {};
 #endif
 };
-
 }  // namespace IntelliDesign_NS::Vulkan::Core

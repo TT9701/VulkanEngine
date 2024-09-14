@@ -15,7 +15,7 @@ struct IndexDrawPushConstants {
     vk::DeviceAddress mVertexBufferAddress {};
 };
 
-struct PushConstants {
+struct MeshletPushConstants {
     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
 
     vk::DeviceAddress mVertexBufferAddress {};
@@ -63,7 +63,21 @@ public:
 
     GPUMeshBuffers& GetMeshBuffer() { return mBuffers; }
 
-    PushConstants GetPushContants() const { return mConstants; }
+    MeshletPushConstants GetMeshletPushContants() const {
+        return mMeshletConstants;
+    }
+
+    MeshletPushConstants* GetMeshletPushContantsPtr() {
+        return &mMeshletConstants;
+    }
+
+    IndexDrawPushConstants GetIndexDrawPushConstants() const {
+        return mIndexDrawConstants;
+    }
+
+    IndexDrawPushConstants* GetIndexDrawPushConstantsPtr() {
+        return &mIndexDrawConstants;
+    }
 
     Buffer* GetIndexedIndirectCmdBuffer() const {
         return mIndirectIndexedCmdBuffer.get();
@@ -115,7 +129,8 @@ private:
     MeshDatas mMeshDatas;
     GPUMeshBuffers mBuffers {};
 
-    PushConstants mConstants {};
+    MeshletPushConstants mMeshletConstants {};
+    IndexDrawPushConstants mIndexDrawConstants {};
 
     Type_STLVector<vk::DrawIndexedIndirectCommand> mIndirectIndexedCmds;
     Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;

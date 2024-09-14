@@ -47,7 +47,9 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/Shader.cpp
     Vulkan/Native/RenderResource.cpp
     Vulkan/Native/RenderResource.hpp
-
+    Vulkan/Native/DrawCallMetaData.h
+    Vulkan/Native/DrawCallMetaData.cpp
+    
     Vulkan/Manager/Context.hpp
     Vulkan/Manager/Context.cpp
     Vulkan/Manager/CommandManager.cpp
@@ -60,6 +62,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Manager/ShaderManager.cpp
     Vulkan/Manager/DescriptorManager.hpp
     Vulkan/Manager/DescriptorManager.cpp
+    Vulkan/Manager/DrawCallManager.h
+    Vulkan/Manager/DrawCallManager.cpp
 
     Vulkan/EngineCore.hpp
     Vulkan/EngineCore.cpp

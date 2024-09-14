@@ -76,7 +76,7 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
                            mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
         });
 
-        mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
+        mIndexDrawConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
     }
 
     // indirect indexed command buffer
@@ -274,23 +274,23 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
                            offsetsCopy);
         });
 
-        mConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
-        mConstants.mMeshletBufferAddress = mBuffers.mMeshletBufferAddress;
-        mConstants.mMeshletVertexBufferAddress =
+        mMeshletConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
+        mMeshletConstants.mMeshletBufferAddress = mBuffers.mMeshletBufferAddress;
+        mMeshletConstants.mMeshletVertexBufferAddress =
             mBuffers.mMeshletVertBufferAddress;
-        mConstants.mMeshletTriangleBufferAddress =
+        mMeshletConstants.mMeshletTriangleBufferAddress =
             mBuffers.mMeshletTriBufferAddress;
 
-        mConstants.mVertexOffsetBufferAddress = mBuffers.mMeshDataBufferAddress;
-        mConstants.mMeshletOffsetBufferAddress =
+        mMeshletConstants.mVertexOffsetBufferAddress = mBuffers.mMeshDataBufferAddress;
+        mMeshletConstants.mMeshletOffsetBufferAddress =
             mBuffers.mMeshDataBufferAddress + sizeof(uint32_t) * mMeshes.size();
-        mConstants.mMeshletVertexOffsetBufferAddress =
+        mMeshletConstants.mMeshletVertexOffsetBufferAddress =
             mBuffers.mMeshDataBufferAddress
             + sizeof(uint32_t) * mMeshes.size() * 2;
-        mConstants.mMeshletTriangleoffsetBufferAddress =
+        mMeshletConstants.mMeshletTriangleoffsetBufferAddress =
             mBuffers.mMeshDataBufferAddress
             + sizeof(uint32_t) * mMeshes.size() * 3;
-        mConstants.mMeshletCountBufferAddress =
+        mMeshletConstants.mMeshletCountBufferAddress =
             mBuffers.mMeshDataBufferAddress
             + sizeof(uint32_t) * mMeshes.size() * 4;
     }
@@ -321,7 +321,7 @@ void Model::Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix) {
     // cmd.bindIndexBuffer(mBuffers.mIndexBuffer->GetHandle(), 0,
     //                     vk::IndexType::eUint32);
     //
-    // mConstants.mModelMatrix = modelMatrix;
+    // mMeshletConstants.mModelMatrix = modelMatrix;
     //
     // cmd.pushConstants(mPipelineMgr->GetLayoutHandle("Triangle_Layout"),
     //                   vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushContants),
