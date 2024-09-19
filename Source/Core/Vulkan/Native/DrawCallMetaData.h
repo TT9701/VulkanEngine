@@ -38,6 +38,12 @@ enum class DrawCallMetaDataType {
     NumTypes
 };
 
+template <class T>
+struct MetaDataIndexMapping {
+    uint32_t count {0};
+    Type_STLVector<::std::pair<T, uint32_t>> mapping {};
+};
+
 struct IDrawCallMetaData {
     virtual void RecordCmds(vk::CommandBuffer cmd) const = 0;
 };
@@ -71,8 +77,12 @@ template <>
 struct DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>
     : IDrawCallMetaData {
     ::std::optional<Type_STLVector<vk::ImageMemoryBarrier2>> imgBarriers {};
-    ::std::optional<Type_STLVector<vk::BufferMemoryBarrier2>> bufBarriers {};
     ::std::optional<Type_STLVector<vk::MemoryBarrier2>> memBarriers {};
+    ::std::optional<Type_STLVector<vk::BufferMemoryBarrier2>> bufBarriers {};
+
+    MetaDataIndexMapping<vk::Image> imgBarriersMapping;
+    MetaDataIndexMapping<vk::AccessFlags2> memBarriersMapping;
+    MetaDataIndexMapping<vk::Buffer> bufBarriersMapping;
 
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

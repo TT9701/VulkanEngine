@@ -19,16 +19,16 @@ public:
     void AddArgument_MemoryBarriers_BeforePass(
         ::std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers =
             {},
+        ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {},
         ::std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers =
-            {},
-        ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {});
+            {});
 
     void AddArgument_MemoryBarriers_AfterPass(
         ::std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers =
             {},
+        ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {},
         ::std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers =
-            {},
-        ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {});
+            {});
 
     void AddArgument_RenderingInfo(
         vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
@@ -85,6 +85,14 @@ public:
         ::std::initializer_list<vk::RenderingAttachmentInfo> const&
             colorAttachments);
 
+    void UpdateArgument_MemoryBarriers_BeforePass(
+        Type_STLVector<vk::Image> const& indices,
+        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers);
+
+    void UpdateArgument_MemoryBarriers_AfterPass(
+        Type_STLVector<vk::Image> const& indices,
+        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers);
+
 public:
     void RecordCmd(vk::CommandBuffer cmd) const;
 
@@ -96,5 +104,7 @@ private:
     Type_STLVector<Type_DrawCallMetaData_Unified> mMetaDatas {};
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>
         mBarriers_AfterPass;
+
+    MetaDataIndexMapping<DrawCallMetaDataType> mMapping;
 };
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -95,6 +95,36 @@ vk::RenderingAttachmentInfo Swapchain::GetColorAttachmentInfo(
     return info;
 }
 
+vk::ImageMemoryBarrier2 Swapchain::GetImageBarrier_BeforePass(
+    uint32_t index) const {
+    return vk::ImageMemoryBarrier2 {
+        vk::PipelineStageFlagBits2::eBottomOfPipe,
+        vk::AccessFlagBits2::eNone,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal,
+        {},
+        {},
+        mImages[index].GetTexHandle(),
+        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
+}
+
+vk::ImageMemoryBarrier2 Swapchain::GetImageBarrier_AfterPass(
+    uint32_t index) const {
+    return vk::ImageMemoryBarrier2 {
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::PipelineStageFlagBits2::eBottomOfPipe,
+        vk::AccessFlagBits2::eNone,
+        vk::ImageLayout::eColorAttachmentOptimal,
+        vk::ImageLayout::ePresentSrcKHR,
+        {},
+        {},
+        mImages[index].GetTexHandle(),
+        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
+}
+
 vk::Format Swapchain::GetFormat() const {
     return mFormat;
 }

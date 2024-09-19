@@ -101,13 +101,13 @@ EngineCore::EngineCore()
 
         mFactoryModel = MakeShared<Model>(meshes);
 
-        // mFactoryModel->GenerateBuffers(mContext.get(), this);
-        mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
+        mFactoryModel->GenerateBuffers(mContext.get(), this);
+        // mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
     }
 
     RecordDrawBackgroundCmds();
-    // RecordDrawMeshCmds();
-    RecordMeshShaderDrawCmds();
+    RecordDrawMeshCmds();
+    // RecordMeshShaderDrawCmds();
     RecordDrawQuadCmds();
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -180,21 +180,21 @@ void EngineCore::Draw() {
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
-        // mMeshDrawCallMgr.RecordCmd(cmd.GetHandle());
-        mMeshShaderDrawCallMgr.RecordCmd(cmd.GetHandle());
+        mMeshDrawCallMgr.RecordCmd(cmd.GetHandle());
+        // mMeshShaderDrawCallMgr.RecordCmd(cmd.GetHandle());
 
-        Utils::TransitionImageLayout(cmd.GetHandle(), swapchainImage,
-                                     vk::ImageLayout::eUndefined,
-                                     vk::ImageLayout::eColorAttachmentOptimal);
-        if (mFrameNum)
+        if (mFrameNum) {
             mQuadDrawCallMgr.UpdateArgument_ColorAttachments(
                 {mSwapchain->GetColorAttachmentInfo(swapchainImageIdx)});
+            mQuadDrawCallMgr.UpdateArgument_MemoryBarriers_BeforePass(
+                {mSwapchain->GetImageHandle(0)},
+                {mSwapchain->GetImageBarrier_BeforePass(swapchainImageIdx)});
+            mQuadDrawCallMgr.UpdateArgument_MemoryBarriers_AfterPass(
+                {mSwapchain->GetImageHandle(0)},
+                {mSwapchain->GetImageBarrier_AfterPass(swapchainImageIdx)});
+        }
 
         mQuadDrawCallMgr.RecordCmd(cmd.GetHandle());
-
-        Utils::TransitionImageLayout(cmd.GetHandle(), swapchainImage,
-                                     vk::ImageLayout::eColorAttachmentOptimal,
-                                     vk::ImageLayout::ePresentSrcKHR);
 
         cmd.End();
 
@@ -843,7 +843,12 @@ void EngineCore::RecordDrawQuadCmds() {
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    mQuadDrawCallMgr.AddArgument_MemoryBarriers_BeforePass({drawImageBarrier});
+
+    auto scBarrier = mSwapchain->GetImageBarrier_BeforePass(
+        mSwapchain->GetCurrentImageIndex());
+
+    mQuadDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
+        {drawImageBarrier, scBarrier});
 
     auto width = mSwapchain->GetExtent2D().width;
     auto height = mSwapchain->GetExtent2D().height;
@@ -878,6 +883,11 @@ void EngineCore::RecordDrawQuadCmds() {
         mPipelineMgr.GetLayoutHandle("QuadDraw"), 0ui32, {0}, {imageOffset});
 
     mQuadDrawCallMgr.AddArgument_Draw(3, 1, 0, 0);
+
+    scBarrier = mSwapchain->GetImageBarrier_AfterPass(
+        mSwapchain->GetCurrentImageIndex());
+
+    mQuadDrawCallMgr.AddArgument_MemoryBarriers_AfterPass({scBarrier});
 }
 
 void EngineCore::RecordMeshShaderDrawCmds() {
