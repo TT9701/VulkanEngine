@@ -14,7 +14,8 @@ public:
     enum class MemoryType { DeviceLocal, Staging, ReadBack };
 
     Buffer(Device* device, MemoryAllocator* allocator, size_t size,
-           vk::BufferUsageFlags usage, MemoryType memType);
+           vk::BufferUsageFlags usage, MemoryType memType,
+           size_t texelSize = 1);
 
     ~Buffer();
 
@@ -29,6 +30,8 @@ public:
 
     size_t GetSize() const;
 
+    size_t GetTexelSize() const;
+
     MemoryType GetMemoryType() const;
 
     // for mapped buffers, non mapped buffers return nullptr
@@ -40,8 +43,12 @@ public:
                             const char* descSetName,
                             vk::DescriptorType type) const;
 
+    void Resize(size_t newSize);
+
 private:
     vk::Buffer CreateBufferResource();
+
+    void Destroy();
 
 private:
     Device* pDevice;
@@ -51,6 +58,7 @@ private:
     MemoryType mMemoryType;
 
     size_t mSize;
+    size_t mTexelSize;
 
     bool bMapped {false};
     bool bDeviceAddressEnabled {false};

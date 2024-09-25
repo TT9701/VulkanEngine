@@ -80,10 +80,6 @@ struct DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>
     ::std::optional<Type_STLVector<vk::MemoryBarrier2>> memBarriers {};
     ::std::optional<Type_STLVector<vk::BufferMemoryBarrier2>> bufBarriers {};
 
-    MetaDataIndexMapping<vk::Image> imgBarriersMapping;
-    MetaDataIndexMapping<vk::AccessFlags2> memBarriersMapping;
-    MetaDataIndexMapping<vk::Buffer> bufBarriersMapping;
-
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };
 

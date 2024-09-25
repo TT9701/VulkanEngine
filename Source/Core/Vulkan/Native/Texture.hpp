@@ -11,9 +11,10 @@ class Device;
 class MemoryAllocator;
 class Sampler;
 class DescriptorManager;
+class ImageView;
 
 class Texture {
-    using Type_ImageViews = Type_STLUnorderedMap_String<vk::ImageView>;
+    using Type_ImageViews = Type_STLUnorderedMap_String<SharedPtr<ImageView>>;
 
 public:
     enum class Type {
@@ -52,6 +53,7 @@ public:
     vk::Format GetFormat() const;
     vk::Image GetHandle() const;
     Type GetType() const;
+    ImageView* GetView(const char* name) const;
     vk::ImageView GetViewHandle(const char* name) const;
 
     void SetName(const char* name) const;
@@ -61,8 +63,12 @@ public:
                             const char* viewName,
                             Sampler* sampler = nullptr) const;
 
+    void Resize(uint32_t width, uint32_t height);
+
 private:
     vk::Image CreateImage();
+
+    void Destroy();
 
 private:
     Device* pDevice;
@@ -85,6 +91,32 @@ private:
     vk::Image mHandle;
 
     Type_ImageViews mViews;
+};
+
+class ImageView {
+public:
+    ImageView(Device* device, vk::ImageSubresourceRange range,
+              vk::Image imageHandle, vk::Format format, vk::ImageViewType type);
+
+    ~ImageView();
+
+    vk::ImageView GetHandle() const;
+
+    void Destroy();
+
+    friend class Texture;
+
+private:
+    vk::ImageView CreateImageView() const;
+
+private:
+    Device* pDevice;
+    vk::ImageSubresourceRange mRange;
+    vk::Image mImageHandle;
+    vk::Format mFormat;
+    vk::ImageViewType mType;
+
+    vk::ImageView mHandle;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

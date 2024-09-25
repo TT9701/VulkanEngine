@@ -67,10 +67,9 @@ QueueSubmitRequest CommandManager::Submit(
 
     vk::SubmitInfo2 submit {{}, waits, cmdInfo, signals};
 
-    pContex->GetDeviceHandle().resetFences(
-        mSPFences[mFenceCurIdx]->GetHandle());
+    pContex->GetDeviceHandle().resetFences(GetCurrentFence());
 
-    queue.submit2(submit, mSPFences[mFenceCurIdx]->GetHandle());
+    queue.submit2(submit, GetCurrentFence());
     mIsSubmitted[mFenceCurIdx] = true;
 
     auto timelineValue = pContex->GetTimelineSemphore()->GetValue();
@@ -89,8 +88,7 @@ void CommandManager::WaitUntilSubmitIsComplete() {
         return;
 
     const auto result = pContex->GetDeviceHandle().waitForFences(
-        mSPFences[mFenceCurIdx]->GetHandle(), vk::True,
-        Fence::TIME_OUT_NANO_SECONDS);
+        GetCurrentFence(), vk::True, Fence::TIME_OUT_NANO_SECONDS);
 
     if (result == vk::Result::eTimeout) {
         ::std::cerr << "Timeout! \n";
@@ -111,8 +109,7 @@ void CommandManager::WaitUntilAllSubmitsAreComplete() {
 
 CmdBufferToBegin CommandManager::GetCmdBufferToBegin() {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mSPFences[mFenceCurIdx]->GetHandle(), vk::True,
-        Fence::TIME_OUT_NANO_SECONDS));
+        GetCurrentFence(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
 
     auto currentCmdBuf = mSPCommandbuffers->GetHandle(mCmdBufferCurIdx);
 

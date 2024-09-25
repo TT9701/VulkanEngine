@@ -36,7 +36,11 @@ SDLWindow::~SDLWindow() {
 }
 
 void SDLWindow::PollEvents(bool& quit, bool& stopRendering,
-                           ::std::function<void(SDL_Event*)>&& func) {
+                           ::std::function<void(SDL_Event*)>&& eventFunc,
+                           ::std::function<void()>&& onWindowResized) {
+    auto func = ::std::move(eventFunc);
+    auto onResized = ::std::move(onWindowResized);
+
     while (SDL_PollEvent(mEvent)) {
         switch (mEvent->type) {
             case SDL_QUIT: quit = true; break;
@@ -44,6 +48,10 @@ void SDLWindow::PollEvents(bool& quit, bool& stopRendering,
                 switch (mEvent->window.event) {
                     case SDL_WINDOWEVENT_MINIMIZED: stopRendering = true; break;
                     case SDL_WINDOWEVENT_RESTORED: stopRendering = false; break;
+                    case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        SDL_GetWindowSize(mWindow, &mWidth, &mHeight);
+                        onResized();
+                        break;
                     default: break;
                 }
                 break;

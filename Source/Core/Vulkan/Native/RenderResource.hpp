@@ -22,7 +22,7 @@ public:
     // buffer
     RenderResource(Device* device, MemoryAllocator* allocator, Type type,
                    size_t size, vk::BufferUsageFlags usage,
-                   Buffer::MemoryType memType);
+                   Buffer::MemoryType memType, size_t texelSize = 1);
 
     // texture
     RenderResource(Device* device, MemoryAllocator* allocator, Type type,
@@ -81,6 +81,8 @@ public:
                                  const char* descSetName,
                                  vk::DescriptorType type, const char* viewName,
                                  Sampler* sampler = nullptr);
+
+    void Resize(uint32_t width, uint32_t height);
 
 private:
     ::std::variant<Buffer, Texture> mResource;

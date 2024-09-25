@@ -9,8 +9,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 Swapchain::Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D)
     : pContex(ctx),
       mFormat(format),
-      mExtent2D(extent2D),
-      mSwapchain(RecreateSwapchain()) {
+      mSwapchain(RecreateSwapchain(extent2D.width, extent2D.height)) {
     SetSwapchainImages();
 
     DBG_LOG_INFO(
@@ -38,7 +37,8 @@ uint32_t Swapchain::AcquireNextImageIndex() {
         mAcquireFence.GetHandle(), &mCurrentImageIndex);
 
     if (e == vk::Result::eErrorOutOfDateKHR) {
-        // TODO: window resize
+        bResizeRequested = true;
+        return -1;
     }
 
     return mCurrentImageIndex;
@@ -52,10 +52,15 @@ void Swapchain::Present(vk::Queue queue) {
         .setWaitSemaphores(sem)
         .setImageIndices(mCurrentImageIndex);
 
-    VK_CHECK(queue.presentKHR(presentInfo));
+    auto e = queue.presentKHR(&presentInfo);
+    if (e == vk::Result::eErrorOutOfDateKHR) {
+        bResizeRequested = true;
+    }
 }
 
-vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::SwapchainKHR old) {
+vk::SwapchainKHR Swapchain::RecreateSwapchain(uint32_t w, uint32_t h,
+                                              vk::SwapchainKHR old) {
+    mExtent2D = vk::Extent2D {w, h};
     mCreateInfo.setSurface(pContex->GetSurface()->GetHandle())
         .setMinImageCount(3u)
         .setImageFormat(mFormat)
@@ -141,6 +146,10 @@ uint32_t Swapchain::GetCurrentImageIndex() const {
     return mCurrentImageIndex;
 }
 
+uint32_t Swapchain::GetPrevImageIndex() const {
+    return (mCurrentImageIndex - 1) % 3;
+}
+
 RenderResource const& Swapchain::GetCurrentImage() const {
     return mImages[mCurrentImageIndex];
 }
@@ -157,7 +166,18 @@ vk::Semaphore Swapchain::GetReady4RenderSemHandle() const {
     return mReady4Render.GetHandle();
 }
 
+void Swapchain::Resize(uint32_t w, uint32_t h) {
+    pContex->GetDeviceHandle().waitIdle();
+    auto newSP = RecreateSwapchain(w, h, mSwapchain);
+    pContex->GetDeviceHandle().destroy(mSwapchain);
+    mSwapchain = newSP;
+    SetSwapchainImages();
+
+    bResizeRequested = false;
+}
+
 void Swapchain::SetSwapchainImages() {
+    mImages.clear();
     auto images = pContex->GetDeviceHandle().getSwapchainImagesKHR(mSwapchain);
     mImages.reserve(images.size());
     for (auto& img : images) {
@@ -169,9 +189,6 @@ void Swapchain::SetSwapchainImages() {
 
         mImages.back().CreateTexView("Color-Whole",
                                      vk::ImageAspectFlagBits::eColor);
-
-        pContex->SetName(mImages.back().GetTexViewHandle("Color-Whole"),
-                         "Swapchain Imageviews");
     }
 }
 

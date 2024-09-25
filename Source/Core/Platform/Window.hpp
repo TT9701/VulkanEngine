@@ -10,7 +10,9 @@ public:
     MOVABLE_ONLY(SDLWindow);
 
 public:
-    void PollEvents(bool& quit, bool& stopRendering, ::std::function<void(SDL_Event*)>&& func);
+    void PollEvents(bool& quit, bool& stopRendering,
+                    ::std::function<void(SDL_Event*)>&& eventFunc,
+                    ::std::function<void()>&& onWindowResized);
 
 public:
     std::vector<std::string> GetVulkanInstanceExtension() const;
@@ -28,5 +30,5 @@ private:
     int mHeight;
 
     SDL_Window* mWindow;
-    SDL_Event*  mEvent {nullptr};
+    SDL_Event* mEvent {nullptr};
 };

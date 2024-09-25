@@ -58,12 +58,12 @@ EngineCore::EngineCore()
     }
 
     {
-        mRenderResMgr.CreateBuffer(
+        mRenderResMgr.CreateScreenSizeBuffer(
             "RWBuffer",
             sizeof(glm::vec4) * mWindow->GetWidth() * mWindow->GetHeight(),
             vk::BufferUsageFlagBits::eStorageBuffer
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            Buffer::MemoryType::DeviceLocal);
+            Buffer::MemoryType::DeviceLocal, sizeof(glm::vec4));
 
         mRenderResMgr.CreateDescriptorSet(
             "Storage_Image_Buffer", 0, "Background",
@@ -101,13 +101,13 @@ EngineCore::EngineCore()
 
         mFactoryModel = MakeShared<Model>(meshes);
 
-        mFactoryModel->GenerateBuffers(mContext.get(), this);
-        // mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
+        // mFactoryModel->GenerateBuffers(mContext.get(), this);
+        mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
     }
 
     RecordDrawBackgroundCmds();
-    RecordDrawMeshCmds();
-    // RecordMeshShaderDrawCmds();
+    // RecordDrawMeshCmds();
+    RecordMeshShaderDrawCmds();
     RecordDrawQuadCmds();
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -125,9 +125,16 @@ void EngineCore::Run() {
     bool bQuit = false;
 
     while (!bQuit) {
-        mWindow->PollEvents(bQuit, mStopRendering, [&](SDL_Event* e) {
-            mMainCamera.ProcessSDLEvent(e, 0.001f);
-        });
+        mWindow->PollEvents(
+            bQuit, mStopRendering,
+            [&](SDL_Event* e) { mMainCamera.ProcessSDLEvent(e, 0.001f); },
+            [&]() {
+                mSwapchain->bResizeRequested = true;
+                mSwapchain->Resize(mWindow->GetWidth(), mWindow->GetHeight());
+
+                mRenderResMgr.ResizeScreenSizeResources(mWindow->GetWidth(),
+                                                        mWindow->GetHeight());
+            });
 
         if (mStopRendering) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -140,6 +147,9 @@ void EngineCore::Run() {
 
 void EngineCore::Draw() {
     auto swapchainImageIdx = mSwapchain->AcquireNextImageIndex();
+    if (swapchainImageIdx == -1)
+        return;
+
     auto swapchainImage = mSwapchain->GetImageHandle(swapchainImageIdx);
 
     const uint64_t graphicsFinished =
@@ -174,25 +184,17 @@ void EngineCore::Draw() {
     {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
 
-        if (!mFrameNum)
-            Utils::TransitionImageLayout(
-                cmd.GetHandle(), mRenderResMgr["DepthImage"]->GetTexHandle(),
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eDepthStencilAttachmentOptimal);
+        // mMeshDrawCallMgr.RecordCmd(cmd.GetHandle());
+        mMeshShaderDrawCallMgr.RecordCmd(cmd.GetHandle());
 
-        mMeshDrawCallMgr.RecordCmd(cmd.GetHandle());
-        // mMeshShaderDrawCallMgr.RecordCmd(cmd.GetHandle());
-
-        if (mFrameNum) {
-            mQuadDrawCallMgr.UpdateArgument_ColorAttachments(
-                {mSwapchain->GetColorAttachmentInfo(swapchainImageIdx)});
-            mQuadDrawCallMgr.UpdateArgument_MemoryBarriers_BeforePass(
-                {mSwapchain->GetImageHandle(0)},
-                {mSwapchain->GetImageBarrier_BeforePass(swapchainImageIdx)});
-            mQuadDrawCallMgr.UpdateArgument_MemoryBarriers_AfterPass(
-                {mSwapchain->GetImageHandle(0)},
-                {mSwapchain->GetImageBarrier_AfterPass(swapchainImageIdx)});
-        }
+        mQuadDrawCallMgr.UpdateArgument_Attachments(
+            {0}, {mSwapchain->GetColorAttachmentInfo(swapchainImageIdx)});
+        mQuadDrawCallMgr.UpdateArgument_ImageBarriers_BeforePass(
+            {"Swapchain"},
+            {mSwapchain->GetImageBarrier_BeforePass(swapchainImageIdx)});
+        mQuadDrawCallMgr.UpdateArgument_ImageBarriers_AfterPass(
+            {"Swapchain"},
+            {mSwapchain->GetImageBarrier_AfterPass(swapchainImageIdx)});
 
         mQuadDrawCallMgr.RecordCmd(cmd.GetHandle());
 
@@ -336,7 +338,7 @@ void EngineCore::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
-    auto ptr = mRenderResMgr.CreateTexture(
+    auto ptr = mRenderResMgr.CreateScreenSizeTexture(
         "DrawImage", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
@@ -350,11 +352,17 @@ void EngineCore::CreateDepthImage() {
     vk::ImageUsageFlags depthImageUsage {};
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-    auto ptr = mRenderResMgr.CreateTexture(
+    auto ptr = mRenderResMgr.CreateScreenSizeTexture(
         "DepthImage", RenderResource::Type::Texture2D,
         vk::Format::eD24UnormS8Uint, depthImageExtent, depthImageUsage);
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
                                           | vk::ImageAspectFlagBits::eStencil);
+
+    mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
+        Utils::TransitionImageLayout(
+            cmd, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    });
 }
 
 ImmediateSubmitManager EngineCore::CreateImmediateSubmitManager() {
@@ -676,7 +684,7 @@ void EngineCore::RecordDrawBackgroundCmds() {
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
     mBackgroundDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
-        {drawImageBarrier});
+        {"DrawImage"}, {drawImageBarrier});
 
     float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
 
@@ -764,7 +772,8 @@ void EngineCore::RecordDrawMeshCmds() {
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    mMeshDrawCallMgr.AddArgument_MemoryBarriers_BeforePass({drawImageBarrier});
+    mMeshDrawCallMgr.AddArgument_MemoryBarriers_BeforePass({"DrawImage"},
+                                                           {drawImageBarrier});
 
     auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
     auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
@@ -848,7 +857,7 @@ void EngineCore::RecordDrawQuadCmds() {
         mSwapchain->GetCurrentImageIndex());
 
     mQuadDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
-        {drawImageBarrier, scBarrier});
+        {"DrawImage", "Swapchain"}, {drawImageBarrier, scBarrier});
 
     auto width = mSwapchain->GetExtent2D().width;
     auto height = mSwapchain->GetExtent2D().height;
@@ -887,7 +896,8 @@ void EngineCore::RecordDrawQuadCmds() {
     scBarrier = mSwapchain->GetImageBarrier_AfterPass(
         mSwapchain->GetCurrentImageIndex());
 
-    mQuadDrawCallMgr.AddArgument_MemoryBarriers_AfterPass({scBarrier});
+    mQuadDrawCallMgr.AddArgument_MemoryBarriers_AfterPass({"Swapchain"},
+                                                          {scBarrier});
 }
 
 void EngineCore::RecordMeshShaderDrawCmds() {
@@ -904,7 +914,7 @@ void EngineCore::RecordMeshShaderDrawCmds() {
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
     mMeshShaderDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
-        {drawImageBarrier});
+        {"DrawImage"}, {drawImageBarrier});
 
     auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
     auto height = mRenderResMgr["DrawImage"]->GetTexHeight();

@@ -10,12 +10,14 @@ RenderResourceManager::RenderResourceManager(Device* device,
                                              DescriptorManager* manager)
     : pDevice(device), pAllocator(allocator), pDescManager(manager) {}
 
-RenderResource* RenderResourceManager::CreateBuffer(
-    const char* name, size_t size, vk::BufferUsageFlags usage,
-    Buffer::MemoryType memType) {
+RenderResource* RenderResourceManager::CreateBuffer(const char* name,
+                                                    size_t size,
+                                                    vk::BufferUsageFlags usage,
+                                                    Buffer::MemoryType memType,
+                                                    size_t texelSize) {
     auto ptr = MakeShared<RenderResource>(pDevice, pAllocator,
                                           RenderResource::Type::Buffer, size,
-                                          usage, memType);
+                                          usage, memType, texelSize);
 
     ptr->SetName(name);
 
@@ -37,6 +39,24 @@ RenderResource* RenderResourceManager::CreateTexture(
     mResources.emplace(name, ptr);
 
     return ptr.get();
+}
+
+RenderResource* RenderResourceManager::CreateScreenSizeBuffer(
+    const char* name, size_t size, vk::BufferUsageFlags usage,
+    Buffer::MemoryType memType, size_t texelSize) {
+    auto ptr = CreateBuffer(name, size, usage, memType, texelSize);
+    mScreenSizeResources.push_back(ptr);
+    return ptr;
+}
+
+RenderResource* RenderResourceManager::CreateScreenSizeTexture(
+    const char* name, RenderResource::Type type, vk::Format format,
+    vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
+    uint32_t arraySize, uint32_t sampleCount) {
+    auto ptr = CreateTexture(name, type, format, extent, usage, mipLevels,
+                             arraySize, sampleCount);
+    mScreenSizeResources.push_back(ptr);
+    return ptr;
 }
 
 RenderResource* RenderResourceManager::operator[](const char* name) const {
@@ -84,6 +104,13 @@ void RenderResourceManager::CreateDescriptorSet(
             resource->AllocateImageDescriptor(pDescManager, data.binding, name,
                                               data.type, view.c_str(), sampler);
         }
+    }
+}
+
+void RenderResourceManager::ResizeScreenSizeResources(uint32_t width,
+                                                      uint32_t height) const {
+    for (auto& screenSizeResource : mScreenSizeResources) {
+        screenSizeResource->Resize(width, height);
     }
 }
 

@@ -7,9 +7,9 @@ namespace IntelliDesign_NS::Vulkan::Core {
 RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
                                Type type, size_t size,
                                vk::BufferUsageFlags usage,
-                               Buffer::MemoryType memType)
+                               Buffer::MemoryType memType, size_t texelSize)
     : mResource(std::in_place_type<Buffer>, device, allocator, size, usage,
-                memType),
+                memType, texelSize),
       mType(type) {}
 
 RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
@@ -144,6 +144,18 @@ void RenderResource::AllocateImageDescriptor(
     vk::DescriptorType type, const char* viewName, Sampler* sampler) {
     ::std::get<Texture>(mResource).AllocateDescriptor(
         manager, binding, descSetName, type, viewName, sampler);
+}
+
+void RenderResource::Resize(uint32_t width, uint32_t height) {
+    ::std::visit(overload {[&](Texture& v) {
+                               v.Resize(width, height);
+                               v.SetName(mName.c_str());
+                           },
+                           [&](Buffer& v) {
+                               v.Resize(width * height * v.GetTexelSize());
+                               v.SetName(mName.c_str());
+                           }},
+                 mResource);
 }
 
 std::string_view RenderResource::GetName() const {

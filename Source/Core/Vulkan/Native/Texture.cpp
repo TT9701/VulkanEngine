@@ -66,12 +66,7 @@ Texture::Texture(Device* device, vk::Image handle, Type type, vk::Format format,
       mHandle(handle) {}
 
 Texture::~Texture() {
-    if (bOwnsImage)
-        vmaDestroyImage(pAllocator->GetHandle(), mHandle, mAllocation);
-
-    for (auto& [_, view] : mViews) {
-        pDevice->GetHandle().destroy(view);
-    }
+    Destroy();
 }
 
 void Texture::CreateImageView(const char* name, vk::ImageAspectFlags aspect,
@@ -112,17 +107,12 @@ void Texture::CreateImageView(const char* name, vk::ImageAspectFlags aspect,
         default: throw ::std::runtime_error("ERROR: Invalid Texture Type.");
     }
 
-    vk::ImageViewCreateInfo info {};
-    info.setImage(mHandle)
-        .setFormat(mFormat)
-        .setSubresourceRange(range)
-        .setViewType(type);
+    auto view = MakeShared<ImageView>(pDevice, range, mHandle, mFormat, type);
 
-    auto view = pDevice->GetHandle().createImageView(info);
+    pDevice->SetObjectName(view->mHandle,
+                           static_cast<Type_STLString>(name).c_str());
 
-    pDevice->SetObjectName(view, static_cast<Type_STLString>(name).c_str());
-
-    mViews.emplace(static_cast<Type_STLString>(name), view);
+    mViews.emplace(static_cast<Type_STLString>(name), ::std::move(view));
 }
 
 uint32_t Texture::GetWidth(uint32_t mipLevel) const {
@@ -167,8 +157,12 @@ Texture::Type Texture::GetType() const {
     return mType;
 }
 
+ImageView* Texture::GetView(const char* name) const {
+    return mViews.at(name).get();
+}
+
 vk::ImageView Texture::GetViewHandle(const char* name) const {
-    return mViews.at(name);
+    return GetView(name)->GetHandle();
 }
 
 void Texture::SetName(const char* name) const {
@@ -191,14 +185,30 @@ void Texture::AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
         throw ::std::runtime_error("un-implemented type");
 
     vk::DescriptorImageInfo imageInfo {};
-    imageInfo.setImageView(GetViewHandle(viewName))
-        .setImageLayout(imageLayout);
+    imageInfo.setImageView(GetViewHandle(viewName)).setImageLayout(imageLayout);
     if (sampler) {
         imageInfo.setSampler(sampler->GetHandle());
     }
 
-    manager->CreateImageDescriptor(manager->GetDescriptorSet(descSetName), 0,
-                                   type, &imageInfo);
+    manager->CreateImageDescriptor(manager->GetDescriptorSet(descSetName),
+                                   binding, type, &imageInfo);
+}
+
+void Texture::Resize(uint32_t width, uint32_t height) {
+    Destroy();
+    mExtent3D.setWidth(width).setHeight(height);
+    mAllocation = {};
+    mAllocationInfo = {};
+    mHandle = VK_NULL_HANDLE;
+
+    mHandle = CreateImage();
+
+    for (auto& p : mViews) {
+        auto& view = p.second;
+        view->mImageHandle = mHandle;
+        view->Destroy();
+        view->mHandle = view->CreateImageView();
+    }
 }
 
 vk::Image Texture::CreateImage() {
@@ -250,6 +260,43 @@ vk::Image Texture::CreateImage() {
         &allocCreateInfo, &image, &mAllocation, &mAllocationInfo));
 
     return image;
+}
+
+void Texture::Destroy() {
+    if (bOwnsImage)
+        vmaDestroyImage(pAllocator->GetHandle(), mHandle, mAllocation);
+}
+
+ImageView::ImageView(Device* device, vk::ImageSubresourceRange range,
+                     vk::Image imageHandle, vk::Format format,
+                     vk::ImageViewType type)
+    : pDevice(device),
+      mRange(range),
+      mImageHandle(imageHandle),
+      mFormat(format),
+      mType(type),
+      mHandle(CreateImageView()) {}
+
+ImageView::~ImageView() {
+    Destroy();
+}
+
+vk::ImageView ImageView::GetHandle() const {
+    return mHandle;
+}
+
+void ImageView::Destroy() {
+    pDevice->GetHandle().destroy(mHandle);
+}
+
+vk::ImageView ImageView::CreateImageView() const {
+    vk::ImageViewCreateInfo info {};
+    info.setImage(mImageHandle)
+        .setFormat(mFormat)
+        .setSubresourceRange(mRange)
+        .setViewType(mType);
+
+    return pDevice->GetHandle().createImageView(info);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

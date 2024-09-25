@@ -8,16 +8,17 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 Buffer::Buffer(Device* device, MemoryAllocator* allocator, size_t size,
-               vk::BufferUsageFlags usage, MemoryType memType)
+               vk::BufferUsageFlags usage, MemoryType memType, size_t texelSize)
     : pDevice(device),
       pAllocator(allocator),
       mUsageFlags(usage),
       mMemoryType(memType),
       mSize(size),
+      mTexelSize(texelSize),
       mHandle(CreateBufferResource()) {}
 
 Buffer::~Buffer() {
-    vmaDestroyBuffer(pAllocator->GetHandle(), mHandle, mAllocation);
+    Destroy();
 }
 
 vk::Buffer Buffer::GetHandle() const {
@@ -59,6 +60,16 @@ void Buffer::AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
                                     binding, type, &bufferInfo);
 }
 
+void Buffer::Resize(size_t newSize) {
+    Destroy();
+    mSize = newSize;
+    mAllocation = {};
+    mAllocationInfo = {};
+    mHandle = VK_NULL_HANDLE;
+
+    mHandle = CreateBufferResource();
+}
+
 vk::Buffer Buffer::CreateBufferResource() {
     bMapped = mMemoryType != MemoryType::DeviceLocal;
     if (mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddress
@@ -98,12 +109,20 @@ vk::Buffer Buffer::CreateBufferResource() {
     return buffer;
 }
 
+void Buffer::Destroy() {
+    vmaDestroyBuffer(pAllocator->GetHandle(), mHandle, mAllocation);
+}
+
 vk::BufferUsageFlags Buffer::GetUsageFlags() const {
     return mUsageFlags;
 }
 
 size_t Buffer::GetSize() const {
     return mSize;
+}
+
+size_t Buffer::GetTexelSize() const {
+    return mTexelSize;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
