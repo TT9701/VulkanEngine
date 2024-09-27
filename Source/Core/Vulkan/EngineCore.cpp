@@ -24,6 +24,10 @@ EngineCore::EngineCore()
       mImmSubmitMgr(CreateImmediateSubmitManager()),
       mPipelineMgr(CreatePipelineManager()),
       mShaderMgr(CreateShaderManager()),
+      mBackgroundDrawCallMgr {&mRenderResMgr},
+      mMeshDrawCallMgr {&mRenderResMgr},
+      mMeshShaderDrawCallMgr {&mRenderResMgr},
+      mQuadDrawCallMgr {&mRenderResMgr},
 #ifdef CUDA_VULKAN_INTEROP
       mCUDAExternalImage(CreateExternalImage())
 #endif
@@ -58,7 +62,7 @@ EngineCore::EngineCore()
     }
 
     {
-        mRenderResMgr.CreateScreenSizeBuffer(
+        mRenderResMgr.CreateScreenSizeRelatedBuffer(
             "RWBuffer",
             sizeof(glm::vec4) * mWindow->GetWidth() * mWindow->GetHeight(),
             vk::BufferUsageFlagBits::eStorageBuffer
@@ -129,11 +133,17 @@ void EngineCore::Run() {
             bQuit, mStopRendering,
             [&](SDL_Event* e) { mMainCamera.ProcessSDLEvent(e, 0.001f); },
             [&]() {
-                mSwapchain->bResizeRequested = true;
-                mSwapchain->Resize(mWindow->GetWidth(), mWindow->GetHeight());
+                vk::Extent2D extent = {
+                    static_cast<uint32_t>(mWindow->GetWidth()),
+                    static_cast<uint32_t>(mWindow->GetHeight())};
+                mSwapchain->Resize(extent);
 
-                mRenderResMgr.ResizeScreenSizeResources(mWindow->GetWidth(),
-                                                        mWindow->GetHeight());
+                mRenderResMgr.ResizeScreenSizeRelatedResources(extent);
+
+                mBackgroundDrawCallMgr.UpdateArgument_OnResize(extent);
+                // mMeshDrawCallMgr.UpdateArgument_OnResize(extent);
+                mMeshShaderDrawCallMgr.UpdateArgument_OnResize(extent);
+                mQuadDrawCallMgr.UpdateArgument_OnResize(extent);
             });
 
         if (mStopRendering) {
@@ -147,10 +157,6 @@ void EngineCore::Run() {
 
 void EngineCore::Draw() {
     auto swapchainImageIdx = mSwapchain->AcquireNextImageIndex();
-    if (swapchainImageIdx == -1)
-        return;
-
-    auto swapchainImage = mSwapchain->GetImageHandle(swapchainImageIdx);
 
     const uint64_t graphicsFinished =
         mContext->GetTimelineSemphore()->GetValue();
@@ -189,12 +195,13 @@ void EngineCore::Draw() {
 
         mQuadDrawCallMgr.UpdateArgument_Attachments(
             {0}, {mSwapchain->GetColorAttachmentInfo(swapchainImageIdx)});
-        mQuadDrawCallMgr.UpdateArgument_ImageBarriers_BeforePass(
+        mQuadDrawCallMgr.UpdateArgument_Barriers_BeforePass(
             {"Swapchain"},
-            {mSwapchain->GetImageBarrier_BeforePass(swapchainImageIdx)});
-        mQuadDrawCallMgr.UpdateArgument_ImageBarriers_AfterPass(
+            {mSwapchain->GetImageBarrier_BeforePass(swapchainImageIdx)}, {},
+            {});
+        mQuadDrawCallMgr.UpdateArgument_Barriers_AfterPass(
             {"Swapchain"},
-            {mSwapchain->GetImageBarrier_AfterPass(swapchainImageIdx)});
+            {mSwapchain->GetImageBarrier_AfterPass(swapchainImageIdx)}, {}, {});
 
         mQuadDrawCallMgr.RecordCmd(cmd.GetHandle());
 
@@ -278,32 +285,21 @@ UniquePtr<Context> EngineCore::CreateContext() {
                                        sdlRequestedInstanceExtensions.begin(),
                                        sdlRequestedInstanceExtensions.end());
 #ifndef NDEBUG
-    requestedInstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    requestedInstanceExtensions.emplace_back(vk::EXTDebugUtilsExtensionName);
 #endif
 
     Type_STLVector<Type_STLString> enabledDeivceExtensions {};
 
-    enabledDeivceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(
-        VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(
-        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(
-        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(
-        VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(VK_KHR_MAINTENANCE_6_EXTENSION_NAME);
+    enabledDeivceExtensions.emplace_back(vk::KHRSwapchainExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::EXTDescriptorBufferExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::EXTMeshShaderExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::KHRMaintenance6ExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
-    enabledDeivceExtensions.emplace_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
     enabledDeivceExtensions.emplace_back(
-        VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
+        vk::KHRExternalMemoryWin32ExtensionName);
     enabledDeivceExtensions.emplace_back(
-        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
-    enabledDeivceExtensions.emplace_back(
-        VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
+        vk::KHRExternalSemaphoreWin32ExtensionName);
 #endif
 
     Context::EnableDefaultFeatures();
@@ -338,7 +334,7 @@ void EngineCore::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
-    auto ptr = mRenderResMgr.CreateScreenSizeTexture(
+    auto ptr = mRenderResMgr.CreateScreenSizeRelatedTexture(
         "DrawImage", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
@@ -352,7 +348,7 @@ void EngineCore::CreateDepthImage() {
     vk::ImageUsageFlags depthImageUsage {};
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-    auto ptr = mRenderResMgr.CreateScreenSizeTexture(
+    auto ptr = mRenderResMgr.CreateScreenSizeRelatedTexture(
         "DepthImage", RenderResource::Type::Texture2D,
         vk::Format::eD24UnormS8Uint, depthImageExtent, depthImageUsage);
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
@@ -683,8 +679,8 @@ void EngineCore::RecordDrawBackgroundCmds() {
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    mBackgroundDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
-        {"DrawImage"}, {drawImageBarrier});
+    mBackgroundDrawCallMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
+                                                           {drawImageBarrier});
 
     float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
 
@@ -695,8 +691,7 @@ void EngineCore::RecordDrawBackgroundCmds() {
         vk::RemainingArrayLayers};
 
     mBackgroundDrawCallMgr.AddArgument_ClearColorImage(
-        mRenderResMgr["DrawImage"]->GetTexHandle(), vk::ImageLayout::eGeneral,
-        clearValue, {subresource});
+        "DrawImage", vk::ImageLayout::eGeneral, clearValue, {subresource});
 
     mBackgroundDrawCallMgr.AddArgument_Pipeline(
         vk::PipelineBindPoint::eCompute,
@@ -772,8 +767,8 @@ void EngineCore::RecordDrawMeshCmds() {
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    mMeshDrawCallMgr.AddArgument_MemoryBarriers_BeforePass({"DrawImage"},
-                                                           {drawImageBarrier});
+    mMeshDrawCallMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
+                                                     {drawImageBarrier});
 
     auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
     auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
@@ -796,7 +791,9 @@ void EngineCore::RecordDrawMeshCmds() {
         .setClearValue(vk::ClearDepthStencilValue {0.0f});
 
     mMeshDrawCallMgr.AddArgument_RenderingInfo(
-        {{0, 0}, {width, height}}, 1, 0, {colorAttachment}, depthAttachment);
+        {{0, 0}, {width, height}}, 1, 0,
+        {{"DrawImage", "Color-Whole", colorAttachment}},
+        {"DepthImage", "Depth-Whole", depthAttachment});
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     mMeshDrawCallMgr.AddArgument_Viewport(0, {viewport});
@@ -856,7 +853,7 @@ void EngineCore::RecordDrawQuadCmds() {
     auto scBarrier = mSwapchain->GetImageBarrier_BeforePass(
         mSwapchain->GetCurrentImageIndex());
 
-    mQuadDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
+    mQuadDrawCallMgr.AddArgument_Barriers_BeforePass(
         {"DrawImage", "Swapchain"}, {drawImageBarrier, scBarrier});
 
     auto width = mSwapchain->GetExtent2D().width;
@@ -896,8 +893,7 @@ void EngineCore::RecordDrawQuadCmds() {
     scBarrier = mSwapchain->GetImageBarrier_AfterPass(
         mSwapchain->GetCurrentImageIndex());
 
-    mQuadDrawCallMgr.AddArgument_MemoryBarriers_AfterPass({"Swapchain"},
-                                                          {scBarrier});
+    mQuadDrawCallMgr.AddArgument_Barriers_AfterPass({"Swapchain"}, {scBarrier});
 }
 
 void EngineCore::RecordMeshShaderDrawCmds() {
@@ -913,8 +909,8 @@ void EngineCore::RecordMeshShaderDrawCmds() {
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    mMeshShaderDrawCallMgr.AddArgument_MemoryBarriers_BeforePass(
-        {"DrawImage"}, {drawImageBarrier});
+    mMeshShaderDrawCallMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
+                                                           {drawImageBarrier});
 
     auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
     auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
@@ -937,7 +933,9 @@ void EngineCore::RecordMeshShaderDrawCmds() {
         .setClearValue(vk::ClearDepthStencilValue {0.0f});
 
     mMeshShaderDrawCallMgr.AddArgument_RenderingInfo(
-        {{0, 0}, {width, height}}, 1, 0, {colorAttachment}, depthAttachment);
+        {{0, 0}, {width, height}}, 1, 0,
+        {{"DrawImage", "Color-Whole", colorAttachment}},
+        {"DepthImage", "Depth-Whole", depthAttachment});
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     mMeshShaderDrawCallMgr.AddArgument_Viewport(0, {viewport});

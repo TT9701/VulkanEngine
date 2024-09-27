@@ -10,41 +10,37 @@ namespace IntelliDesign_NS::Vulkan::Core {
 enum class DrawCallMetaDataType {
     ClearColorImage,
     ClearDepthStencilImage,
-
     MemoryBarrier,
-
     RenderingInfo,
-
     Viewport,
     Scissor,
-
     Pipeline,
     PushContant,
-
     DescriptorBuffer,
     DescriptorSet,
-
     IndexBuffer,
-
     DrawIndexedIndirect,
     Draw,
-
     DispatchIndirect,
     Dispatch,
-
     DrawMeshTasksIndirect,
     DrawMeshTask,
 
     NumTypes
 };
 
-template <class T>
-struct MetaDataIndexMapping {
-    uint32_t count {0};
-    Type_STLVector<::std::pair<T, uint32_t>> mapping {};
+struct RenderingAttachmentInfo {
+    Type_STLString imageName;
+    Type_STLString viewName;
+    vk::RenderingAttachmentInfo info;
 };
 
+class RenderResourceManager;
+
 struct IDrawCallMetaData {
+    virtual void UpdateRenderResource(RenderResourceManager* manager,
+                                      Type_STLString name) {}
+
     virtual void RecordCmds(vk::CommandBuffer cmd) const = 0;
 };
 
@@ -59,6 +55,8 @@ struct DrawCallMetaData<DrawCallMetaDataType::ClearColorImage>
     vk::ClearColorValue clearValue;
     Type_STLVector<vk::ImageSubresourceRange> ranges;
 
+    void UpdateRenderResource(RenderResourceManager* manager,
+                              Type_STLString name) override;
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };
 
@@ -80,6 +78,11 @@ struct DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>
     ::std::optional<Type_STLVector<vk::MemoryBarrier2>> memBarriers {};
     ::std::optional<Type_STLVector<vk::BufferMemoryBarrier2>> bufBarriers {};
 
+    Type_STLUnorderedMap_String<
+        ::std::variant<vk::ImageMemoryBarrier2*, vk::MemoryBarrier2*,
+                       vk::BufferMemoryBarrier2*>>
+        mapping {};
+
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };
 
@@ -90,6 +93,11 @@ struct DrawCallMetaData<DrawCallMetaDataType::RenderingInfo>
     ::std::optional<vk::RenderingAttachmentInfo> depthStencilAttachment;
 
     vk::RenderingInfo info;
+
+    // <image name>@<view name> - index
+    // index : 0, 1, 2 ... color attachments
+    //        -1 depth attachment
+    Type_STLUnorderedMap_String<int> mapping {};
 
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

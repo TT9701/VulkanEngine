@@ -134,9 +134,10 @@ vk::Format RenderResource::GetTexFormat() const {
 void RenderResource::AllocateBufferDescriptor(DescriptorManager* manager,
                                               uint32_t binding,
                                               const char* descSetName,
-                                              vk::DescriptorType type) const {
+                                              vk::DescriptorType type) {
     ::std::get<Buffer>(mResource).AllocateDescriptor(manager, binding,
                                                      descSetName, type);
+    mDescriptorInfos.emplace_back(binding, descSetName, type);
 }
 
 void RenderResource::AllocateImageDescriptor(
@@ -144,18 +145,33 @@ void RenderResource::AllocateImageDescriptor(
     vk::DescriptorType type, const char* viewName, Sampler* sampler) {
     ::std::get<Texture>(mResource).AllocateDescriptor(
         manager, binding, descSetName, type, viewName, sampler);
+    mDescriptorInfos.emplace_back(binding, descSetName, type, viewName,
+                                  sampler);
 }
 
-void RenderResource::Resize(uint32_t width, uint32_t height) {
-    ::std::visit(overload {[&](Texture& v) {
-                               v.Resize(width, height);
-                               v.SetName(mName.c_str());
-                           },
-                           [&](Buffer& v) {
-                               v.Resize(width * height * v.GetTexelSize());
-                               v.SetName(mName.c_str());
-                           }},
-                 mResource);
+void RenderResource::Resize(DescriptorManager* descManager,
+                            vk::Extent2D extent) {
+    ::std::visit(
+        overload {[&](Texture& v) {
+                      v.Resize(extent);
+                      v.SetName(mName.c_str());
+                      for (auto const& info : mDescriptorInfos) {
+                          v.AllocateDescriptor(
+                              descManager, info.binding,
+                              info.descSetName.c_str(), info.type,
+                              info.viewName->c_str(), info.sampler.value());
+                      }
+                  },
+                  [&](Buffer& v) {
+                      v.Resize(extent.width * extent.height * v.GetTexelSize());
+                      v.SetName(mName.c_str());
+                      for (auto const& info : mDescriptorInfos) {
+                          v.AllocateDescriptor(descManager, info.binding,
+                                               info.descSetName.c_str(),
+                                               info.type);
+                      }
+                  }},
+        mResource);
 }
 
 std::string_view RenderResource::GetName() const {

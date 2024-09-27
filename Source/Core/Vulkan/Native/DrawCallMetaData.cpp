@@ -1,6 +1,14 @@
 #include "DrawCallMetaData.h"
 
+#include "Core/Vulkan/Manager/RenderResourceManager.hpp"
+
 namespace IntelliDesign_NS::Vulkan::Core {
+
+void DrawCallMetaData<DrawCallMetaDataType::ClearColorImage>::
+    UpdateRenderResource(RenderResourceManager* manager, Type_STLString name) {
+    auto resource = (*manager)[name.c_str()]->GetTexHandle();
+    image = resource;
+}
 
 void DrawCallMetaData<DrawCallMetaDataType::ClearColorImage>::RecordCmds(
     vk::CommandBuffer cmd) const {

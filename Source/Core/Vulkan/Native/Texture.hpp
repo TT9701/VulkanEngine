@@ -63,7 +63,7 @@ public:
                             const char* viewName,
                             Sampler* sampler = nullptr) const;
 
-    void Resize(uint32_t width, uint32_t height);
+    void Resize(vk::Extent2D extent);
 
 private:
     vk::Image CreateImage();
@@ -117,6 +117,8 @@ private:
     vk::ImageViewType mType;
 
     vk::ImageView mHandle;
+
+    Type_STLString mName {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

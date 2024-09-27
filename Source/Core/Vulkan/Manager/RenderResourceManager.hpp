@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Utilities/Functor.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Vulkan/Native/RenderResource.hpp"
 
@@ -17,7 +18,12 @@ struct DescriptorSetData {
 class RenderResourceManager {
     using Type_RenderResources =
         Type_STLUnorderedMap_String<SharedPtr<RenderResource>>;
-    using Type_RenderResourcePtrs = Type_STLVector<RenderResource*>;
+
+    using Fn_SizeRelation = ::std::function<vk::Extent2D(vk::Extent2D)>;
+
+    // resource ptr - size ratio (resource size / screen size)
+    using Type_RenderResourcePtrs =
+        Type_STLVector<::std::pair<RenderResource*, Fn_SizeRelation>>;
 
 public:
     RenderResourceManager(Device* device, MemoryAllocator* allocator,
@@ -35,15 +41,16 @@ public:
                                   uint32_t arraySize = 1,
                                   uint32_t sampleCount = 1);
 
-    RenderResource* CreateScreenSizeBuffer(const char* name, size_t size,
-                                           vk::BufferUsageFlags usage,
-                                           Buffer::MemoryType memType,
-                                           size_t texelSize = 1);
+    RenderResource* CreateScreenSizeRelatedBuffer(
+        const char* name, size_t size, vk::BufferUsageFlags usage,
+        Buffer::MemoryType memType, size_t texelSize = 1,
+        Fn_SizeRelation fn = sFullSize);
 
-    RenderResource* CreateScreenSizeTexture(
+    RenderResource* CreateScreenSizeRelatedTexture(
         const char* name, RenderResource::Type type, vk::Format format,
         vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels = 1,
-        uint32_t arraySize = 1, uint32_t sampleCount = 1);
+        uint32_t arraySize = 1, uint32_t sampleCount = 1,
+        Fn_SizeRelation fn = sFullSize);
 
     RenderResource* operator[](const char* name) const;
 
@@ -53,7 +60,12 @@ public:
                              Type_STLVector<DescriptorSetData> const& datas,
                              uint32_t bufferIndex = 0);
 
-    void ResizeScreenSizeResources(uint32_t width, uint32_t height) const;
+    void ResizeScreenSizeRelatedResources(vk::Extent2D extent) const;
+
+    Type_RenderResourcePtrs const& GetSrcreenSizeRelatedResources() const;
+
+private:
+    static Fn_SizeRelation sFullSize;
 
 private:
     Device* pDevice;
@@ -61,7 +73,7 @@ private:
     DescriptorManager* pDescManager;
 
     Type_RenderResources mResources {};
-    Type_RenderResourcePtrs mScreenSizeResources {};
+    Type_RenderResourcePtrs mScreenSizeRalatedResources {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

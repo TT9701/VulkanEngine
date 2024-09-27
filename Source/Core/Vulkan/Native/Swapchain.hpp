@@ -20,19 +20,17 @@ public:
     MOVABLE_ONLY(Swapchain);
 
 public:
-    bool bResizeRequested {false};
-
     static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
 
     uint32_t AcquireNextImageIndex();
 
     void Present(vk::Queue queue);
 
-    vk::SwapchainKHR RecreateSwapchain(uint32_t w, uint32_t h,
+    vk::SwapchainKHR RecreateSwapchain(vk::Extent2D extent,
                                        vk::SwapchainKHR old = VK_NULL_HANDLE);
 
 public:
-    void Resize(uint32_t w, uint32_t h);
+    void Resize(vk::Extent2D extent);
 
     vk::SwapchainKHR GetHandle() const;
     vk::Image GetImageHandle(uint32_t index) const;

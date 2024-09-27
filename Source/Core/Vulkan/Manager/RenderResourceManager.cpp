@@ -5,6 +5,11 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+RenderResourceManager::Fn_SizeRelation RenderResourceManager::sFullSize {
+    [](vk::Extent2D extent) {
+        return extent;
+    }};
+
 RenderResourceManager::RenderResourceManager(Device* device,
                                              MemoryAllocator* allocator,
                                              DescriptorManager* manager)
@@ -41,21 +46,21 @@ RenderResource* RenderResourceManager::CreateTexture(
     return ptr.get();
 }
 
-RenderResource* RenderResourceManager::CreateScreenSizeBuffer(
+RenderResource* RenderResourceManager::CreateScreenSizeRelatedBuffer(
     const char* name, size_t size, vk::BufferUsageFlags usage,
-    Buffer::MemoryType memType, size_t texelSize) {
+    Buffer::MemoryType memType, size_t texelSize, Fn_SizeRelation fn) {
     auto ptr = CreateBuffer(name, size, usage, memType, texelSize);
-    mScreenSizeResources.push_back(ptr);
+    mScreenSizeRalatedResources.emplace_back(ptr, fn);
     return ptr;
 }
 
-RenderResource* RenderResourceManager::CreateScreenSizeTexture(
+RenderResource* RenderResourceManager::CreateScreenSizeRelatedTexture(
     const char* name, RenderResource::Type type, vk::Format format,
     vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
-    uint32_t arraySize, uint32_t sampleCount) {
+    uint32_t arraySize, uint32_t sampleCount, Fn_SizeRelation fn) {
     auto ptr = CreateTexture(name, type, format, extent, usage, mipLevels,
                              arraySize, sampleCount);
-    mScreenSizeResources.push_back(ptr);
+    mScreenSizeRalatedResources.emplace_back(ptr, fn);
     return ptr;
 }
 
@@ -76,7 +81,7 @@ void RenderResourceManager::CreateDescriptorSet(
     Type_STLString descSetLayoutName;
     descSetLayoutName.append(pipelineName);
     auto s = vk::to_string(stage);
-    s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
+    std::erase(s, ' ');
     descSetLayoutName.append("@" + s);
     descSetLayoutName.append("@Set" + ::std::to_string(setIndex));
 
@@ -85,7 +90,7 @@ void RenderResourceManager::CreateDescriptorSet(
                                       bufferIndex);
 
     // allocate descriptors
-    for (auto& data : datas) {
+    for (auto& data : d) {
         auto resource = mResources.at(data.resource).get();
         if (::std::holds_alternative<Buffer>(resource->GetResource())) {
             resource->AllocateBufferDescriptor(pDescManager, data.binding, name,
@@ -107,11 +112,18 @@ void RenderResourceManager::CreateDescriptorSet(
     }
 }
 
-void RenderResourceManager::ResizeScreenSizeResources(uint32_t width,
-                                                      uint32_t height) const {
-    for (auto& screenSizeResource : mScreenSizeResources) {
-        screenSizeResource->Resize(width, height);
+void RenderResourceManager::ResizeScreenSizeRelatedResources(
+    vk::Extent2D extent) const {
+    for (auto& screenSizeResource : mScreenSizeRalatedResources) {
+        auto fn = screenSizeResource.second;
+        auto newExtent = fn(extent);
+        screenSizeResource.first->Resize(pDescManager, newExtent);
     }
+}
+
+RenderResourceManager::Type_RenderResourcePtrs const&
+RenderResourceManager::GetSrcreenSizeRelatedResources() const {
+    return mScreenSizeRalatedResources;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

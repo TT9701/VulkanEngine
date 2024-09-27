@@ -11,6 +11,8 @@ set (UTILITIES_SRC
     Utilities/Defines.hpp
     Utilities/Camera.hpp
     Utilities/Camera.cpp
+    Utilities/Functor.hpp
+    Utilities/Functor.cpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 

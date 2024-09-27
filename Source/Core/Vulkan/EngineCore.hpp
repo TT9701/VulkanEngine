@@ -111,10 +111,10 @@ private:
     PipelineManager mPipelineMgr;
     ShaderManager mShaderMgr;
 
-    DrawCallManager mBackgroundDrawCallMgr {};
-    DrawCallManager mMeshDrawCallMgr {};
-    DrawCallManager mMeshShaderDrawCallMgr {};
-    DrawCallManager mQuadDrawCallMgr {};
+    DrawCallManager mBackgroundDrawCallMgr;
+    DrawCallManager mMeshDrawCallMgr;
+    DrawCallManager mMeshShaderDrawCallMgr;
+    DrawCallManager mQuadDrawCallMgr;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;

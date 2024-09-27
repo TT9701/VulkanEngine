@@ -4,34 +4,26 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-struct MetaDataResourceMapping {
-    // "resource param" - barrier index
-    Type_STLUnorderedMap_String<uint32_t> beforePass {};
-
-    // DrawCallMetaDataType + index -> metaData
-    Type_STLUnorderedMap<DrawCallMetaDataType, Type_STLVector<uint32_t>>
-        metaData {};
-
-    // "resource param" - barrier index
-    Type_STLUnorderedMap_String<uint32_t> afterPass {};
-};
+class RenderResourceManager;
 
 class DrawCallManager {
 public:
+    DrawCallManager(RenderResourceManager* manager);
+
     /*
      *   Add Argument methods
      */
     void AddArgument_ClearColorImage(
-        vk::Image image, vk::ImageLayout layout,
+        const char* imageName, vk::ImageLayout layout,
         vk::ClearColorValue const& clearValue,
         ::std::initializer_list<vk::ImageSubresourceRange> const& ranges);
 
     void AddArgument_ClearDepthStencilImage(
-        vk::Image image, vk::ImageLayout layout,
+        const char* imageName, vk::ImageLayout layout,
         vk::ClearDepthStencilValue const& clearValue,
         ::std::initializer_list<vk::ImageSubresourceRange> const& ranges);
 
-    void AddArgument_MemoryBarriers_BeforePass(
+    void AddArgument_Barriers_BeforePass(
         ::std::initializer_list<Type_STLString> const& names,
         ::std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers =
             {},
@@ -39,13 +31,20 @@ public:
         ::std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers =
             {});
 
-    void AddArgument_MemoryBarriers_AfterPass(
+    void AddArgument_Barriers_AfterPass(
         ::std::initializer_list<Type_STLString> const& names,
         ::std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers =
             {},
         ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {},
         ::std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers =
             {});
+
+    void AddArgument_RenderingInfo(
+        vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
+        ::std::initializer_list<RenderingAttachmentInfo> const&
+            colorAttachments,
+        RenderingAttachmentInfo const& depthStencilAttachment = {},
+        vk::RenderingFlags flags = {});
 
     void AddArgument_RenderingInfo(
         vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
@@ -160,23 +159,35 @@ public:
     void UpdateArgument_DrawMeshTask(uint32_t x, uint32_t y, uint32_t z,
                                      uint32_t index = 0);
 
-    // index: -1 depth attachment
-    //        0, 1, 2 ... color attachments
+    // name = imageName@viewName
+    void UpdateArgument_Attachments(
+        Type_STLVector<Type_STLString> const& names);
+
     void UpdateArgument_Attachments(
         Type_STLVector<int> const& indices,
         Type_STLVector<vk::RenderingAttachmentInfo> const& attachments);
 
-    void UpdateArgument_ImageBarriers_BeforePass(
+    void UpdateArgument_Barriers_BeforePass(
         Type_STLVector<Type_STLString> const& names,
-        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers = {},
-        Type_STLVector<vk::MemoryBarrier2> const& memBarriers = {},
-        Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers = {});
+        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
+        Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
+        Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers);
 
-    void UpdateArgument_ImageBarriers_AfterPass(
+    // only update resources
+    void UpdateArgument_Barriers_BeforePass(
+        Type_STLVector<Type_STLString> const& names);
+
+    void UpdateArgument_Barriers_AfterPass(
         Type_STLVector<Type_STLString> const& names,
-        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers = {},
-        Type_STLVector<vk::MemoryBarrier2> const& memBarriers = {},
-        Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers = {});
+        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
+        Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
+        Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers);
+
+    // only update resources
+    void UpdateArgument_Barriers_AfterPass(
+        Type_STLVector<Type_STLString> const& names);
+
+    void UpdateArgument_OnResize(vk::Extent2D extent);
 
 public:
     void RecordCmd(vk::CommandBuffer cmd) const;
@@ -184,12 +195,13 @@ public:
     void Clear();
 
 private:
-    void PushMetaDataMapping(DrawCallMetaDataType type);
-
     template <DrawCallMetaDataType Type>
-    DrawCallMetaData<Type>& FindMetaDataRef(uint32_t index);
+    DrawCallMetaData<Type>* FindMetaDataPtr(uint32_t index = 0);
+
+    void PushResourceMetaDataMapping(const char* name, uint32_t index);
 
 private:
+    RenderResourceManager* pRenderResManager;
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>
         mBarriers_BeforePass;
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::RenderingInfo>>
@@ -198,15 +210,34 @@ private:
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>
         mBarriers_AfterPass;
 
-    MetaDataResourceMapping mMapping;
+    Type_STLUnorderedMap_String<Type_STLVector<uint32_t>>
+        mResourceMetaDataMapping;
 };
 
 template <DrawCallMetaDataType Type>
-DrawCallMetaData<Type>& DrawCallManager::FindMetaDataRef(uint32_t index) {
-    auto indices = mMapping.metaData.at(Type);
-    assert(index < indices.size());
+DrawCallMetaData<Type>* DrawCallManager::FindMetaDataPtr(uint32_t index) {
+    Type_STLVector<Type_DrawCallMetaData_Unified*> temp {};
+    auto it = mMetaDatas.begin();
+    while (it != mMetaDatas.end()) {
+        auto temp_it =
+            ::std::find_if(it, mMetaDatas.end(),
+                           [](Type_DrawCallMetaData_Unified const& data) {
+                               return data.Get_Index() == Type;
+                           });
+        if (temp_it != mMetaDatas.end())
+            temp.push_back(&*temp_it);
+        else
+            break;
 
-    return mMetaDatas[indices[index]].Get<Type>();
+        it = ++temp_it;
+    }
+
+    if (temp.empty())
+        return nullptr;
+
+    assert(index < temp.size());
+
+    return &temp[index]->Get<Type>();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

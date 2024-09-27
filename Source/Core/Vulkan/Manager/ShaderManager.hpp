@@ -13,7 +13,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 class Context;
 
 class ShaderManager {
-    using Type_Shader = Type_STLUnorderedMap_String<SharedPtr<Shader>>;
+    using Type_Shaders = Type_STLUnorderedMap_String<SharedPtr<Shader>>;
 
 public:
     ShaderManager(Context* context);
@@ -47,7 +47,7 @@ public:
 private:
     Context* pContext;
 
-    Type_Shader mShaders {};
+    Type_Shaders mShaders {};
     ::std::mutex mMutex;
 };
 

@@ -73,19 +73,17 @@ Type_STLString ShaderManager::ParseShaderName(const char* name,
     res = name;
 
     // TODO: hlsl
-    res.append("_glsl460");
-
-    res.append(vk::to_string(stage).insert(0, "_"));
+    res.append("@glsl460").append(vk::to_string(stage).insert(0, "@"));
 
     if (!defines.empty()) {
         ::std::set<::std::pair<Type_STLString, Type_STLString>, Comp> temp {
             defines.begin(), defines.end()};
         for (auto const& [macro, value] : temp) {
-            res.append("_" + macro + "_" + value);
+            res.append("@" + macro + "@" + value);
         }
     }
 
-    res.append(Type_STLString("_") + entry);
+    res.append(Type_STLString("@") + entry);
 
     return res;
 }

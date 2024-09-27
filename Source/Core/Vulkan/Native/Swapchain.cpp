@@ -7,9 +7,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 Swapchain::Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D)
-    : pContex(ctx),
-      mFormat(format),
-      mSwapchain(RecreateSwapchain(extent2D.width, extent2D.height)) {
+    : pContex(ctx), mFormat(format), mSwapchain(RecreateSwapchain(extent2D)) {
     SetSwapchainImages();
 
     DBG_LOG_INFO(
@@ -32,14 +30,9 @@ uint32_t Swapchain::AcquireNextImageIndex() {
 
     pContex->GetDeviceHandle().resetFences(mAcquireFence.GetHandle());
 
-    auto e = pContex->GetDeviceHandle().acquireNextImageKHR(
+    VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
-        mAcquireFence.GetHandle(), &mCurrentImageIndex);
-
-    if (e == vk::Result::eErrorOutOfDateKHR) {
-        bResizeRequested = true;
-        return -1;
-    }
+        mAcquireFence.GetHandle(), &mCurrentImageIndex));
 
     return mCurrentImageIndex;
 }
@@ -52,15 +45,12 @@ void Swapchain::Present(vk::Queue queue) {
         .setWaitSemaphores(sem)
         .setImageIndices(mCurrentImageIndex);
 
-    auto e = queue.presentKHR(&presentInfo);
-    if (e == vk::Result::eErrorOutOfDateKHR) {
-        bResizeRequested = true;
-    }
+    VK_CHECK(queue.presentKHR(presentInfo));
 }
 
-vk::SwapchainKHR Swapchain::RecreateSwapchain(uint32_t w, uint32_t h,
+vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::Extent2D extent,
                                               vk::SwapchainKHR old) {
-    mExtent2D = vk::Extent2D {w, h};
+    mExtent2D = extent;
     mCreateInfo.setSurface(pContex->GetSurface()->GetHandle())
         .setMinImageCount(3u)
         .setImageFormat(mFormat)
@@ -166,14 +156,12 @@ vk::Semaphore Swapchain::GetReady4RenderSemHandle() const {
     return mReady4Render.GetHandle();
 }
 
-void Swapchain::Resize(uint32_t w, uint32_t h) {
+void Swapchain::Resize(vk::Extent2D extent) {
     pContex->GetDeviceHandle().waitIdle();
-    auto newSP = RecreateSwapchain(w, h, mSwapchain);
+    auto newSP = RecreateSwapchain(extent, mSwapchain);
     pContex->GetDeviceHandle().destroy(mSwapchain);
     mSwapchain = newSP;
     SetSwapchainImages();
-
-    bResizeRequested = false;
 }
 
 void Swapchain::SetSwapchainImages() {

@@ -112,6 +112,8 @@ void Texture::CreateImageView(const char* name, vk::ImageAspectFlags aspect,
     pDevice->SetObjectName(view->mHandle,
                            static_cast<Type_STLString>(name).c_str());
 
+    view->mName = name;
+
     mViews.emplace(static_cast<Type_STLString>(name), ::std::move(view));
 }
 
@@ -194,13 +196,11 @@ void Texture::AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
                                    binding, type, &imageInfo);
 }
 
-void Texture::Resize(uint32_t width, uint32_t height) {
+void Texture::Resize(vk::Extent2D extent) {
     Destroy();
-    mExtent3D.setWidth(width).setHeight(height);
+    mExtent3D.setWidth(extent.width).setHeight(extent.height);
     mAllocation = {};
     mAllocationInfo = {};
-    mHandle = VK_NULL_HANDLE;
-
     mHandle = CreateImage();
 
     for (auto& p : mViews) {
@@ -208,6 +208,7 @@ void Texture::Resize(uint32_t width, uint32_t height) {
         view->mImageHandle = mHandle;
         view->Destroy();
         view->mHandle = view->CreateImageView();
+        pDevice->SetObjectName(view->GetHandle(), view->mName.c_str());
     }
 }
 

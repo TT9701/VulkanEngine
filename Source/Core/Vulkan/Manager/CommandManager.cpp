@@ -110,6 +110,7 @@ void CommandManager::WaitUntilAllSubmitsAreComplete() {
 CmdBufferToBegin CommandManager::GetCmdBufferToBegin() {
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
         GetCurrentFence(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
+    mIsSubmitted[mFenceCurIdx] = false;
 
     auto currentCmdBuf = mSPCommandbuffers->GetHandle(mCmdBufferCurIdx);
 
