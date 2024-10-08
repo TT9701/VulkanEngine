@@ -16,50 +16,42 @@ public:
     void AddArgument_ClearColorImage(
         const char* imageName, vk::ImageLayout layout,
         vk::ClearColorValue const& clearValue,
-        ::std::initializer_list<vk::ImageSubresourceRange> const& ranges);
+        Type_STLVector<vk::ImageSubresourceRange> const& ranges);
 
     void AddArgument_ClearDepthStencilImage(
         const char* imageName, vk::ImageLayout layout,
         vk::ClearDepthStencilValue const& clearValue,
-        ::std::initializer_list<vk::ImageSubresourceRange> const& ranges);
+        Type_STLVector<vk::ImageSubresourceRange> const& ranges);
 
     void AddArgument_Barriers_BeforePass(
-        ::std::initializer_list<Type_STLString> const& names,
-        ::std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers =
-            {},
-        ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {},
-        ::std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers =
-            {});
+        Type_STLVector<Type_STLString> const& names,
+        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers = {},
+        Type_STLVector<vk::MemoryBarrier2> const& memBarriers = {},
+        Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers = {});
 
     void AddArgument_Barriers_AfterPass(
-        ::std::initializer_list<Type_STLString> const& names,
-        ::std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers =
-            {},
-        ::std::initializer_list<vk::MemoryBarrier2> const& memBarriers = {},
-        ::std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers =
-            {});
+        Type_STLVector<Type_STLString> const& names,
+        Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers = {},
+        Type_STLVector<vk::MemoryBarrier2> const& memBarriers = {},
+        Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers = {});
 
     void AddArgument_RenderingInfo(
         vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
-        ::std::initializer_list<RenderingAttachmentInfo> const&
-            colorAttachments,
+        Type_STLVector<RenderingAttachmentInfo> const& colorAttachments,
         RenderingAttachmentInfo const& depthStencilAttachment = {},
         vk::RenderingFlags flags = {});
 
     void AddArgument_RenderingInfo(
         vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
-        ::std::initializer_list<vk::RenderingAttachmentInfo> const&
-            colorAttachments,
+        Type_STLVector<vk::RenderingAttachmentInfo> const& colorAttachments,
         vk::RenderingAttachmentInfo const& depthStencilAttachment = {},
         vk::RenderingFlags flags = {});
 
-    void AddArgument_Viewport(
-        uint32_t firstViewport,
-        ::std::initializer_list<vk::Viewport> const& viewports);
+    void AddArgument_Viewport(uint32_t firstViewport,
+                              Type_STLVector<vk::Viewport> const& viewports);
 
-    void AddArgument_Scissor(
-        uint32_t firstScissor,
-        ::std::initializer_list<vk::Rect2D> const& scissors);
+    void AddArgument_Scissor(uint32_t firstScissor,
+                             Type_STLVector<vk::Rect2D> const& scissors);
 
     void AddArgument_Pipeline(vk::PipelineBindPoint bindPoint,
                               vk::Pipeline pipeline);
@@ -69,13 +61,12 @@ public:
                                   uint32_t size, const void* pValues);
 
     void AddArgument_DescriptorBuffer(
-        ::std::initializer_list<vk::DeviceAddress> const& addresses);
+        Type_STLVector<vk::DeviceAddress> const& addresses);
 
     void AddArgument_DescriptorSet(
         vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
-        uint32_t firstSet,
-        ::std::initializer_list<uint32_t> const& bufferIndices,
-        ::std::initializer_list<vk::DeviceSize> const& offsets);
+        uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
+        Type_STLVector<vk::DeviceSize> const& offsets);
 
     void AddArgument_IndexBuffer(vk::Buffer buffer, vk::DeviceSize offset,
                                  vk::IndexType type);
@@ -102,15 +93,13 @@ public:
      */
     void UpdateArgument_RenderArea(vk::Rect2D renderArea);
 
-    void UpdateArgument_Viewport(
-        uint32_t firstViewport,
-        ::std::initializer_list<vk::Viewport> const& viewports,
-        uint32_t index = 0);
+    void UpdateArgument_Viewport(uint32_t firstViewport,
+                                 Type_STLVector<vk::Viewport> const& viewports,
+                                 uint32_t index = 0);
 
-    void UpdateArgument_Scissor(
-        uint32_t firstScissor,
-        ::std::initializer_list<vk::Rect2D> const& scissors,
-        uint32_t index = 0);
+    void UpdateArgument_Scissor(uint32_t firstScissor,
+                                Type_STLVector<vk::Rect2D> const& scissors,
+                                uint32_t index = 0);
 
     void UpdateArgument_Pipeline(vk::PipelineBindPoint bindPoint,
                                  vk::Pipeline pipeline, uint32_t index = 0);
@@ -121,15 +110,12 @@ public:
                                      const void* pValues, uint32_t index = 0);
 
     void UpdateArgument_DescriptorBuffer(
-        ::std::initializer_list<vk::DeviceAddress> const& addresses,
-        uint32_t index = 0);
+        Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index = 0);
 
     void UpdateArgument_DescriptorSet(
         vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
-        uint32_t firstSet,
-        ::std::initializer_list<uint32_t> const& bufferIndices,
-        ::std::initializer_list<vk::DeviceSize> const& offsets,
-        uint32_t index = 0);
+        uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
+        Type_STLVector<vk::DeviceSize> const& offsets, uint32_t index = 0);
 
     void UpdateArgument_IndexBuffer(vk::Buffer buffer, vk::DeviceSize offset,
                                     vk::IndexType type, uint32_t index = 0);
@@ -202,6 +188,7 @@ private:
 
 private:
     RenderResourceManager* pRenderResManager;
+
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>
         mBarriers_BeforePass;
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::RenderingInfo>>

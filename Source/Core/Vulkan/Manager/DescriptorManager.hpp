@@ -89,6 +89,7 @@ private:
     vk::PhysicalDeviceDescriptorBufferPropertiesEXT mProperties {};
 
     Type_DescSetLayouts mDescSetLayouts {};
+
     Type_DescSets mDescSets {};
 
     struct DescriptorBuffer {

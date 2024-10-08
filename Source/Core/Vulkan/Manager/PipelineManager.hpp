@@ -9,11 +9,6 @@ class Shader;
 class DescriptorManager;
 class PipelineManager;
 
-struct ShaderStats {
-    Type_STLVector<vk::DescriptorSetLayout> descSetLayouts;
-    Type_STLVector<vk::PushConstantRange> pushContant;
-};
-
 template <PipelineType Type>
 class PipelineBuilder;
 
@@ -136,9 +131,13 @@ public:
 
 public:
     vk::PipelineLayout GetLayoutHandle(const char* name) const;
+    PipelineLayout* GetLayout(const char* name) const;
 
     vk::Pipeline GetComputePipelineHandle(const char* name) const;
     vk::Pipeline GetGraphicsPipelineHandle(const char* name) const;
+
+    Type_ComputePipelines const& GetComputePipelines() const;
+    Type_GraphicsPipelines const& GetGraphicsPipelines() const;
 
     Type_CPBuilder GetComputePipelineBuilder(DescriptorManager* descManager);
     Type_GPBuilder GetGraphicsPipelineBuilder(DescriptorManager* descManager);
@@ -148,8 +147,7 @@ public:
 
 private:
     SharedPtr<PipelineLayout> CreateLayout(
-        const char* name, ::std::span<vk::DescriptorSetLayout> setLayouts,
-        ::std::span<vk::PushConstantRange> pushContants = {},
+        const char* name, ShaderStats const& stats,
         vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
 
     ShaderStats ReflectShaderStats(const char* pipelineName,

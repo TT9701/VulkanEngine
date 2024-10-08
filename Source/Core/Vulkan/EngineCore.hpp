@@ -1,18 +1,16 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include "Core/Model/Mesh.hpp"
 #include "Core/Model/Model.hpp"
 #include "Core/Utilities/Camera.hpp"
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
-#include "Core/Utilities/VulkanUtilities.hpp"
 #include "Core/Vulkan/Manager/CommandManager.hpp"
 #include "Core/Vulkan/Manager/DescriptorManager.hpp"
-#include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Manager/PipelineManager.hpp"
 #include "Core/Vulkan/Manager/RenderResourceManager.hpp"
 #include "Core/Vulkan/Manager/ShaderManager.hpp"
+#include "Core/Vulkan/RenderPass/RenderPassBindingInfo.hpp"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"
@@ -111,9 +109,11 @@ private:
     PipelineManager mPipelineMgr;
     ShaderManager mShaderMgr;
 
+    RenderPassBindingInfo mMeshShaderPass;
+
     DrawCallManager mBackgroundDrawCallMgr;
     DrawCallManager mMeshDrawCallMgr;
-    DrawCallManager mMeshShaderDrawCallMgr;
+    // DrawCallManager mMeshShaderDrawCallMgr;
     DrawCallManager mQuadDrawCallMgr;
 
 #ifdef CUDA_VULKAN_INTEROP

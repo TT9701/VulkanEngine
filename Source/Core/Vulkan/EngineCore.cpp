@@ -24,9 +24,9 @@ EngineCore::EngineCore()
       mImmSubmitMgr(CreateImmediateSubmitManager()),
       mPipelineMgr(CreatePipelineManager()),
       mShaderMgr(CreateShaderManager()),
+      mMeshShaderPass {&mRenderResMgr, &mPipelineMgr, &mDescMgr},
       mBackgroundDrawCallMgr {&mRenderResMgr},
       mMeshDrawCallMgr {&mRenderResMgr},
-      mMeshShaderDrawCallMgr {&mRenderResMgr},
       mQuadDrawCallMgr {&mRenderResMgr},
 #ifdef CUDA_VULKAN_INTEROP
       mCUDAExternalImage(CreateExternalImage())
@@ -142,7 +142,8 @@ void EngineCore::Run() {
 
                 mBackgroundDrawCallMgr.UpdateArgument_OnResize(extent);
                 // mMeshDrawCallMgr.UpdateArgument_OnResize(extent);
-                mMeshShaderDrawCallMgr.UpdateArgument_OnResize(extent);
+                mMeshShaderPass.GetDrawCallManager().UpdateArgument_OnResize(
+                    extent);
                 mQuadDrawCallMgr.UpdateArgument_OnResize(extent);
             });
 
@@ -191,7 +192,7 @@ void EngineCore::Draw() {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
 
         // mMeshDrawCallMgr.RecordCmd(cmd.GetHandle());
-        mMeshShaderDrawCallMgr.RecordCmd(cmd.GetHandle());
+        mMeshShaderPass.GetDrawCallManager().RecordCmd(cmd.GetHandle());
 
         mQuadDrawCallMgr.UpdateArgument_Attachments(
             {0}, {mSwapchain->GetColorAttachmentInfo(swapchainImageIdx)});
@@ -755,6 +756,18 @@ void EngineCore::RecordDrawBackgroundCmds() {
 }
 
 void EngineCore::RecordDrawMeshCmds() {
+    auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
+    auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
+
+    {
+        vk::Viewport viewport {0.0f,          0.0f, (float)width,
+                               (float)height, 0.0f, 1.0f};
+        mMeshDrawCallMgr.AddArgument_Viewport(0, {viewport});
+
+        vk::Rect2D scissor {{0, 0}, {width, height}};
+        mMeshDrawCallMgr.AddArgument_Scissor(0, {scissor});
+    }
+
     vk::ImageMemoryBarrier2 drawImageBarrier {
         vk::PipelineStageFlagBits2::eComputeShader,
         vk::AccessFlagBits2::eShaderStorageWrite,
@@ -769,9 +782,6 @@ void EngineCore::RecordDrawMeshCmds() {
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
     mMeshDrawCallMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
                                                      {drawImageBarrier});
-
-    auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
-    auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
 
     vk::RenderingAttachmentInfo colorAttachment {};
     colorAttachment
@@ -794,12 +804,6 @@ void EngineCore::RecordDrawMeshCmds() {
         {{0, 0}, {width, height}}, 1, 0,
         {{"DrawImage", "Color-Whole", colorAttachment}},
         {"DepthImage", "Depth-Whole", depthAttachment});
-
-    vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    mMeshDrawCallMgr.AddArgument_Viewport(0, {viewport});
-
-    vk::Rect2D scissor {{0, 0}, {width, height}};
-    mMeshDrawCallMgr.AddArgument_Scissor(0, {scissor});
 
     mMeshDrawCallMgr.AddArgument_Pipeline(
         vk::PipelineBindPoint::eGraphics,
@@ -897,6 +901,25 @@ void EngineCore::RecordDrawQuadCmds() {
 }
 
 void EngineCore::RecordMeshShaderDrawCmds() {
+    uint32_t width = mRenderResMgr["DrawImage"]->GetTexWidth();
+    uint32_t height = mRenderResMgr["DrawImage"]->GetTexHeight();
+
+    auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
+    meshPushContants->mModelMatrix =
+        glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
+
+    auto& dcMgr = mMeshShaderPass.GetDrawCallManager();
+    {
+        mMeshShaderPass.Init("MeshShaderDraw");
+
+        mMeshShaderPass["_DescriptorBuffer_"] = {0};
+
+        mMeshShaderPass["_PushContants_"] = RenderPassBinding::PushContants {
+            sizeof(*meshPushContants), meshPushContants};
+
+        mMeshShaderPass.GenerateMetaData();
+    }
+
     vk::ImageMemoryBarrier2 drawImageBarrier {
         vk::PipelineStageFlagBits2::eComputeShader,
         vk::AccessFlagBits2::eShaderStorageWrite,
@@ -909,11 +932,7 @@ void EngineCore::RecordMeshShaderDrawCmds() {
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
         Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    mMeshShaderDrawCallMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
-                                                           {drawImageBarrier});
-
-    auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
-    auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
+    dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"}, {drawImageBarrier});
 
     vk::RenderingAttachmentInfo colorAttachment {};
     colorAttachment
@@ -932,41 +951,41 @@ void EngineCore::RecordMeshShaderDrawCmds() {
         .setStoreOp(vk::AttachmentStoreOp::eStore)
         .setClearValue(vk::ClearDepthStencilValue {0.0f});
 
-    mMeshShaderDrawCallMgr.AddArgument_RenderingInfo(
+    dcMgr.AddArgument_RenderingInfo(
         {{0, 0}, {width, height}}, 1, 0,
         {{"DrawImage", "Color-Whole", colorAttachment}},
         {"DepthImage", "Depth-Whole", depthAttachment});
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    mMeshShaderDrawCallMgr.AddArgument_Viewport(0, {viewport});
+    dcMgr.AddArgument_Viewport(0, {viewport});
 
     vk::Rect2D scissor {{0, 0}, {width, height}};
-    mMeshShaderDrawCallMgr.AddArgument_Scissor(0, {scissor});
+    dcMgr.AddArgument_Scissor(0, {scissor});
 
-    mMeshShaderDrawCallMgr.AddArgument_Pipeline(
-        vk::PipelineBindPoint::eGraphics,
-        mPipelineMgr.GetGraphicsPipelineHandle("MeshShaderDraw"));
+    // mMeshShaderDrawCallMgr.AddArgument_Pipeline(
+    //     vk::PipelineBindPoint::eGraphics,
+    //     mPipelineMgr.GetGraphicsPipelineHandle("MeshShaderDraw"));
 
-    mMeshShaderDrawCallMgr.AddArgument_DescriptorBuffer(
-        {mDescMgr.GetDescBufferAddress(0)});
+    // mMeshShaderDrawCallMgr.AddArgument_DescriptorBuffer(
+    //     {mDescMgr.GetDescBufferAddress(0)});
 
     auto sceneDataOffset =
         mDescMgr.GetDescriptorSet("MeshShader_Scene_Data")->GetOffsetInBuffer();
-    mMeshShaderDrawCallMgr.AddArgument_DescriptorSet(
+    dcMgr.AddArgument_DescriptorSet(
         vk::PipelineBindPoint::eGraphics,
         mPipelineMgr.GetLayoutHandle("MeshShaderDraw"), 0ui32, {0},
         {sceneDataOffset});
 
-    auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
-    meshPushContants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
+    // auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
+    // meshPushContants->mModelMatrix =
+    //     glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
+    //
+    // mMeshShaderDrawCallMgr.AddArgument_PushConstant(
+    //     mPipelineMgr.GetLayoutHandle("MeshShaderDraw"),
+    //     vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(*meshPushContants),
+    //     meshPushContants);
 
-    mMeshShaderDrawCallMgr.AddArgument_PushConstant(
-        mPipelineMgr.GetLayoutHandle("MeshShaderDraw"),
-        vk::ShaderStageFlagBits::eMeshEXT, 0, sizeof(*meshPushContants),
-        meshPushContants);
-
-    mMeshShaderDrawCallMgr.AddArgument_DrawMeshTasksIndirect(
+    dcMgr.AddArgument_DrawMeshTasksIndirect(
         mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
         mFactoryModel->GetMeshes().size(),
         sizeof(vk::DrawMeshTasksIndirectCommandEXT));

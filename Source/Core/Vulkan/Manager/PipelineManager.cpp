@@ -130,9 +130,8 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
     auto shaderStatus = pManager->ReflectShaderStats(
         pipelineLayoutName.c_str(), pDescriptorManager, pShaders);
 
-    auto pipelineLayout = pManager->CreateLayout(pipelineLayoutName.c_str(),
-                                                 shaderStatus.descSetLayouts,
-                                                 shaderStatus.pushContant);
+    auto pipelineLayout =
+        pManager->CreateLayout(pipelineLayoutName.c_str(), shaderStatus);
 
     vk::PipelineViewportStateCreateInfo viewportState {};
     viewportState.setViewportCount(1u).setScissorCount(1u);
@@ -245,9 +244,8 @@ PipelineBuilder<PipelineType::Compute>::Build(const char* name,
     auto shaderStatus = pManager->ReflectShaderStats(
         pipelineLayoutName.c_str(), pDescriptorManager, shaders);
 
-    auto pipelineLayout = pManager->CreateLayout(pipelineLayoutName.c_str(),
-                                                 shaderStatus.descSetLayouts,
-                                                 shaderStatus.pushContant);
+    auto pipelineLayout =
+        pManager->CreateLayout(pipelineLayoutName.c_str(), shaderStatus);
 
     vk::ComputePipelineCreateInfo info {};
     info.setFlags(mFlags)
@@ -280,11 +278,9 @@ void PipelineBuilder<PipelineType::Compute>::Clear() {
 PipelineManager::PipelineManager(Context* contex) : pContext(contex) {}
 
 SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
-    const char* name, ::std::span<vk::DescriptorSetLayout> setLayouts,
-    ::std::span<vk::PushConstantRange> pushContants,
+    const char* name, ShaderStats const& stats,
     vk::PipelineLayoutCreateFlags flags, void* pNext) {
-    const auto ptr = MakeShared<PipelineLayout>(pContext, setLayouts,
-                                                pushContants, flags, pNext);
+    const auto ptr = MakeShared<PipelineLayout>(pContext, stats, flags, pNext);
 
     pContext->SetName(ptr->GetHandle(), name);
     mPipelineLayouts.emplace(name, ptr);
@@ -293,7 +289,11 @@ SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
 }
 
 vk::PipelineLayout PipelineManager::GetLayoutHandle(const char* name) const {
-    return mPipelineLayouts.at(ParsePipelineLayoutName(name))->GetHandle();
+    return GetLayout(name)->GetHandle();
+}
+
+PipelineLayout* PipelineManager::GetLayout(const char* name) const {
+    return mPipelineLayouts.at(ParsePipelineLayoutName(name)).get();
 }
 
 vk::Pipeline PipelineManager::GetComputePipelineHandle(const char* name) const {
@@ -304,6 +304,16 @@ vk::Pipeline PipelineManager::GetComputePipelineHandle(const char* name) const {
 vk::Pipeline PipelineManager::GetGraphicsPipelineHandle(
     const char* name) const {
     return mGraphicsPipelines.at(ParsePipelineName(name))->GetHandle();
+}
+
+PipelineManager::Type_ComputePipelines const&
+PipelineManager::GetComputePipelines() const {
+    return mComputePipelines;
+}
+
+PipelineManager::Type_GraphicsPipelines const&
+PipelineManager::GetGraphicsPipelines() const {
+    return mGraphicsPipelines;
 }
 
 PipelineManager::Type_CPBuilder PipelineManager::GetComputePipelineBuilder(

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Core/Utilities/Functor.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Vulkan/Native/RenderResource.hpp"
 
@@ -21,9 +20,8 @@ class RenderResourceManager {
 
     using Fn_SizeRelation = ::std::function<vk::Extent2D(vk::Extent2D)>;
 
-    // resource ptr - size ratio (resource size / screen size)
-    using Type_RenderResourcePtrs =
-        Type_STLVector<::std::pair<RenderResource*, Fn_SizeRelation>>;
+    using Type_Resource_SizeRelations =
+        Type_STLUnorderedMap_String<Fn_SizeRelation>;
 
 public:
     RenderResourceManager(Device* device, MemoryAllocator* allocator,
@@ -62,7 +60,8 @@ public:
 
     void ResizeScreenSizeRelatedResources(vk::Extent2D extent) const;
 
-    Type_RenderResourcePtrs const& GetSrcreenSizeRelatedResources() const;
+    Type_Resource_SizeRelations const&
+    GetSrcreenSizeRelatedResources() const;
 
 private:
     static Fn_SizeRelation sFullSize;
@@ -73,7 +72,7 @@ private:
     DescriptorManager* pDescManager;
 
     Type_RenderResources mResources {};
-    Type_RenderResourcePtrs mScreenSizeRalatedResources {};
+    Type_Resource_SizeRelations mScreenSizeRalatedResources {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

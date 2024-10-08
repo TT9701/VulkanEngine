@@ -4,24 +4,26 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-PipelineLayout::PipelineLayout(Context* context,
-                               ::std::span<vk::DescriptorSetLayout> setLayouts,
-                               ::std::span<vk::PushConstantRange> pushContants,
+PipelineLayout::PipelineLayout(Context* context, ShaderStats const& stats,
                                vk::PipelineLayoutCreateFlags flags, void* pNext)
     : pContext(context),
-      mLayout(CreateLayout(setLayouts, pushContants, flags, pNext)) {}
+      mPushContantRanges(stats.pushContant),
+      mLayout(CreateLayout(stats, flags, pNext)) {}
 
 PipelineLayout::~PipelineLayout() {
     pContext->GetDeviceHandle().destroy(mLayout);
 }
 
+Type_STLVector<vk::PushConstantRange> const& PipelineLayout::GetPushConstants()
+    const {
+    return mPushContantRanges;
+}
+
 vk::PipelineLayout PipelineLayout::CreateLayout(
-    ::std::span<vk::DescriptorSetLayout> setLayouts,
-    ::std::span<vk::PushConstantRange> pushContants,
-    vk::PipelineLayoutCreateFlags flags, void* pNext) const {
+    ShaderStats stats, vk::PipelineLayoutCreateFlags flags, void* pNext) const {
     vk::PipelineLayoutCreateInfo info {};
-    info.setSetLayouts(setLayouts)
-        .setPushConstantRanges(pushContants)
+    info.setSetLayouts(stats.descSetLayouts)
+        .setPushConstantRanges(mPushContantRanges)
         .setFlags(flags)
         .setPNext(pNext);
     return pContext->GetDeviceHandle().createPipelineLayout(info);

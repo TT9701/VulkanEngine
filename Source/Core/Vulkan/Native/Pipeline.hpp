@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.hpp"
+#include "Core/Utilities/MemoryPool.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -10,11 +11,14 @@ enum class PipelineType { Graphics, Compute };
 
 class Context;
 
+struct ShaderStats {
+    Type_STLVector<vk::DescriptorSetLayout> descSetLayouts;
+    Type_STLVector<vk::PushConstantRange> pushContant;
+};
+
 class PipelineLayout {
 public:
-    PipelineLayout(Context* context,
-                   ::std::span<vk::DescriptorSetLayout> setLayouts,
-                   ::std::span<vk::PushConstantRange> pushContants,
+    PipelineLayout(Context* context, ShaderStats const& stats,
                    vk::PipelineLayoutCreateFlags flags = {},
                    void* pNext = nullptr);
     ~PipelineLayout();
@@ -23,15 +27,17 @@ public:
 public:
     vk::PipelineLayout GetHandle() const { return mLayout; }
 
+    Type_STLVector<vk::PushConstantRange> const& GetPushConstants() const;
+
 private:
-    vk::PipelineLayout CreateLayout(
-        ::std::span<vk::DescriptorSetLayout> setLayouts,
-        ::std::span<vk::PushConstantRange> pushContants,
-        vk::PipelineLayoutCreateFlags flags, void* pNext) const;
+    vk::PipelineLayout CreateLayout(ShaderStats stats,
+                                    vk::PipelineLayoutCreateFlags flags,
+                                    void* pNext) const;
 
 private:
     Context* pContext;
 
+    Type_STLVector<vk::PushConstantRange> mPushContantRanges;
     vk::PipelineLayout mLayout;
 };
 

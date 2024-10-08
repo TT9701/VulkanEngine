@@ -10,7 +10,7 @@ DrawCallManager::DrawCallManager(RenderResourceManager* manager)
 void DrawCallManager::AddArgument_ClearColorImage(
     const char* imageName, vk::ImageLayout layout,
     vk::ClearColorValue const& clearValue,
-    std::initializer_list<vk::ImageSubresourceRange> const& ranges) {
+    Type_STLVector<vk::ImageSubresourceRange> const& ranges) {
     auto image = (*pRenderResManager)[imageName]->GetTexHandle();
 
     DrawCallMetaData<DrawCallMetaDataType::ClearColorImage> metaData;
@@ -26,7 +26,7 @@ void DrawCallManager::AddArgument_ClearColorImage(
 void DrawCallManager::AddArgument_ClearDepthStencilImage(
     const char* imageName, vk::ImageLayout layout,
     vk::ClearDepthStencilValue const& clearValue,
-    std::initializer_list<vk::ImageSubresourceRange> const& ranges) {
+    Type_STLVector<vk::ImageSubresourceRange> const& ranges) {
     auto image = (*pRenderResManager)[imageName]->GetTexHandle();
 
     DrawCallMetaData<DrawCallMetaDataType::ClearDepthStencilImage> metaData;
@@ -88,10 +88,10 @@ void PushBarrierMapping(
 }  // namespace
 
 void DrawCallManager::AddArgument_Barriers_BeforePass(
-    ::std::initializer_list<Type_STLString> const& names,
-    std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers,
-    std::initializer_list<vk::MemoryBarrier2> const& memBarriers,
-    std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers) {
+    Type_STLVector<Type_STLString> const& names,
+    Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
+    Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
+    Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers) {
     assert(names.size()
            == imgBarriers.size() + memBarriers.size() + bufBarriers.size());
 
@@ -103,10 +103,10 @@ void DrawCallManager::AddArgument_Barriers_BeforePass(
 }
 
 void DrawCallManager::AddArgument_Barriers_AfterPass(
-    ::std::initializer_list<Type_STLString> const& names,
-    std::initializer_list<vk::ImageMemoryBarrier2> const& imgBarriers,
-    std::initializer_list<vk::MemoryBarrier2> const& memBarriers,
-    std::initializer_list<vk::BufferMemoryBarrier2> const& bufBarriers) {
+    Type_STLVector<Type_STLString> const& names,
+    Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
+    Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
+    Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers) {
     assert(names.size()
            == imgBarriers.size() + memBarriers.size() + bufBarriers.size());
 
@@ -119,7 +119,7 @@ void DrawCallManager::AddArgument_Barriers_AfterPass(
 
 void DrawCallManager::AddArgument_RenderingInfo(
     vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
-    std::initializer_list<RenderingAttachmentInfo> const& colorAttachments,
+    Type_STLVector<RenderingAttachmentInfo> const& colorAttachments,
     RenderingAttachmentInfo const& depthStencilAttachment,
     vk::RenderingFlags flags) {
     mRenderingInfo = ::std::make_optional<
@@ -166,7 +166,7 @@ void DrawCallManager::AddArgument_RenderingInfo(
 
 void DrawCallManager::AddArgument_RenderingInfo(
     vk::Rect2D renderArea, uint32_t layerCount, uint32_t viewMask,
-    std::initializer_list<vk::RenderingAttachmentInfo> const& colorAttachments,
+    Type_STLVector<vk::RenderingAttachmentInfo> const& colorAttachments,
     vk::RenderingAttachmentInfo const& depthStencilAttachment,
     vk::RenderingFlags flags) {
     mRenderingInfo = ::std::make_optional<
@@ -190,8 +190,7 @@ void DrawCallManager::AddArgument_RenderingInfo(
 }
 
 void DrawCallManager::AddArgument_Viewport(
-    uint32_t firstViewport,
-    ::std::initializer_list<vk::Viewport> const& viewports) {
+    uint32_t firstViewport, Type_STLVector<vk::Viewport> const& viewports) {
     DrawCallMetaData<DrawCallMetaDataType::Viewport> metaData;
     metaData.firstViewport = firstViewport;
     metaData.viewports = viewports;
@@ -200,8 +199,7 @@ void DrawCallManager::AddArgument_Viewport(
 }
 
 void DrawCallManager::AddArgument_Scissor(
-    uint32_t firstScissor,
-    ::std::initializer_list<vk::Rect2D> const& scissors) {
+    uint32_t firstScissor, Type_STLVector<vk::Rect2D> const& scissors) {
     DrawCallMetaData<DrawCallMetaDataType::Scissor> metaData;
     metaData.firstScissor = firstScissor;
     metaData.scissors = scissors;
@@ -233,7 +231,7 @@ void DrawCallManager::AddArgument_PushConstant(vk::PipelineLayout layout,
 }
 
 void DrawCallManager::AddArgument_DescriptorBuffer(
-    std::initializer_list<vk::DeviceAddress> const& addresses) {
+    Type_STLVector<vk::DeviceAddress> const& addresses) {
     DrawCallMetaData<DrawCallMetaDataType::DescriptorBuffer> metaData;
     metaData.addresses = addresses;
 
@@ -242,8 +240,8 @@ void DrawCallManager::AddArgument_DescriptorBuffer(
 
 void DrawCallManager::AddArgument_DescriptorSet(
     vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
-    uint32_t firstSet, std::initializer_list<uint32_t> const& bufferIndices,
-    std::initializer_list<vk::DeviceSize> const& offsets) {
+    uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
+    Type_STLVector<vk::DeviceSize> const& offsets) {
     DrawCallMetaData<DrawCallMetaDataType::DescriptorSet> metaData;
     metaData.bindPoint = bindPoint;
     metaData.layout = layout;
@@ -337,15 +335,15 @@ void DrawCallManager::UpdateArgument_RenderArea(vk::Rect2D renderArea) {
 }
 
 void DrawCallManager::UpdateArgument_Viewport(
-    uint32_t firstViewport,
-    std::initializer_list<vk::Viewport> const& viewports, uint32_t index) {
+    uint32_t firstViewport, Type_STLVector<vk::Viewport> const& viewports,
+    uint32_t index) {
     auto data = FindMetaDataPtr<DrawCallMetaDataType::Viewport>(index);
     data->firstViewport = firstViewport;
     data->viewports = viewports;
 }
 
 void DrawCallManager::UpdateArgument_Scissor(
-    uint32_t firstScissor, std::initializer_list<vk::Rect2D> const& scissors,
+    uint32_t firstScissor, Type_STLVector<vk::Rect2D> const& scissors,
     uint32_t index) {
     auto data = FindMetaDataPtr<DrawCallMetaDataType::Scissor>(index);
     data->firstScissor = firstScissor;
@@ -372,15 +370,15 @@ void DrawCallManager::UpdateArgument_PushConstant(
 }
 
 void DrawCallManager::UpdateArgument_DescriptorBuffer(
-    std::initializer_list<vk::DeviceAddress> const& addresses, uint32_t index) {
+    Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index) {
     auto data = FindMetaDataPtr<DrawCallMetaDataType::DescriptorBuffer>(index);
     data->addresses = addresses;
 }
 
 void DrawCallManager::UpdateArgument_DescriptorSet(
     vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
-    uint32_t firstSet, std::initializer_list<uint32_t> const& bufferIndices,
-    std::initializer_list<vk::DeviceSize> const& offsets, uint32_t index) {
+    uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
+    Type_STLVector<vk::DeviceSize> const& offsets, uint32_t index) {
     auto data = FindMetaDataPtr<DrawCallMetaDataType::DescriptorSet>(index);
     data->bindPoint = bindPoint;
     data->layout = layout;
@@ -466,13 +464,13 @@ void DrawCallManager::UpdateArgument_Attachments(
         auto imageName = name.substr(0, offset);
         auto viewName = name.substr(offset + 1, name.size() - offset);
 
-        auto index = mRenderingInfo.value().mapping.at(name);
+        auto index = mRenderingInfo->mapping.at(name);
         if (index == -1) {
-            mRenderingInfo.value().depthStencilAttachment.value().imageView =
+            mRenderingInfo->depthStencilAttachment->imageView =
                 (*pRenderResManager)[imageName.c_str()]->GetTexViewHandle(
                     viewName.c_str());
         } else {
-            mRenderingInfo.value().colorAttachments[index].imageView =
+            mRenderingInfo->colorAttachments[index].imageView =
                 (*pRenderResManager)[imageName.c_str()]->GetTexViewHandle(
                     viewName.c_str());
         }
@@ -484,10 +482,9 @@ void DrawCallManager::UpdateArgument_Attachments(
     Type_STLVector<vk::RenderingAttachmentInfo> const& attachments) {
     for (uint32_t i = 0; i < indices.size(); ++i) {
         if (indices[i] == -1)
-            mRenderingInfo.value().depthStencilAttachment = attachments[i];
+            mRenderingInfo->depthStencilAttachment = attachments[i];
         else {
-            mRenderingInfo.value().colorAttachments[indices[i]] =
-                attachments[i];
+            mRenderingInfo->colorAttachments[indices[i]] = attachments[i];
         }
     }
 }
@@ -528,7 +525,7 @@ void DrawCallManager::UpdateArgument_Barriers_BeforePass(
 void DrawCallManager::UpdateArgument_Barriers_BeforePass(
     Type_STLVector<Type_STLString> const& names) {
     for (auto const& name : names) {
-        auto var = mBarriers_BeforePass.value().mapping.at(name);
+        auto var = mBarriers_BeforePass->mapping.at(name);
         if (auto pib = ::std::get_if<vk::ImageMemoryBarrier2*>(&var)) {
             (*pib)->setImage(
                 (*pRenderResManager)[name.c_str()]->GetTexHandle());
@@ -578,7 +575,7 @@ void DrawCallManager::UpdateArgument_Barriers_AfterPass(
 void DrawCallManager::UpdateArgument_Barriers_AfterPass(
     Type_STLVector<Type_STLString> const& names) {
     for (auto const& name : names) {
-        auto var = mBarriers_AfterPass.value().mapping.at(name);
+        auto var = mBarriers_AfterPass->mapping.at(name);
         if (auto pib = ::std::get_if<vk::ImageMemoryBarrier2*>(&var)) {
             (*pib)->setImage(
                 (*pRenderResManager)[name.c_str()]->GetTexHandle());
@@ -610,20 +607,20 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
 
     for (auto const& resource :
          pRenderResManager->GetSrcreenSizeRelatedResources()) {
-        auto name = Type_STLString {resource.first->GetName()};
+        auto name = resource.first;
 
-        if (mBarriers_BeforePass.has_value()
-            && mBarriers_BeforePass.value().mapping.contains(name)) {
+        if (mBarriers_BeforePass
+            && mBarriers_BeforePass->mapping.contains(name)) {
             beforePassBarrierResourceNames.push_back(name);
         }
 
-        if (mBarriers_AfterPass.has_value()
-            && mBarriers_AfterPass.value().mapping.contains(name)) {
+        if (mBarriers_AfterPass
+            && mBarriers_AfterPass->mapping.contains(name)) {
             afterPassBarrierResourceNames.push_back(name);
         }
 
-        if (mRenderingInfo.has_value()) {
-            auto& mapping = mRenderingInfo.value().mapping;
+        if (mRenderingInfo) {
+            auto& mapping = mRenderingInfo->mapping;
             Type_STLString viewName {};
             for (auto const& [k, _] : mapping) {
                 if (k.find(name) != Type_STLString::npos) {
@@ -635,7 +632,7 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
             auto mappingName =
                 Type_STLString {name}.append("@").append(viewName);
 
-            if (mRenderingInfo.value().mapping.contains(mappingName)) {
+            if (mRenderingInfo->mapping.contains(mappingName)) {
                 attachmentResourceNames.push_back(mappingName);
             }
         }
@@ -655,10 +652,10 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
 }
 
 void DrawCallManager::RecordCmd(vk::CommandBuffer cmd) const {
-    if (mBarriers_BeforePass.has_value())
+    if (mBarriers_BeforePass)
         mBarriers_BeforePass->RecordCmds(cmd);
 
-    bool bIsGraphics {mRenderingInfo.has_value()};
+    bool bIsGraphics {mRenderingInfo};
 
     if (bIsGraphics)
         mRenderingInfo->RecordCmds(cmd);
@@ -669,7 +666,7 @@ void DrawCallManager::RecordCmd(vk::CommandBuffer cmd) const {
     if (bIsGraphics)
         cmd.endRendering();
 
-    if (mBarriers_AfterPass.has_value())
+    if (mBarriers_AfterPass)
         mBarriers_AfterPass->RecordCmds(cmd);
 }
 
