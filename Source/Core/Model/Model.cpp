@@ -2,10 +2,9 @@
 
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
-// #include <assimp/DefaultLogger.hpp>
 
+#include "Core/Application/Application.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
-#include "Core/Vulkan/EngineCore.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -24,7 +23,7 @@ Model::Model(::std::span<Mesh> meshes) : mMeshes(meshes.begin(), meshes.end()) {
     GenerateStats();
 }
 
-void Model::GenerateBuffers(Context* context, EngineCore* engine) {
+void Model::GenerateBuffers(Context* context, Application* engine) {
     // Vertex & index buffer
     {
         const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
@@ -76,7 +75,8 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
                            mBuffers.mIndexBuffer->GetBufferHandle(), indexCopy);
         });
 
-        mIndexDrawConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
+        mIndexDrawConstants.mVertexBufferAddress =
+            mBuffers.mVertexBufferAddress;
     }
 
     // indirect indexed command buffer
@@ -95,13 +95,12 @@ void Model::GenerateBuffers(Context* context, EngineCore* engine) {
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
             cmd.copyBuffer(staging->GetHandle(),
-                           mIndirectIndexedCmdBuffer->GetHandle(),
-                           cmdBufCopy);
+                           mIndirectIndexedCmdBuffer->GetHandle(), cmdBufCopy);
         });
     }
 }
 
-void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
+void Model::GenerateMeshletBuffers(Context* context, Application* engine) {
     const size_t vertexSize = sizeof(mMeshes[0].mVertices[0]);
     const size_t vertexBufferSize = mVertexCount * vertexSize;
 
@@ -275,13 +274,15 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
         });
 
         mMeshletConstants.mVertexBufferAddress = mBuffers.mVertexBufferAddress;
-        mMeshletConstants.mMeshletBufferAddress = mBuffers.mMeshletBufferAddress;
+        mMeshletConstants.mMeshletBufferAddress =
+            mBuffers.mMeshletBufferAddress;
         mMeshletConstants.mMeshletVertexBufferAddress =
             mBuffers.mMeshletVertBufferAddress;
         mMeshletConstants.mMeshletTriangleBufferAddress =
             mBuffers.mMeshletTriBufferAddress;
 
-        mMeshletConstants.mVertexOffsetBufferAddress = mBuffers.mMeshDataBufferAddress;
+        mMeshletConstants.mVertexOffsetBufferAddress =
+            mBuffers.mMeshDataBufferAddress;
         mMeshletConstants.mMeshletOffsetBufferAddress =
             mBuffers.mMeshDataBufferAddress + sizeof(uint32_t) * mMeshes.size();
         mMeshletConstants.mMeshletVertexOffsetBufferAddress =
@@ -311,8 +312,7 @@ void Model::GenerateMeshletBuffers(Context* context, EngineCore* engine) {
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
             cmd.copyBuffer(staging->GetHandle(),
-                           mMeshTaskIndirectCmdBuffer->GetHandle(),
-                           cmdBufCopy);
+                           mMeshTaskIndirectCmdBuffer->GetHandle(), cmdBufCopy);
         });
     }
 }

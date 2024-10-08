@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Core/Utilities/Defines.hpp"
-
 #define SHADER_PATH(name)                                                 \
     (IntelliDesign_NS::Core::MemoryPool::Type_STLString("../../Shaders/") \
      + name)
@@ -29,3 +27,5 @@
     CLASS_NAME& operator=(const CLASS_NAME&) = delete; \
     CLASS_NAME(CLASS_NAME&&) noexcept = default;       \
     CLASS_NAME& operator=(CLASS_NAME&&) noexcept = default
+
+#define VE_STRINGIFY_MACRO(x) #x

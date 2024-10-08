@@ -9,7 +9,9 @@ endif()
 
 project (VulkanEngine)
 
-enable_language(CUDA)
+if (CUDA_VULKAN_INTEROP)
+    enable_language(CUDA)
+endif()
 
 find_package (Vulkan COMPONENTS shaderc_combined SPIRV-Tools REQUIRED)
 
@@ -23,7 +25,7 @@ endif()
 
 set (LIB_FOLDER_NAME "Libs")
 set (DLL_FOLDER_NAME "Dlls")
-set (EXECUTABLE_FOLDER_NAME "Executables")
+set (EXECUTABLE_FOLDER_NAME "Demos")
 set (CUSTOM_FOLDER_NAME "Custom_Projects")
 
 add_subdirectory (External)
@@ -58,6 +60,4 @@ add_custom_target(
 
 set_target_properties(Shaders PROPERTIES FOLDER ${CUSTOM_FOLDER_NAME})
 
-set_property (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} 
-    PROPERTY 
-        VS_STARTUP_PROJECT Runtime)
+add_subdirectory(Demos)

@@ -1,9 +1,12 @@
 #pragma once
 
-#include <glm/glm.hpp>
 #include <meshoptimizer.h>
+#include <glm/glm.hpp>
 
+#ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAVulkan.h"
+#endif
+
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Vulkan/Native/RenderResource.hpp"
 #include "MeshType.hpp"
@@ -24,11 +27,13 @@ struct GPUMeshBuffers {
     vk::DeviceAddress mMeshDataBufferAddress {};
 };
 
+#ifdef CUDA_VULKAN_INTEROP
 struct ExternalGPUMeshBuffers {
     SharedPtr<CUDA::VulkanExternalBuffer> mIndexBuffer {};
     SharedPtr<CUDA::VulkanExternalBuffer> mVertexBuffer {};
     vk::DeviceAddress mVertexBufferAddress {};
 };
+#endif
 
 class Mesh {
 public:

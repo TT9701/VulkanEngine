@@ -13,8 +13,17 @@ set (UTILITIES_SRC
     Utilities/Camera.cpp
     Utilities/Functor.hpp
     Utilities/Functor.cpp
+    Utilities/Timer.hpp
+    Utilities/Timer.cpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
+
+set (APPLICATION_SRC 
+    Application/Application.hpp
+    Application/Application.cpp
+    Application/EntryPoint.h
+)
+set (APPLICATION_SRC_GROUP_NAME "Application")
 
 set (VULKAN_CORE_SRC 
     Vulkan/Native/Instance.hpp
@@ -69,10 +78,6 @@ set (VULKAN_CORE_SRC
 
     Vulkan/RenderPass/RenderPassBindingInfo.hpp
     Vulkan/RenderPass/RenderPassBindingInfo.cpp
-
-    Vulkan/EngineCore.hpp
-    Vulkan/EngineCore.cpp
-    
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 
@@ -99,12 +104,14 @@ source_group(${UTILITIES_SRC_GROUP_NAME} FILES ${UTILITIES_SRC})
 source_group(${VULKAN_CORE_SRC_GROUP_NAME} FILES ${VULKAN_CORE_SRC})
 source_group(${PLATFORM_SRC_GROUP_NAME} FILES ${PLATFORM_SRC})
 source_group(${MODEL_SRC_GROUP_NAME} FILES ${MODEL_SRC})
+source_group(${APPLICATION_SRC_GROUP_NAME} FILES ${APPLICATION_SRC})
 
 add_library(Core STATIC
     ${UTILITIES_SRC}
     ${PLATFORM_SRC}
     ${VULKAN_CORE_SRC}
     ${MODEL_SRC}
+    ${APPLICATION_SRC}
 )
 
 set_target_properties(Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})
@@ -135,10 +142,6 @@ target_link_libraries(Core
     PUBLIC
         Vulkan::Headers
         Vulkan::shaderc_combined)
-
-target_link_libraries(CUDA
-    PUBLIC
-        GPUOpen::VulkanMemoryAllocator)
 
 target_include_directories(Core 
     PUBLIC 
@@ -190,20 +193,3 @@ target_link_libraries(Core
     PUBLIC
         debug INTELLI_DS_MemoryPool_DEBUG
         optimized INTELLI_DS_MemoryPool_RELEASE)
-
-target_precompile_headers(Core 
-    PUBLIC 
-        <functional>
-        <deque>
-        <optional> 
-        <vector> 
-        <memory> 
-        <string> 
-        <tuple>
-        <thread>
-        <span>
-        <fstream>
-        <iostream>
-        <variant>
-        <filesystem>
-        <unordered_map>)

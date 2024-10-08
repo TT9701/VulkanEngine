@@ -1,6 +1,8 @@
 #include "Context.hpp"
 
+#ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAVulkan.h"
+#endif
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -277,6 +279,7 @@ UniquePtr<TimelineSemaphore> Context::CreateTimelineSem() {
 UniquePtr<ExternalMemoryPool> Context::CreateExternalMemoryPool() {
     return MakeUnique<ExternalMemoryPool>(mPAllocator.get());
 }
+#endif
 
 void Context::CreateDefaultSamplers() {
     mDefaultSamplerNearest =
@@ -284,7 +287,6 @@ void Context::CreateDefaultSamplers() {
     mDefaultSamplerLinear =
         CreateSampler(vk::Filter::eLinear, vk::Filter::eLinear);
 }
-#endif
 
 void Context::EnableDefaultFeatures() {
     sEnable12Features.setRuntimeDescriptorArray(vk::True);
@@ -305,7 +307,7 @@ void Context::EnableDefaultFeatures() {
     sEnableMeshShaderFeaturesExt.setMeshShader(vk::True)
         .setTaskShader(vk::True)
         .setPNext(&sEnableMaintenance6KHR);
-    
+
     sEnableDescriptorBufferFeaturesExt.setDescriptorBuffer(vk::True).setPNext(
         &sEnableMeshShaderFeaturesExt);
 

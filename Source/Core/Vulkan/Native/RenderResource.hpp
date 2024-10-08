@@ -1,5 +1,7 @@
 #pragma once
 
+#include <variant>
+
 #include "Buffer.hpp"
 #include "Texture.hpp"
 

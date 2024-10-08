@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include <assimp/scene.h>
 
 #include "Mesh.hpp"
@@ -7,7 +9,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
-class EngineCore;
+class Application;
 
 struct IndexDrawPushConstants {
     glm::mat4 mModelMatrix {glm::mat4(1.0f)};
@@ -35,9 +37,9 @@ public:
 
     Model(::std::span<Mesh> meshes);
 
-    void GenerateBuffers(Context* context, EngineCore* engine);
+    void GenerateBuffers(Context* context, Application* engine);
 
-    void GenerateMeshletBuffers(Context* context, EngineCore* engine);
+    void GenerateMeshletBuffers(Context* context, Application* engine);
 
     void Draw(vk::CommandBuffer cmd, glm::mat4 modelMatrix = glm::mat4(1.0f));
 

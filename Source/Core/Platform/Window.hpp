@@ -1,11 +1,15 @@
 #pragma once
 
+#include <functional>
+#include <string>
+#include <vector>
+
 #include <SDL2/SDL_events.h>
 #include "Core/Utilities/Defines.hpp"
 
 class SDLWindow {
 public:
-    SDLWindow(int width = 1600, int height = 900);
+    SDLWindow(const char* name, int width, int height);
     ~SDLWindow();
     MOVABLE_ONLY(SDLWindow);
 
@@ -26,6 +30,7 @@ public:
     SDL_Event* GetEvent() const { return mEvent; }
 
 private:
+    ::std::string mName;
     int mWidth;
     int mHeight;
 

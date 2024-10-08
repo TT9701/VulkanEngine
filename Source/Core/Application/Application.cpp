@@ -1,21 +1,13 @@
-#include "EngineCore.hpp"
+#include "Application.hpp"
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
 
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
-
-#include "Core/Model/CISDI_3DModelConverter.hpp"
-#include "Core/Platform/Window.hpp"
-#include "Core/Vulkan/Manager/Context.hpp"
-#include "Core/Vulkan/Native/Swapchain.hpp"
-
 namespace IntelliDesign_NS::Vulkan::Core {
 
-EngineCore::EngineCore()
-    : mWindow(CreateSDLWindow()),
+Application::Application(ApplicationSpecification const& spec)
+    : mWindow(CreateSDLWindow(spec.Name.c_str(), spec.width, spec.height)),
       mContext(CreateContext()),
       mSwapchain(CreateSwapchain()),
       mDescMgr(CreateDescriptorManager()),
@@ -27,8 +19,9 @@ EngineCore::EngineCore()
       mMeshShaderPass {&mRenderResMgr, &mPipelineMgr, &mDescMgr},
       mBackgroundDrawCallMgr {&mRenderResMgr},
       mMeshDrawCallMgr {&mRenderResMgr},
-      mQuadDrawCallMgr {&mRenderResMgr},
+      mQuadDrawCallMgr {&mRenderResMgr}
 #ifdef CUDA_VULKAN_INTEROP
+      ,
       mCUDAExternalImage(CreateExternalImage())
 #endif
 {
@@ -121,17 +114,19 @@ EngineCore::EngineCore()
 #endif
 }
 
-EngineCore::~EngineCore() {
+Application::~Application() {
     mContext->GetDeviceHandle().waitIdle();
 }
 
-void EngineCore::Run() {
+void Application::Run() {
     bool bQuit = false;
 
     while (!bQuit) {
+        auto deltaTime = static_cast<float>(mFrameTimer.Frame());
+
         mWindow->PollEvents(
             bQuit, mStopRendering,
-            [&](SDL_Event* e) { mMainCamera.ProcessSDLEvent(e, 0.001f); },
+            [&](SDL_Event* e) { mMainCamera.ProcessSDLEvent(e, deltaTime); },
             [&]() {
                 vk::Extent2D extent = {
                     static_cast<uint32_t>(mWindow->GetWidth()),
@@ -156,7 +151,7 @@ void EngineCore::Run() {
     }
 }
 
-void EngineCore::Draw() {
+void Application::Draw() {
     auto swapchainImageIdx = mSwapchain->AcquireNextImageIndex();
 
     const uint64_t graphicsFinished =
@@ -270,11 +265,13 @@ void EngineCore::Draw() {
     ++mFrameNum;
 }
 
-UniquePtr<SDLWindow> EngineCore::CreateSDLWindow() {
-    return MakeUnique<SDLWindow>();
+UniquePtr<SDLWindow> Application::CreateSDLWindow(const char* name,
+                                                  uint32_t width,
+                                                  uint32_t height) {
+    return MakeUnique<SDLWindow>(name, width, height);
 }
 
-UniquePtr<Context> EngineCore::CreateContext() {
+UniquePtr<Context> Application::CreateContext() {
     Type_STLVector<Type_STLString> requestedInstanceLayers {};
 #ifndef NDEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
@@ -312,18 +309,18 @@ UniquePtr<Context> EngineCore::CreateContext() {
         enabledDeivceExtensions);
 }
 
-UniquePtr<Swapchain> EngineCore::CreateSwapchain() {
+UniquePtr<Swapchain> Application::CreateSwapchain() {
     return MakeUnique<Swapchain>(
         mContext.get(), vk::Format::eR8G8B8A8Unorm,
         vk::Extent2D {static_cast<uint32_t>(mWindow->GetWidth()),
                       static_cast<uint32_t>(mWindow->GetHeight())});
 }
 
-RenderResourceManager EngineCore::CreateRenderResourceManager() {
+RenderResourceManager Application::CreateRenderResourceManager() {
     return {mContext->GetDevice(), mContext->GetVmaAllocator(), &mDescMgr};
 }
 
-void EngineCore::CreateDrawImage() {
+void Application::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mWindow->GetWidth()),
                                   static_cast<uint32_t>(mWindow->GetHeight()),
                                   1};
@@ -341,7 +338,7 @@ void EngineCore::CreateDrawImage() {
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 }
 
-void EngineCore::CreateDepthImage() {
+void Application::CreateDepthImage() {
     vk::Extent3D depthImageExtent {static_cast<uint32_t>(mWindow->GetWidth()),
                                    static_cast<uint32_t>(mWindow->GetHeight()),
                                    1};
@@ -362,26 +359,26 @@ void EngineCore::CreateDepthImage() {
     });
 }
 
-ImmediateSubmitManager EngineCore::CreateImmediateSubmitManager() {
+ImmediateSubmitManager Application::CreateImmediateSubmitManager() {
     return {
         mContext.get(),
         mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value()};
 }
 
-CommandManager EngineCore::CreateCommandManager() {
+CommandManager Application::CreateCommandManager() {
     return {
         mContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
         mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value()};
 }
 
-void EngineCore::CreatePipelines() {
+void Application::CreatePipelines() {
     CreateBackgroundComputePipeline();
     CreateMeshPipeline();
     CreateDrawQuadPipeline();
     CreateMeshShaderPipeline();
 }
 
-void EngineCore::CreateErrorCheckTexture() {
+void Application::CreateErrorCheckTexture() {
     auto extent = VkExtent3D {16, 16, 1};
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
@@ -434,20 +431,20 @@ void EngineCore::CreateErrorCheckTexture() {
     }
 }
 
-PipelineManager EngineCore::CreatePipelineManager() {
+PipelineManager Application::CreatePipelineManager() {
     return {mContext.get()};
 }
 
-ShaderManager EngineCore::CreateShaderManager() {
+ShaderManager Application::CreateShaderManager() {
     return {mContext.get()};
 }
 
-DescriptorManager EngineCore::CreateDescriptorManager() {
+DescriptorManager Application::CreateDescriptorManager() {
     return {mContext.get()};
 }
 
 #ifdef CUDA_VULKAN_INTEROP
-SharedPtr<CUDA::VulkanExternalImage> EngineCore::CreateExternalImage() {
+SharedPtr<CUDA::VulkanExternalImage> Application::CreateExternalImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(mWindow->GetWidth()),
                                   static_cast<uint32_t>(mWindow->GetHeight()),
                                   1};
@@ -463,7 +460,7 @@ SharedPtr<CUDA::VulkanExternalImage> EngineCore::CreateExternalImage() {
         vk::ImageAspectFlagBits::eColor);
 }
 
-void EngineCore::CreateExternalTriangleData() {
+void Application::CreateExternalTriangleData() {
     mTriangleExternalMesh.mVertexBuffer =
         mContext->CreateExternalPersistentBuffer(
             3 * sizeof(Vertex),
@@ -484,7 +481,7 @@ void EngineCore::CreateExternalTriangleData() {
         mContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
 }
 
-void EngineCore::CreateCUDASyncStructures() {
+void Application::CreateCUDASyncStructures() {
     mCUDAWaitSemaphore =
         MakeShared<CUDA::VulkanExternalSemaphore>(mContext->GetDeviceHandle());
     mCUDASignalSemaphore =
@@ -493,14 +490,14 @@ void EngineCore::CreateCUDASyncStructures() {
     DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }
 
-void EngineCore::SetCudaInterop() {
+void Application::SetCudaInterop() {
     auto result = CUDA::GetVulkanCUDABindDeviceID(
         mContext->GetPhysicalDevice()->GetHandle());
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
 }
 #endif
 
-void EngineCore::UpdateScene() {
+void Application::UpdateScene() {
     auto view = mMainCamera.GetViewMatrix();
 
     glm::mat4 proj =
@@ -518,12 +515,12 @@ void EngineCore::UpdateScene() {
     UpdateSceneUBO();
 }
 
-void EngineCore::UpdateSceneUBO() {
+void Application::UpdateSceneUBO() {
     auto data = mRenderResMgr["SceneUniformBuffer"]->GetBufferMappedPtr();
     memcpy(data, &mSceneData, sizeof(mSceneData));
 }
 
-void EngineCore::LoadShaders() {
+void Application::LoadShaders() {
     mShaderMgr.CreateShaderFromSource("computeDraw",
                                       SHADER_PATH_CSTR("BackGround.comp"),
                                       vk::ShaderStageFlagBits::eCompute);
@@ -567,7 +564,7 @@ void EngineCore::LoadShaders() {
                                       vk::ShaderStageFlagBits::eFragment);
 }
 
-void EngineCore::CreateBackgroundComputePipeline() {
+void Application::CreateBackgroundComputePipeline() {
     auto builder = mPipelineMgr.GetComputePipelineBuilder(&mDescMgr);
 
     auto backgroundComputePipeline =
@@ -580,7 +577,7 @@ void EngineCore::CreateBackgroundComputePipeline() {
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
 
-void EngineCore::CreateMeshPipeline() {
+void Application::CreateMeshPipeline() {
     Type_STLVector<Shader*> shaders;
     shaders.reserve(2);
     shaders.emplace_back(
@@ -605,7 +602,7 @@ void EngineCore::CreateMeshPipeline() {
     DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
 }
 
-void EngineCore::CreateMeshShaderPipeline() {
+void Application::CreateMeshShaderPipeline() {
     Type_STLVector<Shader*> shaders;
     shaders.reserve(3);
     shaders.emplace_back(mShaderMgr.GetShader(
@@ -643,7 +640,7 @@ void EngineCore::CreateMeshShaderPipeline() {
     DBG_LOG_INFO("Vulkan MeshShader Graphics Pipeline Created");
 }
 
-void EngineCore::CreateDrawQuadPipeline() {
+void Application::CreateDrawQuadPipeline() {
     Type_STLVector<Shader*> shaders;
     shaders.reserve(2);
     shaders.emplace_back(
@@ -668,7 +665,7 @@ void EngineCore::CreateDrawQuadPipeline() {
     DBG_LOG_INFO("Vulkan Quad Graphics Pipeline Created");
 }
 
-void EngineCore::RecordDrawBackgroundCmds() {
+void Application::RecordDrawBackgroundCmds() {
     vk::ImageMemoryBarrier2 drawImageBarrier {
         vk::PipelineStageFlagBits2::eFragmentShader,
         vk::AccessFlagBits2::eShaderRead,
@@ -755,7 +752,7 @@ void EngineCore::RecordDrawBackgroundCmds() {
     // }
 }
 
-void EngineCore::RecordDrawMeshCmds() {
+void Application::RecordDrawMeshCmds() {
     auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
     auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
 
@@ -840,7 +837,7 @@ void EngineCore::RecordDrawMeshCmds() {
         sizeof(vk::DrawIndexedIndirectCommand));
 }
 
-void EngineCore::RecordDrawQuadCmds() {
+void Application::RecordDrawQuadCmds() {
     vk::ImageMemoryBarrier2 drawImageBarrier {
         vk::PipelineStageFlagBits2::eFragmentShader
             | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
@@ -900,7 +897,7 @@ void EngineCore::RecordDrawQuadCmds() {
     mQuadDrawCallMgr.AddArgument_Barriers_AfterPass({"Swapchain"}, {scBarrier});
 }
 
-void EngineCore::RecordMeshShaderDrawCmds() {
+void Application::RecordMeshShaderDrawCmds() {
     uint32_t width = mRenderResMgr["DrawImage"]->GetTexWidth();
     uint32_t height = mRenderResMgr["DrawImage"]->GetTexHeight();
 

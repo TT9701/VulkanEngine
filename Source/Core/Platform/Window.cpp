@@ -7,23 +7,24 @@
 
 namespace {
 
-SDL_Window* CreateWindow(int width, int height) {
+SDL_Window* CreateWindow(const char* name, int width, int height) {
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_WindowFlags window_flags =
         (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-    return SDL_CreateWindow("Vulkan Engine", SDL_WINDOWPOS_UNDEFINED,
+    return SDL_CreateWindow(name, SDL_WINDOWPOS_UNDEFINED,
                             SDL_WINDOWPOS_UNDEFINED, width, height,
                             window_flags);
 }
 
 }  // namespace
 
-SDLWindow::SDLWindow(int width, int height)
-    : mWidth(width),
+SDLWindow::SDLWindow(const char* name, int width, int height)
+    : mName(name),
+      mWidth(width),
       mHeight(height),
-      mWindow(CreateWindow(mWidth, mHeight)),
+      mWindow(CreateWindow(name, mWidth, mHeight)),
       mEvent(new SDL_Event()) {
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
