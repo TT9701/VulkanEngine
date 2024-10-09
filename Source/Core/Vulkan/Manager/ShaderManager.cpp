@@ -19,7 +19,7 @@ SharedPtr<Shader> ShaderManager::CreateShaderFromSPIRV(
     return ptr;
 }
 
-SharedPtr<Shader> ShaderManager::CreateShaderFromSource(
+SharedPtr<Shader> ShaderManager::CreateShaderFromGLSL(
     const char* name, const char* sourcePath, vk::ShaderStageFlagBits stage,
     bool hasIncludes, Type_ShaderMacros const& defines, const char* entry,
     void* pNext) {

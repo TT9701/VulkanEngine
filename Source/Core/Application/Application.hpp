@@ -52,19 +52,10 @@ class Fence;
 
 constexpr uint32_t FRAME_OVERLAP = 3;
 
-struct SceneData {
-    glm::vec4 sunLightPos {-2.0f, 3.0f, 1.0f, 1.0f};
-    glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
-    glm::vec4 cameraPos {};
-    glm::mat4 view {};
-    glm::mat4 proj {};
-    glm::mat4 viewProj {};
-};
-
 class Application {
 public:
     Application(ApplicationSpecification const& spec);
-    ~Application();
+    virtual ~Application();
     MOVABLE_ONLY(Application);
 
 public:
@@ -75,9 +66,7 @@ public:
         return &mImmSubmitMgr;
     }
 
-private:
-    void Draw();
-
+protected:
     UniquePtr<SDLWindow> CreateSDLWindow(const char* name, uint32_t width,
                                          uint32_t height);
     UniquePtr<Context> CreateContext();
@@ -90,20 +79,16 @@ private:
     ShaderManager CreateShaderManager();
     DescriptorManager CreateDescriptorManager();
 
-    void CreateDrawImage();
-    void CreateDepthImage();
-    void CreateErrorCheckTexture();
-    void CreatePipelines();
+    virtual void CreatePipelines();
+    virtual void LoadShaders();
+    virtual void PollEvents(SDL_Event* e, float deltaTime);
+    virtual void Update_OnResize();
+    virtual void UpdateScene();
+    virtual void Prepare();
 
-    void UpdateScene();
-    void UpdateSceneUBO();
-
-    void LoadShaders();
-
-    void CreateBackgroundComputePipeline();
-    void CreateMeshPipeline();
-    void CreateMeshShaderPipeline();
-    void CreateDrawQuadPipeline();
+    virtual void BeginFrame();
+    virtual void RenderFrame();
+    virtual void EndFrame();
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage();
@@ -113,12 +98,7 @@ private:
     void SetCudaInterop();
 #endif
 
-    void RecordDrawBackgroundCmds();
-    void RecordDrawMeshCmds();
-    void RecordDrawQuadCmds();
-    void RecordMeshShaderDrawCmds();
-
-private:
+protected:
     bool mStopRendering {false};
     uint32_t mFrameNum {0};
 
@@ -133,23 +113,11 @@ private:
     PipelineManager mPipelineMgr;
     ShaderManager mShaderMgr;
 
-    RenderPassBindingInfo mMeshShaderPass;
-
-    DrawCallManager mBackgroundDrawCallMgr;
-    DrawCallManager mMeshDrawCallMgr;
-    // DrawCallManager mMeshShaderDrawCallMgr;
-    DrawCallManager mQuadDrawCallMgr;
-
-#ifdef CUDA_VULKAN_INTEROP
-    SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
-#endif
-
-    Camera mMainCamera {};
-    SceneData mSceneData {};
-    SharedPtr<Model> mFactoryModel {};
     IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
 
 #ifdef CUDA_VULKAN_INTEROP
+    SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
+
     ExternalGPUMeshBuffers mTriangleExternalMesh {};
 
     SharedPtr<CUDA::VulkanExternalSemaphore> mCUDAWaitSemaphore {};

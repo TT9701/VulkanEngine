@@ -26,7 +26,7 @@ public:
                                             void* pNext = nullptr);
 
     // persist shader module from glsl source code
-    SharedPtr<Shader> CreateShaderFromSource(
+    SharedPtr<Shader> CreateShaderFromGLSL(
         const char* name, const char* sourcePath, vk::ShaderStageFlagBits stage,
         bool hasIncludes = false, Type_ShaderMacros const& defines = {},
         const char* entry = "main", void* pNext = nullptr);
