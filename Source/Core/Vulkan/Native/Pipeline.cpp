@@ -4,14 +4,24 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-PipelineLayout::PipelineLayout(Context* context, ShaderStats const& stats,
-                               vk::PipelineLayoutCreateFlags flags, void* pNext)
+PipelineLayout::PipelineLayout(
+    Context* context,
+    Type_STLVector<DescriptorSetLayout*> const& descSetLayoutDatas,
+    ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags, void* pNext)
     : pContext(context),
+      mDescSetLayoutDatas(descSetLayoutDatas),
       mPushContantRanges(stats.pushContant),
-      mLayout(CreateLayout(stats, flags, pNext)) {}
+      mLayout(CreateLayout(stats, flags, pNext)) {
+    int i = 0;
+}
 
 PipelineLayout::~PipelineLayout() {
     pContext->GetDeviceHandle().destroy(mLayout);
+}
+
+Type_STLVector<DescriptorSetLayout*> const&
+PipelineLayout::GetDescSetLayoutDatas() const {
+    return mDescSetLayoutDatas;
 }
 
 Type_STLVector<vk::PushConstantRange> const& PipelineLayout::GetPushConstants()

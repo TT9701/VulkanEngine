@@ -1,7 +1,6 @@
 #include "Buffer.hpp"
 
 #include "Core/Utilities/VulkanUtilities.hpp"
-#include "Core/Vulkan/Manager/DescriptorManager.hpp"
 #include "Device.hpp"
 #include "MemoryAllocator.hpp"
 
@@ -48,16 +47,6 @@ void Buffer::SetName(const char* name) const {
     pDevice->SetObjectName(mHandle, name);
     pDevice->SetObjectName(vk::DeviceMemory(mAllocationInfo.deviceMemory),
                            name);
-}
-
-void Buffer::AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
-                                const char* descSetName,
-                                vk::DescriptorType type) const {
-    vk::DescriptorAddressInfoEXT bufferInfo {};
-    bufferInfo.setAddress(GetDeviceAddress()).setRange(GetSize());
-
-    manager->CreateBufferDescriptor(manager->GetDescriptorSet(descSetName),
-                                    binding, type, &bufferInfo);
 }
 
 void Buffer::Resize(size_t newSize) {

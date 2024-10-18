@@ -5,15 +5,6 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-struct DescriptorSetData {
-    uint32_t binding;
-    Type_STLString resource;
-    vk::DescriptorType type;
-    Type_STLString layoutBinding;
-    ::std::optional<Type_STLString> imageView;
-    ::std::optional<Sampler*> sampler;
-};
-
 class RenderResourceManager {
     using Type_RenderResources =
         Type_STLUnorderedMap_String<SharedPtr<RenderResource>>;
@@ -24,8 +15,7 @@ class RenderResourceManager {
         Type_STLUnorderedMap_String<Fn_SizeRelation>;
 
 public:
-    RenderResourceManager(Device* device, MemoryAllocator* allocator,
-                          DescriptorManager* manager);
+    RenderResourceManager(Device* device, MemoryAllocator* allocator);
 
     RenderResource* CreateBuffer(const char* name, size_t size,
                                  vk::BufferUsageFlags usage,
@@ -52,12 +42,6 @@ public:
 
     RenderResource* operator[](const char* name) const;
 
-    void CreateDescriptorSet(const char* name, uint32_t setIndex,
-                             const char* pipelineName,
-                             vk::ShaderStageFlags stage,
-                             Type_STLVector<DescriptorSetData> const& datas,
-                             uint32_t bufferIndex = 0);
-
     void ResizeScreenSizeRelatedResources(vk::Extent2D extent) const;
 
     Type_Resource_SizeRelations const&
@@ -69,7 +53,6 @@ private:
 private:
     Device* pDevice;
     MemoryAllocator* pAllocator;
-    DescriptorManager* pDescManager;
 
     Type_RenderResources mResources {};
     Type_Resource_SizeRelations mScreenSizeRalatedResources {};

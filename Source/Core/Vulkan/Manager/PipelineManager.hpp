@@ -6,7 +6,6 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Shader;
-class DescriptorManager;
 class PipelineManager;
 
 template <PipelineType Type>
@@ -15,14 +14,13 @@ class PipelineBuilder;
 template <>
 class PipelineBuilder<PipelineType::Graphics> {
 public:
-    PipelineBuilder(PipelineManager* manager,
-                    DescriptorManager* descriptorManager);
+    PipelineBuilder(PipelineManager* manager);
     ~PipelineBuilder() = default;
     MOVABLE_ONLY(PipelineBuilder);
 
 public:
     PipelineBuilder& SetLayout(vk::PipelineLayout layout);
-    PipelineBuilder& SetShaders(::std::span<Shader*> shaders);
+    PipelineBuilder& SetShaderProgram(ShaderProgram* program);
     PipelineBuilder& SetInputTopology(vk::PrimitiveTopology topology);
     PipelineBuilder& SetPolygonMode(vk::PolygonMode mode);
     PipelineBuilder& SetCullMode(vk::CullModeFlags cullMode,
@@ -54,8 +52,7 @@ public:
 
 private:
     PipelineManager* pManager;
-    DescriptorManager* pDescriptorManager;
-    Type_STLVector<Shader*> pShaders;
+    ShaderProgram* pProgram;
 
     Type_STLVector<vk::PipelineShaderStageCreateInfo> mShaderStages {};
     Type_STLVector<vk::DescriptorSetLayout> mDescriptorSetLayouts {};
@@ -76,13 +73,12 @@ private:
 template <>
 class PipelineBuilder<PipelineType::Compute> {
 public:
-    PipelineBuilder(PipelineManager* manager,
-                    DescriptorManager* descriptorManager);
+    PipelineBuilder(PipelineManager* manager);
     ~PipelineBuilder() = default;
     MOVABLE_ONLY(PipelineBuilder);
 
 public:
-    PipelineBuilder& SetShader(Shader* shader);
+    PipelineBuilder& SetShaderProgram(ShaderProgram* program);
     PipelineBuilder& SetLayout(vk::PipelineLayout pipelineLayout);
     PipelineBuilder& SetFlags(vk::PipelineCreateFlags flags);
     PipelineBuilder& SetBaseHandle(vk::Pipeline baseHandle);
@@ -95,9 +91,8 @@ public:
 
 private:
     PipelineManager* pManager;
-    DescriptorManager* pDescriptorManager;
 
-    Shader* pShader;
+    ShaderProgram* pProgram;
     vk::PipelineShaderStageCreateInfo mStageInfo {};
     vk::PipelineLayout mPipelineLayout {};
     vk::PipelineCreateFlags mFlags {};
@@ -139,20 +134,18 @@ public:
     Type_ComputePipelines const& GetComputePipelines() const;
     Type_GraphicsPipelines const& GetGraphicsPipelines() const;
 
-    Type_CPBuilder GetComputePipelineBuilder(DescriptorManager* descManager);
-    Type_GPBuilder GetGraphicsPipelineBuilder(DescriptorManager* descManager);
+    Type_CPBuilder GetComputePipelineBuilder();
+    Type_GPBuilder GetGraphicsPipelineBuilder();
 
     void BindComputePipeline(vk::CommandBuffer cmd, const char* name);
     void BindGraphicsPipeline(vk::CommandBuffer cmd, const char* name);
 
 private:
     SharedPtr<PipelineLayout> CreateLayout(
-        const char* name, ShaderStats const& stats,
-        vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
-
-    ShaderStats ReflectShaderStats(const char* pipelineName,
-                                   DescriptorManager* descManager,
-                                   ::std::span<Shader*> shaders);
+        const char* name,
+        Type_STLVector<DescriptorSetLayout*> const& layoutDatas,
+        ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags = {},
+        void* pNext = nullptr);
 
     Type_STLString ParsePipelineName(const char* pipelineName) const;
     Type_STLString ParsePipelineLayoutName(const char* pipelineName) const;

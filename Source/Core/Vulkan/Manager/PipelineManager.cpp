@@ -4,13 +4,12 @@
 
 #include "Context.hpp"
 #include "Core/Vulkan/Native/Shader.hpp"
-#include "DescriptorManager.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 PipelineBuilder<PipelineType::Graphics>::PipelineBuilder(
-    PipelineManager* manager, DescriptorManager* descriptorManager)
-    : pManager(manager), pDescriptorManager(descriptorManager) {
+    PipelineManager* manager)
+    : pManager(manager) {
     Clear();
 }
 
@@ -21,12 +20,14 @@ PipelineBuilder<PipelineType::Graphics>::SetLayout(vk::PipelineLayout layout) {
 }
 
 PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
-    PipelineType::Graphics>::SetShaders(::std::span<Shader*> shaders) {
+    PipelineType::Graphics>::SetShaderProgram(ShaderProgram* program) {
     mShaderStages.clear();
-    for (const auto& shader : shaders) {
-        shader->GetMutex().lock();
-        pShaders.push_back(shader);
-        mShaderStages.push_back(shader->GetStageInfo());
+    pProgram = program;
+    for (uint32_t i = 0; i < Utils::EnumCast(ShaderStage::Count); ++i) {
+        if (auto shader = (*pProgram)[static_cast<ShaderStage>(i)]) {
+            shader->GetMutex().lock();
+            mShaderStages.push_back(shader->GetStageInfo());
+        }
     }
     return *this;
 }
@@ -127,11 +128,12 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
     auto pipelineName = pManager->ParsePipelineName(name);
     auto pipelineLayoutName = pManager->ParsePipelineLayoutName(name);
 
-    auto shaderStatus = pManager->ReflectShaderStats(
-        pipelineLayoutName.c_str(), pDescriptorManager, pShaders);
+    ShaderStats shaderStatus {pProgram->GetCombinedDescLayoutHandles(),
+                              pProgram->GetCombinedPushConstants()};
 
-    auto pipelineLayout =
-        pManager->CreateLayout(pipelineLayoutName.c_str(), shaderStatus);
+    auto pipelineLayout = pManager->CreateLayout(
+        pipelineLayoutName.c_str(), pProgram->GetCombinedDescLayouts(),
+        shaderStatus);
 
     vk::PipelineViewportStateCreateInfo viewportState {};
     viewportState.setViewportCount(1u).setScissorCount(1u);
@@ -170,8 +172,10 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
     auto pipeline = MakeShared<Pipeline<PipelineType::Graphics>>(
         pManager->pContext, createInfo, cache);
 
-    for (const auto& modules : pShaders) {
-        modules->GetMutex().unlock();
+    auto shaders = pProgram->GetShaderArray();
+    for (const auto& modules : shaders) {
+        if (modules)
+            modules->GetMutex().unlock();
     }
     pManager->pContext->SetName(pipeline->GetHandle(), pipelineName);
     pManager->mGraphicsPipelines.emplace(pipelineName, pipeline);
@@ -183,7 +187,7 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
 
 void PipelineBuilder<PipelineType::Graphics>::Clear() {
     mShaderStages.clear();
-    pShaders.clear();
+    pProgram = nullptr;
     mPipelineLayout = vk::PipelineLayout {};
     mInputAssembly = vk::PipelineInputAssemblyStateCreateInfo {};
     mRasterizer = vk::PipelineRasterizationStateCreateInfo {};
@@ -196,15 +200,16 @@ void PipelineBuilder<PipelineType::Graphics>::Clear() {
 }
 
 PipelineBuilder<PipelineType::Compute>::PipelineBuilder(
-    PipelineManager* manager, DescriptorManager* descriptorManager)
-    : pManager(manager), pDescriptorManager(descriptorManager) {
+    PipelineManager* manager)
+    : pManager(manager) {
     Clear();
 }
 
-PipelineBuilder<PipelineType::Compute>&
-PipelineBuilder<PipelineType::Compute>::SetShader(Shader* shader) {
+PipelineBuilder<PipelineType::Compute>& PipelineBuilder<
+    PipelineType::Compute>::SetShaderProgram(ShaderProgram* program) {
+    pProgram = program;
+    auto shader = (*pProgram)[ShaderStage::Compute];
     shader->GetMutex().lock();
-    pShader = shader;
     mStageInfo = shader->GetStageInfo();
     return *this;
 }
@@ -240,12 +245,12 @@ PipelineBuilder<PipelineType::Compute>::Build(const char* name,
     auto pipelineName = pManager->ParsePipelineName(name);
     auto pipelineLayoutName = pManager->ParsePipelineLayoutName(name);
 
-    Type_STLVector<Shader*> shaders {pShader};
-    auto shaderStatus = pManager->ReflectShaderStats(
-        pipelineLayoutName.c_str(), pDescriptorManager, shaders);
+    ShaderStats shaderStatus {pProgram->GetCombinedDescLayoutHandles(),
+                              pProgram->GetCombinedPushConstants()};
 
-    auto pipelineLayout =
-        pManager->CreateLayout(pipelineLayoutName.c_str(), shaderStatus);
+    auto pipelineLayout = pManager->CreateLayout(
+        pipelineLayoutName.c_str(), pProgram->GetCombinedDescLayouts(),
+        shaderStatus);
 
     vk::ComputePipelineCreateInfo info {};
     info.setFlags(mFlags)
@@ -260,7 +265,7 @@ PipelineBuilder<PipelineType::Compute>::Build(const char* name,
     auto pipeline = MakeShared<Pipeline<PipelineType::Compute>>(
         pManager->pContext, info, cache);
 
-    pShader->GetMutex().unlock();
+    (*pProgram)[ShaderStage::Compute]->GetMutex().unlock();
     pManager->pContext->SetName(pipeline->GetHandle(), pipelineName);
     pManager->mComputePipelines.emplace(pipelineName.c_str(), pipeline);
 
@@ -278,9 +283,12 @@ void PipelineBuilder<PipelineType::Compute>::Clear() {
 PipelineManager::PipelineManager(Context* contex) : pContext(contex) {}
 
 SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
-    const char* name, ShaderStats const& stats,
-    vk::PipelineLayoutCreateFlags flags, void* pNext) {
-    const auto ptr = MakeShared<PipelineLayout>(pContext, stats, flags, pNext);
+    const char* name,
+    Type_STLVector<DescriptorSetLayout*> const& layoutDatas,
+    ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags,
+    void* pNext) {
+    const auto ptr = MakeShared<PipelineLayout>(pContext, layoutDatas,
+                                                stats, flags, pNext);
 
     pContext->SetName(ptr->GetHandle(), name);
     mPipelineLayouts.emplace(name, ptr);
@@ -316,14 +324,12 @@ PipelineManager::GetGraphicsPipelines() const {
     return mGraphicsPipelines;
 }
 
-PipelineManager::Type_CPBuilder PipelineManager::GetComputePipelineBuilder(
-    DescriptorManager* descManager) {
-    return Type_CPBuilder {this, descManager};
+PipelineManager::Type_CPBuilder PipelineManager::GetComputePipelineBuilder() {
+    return Type_CPBuilder {this};
 }
 
-PipelineManager::Type_GPBuilder PipelineManager::GetGraphicsPipelineBuilder(
-    DescriptorManager* descManager) {
-    return Type_GPBuilder {this, descManager};
+PipelineManager::Type_GPBuilder PipelineManager::GetGraphicsPipelineBuilder() {
+    return Type_GPBuilder {this};
 }
 
 void PipelineManager::BindComputePipeline(vk::CommandBuffer cmd,
@@ -337,120 +343,6 @@ void PipelineManager::BindGraphicsPipeline(vk::CommandBuffer cmd,
                                            const char* name) {
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics,
                      GetGraphicsPipelineHandle(name));
-}
-
-ShaderStats PipelineManager::ReflectShaderStats(const char* pipelineName,
-                                                DescriptorManager* descManager,
-                                                ::std::span<Shader*> shaders) {
-
-    Type_STLVector<DescriptorSetLayoutData> datas {};
-
-    for (auto const& shader : shaders) {
-        datas.insert(
-            datas.end(),
-            ::std::make_move_iterator(shader->GetDescSetLayoutDatas().begin()),
-            ::std::make_move_iterator(shader->GetDescSetLayoutDatas().end()));
-    }
-
-    std::ranges::sort(datas, [](DescriptorSetLayoutData const& l,
-                                DescriptorSetLayoutData const& r) {
-        if (l.setIdx != r.setIdx) {
-            return l.setIdx < r.setIdx;
-        }
-        return l.bindingIdx < r.bindingIdx;
-    });
-
-    auto makeUniqueSet =
-        [&](const Type_STLVector<DescriptorSetLayoutData>::iterator& prev,
-            const Type_STLVector<DescriptorSetLayoutData>::iterator& last) {
-            Type_STLVector<DescriptorSetLayoutData> uniqueSet {};
-            for (auto it = prev; it != last; ++it) {
-                uniqueSet.push_back(*it);
-            }
-            return uniqueSet;
-        };
-
-    Type_STLVector<Type_STLVector<DescriptorSetLayoutData>> uniqueSets {};
-    {
-        auto prev = datas.begin();
-        auto last = ++datas.begin();
-
-        while (prev != datas.end()) {
-            if (last == datas.end()) {
-                uniqueSets.push_back(makeUniqueSet(prev, last));
-                break;
-            }
-            if (last->setIdx == prev->setIdx) {
-                ++last;
-                continue;
-            }
-            uniqueSets.push_back(makeUniqueSet(prev, last));
-            prev = last;
-        }
-    }
-
-    auto mergeBinding =
-        [&](Type_STLVector<DescriptorSetLayoutData> const& bindings) {
-            DescriptorSetLayoutData data {bindings[0]};
-            Type_STLString prefix {};
-            for (uint32_t i = 1; i < bindings.size(); ++i) {
-                data.stage |= bindings[i].stage;
-            }
-            return data;
-        };
-
-    Type_STLVector<Type_STLVector<DescriptorSetLayoutData>>
-        uniqueBindingSets {};
-    for (auto& set : uniqueSets) {
-        auto prev = set.begin();
-        auto last = ++set.begin();
-        Type_STLVector<DescriptorSetLayoutData> uniqueBindingSet {};
-        while (prev != set.end()) {
-            if (last == set.end()) {
-                uniqueBindingSet.push_back(
-                    mergeBinding(makeUniqueSet(prev, last)));
-
-                break;
-            }
-            if (last->bindingIdx == prev->bindingIdx) {
-                ++last;
-                continue;
-            }
-            uniqueBindingSet.push_back(mergeBinding(makeUniqueSet(prev, last)));
-
-            prev = last;
-        }
-        uniqueBindingSets.push_back(uniqueBindingSet);
-    }
-
-    datas.clear();
-    for (auto& set : uniqueBindingSets) {
-        for (auto& data : set) {
-            datas.emplace_back(data);
-        }
-    }
-
-    Type_STLVector<vk::DescriptorSetLayout> descSetLayouts {};
-    if (!datas.empty()) {
-        auto names = descManager->CreateDescLayouts(pipelineName, datas);
-
-        for (auto& name : names) {
-            descSetLayouts.emplace_back(
-                descManager->GetDescSetLayout((pipelineName + name).c_str())
-                    ->GetHandle());
-        }
-    }
-
-    // push contants
-    Type_STLVector<vk::PushConstantRange> pushConstants;
-    for (auto const& shader : shaders) {
-        auto data = shader->GetPushContantData();
-        if (data.has_value()) {
-            pushConstants.push_back(data.value());
-        }
-    }
-
-    return {descSetLayouts, pushConstants};
 }
 
 Type_STLString PipelineManager::ParsePipelineName(

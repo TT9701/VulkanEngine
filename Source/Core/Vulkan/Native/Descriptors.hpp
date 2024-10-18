@@ -2,8 +2,8 @@
 
 #include "Core/Utilities/VulkanUtilities.hpp"
 
-#include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
+#include "Core/Vulkan/Native/DescriptorSetAllocator.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -12,31 +12,36 @@ class Buffer;
 class DescriptorSetLayout;
 
 class DescriptorSet {
+    using PR_HandleRequest = IntelliDesign_NS::Core::AP_MultiConsecutiveUnitManager<PoolResource_DescriptorSet>::HandleRequest;
+
 public:
     DescriptorSet(Context* context, DescriptorSetLayout* setLayout);
 
     uint32_t GetBindingCount() const;
     vk::DeviceSize GetBingdingOffset(uint32_t binding) const;
-    vk::DescriptorType GetBingdingType(uint32_t binding) const;
     uint32_t GetBingdingDescCount(uint32_t binding) const;
 
-    void SetBufferDatas(uint32_t idx, vk::DeviceSize offset);
-    vk::DeviceSize GetOffsetInBuffer() const;
-    uint32_t GetBufferIndex() const;
+    void SetRequestedHandle(PR_HandleRequest&& handle);
+    PoolResource GetPoolResource() const;
 
 private:
     DescriptorSetLayout* pSetLayout;
 
     Type_STLVector<vk::DeviceSize> mBindingOffsets {};
 
-    uint32_t mBufferIndex {0};
-    vk::DeviceSize mOffsetInBuffer {0};
+    PR_HandleRequest mResReqHandle;
 };
 
 class DescriptorSetLayout {
 public:
+    struct Data {
+        Type_STLVector<Type_STLString> bindingNames;
+        Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
+        vk::DeviceSize size {0};
+    };
+
     DescriptorSetLayout(
-        Context* context,
+        Context* context, Type_STLVector<Type_STLString> const& bindingNames,
         Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
         vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
         const void* pNext);
@@ -45,19 +50,15 @@ public:
     vk::DescriptorSetLayout GetHandle() const;
     vk::DeviceSize GetSize() const;
     Type_STLVector<vk::DescriptorSetLayoutBinding> const& GetBindings() const;
-
-private:
-    void CreateDescSetLayout(
-        std::span<vk::DescriptorSetLayoutBinding> bindings,
-        vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
-        const void* pNext);
+    Data const& GetData() const;
+    size_t GetDescriptorSize(vk::DescriptorType type) const;
 
 private:
     Context* pContext;
-    Type_STLVector<vk::DescriptorSetLayoutBinding> mBindings;
+
+    Data mData;
 
     vk::DescriptorSetLayout mHandle {};
-    vk::DeviceSize mSize {0};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

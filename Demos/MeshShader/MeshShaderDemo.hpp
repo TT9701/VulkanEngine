@@ -3,12 +3,14 @@
 #include "Core/Application/Application.hpp"
 #include "Core/Application/EntryPoint.h"
 
+#include "Core/Vulkan/Native/DescriptorSetAllocator.hpp"
+
 namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
 namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
 struct SceneData {
     glm::vec4 sunLightPos {-2.0f, 3.0f, 1.0f, 1.0f};
-    glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 sunLightColor {0.8f, 0.8f, 0.8f, 1.0f};
     glm::vec4 cameraPos {};
     glm::mat4 view {};
     glm::mat4 proj {};
@@ -51,15 +53,18 @@ private:
     void UpdateSceneUBO();
 
 private:
+    IDNS_VC::DescriptorSetPool mDescSetPool;
+
+    IDNS_VC::RenderPassBindingInfo mBackgroundPass;
+    IDNS_VC::RenderPassBindingInfo mMeshDrawPass;
     IDNS_VC::RenderPassBindingInfo mMeshShaderPass;
-    IDNS_VC::DrawCallManager mBackgroundDrawCallMgr;
-    IDNS_VC::DrawCallManager mMeshDrawCallMgr;
-    // IDNS_VC::DrawCallManager mMeshShaderDrawCallMgr;
-    IDNS_VC::DrawCallManager mQuadDrawCallMgr;
+    IDNS_VC::RenderPassBindingInfo mQuadDrawPass;
 
     Camera mMainCamera {};
     SceneData mSceneData {};
     IDNS_VC::SharedPtr<IDNS_VC::Model> mFactoryModel {};
+
+    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetPool> mDSPool;
 };
 
 VE_CREATE_APPLICATION(MeshShaderDemo, 1600, 900);

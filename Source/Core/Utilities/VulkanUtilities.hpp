@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <type_traits>
 
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
@@ -9,6 +10,11 @@
 #include "MemoryPool.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core::Utils {
+
+template <typename T>
+constexpr std::underlying_type_t<T> EnumCast(T x) {
+    return static_cast<std::underlying_type_t<T>>(x);
+}
 
 template <class T>
 T AlignedSize(T value, T alignment) {

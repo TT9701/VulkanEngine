@@ -53,6 +53,10 @@ Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
 
     mPDevice->SetObjectName(mPTimelineSemaphore->GetHandle(),
                             "Main Timeline Semaphore");
+
+    vk::PhysicalDeviceProperties2 deviceProp {};
+    deviceProp.pNext = &mDescBufProps;
+    mPPhysicalDevice->GetHandle().getProperties2(&deviceProp);
 }
 
 SharedPtr<Texture> Context::CreateTexture2D(
@@ -237,6 +241,11 @@ vk::Sampler Context::GetDefaultNearestSamplerHandle() const {
 
 vk::Sampler Context::GetDefaultLinearSamplerHandle() const {
     return mDefaultSamplerLinear->GetHandle();
+}
+
+vk::PhysicalDeviceDescriptorBufferPropertiesEXT const&
+Context::GetDescBufProps() const {
+    return mDescBufProps;
 }
 
 UniquePtr<Instance> Context::CreateInstance(

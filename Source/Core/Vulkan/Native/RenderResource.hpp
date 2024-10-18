@@ -66,7 +66,7 @@ public:
                        uint32_t arraySize = vk::RemainingArrayLayers);
 
     vk::Image GetTexHandle() const;
-    vk::ImageView GetTexViewHandle(const char* name) const;
+    vk::ImageView GetTexViewHandle(const char* name = nullptr) const;
     uint32_t GetTexWidth(uint32_t mipLevel = 0) const;
     uint32_t GetTexHeight(uint32_t mipLevel = 0) const;
     uint32_t GetTexDepth(uint32_t mipLevel = 0) const;
@@ -75,32 +75,13 @@ public:
     uint32_t GetTexArraySize() const;
     vk::Format GetTexFormat() const;
 
-    void AllocateBufferDescriptor(DescriptorManager* manager, uint32_t binding,
-                                  const char* descSetName,
-                                  vk::DescriptorType type);
-
-    void AllocateImageDescriptor(DescriptorManager* manager, uint32_t binding,
-                                 const char* descSetName,
-                                 vk::DescriptorType type, const char* viewName,
-                                 Sampler* sampler = nullptr);
-
-    void Resize(DescriptorManager* descManager, vk::Extent2D extent);
-
-public:
-    struct DescriptorInfo {
-        uint32_t binding;
-        Type_STLString descSetName;
-        vk::DescriptorType type;
-        ::std::optional<Type_STLString> viewName;
-        ::std::optional<Sampler*> sampler;
-    };
+    void Resize(vk::Extent2D extent);
 
 private:
     ::std::variant<Buffer, Texture> mResource;
 
     Type mType;
     Type_STLString mName;
-    Type_STLVector<DescriptorInfo> mDescriptorInfos {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -48,6 +48,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/Commands.cpp
     Vulkan/Native/Descriptors.hpp
     Vulkan/Native/Descriptors.cpp
+    Vulkan/Native/DescriptorSetAllocator.hpp
+    Vulkan/Native/DescriptorSetAllocator.cpp
     Vulkan/Native/Pipeline.hpp
     Vulkan/Native/Pipeline.cpp
     Vulkan/Native/Buffer.hpp
@@ -71,8 +73,6 @@ set (VULKAN_CORE_SRC
     Vulkan/Manager/PipelineManager.cpp
     Vulkan/Manager/ShaderManager.hpp
     Vulkan/Manager/ShaderManager.cpp
-    Vulkan/Manager/DescriptorManager.hpp
-    Vulkan/Manager/DescriptorManager.cpp
     Vulkan/Manager/DrawCallManager.h
     Vulkan/Manager/DrawCallManager.cpp
 

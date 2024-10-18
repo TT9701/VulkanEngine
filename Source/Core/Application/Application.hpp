@@ -12,7 +12,6 @@
 #include "Core/Utilities/Timer.hpp"
 #include "Core/Vulkan/Manager/CommandManager.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
-#include "Core/Vulkan/Manager/DescriptorManager.hpp"
 #include "Core/Vulkan/Manager/PipelineManager.hpp"
 #include "Core/Vulkan/Manager/RenderResourceManager.hpp"
 #include "Core/Vulkan/Manager/ShaderManager.hpp"
@@ -77,7 +76,6 @@ protected:
     CommandManager CreateCommandManager();
     PipelineManager CreatePipelineManager();
     ShaderManager CreateShaderManager();
-    DescriptorManager CreateDescriptorManager();
 
     virtual void CreatePipelines();
     virtual void LoadShaders();
@@ -106,7 +104,6 @@ protected:
     UniquePtr<Context> mContext;
     UniquePtr<Swapchain> mSwapchain;
 
-    DescriptorManager mDescMgr;
     RenderResourceManager mRenderResMgr;
     CommandManager mCmdMgr;
     ImmediateSubmitManager mImmSubmitMgr;

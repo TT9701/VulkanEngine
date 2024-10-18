@@ -10,7 +10,6 @@ Application::Application(ApplicationSpecification const& spec)
     : mWindow(CreateSDLWindow(spec.Name.c_str(), spec.width, spec.height)),
       mContext(CreateContext()),
       mSwapchain(CreateSwapchain()),
-      mDescMgr(CreateDescriptorManager()),
       mRenderResMgr(CreateRenderResourceManager()),
       mCmdMgr(CreateCommandManager()),
       mImmSubmitMgr(CreateImmediateSubmitManager()),
@@ -54,6 +53,7 @@ void Application::Run() {
             EndFrame();
         }
     }
+    mContext->GetDeviceHandle().waitIdle();
 }
 
 void Application::RenderFrame() {}
@@ -110,7 +110,7 @@ UniquePtr<Swapchain> Application::CreateSwapchain() {
 }
 
 RenderResourceManager Application::CreateRenderResourceManager() {
-    return {mContext->GetDevice(), mContext->GetVmaAllocator(), &mDescMgr};
+    return {mContext->GetDevice(), mContext->GetVmaAllocator()};
 }
 
 ImmediateSubmitManager Application::CreateImmediateSubmitManager() {
@@ -130,10 +130,6 @@ PipelineManager Application::CreatePipelineManager() {
 }
 
 ShaderManager Application::CreateShaderManager() {
-    return {mContext.get()};
-}
-
-DescriptorManager Application::CreateDescriptorManager() {
     return {mContext.get()};
 }
 

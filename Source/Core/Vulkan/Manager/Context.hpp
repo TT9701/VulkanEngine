@@ -120,6 +120,9 @@ public:
     vk::Sampler GetDefaultNearestSamplerHandle() const;
     vk::Sampler GetDefaultLinearSamplerHandle() const;
 
+    vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& GetDescBufProps()
+        const;
+
 private:
     UniquePtr<Instance> CreateInstance(
         ::std::span<Type_STLString> requestedLayers,
@@ -173,6 +176,8 @@ private:
 #endif
     SharedPtr<Sampler> mDefaultSamplerLinear {};
     SharedPtr<Sampler> mDefaultSamplerNearest {};
+
+    vk::PhysicalDeviceDescriptorBufferPropertiesEXT mDescBufProps;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

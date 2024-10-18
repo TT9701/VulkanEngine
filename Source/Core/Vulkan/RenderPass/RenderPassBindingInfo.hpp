@@ -4,6 +4,8 @@
 
 #include "Core/Utilities/MemoryPool.hpp"
 #include "Core/Vulkan/Manager/DrawCallManager.h"
+#include "Core/Vulkan/Native/DescriptorSetAllocator.hpp"
+#include "Core/Vulkan/Native/Descriptors.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -21,11 +23,12 @@ struct PushContants {
 }  // namespace RenderPassBinding
 
 class RenderPassBindingInfo {
-    constexpr static const char* sDescBufStr = "_DescriptorBuffer_";
     constexpr static const char* sPushConstStr = "_PushContants_";
 
-    constexpr static ::std::array sBuiltInBindingTypes = {sDescBufStr,
-                                                          sPushConstStr};
+
+
+
+    constexpr static ::std::array sBuiltInBindingTypes = {sPushConstStr};
 
     class Type_BindingValue {
         using Type_PC = RenderPassBinding::PushContants;
@@ -50,43 +53,45 @@ class RenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo(RenderResourceManager* resMgr,
+    RenderPassBindingInfo(Context* context, RenderResourceManager* resMgr,
                           PipelineManager* pipelineMgr,
-                          DescriptorManager* descMgr);
+                          DescriptorSetPool* descPool);
 
-    void Init(const char* pipelineName);
+    void SetPipeline(const char* pipelineName,
+                     const char* pipelineLayoutName = nullptr);
 
-    auto& operator[](const char* name);
+    Type_BindingValue& operator[](const char* name);
+    // auto& operator[](EnumType shaderStage);
 
-    void GenerateMetaData();
+    void OnResize(vk::Extent2D extent);
+    void RecordCmd(vk::CommandBuffer cmd);
+
+    void GenerateMetaData(void* descriptorPNext = nullptr);
 
     DrawCallManager& GetDrawCallManager();
 
 private:
     void GeneratePipelineMetaData(::std::string_view name);
-    void GenerateDescBufMetaData(::std::span<uint32_t> indices);
     void GeneratePushContantMetaData(
         Type_STLVector<RenderPassBinding::PushContants> const& data);
 
+    void CreateDescriptorSets(void* descriptorPNext);
+    void BindDescriptorSets();
+
 private:
-    DrawCallManager mDrawCallMgr;
+    Context* pContext;
+    RenderResourceManager* pResMgr;
     PipelineManager* pPipelineMgr;
-    DescriptorManager* pDescMgr;
+    DescriptorSetPool* pDescSetPool;
+
+    DrawCallManager mDrawCallMgr;
 
     Type_STLUnorderedMap_String<Type_BindingValue> mInfos {};
     Type_STLString mPipelineName;
+    Type_STLString mPipelineLayoutName;
     vk::PipelineBindPoint mBindPoint;
+
+    Type_STLVector<SharedPtr<DescriptorSet>> mDescSets {};
 };
-
-inline auto& RenderPassBindingInfo::operator[](const char* name) {
-    if (std::ranges::find_if(
-            sBuiltInBindingTypes,
-            [name](const char* it) { return strcmp(name, it) == 0; })
-        != sBuiltInBindingTypes.end()) {
-        return mInfos.at(name);
-    }
-
-    throw ::std::runtime_error("not implemented");
-}
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

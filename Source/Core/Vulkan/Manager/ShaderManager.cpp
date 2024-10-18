@@ -88,4 +88,28 @@ Type_STLString ShaderManager::ParseShaderName(const char* name,
     return res;
 }
 
+ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* comp) {
+    auto ptr = MakeShared<ShaderProgram>(comp);
+    mPrograms.emplace(name, ptr);
+    return ptr.get();
+}
+
+ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* vert,
+                                            Shader* frag) {
+    auto ptr = MakeShared<ShaderProgram>(vert, frag);
+    mPrograms.emplace(name, ptr);
+    return ptr.get();
+}
+
+ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* task,
+                                            Shader* mesh, Shader* frag) {
+    auto ptr = MakeShared<ShaderProgram>(task, mesh, frag);
+    mPrograms.emplace(name, ptr);
+    return ptr.get();
+}
+
+ShaderProgram* ShaderManager::GetProgram(const char* name) const {
+    return mPrograms.at(name).get();
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

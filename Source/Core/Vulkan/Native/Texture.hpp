@@ -58,11 +58,6 @@ public:
 
     void SetName(const char* name) const;
 
-    void AllocateDescriptor(DescriptorManager* manager, uint32_t binding,
-                            const char* descSetName, vk::DescriptorType type,
-                            const char* viewName,
-                            Sampler* sampler = nullptr) const;
-
     void Resize(vk::Extent2D extent);
 
 private:

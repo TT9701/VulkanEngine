@@ -4,6 +4,7 @@
 
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Utilities/MemoryPool.hpp"
+#include "Core/Vulkan/Native/Shader.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -18,14 +19,19 @@ struct ShaderStats {
 
 class PipelineLayout {
 public:
-    PipelineLayout(Context* context, ShaderStats const& stats,
-                   vk::PipelineLayoutCreateFlags flags = {},
-                   void* pNext = nullptr);
+    PipelineLayout(
+        Context* context,
+        Type_STLVector<DescriptorSetLayout*> const& descSetLayoutDatas,
+        ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags = {},
+        void* pNext = nullptr);
     ~PipelineLayout();
     MOVABLE_ONLY(PipelineLayout);
 
 public:
     vk::PipelineLayout GetHandle() const { return mLayout; }
+
+    Type_STLVector<DescriptorSetLayout*> const& GetDescSetLayoutDatas()
+        const;
 
     Type_STLVector<vk::PushConstantRange> const& GetPushConstants() const;
 
@@ -37,6 +43,7 @@ private:
 private:
     Context* pContext;
 
+    Type_STLVector<DescriptorSetLayout*> mDescSetLayoutDatas;
     Type_STLVector<vk::PushConstantRange> mPushContantRanges;
     vk::PipelineLayout mLayout;
 };

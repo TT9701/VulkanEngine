@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/System/AP_ResourcePool_FreeSize.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
 #include "Defines.hpp"
 

@@ -14,6 +14,7 @@ class Context;
 
 class ShaderManager {
     using Type_Shaders = Type_STLUnorderedMap_String<SharedPtr<Shader>>;
+    using Type_Programs = Type_STLUnorderedMap_String<SharedPtr<ShaderProgram>>;
 
 public:
     ShaderManager(Context* context);
@@ -44,10 +45,18 @@ public:
                                    Type_ShaderMacros const& defines = {},
                                    const char* entry = "main") const;
 
+    ShaderProgram* CreateProgram(const char* name, Shader* comp);
+    ShaderProgram* CreateProgram(const char* name, Shader* vert, Shader* frag);
+    ShaderProgram* CreateProgram(const char* name, Shader* task, Shader* mesh,
+                                 Shader* frag);
+
+    ShaderProgram* GetProgram(const char* name) const;
+
 private:
     Context* pContext;
 
     Type_Shaders mShaders {};
+    Type_Programs mPrograms {};
     ::std::mutex mMutex;
 };
 
