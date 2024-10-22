@@ -131,9 +131,10 @@ void DrawCallManager::AddArgument_RenderingInfo(
     uint32_t count {0};
     for (auto const& attachment : colorAttachments) {
         colors[count] = attachment.info;
-        colors[count].imageView =
-            (*pRenderResManager)[attachment.imageName.c_str()]
-                ->GetTexViewHandle(attachment.viewName.c_str());
+        if (attachment.imageName != Type_STLString {"_Swapchain_"})
+            colors[count].imageView =
+                (*pRenderResManager)[attachment.imageName.c_str()]
+                    ->GetTexViewHandle(attachment.viewName.c_str());
 
         Type_STLString mappingName {attachment.imageName};
         mappingName.append("@").append(attachment.viewName);

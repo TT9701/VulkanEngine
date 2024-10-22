@@ -8,11 +8,6 @@ struct Task {
 	uint drawID;
 };
 
-// layout (set = 1, binding = 0) uniform UBO 
-// {
-// 	int data;
-// } ubo;
-
 taskPayloadSharedEXT Task OUT;
 
 void main()

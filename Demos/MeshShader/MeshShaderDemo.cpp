@@ -1,8 +1,10 @@
 #include "MeshShaderDemo.hpp"
 
-MeshShaderDemo::MeshShaderDemo(IDNS_VC::ApplicationSpecification const& spec)
+using namespace IDNS_VC;
+
+MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
-      mDescSetPool(IDNS_VC::CreateDescriptorSetPool(mContext.get())),
+      mDescSetPool(CreateDescriptorSetPool(mContext.get())),
       mBackgroundPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                        &mDescSetPool},
       mMeshDrawPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
@@ -10,7 +12,7 @@ MeshShaderDemo::MeshShaderDemo(IDNS_VC::ApplicationSpecification const& spec)
       mMeshShaderPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                        &mDescSetPool},
       mQuadDrawPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                     &mDescSetPool} {}
+                     &mDescSetPool, mSwapchain.get()} {}
 
 MeshShaderDemo::~MeshShaderDemo() {}
 
@@ -119,14 +121,14 @@ void MeshShaderDemo::Prepare() {
         "SceneUniformBuffer", sizeof(SceneData),
         vk::BufferUsageFlagBits::eUniformBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        IDNS_VC::Buffer::MemoryType::Staging);
+        Buffer::MemoryType::Staging);
 
     mRenderResMgr.CreateScreenSizeRelatedBuffer(
         "RWBuffer",
         sizeof(glm::vec4) * mWindow->GetWidth() * mWindow->GetHeight(),
         vk::BufferUsageFlagBits::eStorageBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        IDNS_VC::Buffer::MemoryType::DeviceLocal, sizeof(glm::vec4));
+        Buffer::MemoryType::DeviceLocal, sizeof(glm::vec4));
 
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
@@ -135,17 +137,17 @@ void MeshShaderDemo::Prepare() {
     {
         // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("sponza/sponza.obj"));
 
-        // IDNS_VC::CISDI_3DModelDataConverter converter {
+        // CISDI_3DModelDataConverter converter {
         //     MODEL_PATH_CSTR("Model0.FBX")};
         //
         // converter.Execute();
 
         auto cisdiModelPath = MODEL_PATH("RM_HP_59930007DR0130HP000.cisdi");
 
-        auto meshes = IDNS_VC::CISDI_3DModelDataConverter::LoadCISDIModelData(
+        auto meshes = CISDI_3DModelDataConverter::LoadCISDIModelData(
             cisdiModelPath.c_str());
 
-        mFactoryModel = IDNS_VC::MakeShared<IDNS_VC::Model>(meshes);
+        mFactoryModel = IDNS_VC::MakeShared<Model>(meshes);
 
         // mFactoryModel->GenerateBuffers(mContext.get(), this);
         mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
@@ -177,13 +179,13 @@ void MeshShaderDemo::RenderFrame() {
 
         cmd.End();
 
-        IDNS_VC::Type_STLVector<IDNS_VC::SemSubmitInfo> waits = {
+        Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
              mSwapchain->GetReady4RenderSemHandle(), 0ui64},
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
              mContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
 
-        IDNS_VC::Type_STLVector<IDNS_VC::SemSubmitInfo> signals = {
+        Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
@@ -212,11 +214,11 @@ void MeshShaderDemo::RenderFrame() {
 
         cmd.End();
 
-        IDNS_VC::Type_STLVector<IDNS_VC::SemSubmitInfo> waits = {
+        Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eComputeShader,
              mContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
-        IDNS_VC::Type_STLVector<IDNS_VC::SemSubmitInfo> signals = {
+        Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mContext->GetTimelineSemaphoreHandle(), allFinished},
             {vk::PipelineStageFlagBits2::eAllGraphics,
@@ -231,7 +233,7 @@ void MeshShaderDemo::RenderFrame() {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
         cmd.End();
 
-        IDNS_VC::Type_STLVector<IDNS_VC::SemSubmitInfo> signals = {
+        Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mContext->GetTimelineSemaphoreHandle(), allFinished + 1}};
 
@@ -257,7 +259,7 @@ void MeshShaderDemo::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
     auto ptr = mRenderResMgr.CreateScreenSizeRelatedTexture(
-        "DrawImage", IDNS_VC::RenderResource::Type::Texture2D,
+        "DrawImage", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 }
@@ -271,13 +273,13 @@ void MeshShaderDemo::CreateDepthImage() {
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
     auto ptr = mRenderResMgr.CreateScreenSizeRelatedTexture(
-        "DepthImage", IDNS_VC::RenderResource::Type::Texture2D,
+        "DepthImage", RenderResource::Type::Texture2D,
         vk::Format::eD24UnormS8Uint, depthImageExtent, depthImageUsage);
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
                                           | vk::ImageAspectFlagBits::eStencil);
 
     mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
-        IDNS_VC::Utils::TransitionImageLayout(
+        Utils::TransitionImageLayout(
             cmd, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthStencilAttachmentOptimal);
     });
@@ -295,7 +297,7 @@ void MeshShaderDemo::CreateErrorCheckTexture() {
     }
 
     auto ptr = mRenderResMgr.CreateTexture(
-        "ErrorCheckImage", IDNS_VC::RenderResource::Type::Texture2D,
+        "ErrorCheckImage", RenderResource::Type::Texture2D,
         vk::Format::eR8G8B8A8Unorm, extent,
         vk::ImageUsageFlagBits::eSampled
             | vk::ImageUsageFlagBits::eTransferDst);
@@ -308,9 +310,9 @@ void MeshShaderDemo::CreateErrorCheckTexture() {
         memcpy(uploadBuffer->GetMapPtr(), pixels.data(), dataSize);
 
         mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
-            IDNS_VC::Utils::TransitionImageLayout(
-                cmd, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eTransferDstOptimal);
+            Utils::TransitionImageLayout(cmd, ptr->GetTexHandle(),
+                                         vk::ImageLayout::eUndefined,
+                                         vk::ImageLayout::eTransferDstOptimal);
 
             vk::BufferImageCopy copyRegion {};
             copyRegion
@@ -321,7 +323,7 @@ void MeshShaderDemo::CreateErrorCheckTexture() {
                 uploadBuffer->GetHandle(), ptr->GetTexHandle(),
                 vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
-            IDNS_VC::Utils::TransitionImageLayout(
+            Utils::TransitionImageLayout(
                 cmd, ptr->GetTexHandle(), vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
         });
@@ -368,7 +370,7 @@ void MeshShaderDemo::CreateMeshPipeline() {
 }
 
 void MeshShaderDemo::CreateMeshShaderPipeline() {
-    IDNS_VC::Type_ShaderMacros macros {};
+    Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
                    std::to_string(TASK_SHADER_INVOCATION_COUNT));
 
@@ -433,6 +435,9 @@ void MeshShaderDemo::CreateDrawQuadPipeline() {
 }
 
 void MeshShaderDemo::RecordDrawBackgroundCmds() {
+    auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
+    auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
+
     {
         mBackgroundPass.SetPipeline("Background");
 
@@ -454,24 +459,19 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
         {},
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
-        IDNS_VC::Utils::GetWholeImageSubresource(
-            vk::ImageAspectFlagBits::eColor)};
+        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
     dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"}, {drawImageBarrier});
 
     float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
-
     vk::ClearColorValue clearValue {flash, flash, flash, 1.0f};
-
     auto subresource = vk::ImageSubresourceRange {
         vk::ImageAspectFlagBits::eColor, 0, vk::RemainingMipLevels, 0,
         vk::RemainingArrayLayers};
-
     dcMgr.AddArgument_ClearColorImage("DrawImage", vk::ImageLayout::eGeneral,
                                       clearValue, {subresource});
 
-    dcMgr.AddArgument_Dispatch(
-        ::std::ceil(mRenderResMgr["DrawImage"]->GetTexWidth() / 16.0),
-        ::std::ceil(mRenderResMgr["DrawImage"]->GetTexHeight() / 16.0), 1);
+    dcMgr.AddArgument_Dispatch(::std::ceil(width / 16.0),
+                               ::std::ceil(height / 16.0), 1);
 }
 
 void MeshShaderDemo::RecordDrawMeshCmds() {
@@ -485,45 +485,25 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     {
         mMeshDrawPass.SetPipeline("TriangleDraw");
 
-        mMeshDrawPass["_PushContants_"] =
-            IDNS_VC::RenderPassBinding::PushContants {sizeof(*pPushConstants),
-                                                      pPushConstants};
+        mMeshDrawPass[RenderPassBinding::Type::PushContant] =
+            RenderPassBinding::PushContants {sizeof(*pPushConstants),
+                                             pPushConstants};
 
         mMeshDrawPass["SceneDataUBO"] = "SceneUniformBuffer";
         mMeshDrawPass["tex0"] = "ErrorCheckImage";
 
+        mMeshDrawPass[RenderPassBinding::Type::RTV] = {
+            ::std::array {"DrawImage", "Color-Whole"}};
+        mMeshDrawPass[RenderPassBinding::Type::DSV] =
+            ::std::array {"DepthImage", "Depth-Whole"};
+        mMeshDrawPass[RenderPassBinding::Type::RenderInfo] =
+            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+
         mMeshDrawPass.GenerateMetaData();
     }
     auto& dcMgr = mMeshDrawPass.GetDrawCallManager();
-    //
-    // mMeshDrawPass["_RTV_"] = {{
-    //     "DrawImage",
-    // }};
-    // mMeshDrawPass["_DSV_"] = "DepthImage";
 
-    vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment
-        .setImageView(
-            mRenderResMgr["DrawImage"]->GetTexViewHandle("Color-Whole"))
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStoreOp(vk::AttachmentStoreOp::eStore);
-
-    vk::RenderingAttachmentInfo depthAttachment {};
-    depthAttachment
-        .setImageView(
-            mRenderResMgr["DepthImage"]->GetTexViewHandle("Depth-Whole"))
-        .setImageLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setClearValue(vk::ClearDepthStencilValue {0.0f});
-
-    dcMgr.AddArgument_RenderingInfo(
-        {{0, 0}, {width, height}}, 1, 0,
-        {{"DrawImage", "Color-Whole", colorAttachment}},
-        {"DepthImage", "Depth-Whole", depthAttachment});
-
-    /**********************************************/
+    /*****************************************************************/
     {
         vk::Viewport viewport {0.0f,          0.0f, (float)width,
                                (float)height, 0.0f, 1.0f};
@@ -543,8 +523,7 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
             {},
             {},
             mRenderResMgr["DrawImage"]->GetTexHandle(),
-            IDNS_VC::Utils::GetWholeImageSubresource(
-                vk::ImageAspectFlagBits::eColor)};
+            Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
         dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
                                               {drawImageBarrier});
     }
@@ -568,6 +547,11 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
 
         mQuadDrawPass["tex0"] = "DrawImage";
 
+        mQuadDrawPass[RenderPassBinding::Type::RTV] = {
+            ::std::array {"_Swapchain_", ""}};
+        mQuadDrawPass[RenderPassBinding::Type::RenderInfo] =
+            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+
         mQuadDrawPass.GenerateMetaData();
     }
     auto& dcMgr = mQuadDrawPass.GetDrawCallManager();
@@ -583,24 +567,13 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
         {},
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
-        IDNS_VC::Utils::GetWholeImageSubresource(
-            vk::ImageAspectFlagBits::eColor)};
+        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
 
     auto scBarrier = mSwapchain->GetImageBarrier_BeforePass(
         mSwapchain->GetCurrentImageIndex());
 
     dcMgr.AddArgument_Barriers_BeforePass({"DrawImage", "Swapchain"},
                                           {drawImageBarrier, scBarrier});
-
-    auto imageIndex = mSwapchain->GetCurrentImageIndex();
-    vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment.setImageView(mSwapchain->GetImageViewHandle(imageIndex))
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStoreOp(vk::AttachmentStoreOp::eStore);
-
-    dcMgr.AddArgument_RenderingInfo({{0, 0}, {width, height}}, 1, 0,
-                                    {colorAttachment});
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});
@@ -627,11 +600,18 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     {
         mMeshShaderPass.SetPipeline("MeshShaderDraw");
 
-        mMeshShaderPass["_PushContants_"] =
-            IDNS_VC::RenderPassBinding::PushContants {sizeof(*meshPushContants),
-                                                      meshPushContants};
+        mMeshShaderPass[RenderPassBinding::Type::PushContant] =
+            RenderPassBinding::PushContants {sizeof(*meshPushContants),
+                                             meshPushContants};
 
         mMeshShaderPass["UBO"] = "SceneUniformBuffer";
+
+        mMeshShaderPass[RenderPassBinding::Type::RTV] = {
+            ::std::array {"DrawImage", "Color-Whole"}};
+        mMeshShaderPass[RenderPassBinding::Type::DSV] =
+            ::std::array {"DepthImage", "Depth-Whole"};
+        mMeshShaderPass[RenderPassBinding::Type::RenderInfo] =
+            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
         mMeshShaderPass.GenerateMetaData();
     }
@@ -649,31 +629,8 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
         {},
         {},
         mRenderResMgr["DrawImage"]->GetTexHandle(),
-        IDNS_VC::Utils::GetWholeImageSubresource(
-            vk::ImageAspectFlagBits::eColor)};
+        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
     dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"}, {drawImageBarrier});
-
-    vk::RenderingAttachmentInfo colorAttachment {};
-    colorAttachment
-        .setImageView(
-            mRenderResMgr["DrawImage"]->GetTexViewHandle("Color-Whole"))
-        .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-        .setStoreOp(vk::AttachmentStoreOp::eStore);
-
-    vk::RenderingAttachmentInfo depthAttachment {};
-    depthAttachment
-        .setImageView(
-            mRenderResMgr["DepthImage"]->GetTexViewHandle("Depth-Whole"))
-        .setImageLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
-        .setLoadOp(vk::AttachmentLoadOp::eClear)
-        .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setClearValue(vk::ClearDepthStencilValue {0.0f});
-
-    dcMgr.AddArgument_RenderingInfo(
-        {{0, 0}, {width, height}}, 1, 0,
-        {{"DrawImage", "Color-Whole", colorAttachment}},
-        {"DepthImage", "Depth-Whole", depthAttachment});
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});

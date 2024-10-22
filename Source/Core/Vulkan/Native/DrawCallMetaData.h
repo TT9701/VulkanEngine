@@ -32,7 +32,7 @@ enum class DrawCallMetaDataType {
 struct RenderingAttachmentInfo {
     Type_STLString imageName;
     Type_STLString viewName;
-    vk::RenderingAttachmentInfo info;
+    vk::RenderingAttachmentInfo info {};
 };
 
 class RenderResourceManager;

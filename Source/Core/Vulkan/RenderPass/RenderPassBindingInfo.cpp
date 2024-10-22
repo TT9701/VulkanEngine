@@ -3,8 +3,31 @@
 #include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Manager/PipelineManager.hpp"
 #include "Core/Vulkan/Manager/RenderResourceManager.hpp"
+#include "Core/Vulkan/Native/Swapchain.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
+
+RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+    std::array<const char*, 2> const& str)
+    : value(::std::array<Type_STLString, 2> {str[0], str[1]}) {}
+
+RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+    std::array<Type_STLString, 2> const& str)
+    : value(str) {}
+
+RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+    std::initializer_list<std::array<const char*, 2>> strs)
+    : value(Type_STLVector<::std::array<Type_STLString, 2>> {}) {
+    for (auto const& str : strs) {
+        ::std::array<Type_STLString, 2> temp {str[0], str[1]};
+        ::std::get<Type_STLVector<::std::array<Type_STLString, 2>>>(value)
+            .push_back(temp);
+    }
+}
+
+RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+    Type_STLVector<std::array<Type_STLString, 2>> const& strs)
+    : value(strs) {}
 
 RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(Type_PC const& data)
     : value(Type_STLVector<Type_PC> {}) {
@@ -15,17 +38,22 @@ RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
     Type_STLVector<Type_PC> const& data)
     : value(data) {}
 
+RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+    Type_RenderInfo const& info)
+    : value(info) {}
+
 RenderPassBindingInfo::RenderPassBindingInfo(Context* context,
                                              RenderResourceManager* resMgr,
                                              PipelineManager* pipelineMgr,
-                                             DescriptorSetPool* descPool)
+                                             DescriptorSetPool* descPool,
+                                             Swapchain* sc)
     : pContext(context),
       pResMgr(resMgr),
       pPipelineMgr(pipelineMgr),
       pDescSetPool(descPool),
+      pSwapchain(sc),
       mDrawCallMgr {resMgr} {
-    mInfos.emplace(sPushConstStr,
-                   Type_STLVector<RenderPassBinding::PushContants> {});
+    InitBuiltInInfos();
 }
 
 void RenderPassBindingInfo::SetPipeline(const char* pipelineName,
@@ -39,6 +67,11 @@ void RenderPassBindingInfo::SetPipeline(const char* pipelineName,
     GeneratePipelineMetaData(mPipelineName);
 }
 
+RenderPassBindingInfo::Type_BindingValue& RenderPassBindingInfo::operator[](
+    RenderPassBinding::Type type) {
+    return mBuiltInInfos.at(type);
+}
+
 namespace {
 
 auto isPrefix = [](std::string_view prefix, std::string_view full) {
@@ -47,26 +80,17 @@ auto isPrefix = [](std::string_view prefix, std::string_view full) {
 
 }  // namespace
 
-RenderPassBindingInfo::Type_BindingValue& RenderPassBindingInfo::operator[](
-    const char* name) {
-    // Built-in
-    if (std::ranges::find_if(
-            sBuiltInBindingTypes,
-            [name](const char* it) { return strcmp(name, it) == 0; })
-        != sBuiltInBindingTypes.end()) {
-        return mInfos.at(name);
-    }
-
+Type_STLString& RenderPassBindingInfo::operator[](const char* name) {
     // Descriptor set resources
     Type_STLVector<Type_STLString> matched;
-    for (auto const& [k, _] : mInfos) {
+    for (auto const& [k, _] : mDescInfos) {
         if (isPrefix(name, k))
             matched.push_back(k);
     }
 
     if (!matched.empty()) {
         if (matched.size() == 1) {
-            return mInfos.at(matched.front());
+            return mDescInfos.at(matched.front());
         } else {
             // TODO: deal with same name bindings
         }
@@ -86,21 +110,105 @@ void RenderPassBindingInfo::RecordCmd(vk::CommandBuffer cmd) {
 }
 
 void RenderPassBindingInfo::GenerateMetaData(void* descriptorPNext) {
-    for (auto& [name, v] : mInfos) {
-        if (name == sPushConstStr) {
-            auto& data =
-                ::std::get<Type_STLVector<RenderPassBinding::PushContants>>(
-                    v.value);
-            GeneratePushContantMetaData(data);
+    // descriptor sets
+    CreateDescriptorSets(descriptorPNext);
+    BindDescriptorSets();
+
+    // render infos
+    bool isSwapchainImage {false};
+    Type_STLVector<RenderingAttachmentInfo> colors {};
+    RenderingAttachmentInfo depthStencil {};
+    RenderPassBinding::RenderInfo renderInfo {};
+
+    for (auto& [type, v] : mBuiltInInfos) {
+        switch (type) {
+            case RenderPassBinding::Type::PushContant: {
+                GeneratePushContantMetaData(
+                    ::std::get<Type_STLVector<RenderPassBinding::PushContants>>(
+                        v.value));
+                break;
+            }
+            case RenderPassBinding::Type::RTV: {
+                auto const& colorImages =
+                    ::std::get<Type_STLVector<::std::array<Type_STLString, 2>>>(
+                        v.value);
+                if (colorImages.empty())
+                    break;
+
+                for (auto image : colorImages) {
+                    vk::RenderingAttachmentInfo color {};
+                    color
+                        .setImageLayout(
+                            vk::ImageLayout::eColorAttachmentOptimal)
+                        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+                        .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+                    const char* imageName = image[0].c_str();
+                    const char* viewName = nullptr;
+
+                    if (image[0] == Type_STLString {"_Swapchain_"}) {
+                        auto idx = pSwapchain->GetCurrentImageIndex();
+                        viewName = ::std::to_string(idx).c_str();
+                        color.setImageView(pSwapchain->GetImageViewHandle(idx));
+                    } else {
+                        if (!image[1].empty()) {
+                            viewName = image[1].c_str();
+                        }
+                        color.setImageView(
+                            (*pResMgr)[imageName]->GetTexViewHandle(viewName));
+                    }
+
+                    colors.emplace_back(imageName, viewName, color);
+                }
+                break;
+            }
+            case RenderPassBinding::Type::DSV: {
+                auto const& depthImage =
+                    ::std::get<::std::array<Type_STLString, 2>>(v.value);
+                depthStencil.imageName = depthImage[0];
+                depthStencil.viewName = {};
+                if (depthStencil.imageName.empty())
+                    break;
+
+                depthStencil.info
+                    .setImageLayout(
+                        vk::ImageLayout::eDepthStencilAttachmentOptimal)
+                    .setLoadOp(vk::AttachmentLoadOp::eClear)
+                    .setStoreOp(vk::AttachmentStoreOp::eStore)
+                    .setClearValue(vk::ClearDepthStencilValue {0.0f});
+
+                if (!depthImage[1].empty()) {
+                    depthStencil.viewName = depthImage[1];
+                }
+                depthStencil.info.setImageView(
+                    (*pResMgr)[depthStencil.imageName.c_str()]
+                        ->GetTexViewHandle(depthStencil.viewName.c_str()));
+                break;
+            }
+            case RenderPassBinding::Type::RenderInfo: {
+                if (mBindPoint == vk::PipelineBindPoint::eCompute)
+                    break;
+
+                renderInfo = ::std::get<RenderPassBinding::RenderInfo>(v.value);
+                break;
+            }
+            default: break;
         }
     }
 
-    CreateDescriptorSets(descriptorPNext);
-    BindDescriptorSets();
+    if (!colors.empty()) {
+        mDrawCallMgr.AddArgument_RenderingInfo(
+            renderInfo.renderArea, renderInfo.layerCount, renderInfo.viewMask,
+            colors, depthStencil);
+    }
 }
 
 DrawCallManager& RenderPassBindingInfo::GetDrawCallManager() {
     return mDrawCallMgr;
+}
+
+void RenderPassBindingInfo::InitBuiltInInfos() {
+    InitBuiltInInfo<RenderPassBinding::Type::PushContant>();
 }
 
 void RenderPassBindingInfo::GeneratePipelineMetaData(::std::string_view name) {
@@ -128,7 +236,7 @@ void RenderPassBindingInfo::GeneratePipelineMetaData(::std::string_view name) {
     for (auto const& layoutData : layoutDatas) {
         auto data = layoutData->GetData();
         for (uint32_t i = 0; i < data.bindingNames.size(); ++i) {
-            mInfos.emplace(data.bindingNames[i], Type_STLString {});
+            mDescInfos.emplace(data.bindingNames[i], Type_STLString {});
         }
     }
 }
@@ -152,6 +260,9 @@ void RenderPassBindingInfo::GeneratePushContantMetaData(
                                               data[i].pData);
     }
 }
+
+void RenderPassBindingInfo::GenerateRTVMetaData(
+    Type_STLVector<std::array<Type_STLString, 2>> const& data) {}
 
 void RenderPassBindingInfo::CreateDescriptorSets(void* descriptorPNext) {
     mDescSets.clear();
@@ -191,7 +302,7 @@ void RenderPassBindingInfo::CreateDescriptorSets(void* descriptorPNext) {
              ++binding) {
             auto param = descLayout->GetData().bindingNames[binding];
 
-            auto argument = ::std::get<Type_STLString>(mInfos.at(param).value);
+            auto argument = mDescInfos.at(param);
             if (argument.empty())
                 continue;
 
