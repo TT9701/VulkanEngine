@@ -5,9 +5,6 @@
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>
 
-#include <glslang/Public/ResourceLimits.h>
-#include <glslang/Public/ShaderLang.h>
-
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
 
