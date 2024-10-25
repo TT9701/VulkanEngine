@@ -135,22 +135,29 @@ void MeshShaderDemo::Prepare() {
     // models: teapot.FBX sphere.fbx dragon.obj buddha.obj sponza/sponza.obj
     //         RM_HP_59930007DR0130HP000.fbx Foliage.fbx
     {
-        // mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR("sponza/sponza.obj"));
+        IntelliDesign_NS::Core::Utils::Timer timer;
 
-        // CISDI_3DModelDataConverter converter {
-        //     MODEL_PATH_CSTR("Model0.FBX")};
+        Type_STLString model = "Model29-Welded.obj";
+
+        mFactoryModel = MakeShared<Model>(MODEL_PATH_CSTR(model));
+
+        // CISDI_3DModelDataConverter converter {MODEL_PATH_CSTR(model)};
         //
         // converter.Execute();
-
-        auto cisdiModelPath = MODEL_PATH("RM_HP_59930007DR0130HP000.cisdi");
-
-        auto meshes = CISDI_3DModelDataConverter::LoadCISDIModelData(
-            cisdiModelPath.c_str());
-
-        mFactoryModel = IDNS_VC::MakeShared<Model>(meshes);
+        //
+        // auto cisdiModelPath = MODEL_PATH("Model29-Welded.cisdi");
+        //
+        // auto meshes = CISDI_3DModelDataConverter::LoadCISDIModelData(
+        //     cisdiModelPath.c_str());
+        //
+        // mFactoryModel = MakeShared<Model>(meshes);
 
         // mFactoryModel->GenerateBuffers(mContext.get(), this);
         mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
+
+        auto duration_LoadModel = timer.End();
+        printf("Load Model: %s, Time consumed: %f s", model,
+               duration_LoadModel);
     }
 
     RecordDrawBackgroundCmds();

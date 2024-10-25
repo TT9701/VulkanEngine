@@ -7,7 +7,7 @@
 
 #define UNROLL_LOOP [[unroll]]
 
-const uint MESHLET_VERTEX_ITERATIONS    = ((MAX_VERTICES    + MESH_INVOCATION_COUNT - 1) / MESH_INVOCATION_COUNT);
+const uint MESHLET_VERTEX_ITERATIONS    = ((MAX_VERTICES   + MESH_INVOCATION_COUNT - 1) / MESH_INVOCATION_COUNT);
 const uint MESHLET_PRIMITIVE_ITERATIONS = ((MAX_PRIMITIVES + MESH_INVOCATION_COUNT - 1) / MESH_INVOCATION_COUNT);
 
 #include "Include/Structures.glsl"
@@ -75,7 +75,10 @@ layout(buffer_reference, std430) readonly buffer MeshletCountBuffer{
 layout( push_constant ) uniform PushConstants
 {	
 	mat4 modelMatrix;
+
 	VertexBuffer vertexBuffer;
+
+
 	MeshletBuffer meshletBuffer;
 	MeshletVertexBuffer meshletVertexBuffer;
 	MeshletTriangleBuffer meshletTriangleBuffer;
@@ -130,7 +133,9 @@ void main()
 	UNROLL_LOOP
 	for (uint i = 0; i < MESHLET_VERTEX_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
+
 		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
+
 		gl_MeshVerticesEXT[idx].gl_Position = mvp * constants.vertexBuffer.vertices[meshVertexOffset + verticesID].position;
 		vertexOutput[idx].color = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
 	}

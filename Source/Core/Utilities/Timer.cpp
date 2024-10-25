@@ -53,13 +53,19 @@ uint64_t FrameTimer::GetTime() {
     return GetCurrentTimeNanoSecs();
 }
 
+Timer::Timer() {
+    Start();
+}
+
 void Timer::Start() {
     t = GetCurrentTimeNanoSecs();
 }
 
 double Timer::End() {
     auto nt = GetCurrentTimeNanoSecs();
-    return static_cast<double>(nt - t) * 1e-9;
+    auto duration = nt - t;
+    t = nt;
+    return static_cast<double>(duration) * 1e-9;
 }
 
 #ifdef _WIN32

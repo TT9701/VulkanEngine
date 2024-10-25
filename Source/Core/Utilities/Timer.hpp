@@ -29,6 +29,8 @@ private:
 
 class Timer {
 public:
+    Timer();
+
     void Start();
     double End();
 

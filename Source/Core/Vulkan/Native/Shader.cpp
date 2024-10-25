@@ -5,6 +5,9 @@
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>
 
+#include <glslang/Public/ResourceLimits.h>
+#include <glslang/Public/ShaderLang.h>
+
 #include "Core/Utilities/Defines.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
 
@@ -72,11 +75,7 @@ Type_STLVector<uint32_t> LoadSPIRVCode(const char* filePath) {
     return buffer;
 }
 
-Type_STLVector<uint32_t> CompileGLSLSource(
-    const char* name, const char* filePath, vk::ShaderStageFlagBits stage,
-    bool hasInclude,
-    IntelliDesign_NS::Vulkan::Core::Type_ShaderMacros const& defines,
-    const char* entry) {
+Type_STLString LoadShaderSource(const char* filePath) {
     std::ifstream file(filePath, std::ios::in);
 
     if (!file.is_open()) {
@@ -87,8 +86,14 @@ Type_STLVector<uint32_t> CompileGLSLSource(
 
     ::std::ostringstream sstr;
     sstr << file.rdbuf();
-    Type_STLString buffer {sstr.str()};
+    return Type_STLString {sstr.str()};
+}
 
+Type_STLVector<uint32_t> CompileGLSLSource(
+    const char* name, Type_STLString const& source,
+    vk::ShaderStageFlagBits stage, bool hasInclude,
+    IntelliDesign_NS::Vulkan::Core::Type_ShaderMacros const& defines,
+    const char* entry) {
     shaderc::Compiler compiler {};
     shaderc::CompileOptions options {};
 
@@ -132,7 +137,7 @@ Type_STLVector<uint32_t> CompileGLSLSource(
     if (hasInclude) {
         options.SetIncluder(::std::make_unique<ShaderIncluder>());
         auto preprocess =
-            compiler.PreprocessGlsl(buffer.c_str(), kind, name, options);
+            compiler.PreprocessGlsl(source.c_str(), kind, name, options);
         if (preprocess.GetCompilationStatus()
             != shaderc_compilation_status_success) {
             ::std::cerr << preprocess.GetErrorMessage();
@@ -143,7 +148,7 @@ Type_STLVector<uint32_t> CompileGLSLSource(
         spirvModule = compiler.CompileGlslToSpv(preprocessedSource.c_str(),
                                                 kind, name, entry, options);
     } else {
-        spirvModule = compiler.CompileGlslToSpv(buffer.c_str(), kind, name,
+        spirvModule = compiler.CompileGlslToSpv(source.c_str(), kind, name,
                                                 entry, options);
     }
 
@@ -155,6 +160,15 @@ Type_STLVector<uint32_t> CompileGLSLSource(
     return {spirvModule.cbegin(), spirvModule.cend()};
 }
 
+Type_STLVector<uint32_t> CompileGLSLSource(
+    const char* name, const char* filePath, vk::ShaderStageFlagBits stage,
+    bool hasInclude,
+    IntelliDesign_NS::Vulkan::Core::Type_ShaderMacros const& defines,
+    const char* entry) {
+    auto buffer = LoadShaderSource(filePath);
+    return CompileGLSLSource(name, buffer, stage, hasInclude, defines, entry);
+}
+
 }  // namespace
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -164,19 +178,21 @@ Shader::Shader(Context* context, const char* name, const char* path,
     : pContext(context), mName(name), mEntry(entry), mStage(stage) {
     mSPIRVBinaryCode = LoadSPIRVCode(path);
     mShader = CreateShader(pNext);
-    ReflectDescSetLayouts();
-    ReflectPushContants();
+    SPIRVReflect_DescSetLayouts();
+    SPIRVReflect_PushContants();
 }
 
 Shader::Shader(Context* context, const char* name, const char* sourcePath,
                vk::ShaderStageFlagBits stage, bool hasIncludes,
                Type_ShaderMacros const& defines, const char* entry, void* pNext)
     : pContext(context), mName(name), mEntry(entry), mStage(stage) {
-    mSPIRVBinaryCode = CompileGLSLSource("", sourcePath, stage, hasIncludes,
+    auto source = LoadShaderSource(sourcePath);
+    GLSLReflect_DescriptorBindingName(source);
+    mSPIRVBinaryCode = CompileGLSLSource("", source, stage, hasIncludes,
                                          defines, mEntry.c_str());
     mShader = CreateShader(pNext);
-    ReflectDescSetLayouts();
-    ReflectPushContants();
+    SPIRVReflect_DescSetLayouts();
+    SPIRVReflect_PushContants();
 }
 
 Shader::~Shader() {
@@ -219,6 +235,65 @@ vk::ShaderModule Shader::CreateShader(void* pNext) const {
     createInfo.setCode(mSPIRVBinaryCode).setPNext(pNext);
 
     return pContext->GetDeviceHandle().createShaderModule(createInfo);
+}
+
+void Shader::GLSLReflect_DescriptorBindingName(Type_STLString const& source) {
+    Type_STLVector<size_t> layoutOffsets {};
+
+    size_t idx = 0;
+    while (true) {
+        auto newIdx = source.find("layout", idx + 1);
+        if (newIdx != Type_STLString::npos) {
+            layoutOffsets.push_back(newIdx);
+            idx = newIdx;
+        } else {
+            break;
+        }
+    }
+
+    auto findFirstDigit = [](Type_STLString const& str) {
+        for (size_t i = 0; i < str.size(); ++i) {
+            if (::std::isdigit(str[i]))
+                return uint64_t(str[i] - '0');
+        }
+        return Type_STLString::npos;
+    };
+
+    for (auto const& offset : layoutOffsets) {
+        auto endingOffset = source.find('\n', offset);
+        auto layoutString =
+            source.substr(offset + 6, endingOffset - offset - 7);
+
+        auto leftbracketOffset = layoutString.find('(');
+        auto rightbracketOffset = layoutString.find(')', leftbracketOffset + 1);
+        auto bracketString = layoutString.substr(
+            leftbracketOffset + 1, rightbracketOffset - leftbracketOffset - 1);
+
+        auto setOffset = bracketString.find("set");
+        auto bindingOffset = bracketString.find("binding");
+
+        if (setOffset == Type_STLString::npos
+            && bindingOffset == Type_STLString::npos)
+            continue;
+
+        GLSL_SetBindingInfo info;
+        auto set = findFirstDigit(bracketString.substr(setOffset));
+        if (set != Type_STLString::npos) {
+            info.set = set;
+        } else {
+            info.set = 0;
+        }
+        auto binding = findFirstDigit(bracketString.substr(bindingOffset));
+        if (binding != Type_STLString::npos) {
+            info.binding = binding;
+        } else {
+            info.binding = 0;
+        }
+
+        auto name = layoutString.substr(layoutString.rfind(' ') + 1);
+
+        mGLSL_SetBindingNameMap.emplace_back(info, name);
+    }
 }
 
 ShaderProgram::ShaderProgram(Shader* comp, void* layoutPNext)
@@ -429,7 +504,7 @@ void ShaderProgram::CreateDescLayouts(
 }
 
 Type_STLVector<Shader::DescriptorSetLayoutData>
-Shader::ReflectDescSetLayouts() {
+Shader::SPIRVReflect_DescSetLayouts() {
     spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
                                         mSPIRVBinaryCode.size()};
 
@@ -439,11 +514,18 @@ Shader::ReflectDescSetLayouts() {
 
     auto parseFunc = [&](spirv_cross::Resource const& resource,
                          vk::DescriptorType type) {
-        Type_STLString name {resource.name};
         uint32_t setIdx =
             compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
         uint32_t binding =
             compiler.get_decoration(resource.id, spv::DecorationBinding);
+
+        Type_STLString name {};
+        for (auto const& [setBinding, v] : mGLSL_SetBindingNameMap) {
+            if (setBinding.set == setIdx && setBinding.binding == binding) {
+                name = v;
+            }
+        }
+
         uint32_t descCount = 1;  // TODO: Parse Desc Count
         datas.emplace_back(name, setIdx, binding, type, mStage, descCount);
     };
@@ -473,7 +555,7 @@ Shader::ReflectDescSetLayouts() {
     return datas;
 }
 
-::std::optional<vk::PushConstantRange> Shader::ReflectPushContants() {
+::std::optional<vk::PushConstantRange> Shader::SPIRVReflect_PushContants() {
     spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
                                         mSPIRVBinaryCode.size()};
 

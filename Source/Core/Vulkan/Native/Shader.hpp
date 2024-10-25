@@ -36,6 +36,14 @@ class Shader {
         uint32_t descCount = 1;
     };
 
+    struct GLSL_SetBindingInfo {
+        uint32_t set {0};
+        uint32_t binding {0};
+    };
+
+    using Type_GLSL_SetBindingName_Map =
+        Type_STLVector<::std::pair<GLSL_SetBindingInfo, Type_STLString>>;
+
 public:
     friend class ShaderProgram;
 
@@ -54,9 +62,9 @@ public:
     MOVABLE_ONLY(Shader);
 
 public:
-    Type_STLVector<DescriptorSetLayoutData> ReflectDescSetLayouts();
+    Type_STLVector<DescriptorSetLayoutData> SPIRVReflect_DescSetLayouts();
 
-    ::std::optional<vk::PushConstantRange> ReflectPushContants();
+    ::std::optional<vk::PushConstantRange> SPIRVReflect_PushContants();
 
     vk::ShaderModule GetHandle() const { return mShader; }
 
@@ -72,8 +80,10 @@ public:
 
     ::std::mutex& GetMutex();
 
-public:
+private:
     vk::ShaderModule CreateShader(void* pNext) const;
+
+    void GLSLReflect_DescriptorBindingName(Type_STLString const& source);
 
 private:
     Context* pContext;
@@ -83,6 +93,8 @@ private:
     vk::ShaderStageFlagBits mStage;
 
     Type_STLVector<uint32_t> mSPIRVBinaryCode {};
+
+    Type_GLSL_SetBindingName_Map mGLSL_SetBindingNameMap {};
 
     vk::ShaderModule mShader {};
 
@@ -122,7 +134,9 @@ private:
 
     void MergeDescLayoutDatas(void* pNext);
     void MergePushContantDatas();
-    void CreateDescLayouts(Type_STLVector<Shader::DescriptorSetLayoutData> const& datas, void* pNext);
+    void CreateDescLayouts(
+        Type_STLVector<Shader::DescriptorSetLayoutData> const& datas,
+        void* pNext);
 
 private:
     Context* pContext;

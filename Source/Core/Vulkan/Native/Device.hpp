@@ -64,12 +64,13 @@ namespace IntelliDesign_NS::Vulkan::Core {
 // TODO: template requirements
 template <class VkCppHandle>
 void Device::SetObjectName(VkCppHandle handle, const char* name) {
+#ifndef NDEBUG
     vk::DebugUtilsObjectNameInfoEXT info {};
     using CType = typename VkCppHandle::CType;
     info.setObjectHandle((uint64_t)(CType)handle)
         .setObjectType(VkCppHandle::objectType)
         .setPObjectName(name);
     mDevice.setDebugUtilsObjectNameEXT(info);
+#endif
 }
-
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -20,9 +20,9 @@ void main()
     if (oldc > 0.9999)
         oldc = 0.0;
     float newc = oldc + c;
-    // storageBuffer[index] = vec4(newc, newc, newc, 1.0);
+    storageBuffer[index] = vec4(newc, newc, newc, 1.0);
 
-    // imageStore(image, texelCoord, storageBuffer[index]);
+    imageStore(image, texelCoord, storageBuffer[index]);
 
     imageStore(image, texelCoord, vec4(0.1, 0.1, 0.1, 1.0));
 }
