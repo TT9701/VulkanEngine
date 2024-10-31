@@ -75,6 +75,10 @@ public:
                                         vk::DeviceSize offset,
                                         uint32_t drawCount, uint32_t stride);
 
+    void AddArgument_DrawIndiret(vk::Buffer buffer,
+                                        vk::DeviceSize offset,
+                                        uint32_t drawCount, uint32_t stride);
+
     void AddArgument_Draw(uint32_t vertexCount, uint32_t instanceCount,
                           uint32_t firstVertex, uint32_t firstInstance);
 

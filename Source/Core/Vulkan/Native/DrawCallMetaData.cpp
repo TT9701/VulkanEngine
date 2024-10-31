@@ -90,6 +90,11 @@ void DrawCallMetaData<DrawCallMetaDataType::DrawIndexedIndirect>::RecordCmds(
     cmd.drawIndexedIndirect(buffer, offset, drawCount, stride);
 }
 
+void DrawCallMetaData<DrawCallMetaDataType::DrawIndirect>::RecordCmds(
+    vk::CommandBuffer cmd) const {
+    cmd.drawIndirect(buffer, offset, drawCount, stride);
+}
+
 void DrawCallMetaData<DrawCallMetaDataType::Draw>::RecordCmds(
     vk::CommandBuffer cmd) const {
     cmd.draw(vertexCount, instanceCount, firstVertex, firstInstance);

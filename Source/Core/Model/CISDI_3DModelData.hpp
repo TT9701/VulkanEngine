@@ -1,12 +1,13 @@
 #pragma once
 
 #include <stdint.h>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include <meshoptimizer.h>
 
-#define CISDI_3DModel_Subfix ".cisdi"
+#define CISDI_3DModel_Subfix_Str ".cisdi"
+#define CISDI_3DModel_Subfix_WStr L".cisdi"
 
 // #ifdef USING_NVIDIA_GPU
 #define MESHLET_MAX_VERTEX_COUNT 64
@@ -18,7 +19,7 @@ namespace IntelliDesign_NS::ModelData {
 
 template <class T>
 using Type_STLVector = ::std::pmr::vector<T>;
-using Type_STLString = ::std::pmr::string;
+using Type_STLString = ::std::string;
 
 struct Version {
     uint8_t major;
@@ -38,6 +39,7 @@ struct Vec {
 
 using Float2 = Vec<float, 2>;
 using Float3 = Vec<float, 3>;
+using Float4 = Vec<float, 4>;
 
 struct CISDI_3DModel {
     struct Header {
@@ -57,11 +59,9 @@ struct CISDI_3DModel {
         } header;
 
         struct Vertices {
-            Type_STLVector<Float3> positions;
-            Type_STLVector<Float3> normals;
-            // Type_STLVector<Float2> uvs;
-            // Type_STLVector<Float3> tangents;
-            // Type_STLVector<Float3> bitangents;
+            Type_STLVector<Float4> positions;
+            Type_STLVector<Float2> normals;
+            Type_STLVector<Float2> uvs;
         } vertices;
 
         Type_STLVector<uint32_t> indices;
@@ -80,4 +80,4 @@ struct CISDI_3DModel {
     static CISDI_3DModel Load(const char* path);
 };
 
-}  // namespace IntelliDesign_NS::Model
+}  // namespace IntelliDesign_NS::ModelData

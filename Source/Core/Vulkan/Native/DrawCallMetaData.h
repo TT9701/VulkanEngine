@@ -20,6 +20,7 @@ enum class DrawCallMetaDataType {
     DescriptorSet,
     IndexBuffer,
     DrawIndexedIndirect,
+    DrawIndirect,
     Draw,
     DispatchIndirect,
     Dispatch,
@@ -168,6 +169,17 @@ struct DrawCallMetaData<DrawCallMetaDataType::IndexBuffer> : IDrawCallMetaData {
 
 template <>
 struct DrawCallMetaData<DrawCallMetaDataType::DrawIndexedIndirect>
+    : IDrawCallMetaData {
+    vk::Buffer buffer;
+    vk::DeviceSize offset;
+    uint32_t drawCount;
+    uint32_t stride;
+
+    void RecordCmds(vk::CommandBuffer cmd) const override;
+};
+
+template <>
+struct DrawCallMetaData<DrawCallMetaDataType::DrawIndirect>
     : IDrawCallMetaData {
     vk::Buffer buffer;
     vk::DeviceSize offset;

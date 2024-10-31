@@ -277,6 +277,19 @@ void DrawCallManager::AddArgument_DrawIndexedIndiret(vk::Buffer buffer,
     mMetaDatas.emplace_back(metaData);
 }
 
+void DrawCallManager::AddArgument_DrawIndiret(vk::Buffer buffer,
+                                              vk::DeviceSize offset,
+                                              uint32_t drawCount,
+                                              uint32_t stride) {
+    DrawCallMetaData<DrawCallMetaDataType::DrawIndirect> metaData;
+    metaData.buffer = buffer;
+    metaData.offset = offset;
+    metaData.drawCount = drawCount;
+    metaData.stride = stride;
+
+    mMetaDatas.emplace_back(metaData);
+}
+
 void DrawCallManager::AddArgument_Draw(uint32_t vertexCount,
                                        uint32_t instanceCount,
                                        uint32_t firstVertex,

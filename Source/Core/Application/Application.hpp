@@ -3,8 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 
-#include "Core/Model/CISDI_3DModelConverter.hpp"
-#include "Core/Model/Model.hpp"
+#include "Core/Model/Geometry.hpp"
 #include "Core/Platform/Window.hpp"
 #include "Core/Utilities/Camera.hpp"
 #include "Core/Utilities/Defines.hpp"

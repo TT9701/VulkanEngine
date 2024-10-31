@@ -6,11 +6,8 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 struct Vertex {
     glm::vec4 position {};   // w - empty
-    glm::vec4 normal {};     // w - empty
-    glm::vec2 texcoords {};  // z, w - empty
-    glm::vec2 paddings {};
-    glm::vec4 tangent {};    // w - empty
-    glm::vec4 bitangent {};  // w - empty
+    glm::vec2 normal {};     // normal.yz
+    glm::vec2 texcoords {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

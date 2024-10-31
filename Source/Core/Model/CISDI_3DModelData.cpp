@@ -32,20 +32,24 @@ Type_STLString ProcessOutputPath(const char* input, const char* output) {
     auto inPath = ::std::filesystem::path(input);
     ::std::filesystem::path outputPath;
 
+    if (inPath.extension() == CISDI_3DModel_Subfix_Str) {
+        return inPath.string();
+    }
+
     if (!output) {
-        outputPath = inPath.replace_extension(CISDI_3DModel_Subfix);
+        outputPath = inPath.string().append(CISDI_3DModel_Subfix_Str);
     } else {
         outputPath = ::std::filesystem::canonical(output);
         if (::std::filesystem::is_directory(outputPath)) {
             outputPath = outputPath.wstring().append(L"/").append(
-                inPath.filename().replace_extension(CISDI_3DModel_Subfix));
+                inPath.wstring().append(CISDI_3DModel_Subfix_WStr));
         } else {
             throw ::std::runtime_error(
                 "ERROR::CISDI_3DMODELDATA::CONVERT: Output is not a "
                 "directory!");
         }
     }
-    return outputPath.string().c_str();
+    return outputPath.string();
 }
 
 void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
@@ -57,67 +61,47 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
 
     // position
     for (uint32_t i = 0; i < vertCount; ++i) {
-        Float3 temp {};
+        Float4 temp {};
 
         temp[0] = mesh->mVertices[i].x;
-        if (flipYZ) {
-            temp[1] = mesh->mVertices[i].z;
-            temp[2] = mesh->mVertices[i].y;
-        } else {
-            temp[1] = mesh->mVertices[i].y;
-            temp[2] = mesh->mVertices[i].z;
-        }
+        temp[1] = mesh->mVertices[i].y;
+        temp[2] = mesh->mVertices[i].z;
+
+        // TODO: temp[3] is empty for now
+
+        if (flipYZ)
+            ::std::swap(temp[1], temp[2]);
+
         cisdiMesh.vertices.positions[i] = temp;
     }
+
     // normal
+    // pre calculation -> "spheremap transform"
+    // wikipedia: https://en.wikipedia.org/wiki/Lambert_azimuthal_equal-area_projection
     for (uint32_t i = 0; i < vertCount; ++i) {
-        Float3 temp {};
-        temp[0] = mesh->mNormals[i].x;
-        if (flipYZ) {
-            temp[1] = mesh->mNormals[i].z;
-            temp[2] = mesh->mNormals[i].y;
-        } else {
-            temp[1] = mesh->mNormals[i].y;
-            temp[2] = mesh->mNormals[i].z;
-        }
+        auto f = ::std::sqrt(2 / (1 - mesh->mNormals[i].x));
+
+        Float2 temp {};
+        temp[0] = mesh->mNormals[i].y * f;
+        temp[1] = mesh->mNormals[i].z * f;
+
+        // normal.x is runtime decoded in shader
+
+        if (flipYZ)
+            ::std::swap(temp[0], temp[1]);
+
         cisdiMesh.vertices.normals[i] = temp;
     }
 
-    // // texcoords
-    // for (uint32_t i = 0; i < vertCount; ++i) {
-    //     Float2 temp {};
-    //     temp[0] = mesh->mTextureCoords[0][i].x;
-    //     temp[1] = mesh->mTextureCoords[0][i].y;
-    //     cisdiMesh.vertices.uvs[i] = temp;
-    // }
-    //
-    // // tangents
-    // for (uint32_t i = 0; i < vertCount; ++i) {
-    //     Float3 temp {};
-    //     temp[0] = mesh->mTangents[i].x;
-    //     if (flipYZ) {
-    //         temp[1] = mesh->mTangents[i].z;
-    //         temp[2] = mesh->mTangents[i].y;
-    //     } else {
-    //         temp[1] = mesh->mTangents[i].y;
-    //         temp[2] = mesh->mTangents[i].z;
-    //     }
-    //     cisdiMesh.vertices.tangents[i] = temp;
-    // }
-    //
-    // // bitangents
-    // for (uint32_t i = 0; i < vertCount; ++i) {
-    //     Float3 temp {};
-    //     temp[0] = mesh->mBitangents[i].x;
-    //     if (flipYZ) {
-    //         temp[1] = mesh->mBitangents[i].z;
-    //         temp[2] = mesh->mBitangents[i].y;
-    //     } else {
-    //         temp[1] = mesh->mBitangents[i].y;
-    //         temp[2] = mesh->mBitangents[i].z;
-    //     }
-    //     cisdiMesh.vertices.bitangents[i] = temp;
-    // }
+    // texcoords
+    if (mesh->HasTextureCoords(0)) {
+        for (uint32_t i = 0; i < vertCount; ++i) {
+            Float2 temp {};
+            temp[0] = mesh->mTextureCoords[0][i].x;
+            temp[1] = mesh->mTextureCoords[0][i].y;
+            cisdiMesh.vertices.uvs[i] = temp;
+        }
+    }
 
     // index
     uint32_t indexCount = mesh->mNumFaces * 3;
@@ -163,8 +147,8 @@ void OptimizeMesh(CISDI_3DModel::Mesh& mesh) {
         remap.data(), mesh.indices.data(), indexCount, vertexCount,
         streams.data(), streams.size());
 
-    Type_STLVector<Float3> optimizedVertexPositions(vertexCount);
-    Type_STLVector<Float3> optimizedVertexNormals(vertexCount);
+    Type_STLVector<Float4> optimizedVertexPositions(vertexCount);
+    Type_STLVector<Float2> optimizedVertexNormals(vertexCount);
 
     Type_STLVector<uint32_t> optimizedIndices(indexCount);
 
@@ -302,8 +286,9 @@ void CISDI_3DModel::Convert(const char* path, bool flipYZ, const char* output,
     {
         Assimp::Importer importer {};
 
-        const auto scene =
-            importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast);
+        const auto scene = importer.ReadFile(
+            path, aiProcessPreset_TargetRealtime_Fast | aiProcess_OptimizeMeshes
+                      | aiProcess_OptimizeGraph);
 
         if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
             || !scene->mRootNode) {

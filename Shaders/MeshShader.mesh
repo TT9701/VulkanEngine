@@ -20,17 +20,16 @@ layout (set = 0, binding = 0) uniform UBO
 layout(local_size_x = MESH_INVOCATION_COUNT) in;
 layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_PRIMITIVES) out;
 
-struct Vertex {
-	vec4 position;
-	vec4 normal;
-	vec2 texcoords;
-	vec2 padding;
-	vec4 tangent;
-	vec4 bitangent;
-}; 
+layout(buffer_reference, std430) readonly buffer VertexPosBuffer{ 
+	vec4 position[];
+};
 
-layout(buffer_reference, std430) readonly buffer VertexBuffer{ 
-	Vertex vertices[];
+layout(buffer_reference, std430) readonly buffer VertexNormBuffer{ 
+	vec2 normal[];
+};
+
+layout(buffer_reference, std430) readonly buffer VertexTexBuffer{ 
+	vec2 texcoords[];
 };
 
 struct Meshlet {
@@ -76,8 +75,9 @@ layout( push_constant ) uniform PushConstants
 {	
 	mat4 modelMatrix;
 
-	VertexBuffer vertexBuffer;
-
+	VertexPosBuffer posBuffer;
+	VertexNormBuffer normBuffer;
+	VertexTexBuffer texBuffer;
 
 	MeshletBuffer meshletBuffer;
 	MeshletVertexBuffer meshletVertexBuffer;
@@ -92,6 +92,7 @@ layout( push_constant ) uniform PushConstants
 layout(location = 0) out VertexOutput
 {
 	vec4 color;
+	vec3 normal;
 } vertexOutput[];
 
 struct Task {
@@ -136,7 +137,12 @@ void main()
 
 		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
 
-		gl_MeshVerticesEXT[idx].gl_Position = mvp * constants.vertexBuffer.vertices[meshVertexOffset + verticesID].position;
+		gl_MeshVerticesEXT[idx].gl_Position = mvp * vec4(constants.posBuffer.position[meshVertexOffset + verticesID].xyz, 1.0);
+
+		vec2 encodedNorm = constants.normBuffer.normal[meshVertexOffset + verticesID];
+		vec3 normal = DecodeNormal(encodedNorm);
+
+		vertexOutput[idx].normal = normal;
 		vertexOutput[idx].color = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
 	}
 

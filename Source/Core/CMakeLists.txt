@@ -91,10 +91,8 @@ set (MODEL_SRC
     Model/MeshType.hpp
     Model/Mesh.hpp
     Model/Mesh.cpp
-    Model/Model.cpp
-    Model/Model.hpp
-    Model/CISDI_3DModelConverter.hpp
-    Model/CISDI_3DModelConverter.cpp
+    Model/Geometry.cpp
+    Model/Geometry.hpp
     Model/CISDI_3DModelData.hpp
     Model/CISDI_3DModelData.cpp
 )
