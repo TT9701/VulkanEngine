@@ -5,11 +5,13 @@
 
 #include "Core/Vulkan/Native/DescriptorSetAllocator.hpp"
 
+#include "Core/Utilities/GUI.hpp"
+
 namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
 namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
 struct SceneData {
-    glm::vec4 sunLightPos {-2.0f, 3.0f, 1.0f, 1.0f};
+    glm::vec4 sunLightPos {-0.4f, 0.6f, 0.2f, 1.0f};
     glm::vec4 sunLightColor {0.8f, 0.8f, 0.8f, 1.0f};
     glm::vec4 cameraPos {};
     glm::mat4 view {};
@@ -52,6 +54,8 @@ private:
 
     void UpdateSceneUBO();
 
+    void PrepareUIContext();
+
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
@@ -59,6 +63,8 @@ private:
     IDNS_VC::RenderPassBindingInfo mMeshDrawPass;
     IDNS_VC::RenderPassBindingInfo mMeshShaderPass;
     IDNS_VC::RenderPassBindingInfo mQuadDrawPass;
+
+    IDNS_VC::GUI mGui;
 
     Camera mMainCamera {};
     SceneData mSceneData {};

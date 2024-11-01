@@ -26,7 +26,6 @@ SDLWindow::SDLWindow(const char* name, int width, int height)
       mHeight(height),
       mWindow(CreateWindow(name, mWidth, mHeight)),
       mEvent(new SDL_Event()) {
-    SDL_SetRelativeMouseMode(SDL_TRUE);
 
     DBG_LOG_INFO("SDL_Window Created. Width: %d, Height: %d.", mWidth, mHeight);
 }

@@ -7,7 +7,7 @@ enum class CameraMovement : uint32_t { Forward, Backward, Left, Right };
 
 constexpr float CameraYaw = -90.0f;
 constexpr float CameraPitch = 0.0f;
-constexpr float CameraSpeed = 5.f;
+constexpr float CameraSpeed = 15.f;
 constexpr float CameraSensitivity = 0.1f;
 constexpr float CameraZoom = 45.0f;
 
@@ -29,6 +29,8 @@ public:
     float mMouseSensitivity;
     float mZoom;
 
+    bool mCaptureMouseMovement {false};
+
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f),
            glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = CameraYaw,
            float pitch = CameraPitch);
@@ -44,6 +46,7 @@ private:
     void Update();
 
     void ProcessKeyboard(SDL_Event* e, float deltaTime);
+    void ProcessMouseButton(SDL_Event* e);
     void ProcessMouseMovement(SDL_Event* e);
     void ProcessMouseScroll(SDL_Event* e);
 };

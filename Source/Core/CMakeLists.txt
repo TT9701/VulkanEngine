@@ -15,6 +15,8 @@ set (UTILITIES_SRC
     Utilities/Functor.cpp
     Utilities/Timer.hpp
     Utilities/Timer.cpp
+    Utilities/GUI.hpp
+    Utilities/GUI.cpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
@@ -152,23 +154,16 @@ target_include_directories(Core
 # include("../../External/Output/cmake/SDL2Config.cmake")
 target_link_libraries(Core
     PUBLIC 
-        SDL2::SDL2)
+        SDL2::SDL2
+        assimp::assimp
+        meshoptimizer
+        spirv-cross-c
+        imgui)
 
 # include("../../External/Output/lib/cmake/assimp-5.4/assimpConfig.cmake")
-target_link_libraries(Core
-    PUBLIC
-        assimp::assimp)
-
-target_link_libraries(Core
-    PUBLIC
-        meshoptimizer)
-
-target_link_libraries(Core
-    PUBLIC
-        spirv-cross-c)
-
 
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
+set (INTELLIGENDESIGN_LIB_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsLib/LibraryOutputs/x64")
 
 target_include_directories(Core
     PUBLIC
@@ -181,10 +176,10 @@ add_library(INTELLI_DS_MemoryPool_RELEASE STATIC IMPORTED)
 if (MSVC)
     set_target_properties(INTELLI_DS_MemoryPool_DEBUG 
         PROPERTIES
-            IMPORTED_LOCATION ${INTELLIGENDESIGN_CODE_PATH}/LibraryOutputs/x64/Debug/LibMemoryPool.lib)
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_LIB_PATH}/Debug/LibMemoryPool.lib)
     set_target_properties(INTELLI_DS_MemoryPool_RELEASE 
         PROPERTIES
-            IMPORTED_LOCATION ${INTELLIGENDESIGN_CODE_PATH}/LibraryOutputs/x64/Release/LibMemoryPool.lib)
+            IMPORTED_LOCATION ${INTELLIGENDESIGN_LIB_PATH}/Release/LibMemoryPool.lib)
 endif(MSVC)
 
 target_link_libraries(Core

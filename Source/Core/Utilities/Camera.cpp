@@ -33,7 +33,11 @@ glm::mat4 Camera::GetViewMatrix() {
 
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     ProcessKeyboard(e, deltaTime);
-    ProcessMouseMovement(e);
+    ProcessMouseButton(e);
+
+    if (mCaptureMouseMovement)
+        ProcessMouseMovement(e);
+
     ProcessMouseScroll(e);
 }
 
@@ -71,6 +75,20 @@ void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
 
     if (e->type == SDL_KEYUP) {
         mMovementSpeed = CameraSpeed;
+    }
+}
+
+void Camera::ProcessMouseButton(SDL_Event* e) {
+    if (e->type == SDL_MOUSEBUTTONDOWN) {
+        if (e->button.button == SDL_BUTTON_RIGHT) {
+            mCaptureMouseMovement = true;
+        }
+    }
+
+    if (e->type == SDL_MOUSEBUTTONUP) {
+        if (e->button.button == SDL_BUTTON_RIGHT) {
+            mCaptureMouseMovement = false;
+        }
     }
 }
 

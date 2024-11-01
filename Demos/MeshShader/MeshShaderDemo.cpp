@@ -12,9 +12,10 @@ MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
       mMeshShaderPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                        &mDescSetPool},
       mQuadDrawPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                     &mDescSetPool, mSwapchain.get()} {}
+                     &mDescSetPool, mSwapchain.get()},
+      mGui(mContext.get(), mSwapchain.get(), mWindow.get()) {}
 
-MeshShaderDemo::~MeshShaderDemo() {}
+MeshShaderDemo::~MeshShaderDemo() = default;
 
 void MeshShaderDemo::CreatePipelines() {
     CreateBackgroundComputePipeline();
@@ -70,6 +71,7 @@ void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
     Application::PollEvents(e, deltaTime);
 
     mMainCamera.ProcessSDLEvent(e, deltaTime);
+    mGui.PollEvent(e);
 }
 
 void MeshShaderDemo::Update_OnResize() {
@@ -81,8 +83,8 @@ void MeshShaderDemo::Update_OnResize() {
     mRenderResMgr.ResizeScreenSizeRelatedResources(extent);
 
     mBackgroundPass.OnResize(extent);
-    // mMeshDrawPass.OnResize(extent);
-    mMeshShaderPass.OnResize(extent);
+    mMeshDrawPass.OnResize(extent);
+    // mMeshShaderPass.OnResize(extent);
     mQuadDrawPass.OnResize(extent);
 }
 
@@ -136,12 +138,12 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        Type_STLString model = "Model30.stl";
+        Type_STLString model = "RM_HP_59930007DR0130HP000.fbx";
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
-        // mFactoryModel->GenerateBuffers(mContext.get(), this);
-        mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
+        mFactoryModel->GenerateBuffers(mContext.get(), this);
+        // mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model.c_str(),
@@ -173,13 +175,17 @@ void MeshShaderDemo::Prepare() {
     // }
 
     RecordDrawBackgroundCmds();
-    // RecordDrawMeshCmds();
-    RecordMeshShaderDrawCmds();
+    RecordDrawMeshCmds();
+    // RecordMeshShaderDrawCmds();
     RecordDrawQuadCmds();
+
+    PrepareUIContext();
 }
 
 void MeshShaderDemo::BeginFrame() {
     Application::BeginFrame();
+
+    mGui.BeginFrame();
 }
 
 void MeshShaderDemo::RenderFrame() {
@@ -217,8 +223,8 @@ void MeshShaderDemo::RenderFrame() {
     {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
 
-        // mMeshDrawPass.RecordCmd(cmd.GetHandle());
-        mMeshShaderPass.RecordCmd(cmd.GetHandle());
+        mMeshDrawPass.RecordCmd(cmd.GetHandle());
+        // mMeshShaderPass.RecordCmd(cmd.GetHandle());
 
         mQuadDrawPass.GetDrawCallManager().UpdateArgument_Attachments(
             {0}, {mSwapchain->GetColorAttachmentInfo(scIdx)});
@@ -230,6 +236,8 @@ void MeshShaderDemo::RenderFrame() {
             {});
 
         mQuadDrawPass.RecordCmd(cmd.GetHandle());
+
+        mGui.Draw(cmd.GetHandle());
 
         cmd.End();
 
@@ -667,4 +675,14 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
 void MeshShaderDemo::UpdateSceneUBO() {
     auto data = mRenderResMgr["SceneUniformBuffer"]->GetBufferMappedPtr();
     memcpy(data, &mSceneData, sizeof(mSceneData));
+}
+
+void MeshShaderDemo::PrepareUIContext() {
+    mGui.AddContext([&]() {
+        if (ImGui::Begin("SceneStats")) {
+            ImGui::SliderFloat3("Sun light position:",
+                               (float*)&mSceneData.sunLightPos, -1.0f, 1.0f);
+        }
+        ImGui::End();
+    });
 }
