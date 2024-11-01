@@ -2,8 +2,8 @@
 
 #include <filesystem>
 
-#include <vulkan/vulkan.hpp>
 #include <assimp/scene.h>
+#include <vulkan/vulkan.hpp>
 
 #include "Mesh.hpp"
 
@@ -42,8 +42,9 @@ struct MeshletPushConstants {
 
 class Geometry {
 public:
-    Geometry(const char* path, bool flipYZ = true);
-    Geometry(ModelData::CISDI_3DModel&& model);
+    Geometry(const char* path, bool flipYZ = true, const char* output = nullptr,
+             bool optimizeMesh = true, bool buildMeshlet = true,
+             bool optimizeMeshlet = true);
 
     void GenerateBuffers(Context* context, Application* engine);
     void GenerateMeshletBuffers(Context* context, Application* engine);
@@ -69,6 +70,12 @@ public:
     Buffer* GetMeshTaskIndirectCmdBuffer() const;
 
 private:
+    /*
+     * if "*.cisdi" model file exists, load existing "*.cisdi" model.
+     * else convert 3d model file into "*.cisdi" model file. then move here from memory.
+     */
+    void LoadModel(const char* output, bool optimizeMesh, bool buildMeshlet,
+                   bool optimizeMeshlet);
     void GenerateStats();
 
     // TODO: Texture

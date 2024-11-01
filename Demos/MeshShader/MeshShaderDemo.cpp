@@ -39,7 +39,7 @@ void MeshShaderDemo::LoadShaders() {
                                     SHADER_PATH_CSTR("MeshShader.frag"),
                                     vk::ShaderStageFlagBits::eFragment);
 
-    IDNS_VC::Type_ShaderMacros macros {};
+    Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
                    std::to_string(TASK_SHADER_INVOCATION_COUNT));
     mShaderMgr.CreateShaderFromGLSL(
@@ -132,35 +132,13 @@ void MeshShaderDemo::Prepare() {
 
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
-    // custom 3D model data
-    {
-        // IntelliDesign_NS::Core::Utils::Timer timer;
-        //
-        // Type_STLString model = "Model29-Welded.obj";
-        //
-        // mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
-        //
-        // mFactoryModel->GenerateBuffers(mContext.get(), this);
-        // mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
-        //
-        // auto duration_LoadModel = timer.End();
-        // printf("Load Geometry: %s, Time consumed: %f s", model.c_str(),
-        //        duration_LoadModel);
-    }
-
     // cisdi model data converter
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
         Type_STLString model = "Model30.stl";
 
-        // IntelliDesign_NS::ModelData::CISDI_3DModel::Convert(
-        //     MODEL_PATH_CSTR(model), true);
-
-        auto cisdiModel = IntelliDesign_NS::ModelData::CISDI_3DModel::Load(
-            (MODEL_PATH(model) + CISDI_3DModel_Subfix_Str).c_str());
-
-        mFactoryModel = MakeShared<Geometry>(::std::move(cisdiModel));
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
         // mFactoryModel->GenerateBuffers(mContext.get(), this);
         mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
@@ -170,29 +148,29 @@ void MeshShaderDemo::Prepare() {
                duration_LoadModel);
     }
 
-    {
-        const uint32_t modelCount = 30;
-        mModels.resize(modelCount);
-        IntelliDesign_NS::Core::Utils::Timer timer;
-
-        Type_STLString model = "equipment/Model";
-        Type_STLString postfix = ".stl";
-
-        for (uint32_t i = 0; i < modelCount; ++i) {
-            auto name = model + std::to_string(i).c_str() + postfix;
-            // IntelliDesign_NS::ModelData::CISDI_3DModel::Convert(
-            //     MODEL_PATH_CSTR(name), true);
-
-            auto cisdiModel = IntelliDesign_NS::ModelData::CISDI_3DModel::Load(
-                (MODEL_PATH(name) + CISDI_3DModel_Subfix_Str).c_str());
-
-            mModels[i] = MakeShared<Geometry>(::std::move(cisdiModel));
-            mModels[i]->GenerateMeshletBuffers(mContext.get(), this);
-        }
-
-        auto duration_LoadModel = timer.End();
-        printf("Time consumed: %f s. \n", duration_LoadModel);
-    }
+    // {
+    //     const uint32_t modelCount = 30;
+    //     mModels.resize(modelCount);
+    //     IntelliDesign_NS::Core::Utils::Timer timer;
+    //
+    //     Type_STLString model = "equipment/Model";
+    //     Type_STLString postfix = ".stl";
+    //
+    //     for (uint32_t i = 0; i < modelCount; ++i) {
+    //         auto name = model + std::to_string(i).c_str() + postfix;
+    //         // IntelliDesign_NS::ModelData::CISDI_3DModel::Convert(
+    //         //     MODEL_PATH_CSTR(name), true);
+    //
+    //         auto cisdiModel = IntelliDesign_NS::ModelData::CISDI_3DModel::Load(
+    //             (MODEL_PATH(name) + CISDI_3DModel_Subfix_Str).c_str());
+    //
+    //         mModels[i] = MakeShared<Geometry>(::std::move(cisdiModel));
+    //         mModels[i]->GenerateMeshletBuffers(mContext.get(), this);
+    //     }
+    //
+    //     auto duration_LoadModel = timer.End();
+    //     printf("Time consumed: %f s. \n", duration_LoadModel);
+    // }
 
     RecordDrawBackgroundCmds();
     // RecordDrawMeshCmds();
@@ -569,15 +547,6 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
                                               {drawImageBarrier});
     }
 
-    // dcMgr.AddArgument_IndexBuffer(
-    //     mFactoryModel->GetMeshBuffer().mIdxBuf->GetBufferHandle(), 0,
-    //     vk::IndexType::eUint32);
-    //
-    // dcMgr.AddArgument_DrawIndexedIndiret(
-    //     mFactoryModel->GetIndexedIndirectCmdBuffer()->GetHandle(), 0,
-    //     mFactoryModel->GetMeshCount(),
-    //     sizeof(vk::DrawIndexedIndirectCommand));
-
     dcMgr.AddArgument_DrawIndiret(
         mFactoryModel->GetIndirectCmdBuffer()->GetHandle(), 0,
         mFactoryModel->GetMeshCount(), sizeof(vk::DrawIndirectCommand));
@@ -683,16 +652,16 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     vk::Rect2D scissor {{0, 0}, {width, height}};
     dcMgr.AddArgument_Scissor(0, {scissor});
 
-    // dcMgr.AddArgument_DrawMeshTasksIndirect(
-    //     mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
-    //     mFactoryModel->GetMeshCount(),
-    //     sizeof(vk::DrawMeshTasksIndirectCommandEXT));
+    dcMgr.AddArgument_DrawMeshTasksIndirect(
+        mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
+        mFactoryModel->GetMeshCount(),
+        sizeof(vk::DrawMeshTasksIndirectCommandEXT));
 
-    for (auto const& model : mModels) {
-        dcMgr.AddArgument_DrawMeshTasksIndirect(
-            model->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
-            model->GetMeshCount(), sizeof(vk::DrawMeshTasksIndirectCommandEXT));
-    }
+    // for (auto const& model : mModels) {
+    //     dcMgr.AddArgument_DrawMeshTasksIndirect(
+    //         model->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
+    //         model->GetMeshCount(), sizeof(vk::DrawMeshTasksIndirectCommandEXT));
+    // }
 }
 
 void MeshShaderDemo::UpdateSceneUBO() {

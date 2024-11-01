@@ -1,25 +1,18 @@
 #include "Geometry.hpp"
 
-#include <assimp/postprocess.h>
-#include <assimp/Importer.hpp>
-
 #include "Core/Application/Application.hpp"
 #include "Core/Utilities/VulkanUtilities.hpp"
 #include "Core/Vulkan/Manager/Context.hpp"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Geometry::Geometry(const char* path, bool flipYZ)
+Geometry::Geometry(const char* path, bool flipYZ, const char* output,
+                   bool optimizeMesh, bool buildMeshlet, bool optimizeMeshlet)
     : mFlipYZ(flipYZ),
       mPath(path),
       mDirectory(::std::filesystem::path {mPath}.remove_filename()),
       mName(mPath.stem().generic_string()) {
-    // LoadModel();
-    GenerateStats();
-}
-
-Geometry::Geometry(ModelData::CISDI_3DModel&& model)
-    : mModelData(::std::move(model)) {
+    LoadModel(output, optimizeMesh, buildMeshlet, optimizeMeshlet);
     GenerateStats();
 }
 
@@ -473,6 +466,20 @@ Buffer* Geometry::GetIndirectCmdBuffer() const {
 
 Buffer* Geometry::GetMeshTaskIndirectCmdBuffer() const {
     return mMeshTaskIndirectCmdBuffer.get();
+}
+
+void Geometry::LoadModel(const char* output, bool optimizeMesh,
+                         bool buildMeshlet, bool optimizeMeshlet) {
+    auto modelPath = mPath.string();
+    auto cisdiModelPath = modelPath + CISDI_3DModel_Subfix_Str;
+    if (::std::filesystem::exists(cisdiModelPath)) {
+        mModelData = IntelliDesign_NS::ModelData::CISDI_3DModel::Load(
+            cisdiModelPath.c_str());
+    } else {
+        mModelData = IntelliDesign_NS::ModelData::CISDI_3DModel::Convert(
+            modelPath.c_str(), mFlipYZ, output, optimizeMesh, buildMeshlet,
+            optimizeMeshlet);
+    }
 }
 
 void Geometry::GenerateStats() {

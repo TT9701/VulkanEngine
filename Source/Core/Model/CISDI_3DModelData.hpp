@@ -73,7 +73,7 @@ struct CISDI_3DModel {
 
     Type_STLVector<Mesh> meshes;
 
-    static void Convert(const char* path, bool flipYZ,
+    static CISDI_3DModel Convert(const char* path, bool flipYZ,
                         const char* output = nullptr, bool optimizeMesh = true,
                         bool buildMeshlet = true, bool optimizeMeshlet = true);
 

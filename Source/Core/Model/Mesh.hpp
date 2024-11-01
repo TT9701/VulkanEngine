@@ -42,20 +42,4 @@ struct ExternalGPUMeshBuffers {
 };
 #endif
 
-// class Mesh {
-// public:
-//     Mesh(Type_STLVector<Vertex> const& vertices,
-//          Type_STLVector<uint32_t> const& indices);
-//
-//     Type_STLVector<Vertex> mVertices {};
-//     Type_STLVector<uint32_t> mIndices {};
-//
-//     // meshlet datas
-//     Type_STLVector<meshopt_Meshlet> mMeshlets {};
-//     Type_STLVector<uint32_t> mMeshletVertices {};
-//     Type_STLVector<uint8_t> mMeshletTriangles {};
-//
-//     // TODO: Textures
-// };
-
 }  // namespace IntelliDesign_NS::Vulkan::Core

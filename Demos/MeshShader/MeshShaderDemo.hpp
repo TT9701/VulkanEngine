@@ -64,7 +64,7 @@ private:
     SceneData mSceneData {};
     IDNS_VC::SharedPtr<IDNS_VC::Geometry> mFactoryModel {};
 
-    IDNS_VC::Type_STLVector<IDNS_VC::SharedPtr<IDNS_VC::Geometry>> mModels {};
+    // IDNS_VC::Type_STLVector<IDNS_VC::SharedPtr<IDNS_VC::Geometry>> mModels {};
 
     IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetPool> mDSPool;
 };

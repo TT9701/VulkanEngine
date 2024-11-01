@@ -275,7 +275,8 @@ void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
     }
 }
 
-void CISDI_3DModel::Convert(const char* path, bool flipYZ, const char* output,
+CISDI_3DModel CISDI_3DModel::Convert(const char* path, bool flipYZ,
+                                     const char* output,
                             bool optimizeMesh, bool buildMeshlet,
                             bool optimizeMeshlet) {
     auto outputPath = ProcessOutputPath(path, output);
@@ -316,6 +317,8 @@ void CISDI_3DModel::Convert(const char* path, bool flipYZ, const char* output,
     }
 
     WriteFile(outputPath.c_str(), data);
+
+    return data;
 }
 
 CISDI_3DModel CISDI_3DModel::Load(const char* path) {
