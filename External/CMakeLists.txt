@@ -2,8 +2,6 @@ cmake_minimum_required (VERSION 3.20)
 
 project (External)
 
-find_package(Vulkan REQUIRED)
-
 # set (BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Bin)
 # set (LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Lib)
 # set (INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Output/Include)
@@ -32,6 +30,9 @@ set_target_properties(meshoptimizer PROPERTIES FOLDER ${DLL_FOLDER_NAME})
 set (SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "Disable test" FORCE)
 add_subdirectory(SPIRV-Cross EXCLUDE_FROM_ALL)
 set_target_properties(spirv-cross-c PROPERTIES FOLDER ${LIB_FOLDER_NAME})
+
+add_subdirectory(imgui)
+set_target_properties(imgui PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
 
 # install (TARGETS SDL2
