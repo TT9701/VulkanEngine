@@ -128,12 +128,8 @@ PipelineBuilder<PipelineType::Graphics>::Build(const char* name,
     auto pipelineName = pManager->ParsePipelineName(name);
     auto pipelineLayoutName = pManager->ParsePipelineLayoutName(name);
 
-    ShaderStats shaderStatus {pProgram->GetCombinedDescLayoutHandles(),
-                              pProgram->GetCombinedPushConstants()};
-
     auto pipelineLayout = pManager->CreateLayout(
-        pipelineLayoutName.c_str(), pProgram->GetCombinedDescLayouts(),
-        shaderStatus);
+        pipelineLayoutName.c_str(), pProgram);
 
     vk::PipelineViewportStateCreateInfo viewportState {};
     viewportState.setViewportCount(1u).setScissorCount(1u);
@@ -245,12 +241,8 @@ PipelineBuilder<PipelineType::Compute>::Build(const char* name,
     auto pipelineName = pManager->ParsePipelineName(name);
     auto pipelineLayoutName = pManager->ParsePipelineLayoutName(name);
 
-    ShaderStats shaderStatus {pProgram->GetCombinedDescLayoutHandles(),
-                              pProgram->GetCombinedPushConstants()};
-
-    auto pipelineLayout = pManager->CreateLayout(
-        pipelineLayoutName.c_str(), pProgram->GetCombinedDescLayouts(),
-        shaderStatus);
+    auto pipelineLayout =
+        pManager->CreateLayout(pipelineLayoutName.c_str(), pProgram);
 
     vk::ComputePipelineCreateInfo info {};
     info.setFlags(mFlags)
@@ -283,12 +275,10 @@ void PipelineBuilder<PipelineType::Compute>::Clear() {
 PipelineManager::PipelineManager(Context* contex) : pContext(contex) {}
 
 SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
-    const char* name,
-    Type_STLVector<DescriptorSetLayout*> const& layoutDatas,
-    ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags,
-    void* pNext) {
-    const auto ptr = MakeShared<PipelineLayout>(pContext, layoutDatas,
-                                                stats, flags, pNext);
+    const char* name, ShaderProgram* program,
+    vk::PipelineLayoutCreateFlags flags, void* pNext) {
+    const auto ptr =
+        MakeShared<PipelineLayout>(pContext, program, flags, pNext);
 
     pContext->SetName(ptr->GetHandle(), name);
     mPipelineLayouts.emplace(name, ptr);

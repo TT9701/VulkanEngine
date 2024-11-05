@@ -28,7 +28,7 @@ void GUI::BeginFrame() {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    ImGui::ShowDemoWindow();
+    // ImGui::ShowDemoWindow();
 
     for (auto const& ctx : mUIContexts)
         ctx();

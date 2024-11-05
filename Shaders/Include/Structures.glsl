@@ -20,3 +20,19 @@ vec3 DecodeNormal(vec2 enc) {
 	n.x = -1 + f / 2;
 	return n;
 }
+
+vec3 BlinnPhong(vec3 lightDir, vec3 cameraPos, vec3 fragPos, vec3 normal, vec3 lightColor, vec3 objectColor) {
+	float diffuseStrength = 0.6;
+	float specularStrength = 0.2;
+	float ambientStrength = 1.0 - diffuseStrength - specularStrength;
+
+	lightDir = normalize(lightDir);
+	normal = normalize(normal);
+	vec3 viewDir = normalize(cameraPos - fragPos);
+	vec3 halfVec = normalize(lightDir + viewDir);
+
+	float diffuse = diffuseStrength * max(dot(normal, lightDir), 0.0);
+	float specular = specularStrength * pow(max(dot(halfVec, normal), 0.0), 32);
+
+	return (vec3(ambientStrength) + (diffuse + specular) * lightColor) * objectColor;
+}

@@ -142,10 +142,8 @@ public:
 
 private:
     SharedPtr<PipelineLayout> CreateLayout(
-        const char* name,
-        Type_STLVector<DescriptorSetLayout*> const& layoutDatas,
-        ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags = {},
-        void* pNext = nullptr);
+        const char* name, ShaderProgram* program,
+        vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
 
     Type_STLString ParsePipelineName(const char* pipelineName) const;
     Type_STLString ParsePipelineLayoutName(const char* pipelineName) const;

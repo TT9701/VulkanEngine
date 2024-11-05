@@ -93,6 +93,7 @@ layout(location = 0) out VertexOutput
 {
 	vec4 color;
 	vec3 normal;
+	vec3 pos;
 } vertexOutput[];
 
 struct Task {
@@ -137,21 +138,28 @@ void main()
 
 		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
 
-		gl_MeshVerticesEXT[idx].gl_Position = mvp * vec4(constants.posBuffer.position[meshVertexOffset + verticesID].xyz, 1.0);
+		vec4 pos = mvp * vec4(constants.posBuffer.position[meshVertexOffset + verticesID].xyz, 1.0);
+		gl_MeshVerticesEXT[idx].gl_Position = pos;
 
 		vec2 encodedNorm = constants.normBuffer.normal[meshVertexOffset + verticesID];
 		vec3 normal = DecodeNormal(encodedNorm);
 
 		vertexOutput[idx].normal = normal;
 		vertexOutput[idx].color = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
+		vertexOutput[idx].pos = pos.xyz;
 	}
 
 	UNROLL_LOOP
 	for (uint i = 0; i < MESHLET_PRIMITIVE_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
-		uint triID_0 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 0];
-		uint triID_1 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 1];
-		uint triID_2 = constants.meshletTriangleBuffer.meshletTriangles[meshletTriangleOffset + meshlet.triangleOffset + idx * 3 + 2];
+
+		uint temp = meshletTriangleOffset + meshlet.triangleOffset + idx * 3;
+
+		MeshletTriangleBuffer triBuffer = constants.meshletTriangleBuffer;
+
+		uint triID_0 = triBuffer.meshletTriangles[temp];
+		uint triID_1 = triBuffer.meshletTriangles[temp + 1];
+		uint triID_2 = triBuffer.meshletTriangles[temp + 2];
 		gl_PrimitiveTriangleIndicesEXT[idx] = uvec3(triID_0, triID_1, triID_2);
 	}
 }

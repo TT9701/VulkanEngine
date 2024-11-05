@@ -29,12 +29,12 @@ public:
                                   uint32_t arraySize = 1,
                                   uint32_t sampleCount = 1);
 
-    RenderResource* CreateScreenSizeRelatedBuffer(
+    RenderResource* CreateBuffer_ScreenSizeRelated(
         const char* name, size_t size, vk::BufferUsageFlags usage,
         Buffer::MemoryType memType, size_t texelSize = 1,
         Fn_SizeRelation fn = sFullSize);
 
-    RenderResource* CreateScreenSizeRelatedTexture(
+    RenderResource* CreateTexture_ScreenSizeRelated(
         const char* name, RenderResource::Type type, vk::Format format,
         vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels = 1,
         uint32_t arraySize = 1, uint32_t sampleCount = 1,
@@ -42,10 +42,10 @@ public:
 
     RenderResource* operator[](const char* name) const;
 
-    void ResizeScreenSizeRelatedResources(vk::Extent2D extent) const;
+    void ResizeResources_ScreenSizeRelated(vk::Extent2D extent) const;
 
     Type_Resource_SizeRelations const&
-    GetSrcreenSizeRelatedResources() const;
+    GetResources_SrcreenSizeRelated() const;
 
 private:
     static Fn_SizeRelation sFullSize;

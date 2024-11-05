@@ -113,14 +113,6 @@ public:
                                      uint32_t offset, uint32_t size,
                                      const void* pValues, uint32_t index = 0);
 
-    void UpdateArgument_DescriptorBuffer(
-        Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index = 0);
-
-    void UpdateArgument_DescriptorSet(
-        vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
-        uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
-        Type_STLVector<vk::DeviceSize> const& offsets, uint32_t index = 0);
-
     void UpdateArgument_IndexBuffer(vk::Buffer buffer, vk::DeviceSize offset,
                                     vk::IndexType type, uint32_t index = 0);
 

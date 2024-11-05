@@ -12,39 +12,34 @@ enum class PipelineType { Graphics, Compute };
 
 class Context;
 
-struct ShaderStats {
-    Type_STLVector<vk::DescriptorSetLayout> descSetLayouts;
-    Type_STLVector<vk::PushConstantRange> pushContant;
-};
-
 class PipelineLayout {
 public:
-    PipelineLayout(
-        Context* context,
-        Type_STLVector<DescriptorSetLayout*> const& descSetLayoutDatas,
-        ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags = {},
-        void* pNext = nullptr);
+    PipelineLayout(Context* context, ShaderProgram* program,
+                   vk::PipelineLayoutCreateFlags flags = {},
+                   void* pNext = nullptr);
     ~PipelineLayout();
     MOVABLE_ONLY(PipelineLayout);
 
 public:
     vk::PipelineLayout GetHandle() const { return mLayout; }
 
-    Type_STLVector<DescriptorSetLayout*> const& GetDescSetLayoutDatas()
+    Type_STLVector<DescriptorSetLayout*> GetDescSetLayoutDatas() const;
+
+    Type_STLVector<vk::PushConstantRange> GetPCRanges() const;
+
+    ShaderProgram::Type_CombinedPushContant const& GetCombinedPushContant()
         const;
 
-    Type_STLVector<vk::PushConstantRange> const& GetPushConstants() const;
+    Type_STLVector<Type_STLString> const& GetRTVNames() const;
 
 private:
-    vk::PipelineLayout CreateLayout(ShaderStats stats,
-                                    vk::PipelineLayoutCreateFlags flags,
+    vk::PipelineLayout CreateLayout(vk::PipelineLayoutCreateFlags flags,
                                     void* pNext) const;
 
 private:
     Context* pContext;
+    ShaderProgram* pProgram;
 
-    Type_STLVector<DescriptorSetLayout*> mDescSetLayoutDatas;
-    Type_STLVector<vk::PushConstantRange> mPushContantRanges;
     vk::PipelineLayout mLayout;
 };
 

@@ -44,7 +44,7 @@ RenderResource* RenderResourceManager::CreateTexture(
     return ptr.get();
 }
 
-RenderResource* RenderResourceManager::CreateScreenSizeRelatedBuffer(
+RenderResource* RenderResourceManager::CreateBuffer_ScreenSizeRelated(
     const char* name, size_t size, vk::BufferUsageFlags usage,
     Buffer::MemoryType memType, size_t texelSize, Fn_SizeRelation fn) {
     auto ptr = CreateBuffer(name, size, usage, memType, texelSize);
@@ -52,7 +52,7 @@ RenderResource* RenderResourceManager::CreateScreenSizeRelatedBuffer(
     return ptr;
 }
 
-RenderResource* RenderResourceManager::CreateScreenSizeRelatedTexture(
+RenderResource* RenderResourceManager::CreateTexture_ScreenSizeRelated(
     const char* name, RenderResource::Type type, vk::Format format,
     vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
     uint32_t arraySize, uint32_t sampleCount, Fn_SizeRelation fn) {
@@ -66,18 +66,17 @@ RenderResource* RenderResourceManager::operator[](const char* name) const {
     return mResources.at(name).get();
 }
 
-void RenderResourceManager::ResizeScreenSizeRelatedResources(
+void RenderResourceManager::ResizeResources_ScreenSizeRelated(
     vk::Extent2D extent) const {
     for (auto& screenSizeResource : mScreenSizeRalatedResources) {
         auto fn = screenSizeResource.second;
         auto newExtent = fn(extent);
-        mResources.at(screenSizeResource.first)
-            ->Resize(newExtent);
+        mResources.at(screenSizeResource.first)->Resize(newExtent);
     }
 }
 
 RenderResourceManager::Type_Resource_SizeRelations const&
-RenderResourceManager::GetSrcreenSizeRelatedResources() const {
+RenderResourceManager::GetResources_SrcreenSizeRelated() const {
     return mScreenSizeRalatedResources;
 }
 

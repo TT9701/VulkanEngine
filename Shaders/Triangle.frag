@@ -14,34 +14,14 @@ layout (set = 0, binding = 0) uniform SceneDataUBO{
 
 layout (set = 1, binding = 0) uniform sampler2D tex0;
 
-const vec3 objectColor = vec3(0.8, 0.8, 0.8);
 
 void main() 
 {
 	// vec3 objectColor = texture(tex0, inUV).xyz;
+	vec3 objectColor = vec3(0.8, 0.8, 0.8);
 
-	float ambientStrenth = 0.2;
-	vec3 lightPos = ubo.data.sunLightPos.xyz;
-	vec3 lightColor = ubo.data.sunLightColor.xyz;
-	vec3 cameraPos = ubo.data.cameraPos.xyz;
-	vec3 normal = normalize(inVertNormal);
-	vec3 lightDir = normalize(lightPos);
-	vec3 viewDir = normalize(cameraPos - inVertPosition);
-
-	// ambient
-	vec3 ambient = ambientStrenth * lightColor;
-
-	// diffuse
-	float diffuseStrenth = 0.6;
-	vec3 diffuse = max(dot(normal, lightDir), 0.0) * lightColor;
-
-	// specular
-	float specularStrength = 0.2;
-	vec3 halfVec = normalize(lightDir + viewDir);
-	vec3 specular = specularStrength * pow(max(dot(halfVec, normal), 0.0), 32) * lightColor;
-
-	vec3 result = (ambient + diffuse + specular) * objectColor;
+	vec3 result = BlinnPhong(ubo.data.sunLightPos.xyz, ubo.data.cameraPos.xyz, 
+		inVertPosition, inVertNormal, ubo.data.sunLightColor.xyz, objectColor);
 
 	outFragColor = vec4(result, 1.0);
-	// outFragColor = vec4(result, 1.0);
 }

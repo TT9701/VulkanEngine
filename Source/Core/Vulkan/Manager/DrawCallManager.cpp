@@ -383,24 +383,6 @@ void DrawCallManager::UpdateArgument_PushConstant(
     data->pValues = pValues;
 }
 
-void DrawCallManager::UpdateArgument_DescriptorBuffer(
-    Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::DescriptorBuffer>(index);
-    data->addresses = addresses;
-}
-
-void DrawCallManager::UpdateArgument_DescriptorSet(
-    vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
-    uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
-    Type_STLVector<vk::DeviceSize> const& offsets, uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::DescriptorSet>(index);
-    data->bindPoint = bindPoint;
-    data->layout = layout;
-    data->firstSet = firstSet;
-    data->bufferIndices = bufferIndices;
-    data->offsets = offsets;
-}
-
 void DrawCallManager::UpdateArgument_IndexBuffer(vk::Buffer buffer,
                                                  vk::DeviceSize offset,
                                                  vk::IndexType type,
@@ -620,7 +602,7 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
     Type_STLVector<Type_STLString> attachmentResourceNames {};
 
     for (auto const& resource :
-         pRenderResManager->GetSrcreenSizeRelatedResources()) {
+         pRenderResManager->GetResources_SrcreenSizeRelated()) {
         auto name = resource.first;
 
         if (mBarriers_BeforePass

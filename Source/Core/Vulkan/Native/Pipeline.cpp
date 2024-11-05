@@ -4,14 +4,11 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-PipelineLayout::PipelineLayout(
-    Context* context,
-    Type_STLVector<DescriptorSetLayout*> const& descSetLayoutDatas,
-    ShaderStats const& stats, vk::PipelineLayoutCreateFlags flags, void* pNext)
+PipelineLayout::PipelineLayout(Context* context, ShaderProgram* program,
+                               vk::PipelineLayoutCreateFlags flags, void* pNext)
     : pContext(context),
-      mDescSetLayoutDatas(descSetLayoutDatas),
-      mPushContantRanges(stats.pushContant),
-      mLayout(CreateLayout(stats, flags, pNext)) {
+      pProgram(program),
+      mLayout(CreateLayout(flags, pNext)) {
     int i = 0;
 }
 
@@ -19,21 +16,31 @@ PipelineLayout::~PipelineLayout() {
     pContext->GetDeviceHandle().destroy(mLayout);
 }
 
-Type_STLVector<DescriptorSetLayout*> const&
-PipelineLayout::GetDescSetLayoutDatas() const {
-    return mDescSetLayoutDatas;
+Type_STLVector<DescriptorSetLayout*> PipelineLayout::GetDescSetLayoutDatas()
+    const {
+    return pProgram->GetCombinedDescLayouts();
 }
 
-Type_STLVector<vk::PushConstantRange> const& PipelineLayout::GetPushConstants()
-    const {
-    return mPushContantRanges;
+Type_STLVector<vk::PushConstantRange> PipelineLayout::GetPCRanges() const {
+    return pProgram->GetPCRanges();
+}
+
+ShaderProgram::Type_CombinedPushContant const&
+PipelineLayout::GetCombinedPushContant() const {
+    return pProgram->mCombinedPushContants;
+}
+
+Type_STLVector<Type_STLString> const& PipelineLayout::GetRTVNames() const {
+    return pProgram->mRtvNames;
 }
 
 vk::PipelineLayout PipelineLayout::CreateLayout(
-    ShaderStats stats, vk::PipelineLayoutCreateFlags flags, void* pNext) const {
+    vk::PipelineLayoutCreateFlags flags, void* pNext) const {
     vk::PipelineLayoutCreateInfo info {};
-    info.setSetLayouts(stats.descSetLayouts)
-        .setPushConstantRanges(mPushContantRanges)
+    auto layouts = pProgram->GetCombinedDescLayoutHandles();
+    auto ranges = pProgram->GetPCRanges();
+    info.setSetLayouts(layouts)
+        .setPushConstantRanges(ranges)
         .setFlags(flags)
         .setPNext(pNext);
     return pContext->GetDeviceHandle().createPipelineLayout(info);

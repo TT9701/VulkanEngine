@@ -1,12 +1,13 @@
 #include "Shader.hpp"
 
-#include <stdexcept>
+#include "Core/Utilities/Defines.hpp"
+#include "Core/Vulkan/Manager/Context.hpp"
 
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>
 
-#include "Core/Utilities/Defines.hpp"
-#include "Core/Vulkan/Manager/Context.hpp"
+#include <regex>
+#include <stdexcept>
 
 namespace {
 
@@ -184,7 +185,7 @@ Shader::Shader(Context* context, const char* name, const char* sourcePath,
                Type_ShaderMacros const& defines, const char* entry, void* pNext)
     : pContext(context), mName(name), mEntry(entry), mStage(stage) {
     auto source = LoadShaderSource(sourcePath);
-    GLSLReflect_DescriptorBindingName(source);
+    GLSLReflect(source);
     mSPIRVBinaryCode = CompileGLSLSource("", source, stage, hasIncludes,
                                          defines, mEntry.c_str());
     mShader = CreateShader(pNext);
@@ -234,62 +235,82 @@ vk::ShaderModule Shader::CreateShader(void* pNext) const {
     return pContext->GetDeviceHandle().createShaderModule(createInfo);
 }
 
-void Shader::GLSLReflect_DescriptorBindingName(Type_STLString const& source) {
-    Type_STLVector<size_t> layoutOffsets {};
+void Shader::GLSLReflect(Type_STLString const& source) {
+    ::std::regex reg(R"(layout.*)");
+    ::std::smatch m;
+    auto pos = source.cbegin();
+    auto end = source.cend();
 
-    size_t idx = 0;
-    while (true) {
-        auto newIdx = source.find("layout", idx + 1);
-        if (newIdx != Type_STLString::npos) {
-            layoutOffsets.push_back(newIdx);
-            idx = newIdx;
-        } else {
+    Type_STLVector<Type_STLString> layouts;
+    for (; ::std::regex_search(pos, end, m, reg); pos = m.suffix().first) {
+        layouts.emplace_back(m.str().c_str());
+    }
+
+    // match descriptor layouts
+    GLSLReflect_DescriptorBindingName(layouts);
+
+    // match push contants
+    GLSLReflect_PushConstantName(layouts);
+
+    // match outputs
+    GLSLReflect_OutVarName(layouts);
+}
+
+void Shader::GLSLReflect_DescriptorBindingName(
+    Type_STLVector<Type_STLString> const& layouts) {
+    ::std::regex reg(
+        R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*\)\s*(buffer|uniform)\s*(image2D|sampler2D)*\s+(.*)\s*[;|{|\s])");
+    ::std::smatch m;
+    for (auto const& layout : layouts) {
+        auto pos = layout.cbegin();
+        auto end = layout.cend();
+
+        if (::std::regex_match(pos, end, m, reg)) {
+            GLSL_SetBindingInfo info;
+            ::std::string name;
+            info.set = atoi(m.str(2).c_str());
+            info.binding = atoi(m.str(4).c_str());
+            name = m.str(7);
+            ::std::erase(name, ' ');
+
+            mGLSL_SetBindingNameMap.emplace_back(info, name);
+        }
+    }
+}
+
+void Shader::GLSLReflect_PushConstantName(
+    Type_STLVector<Type_STLString> const& layouts) {
+    ::std::smatch m;
+    ::std::regex pcReg(
+        R"(.*\(\s*(push_constant)\s*\)\s+(uniform)\s+(.*)\s*\{*)");
+    for (auto const& layout : layouts) {
+        if (::std::regex_match(layout.cbegin(), layout.cend(), m, pcReg)) {
+            auto name = m.str(3);
+            ::std::erase(name, ' ');
+            mGLSL_PushContantName = name;
             break;
         }
     }
+}
 
-    auto findFirstDigit = [](Type_STLString const& str) {
-        for (size_t i = 0; i < str.size(); ++i) {
-            if (::std::isdigit(str[i]))
-                return uint64_t(str[i] - '0');
+void Shader::GLSLReflect_OutVarName(
+    Type_STLVector<Type_STLString> const& layouts) {
+    Type_STLMap<uint32_t, Type_STLString> tempMap;
+
+    ::std::smatch m;
+    ::std::regex pcReg(
+        R"(.*\(\s*(location)\s*=\s*([0-9])\s*\)\s+(out)\s+([^\s]*)\s*(.*)+\s*[;|{])");
+    for (auto const& layout : layouts) {
+        if (::std::regex_match(layout.cbegin(), layout.cend(), m, pcReg)) {
+            uint32_t idx = atoi(m.str(2).c_str());
+            auto name = m.str(5);
+            ::std::erase(name, ' ');
+            tempMap.emplace(idx, name);
         }
-        return Type_STLString::npos;
-    };
+    }
 
-    for (auto const& offset : layoutOffsets) {
-        auto endingOffset = source.find('\n', offset);
-        auto layoutString =
-            source.substr(offset + 6, endingOffset - offset - 7);
-
-        auto leftbracketOffset = layoutString.find('(');
-        auto rightbracketOffset = layoutString.find(')', leftbracketOffset + 1);
-        auto bracketString = layoutString.substr(
-            leftbracketOffset + 1, rightbracketOffset - leftbracketOffset - 1);
-
-        auto setOffset = bracketString.find("set");
-        auto bindingOffset = bracketString.find("binding");
-
-        if (setOffset == Type_STLString::npos
-            && bindingOffset == Type_STLString::npos)
-            continue;
-
-        GLSL_SetBindingInfo info;
-        auto set = findFirstDigit(bracketString.substr(setOffset));
-        if (set != Type_STLString::npos) {
-            info.set = set;
-        } else {
-            info.set = 0;
-        }
-        auto binding = findFirstDigit(bracketString.substr(bindingOffset));
-        if (binding != Type_STLString::npos) {
-            info.binding = binding;
-        } else {
-            info.binding = 0;
-        }
-
-        auto name = layoutString.substr(layoutString.rfind(' ') + 1);
-
-        mGLSL_SetBindingNameMap.emplace_back(info, name);
+    for (auto const& [_, name] : tempMap) {
+        mGLSL_OutVarNames.push_back(name);
     }
 }
 
@@ -329,8 +350,16 @@ ShaderProgram::GetShaderArray() const {
     return pShaders;
 }
 
-Type_STLVector<vk::PushConstantRange> const&
-ShaderProgram::GetCombinedPushConstants() const {
+Type_STLVector<vk::PushConstantRange> ShaderProgram::GetPCRanges() const {
+    Type_STLVector<vk::PushConstantRange> temp;
+    for (auto const& pc : mCombinedPushContants) {
+        temp.push_back(pc.second);
+    }
+    return temp;
+}
+
+ShaderProgram::Type_CombinedPushContant const&
+ShaderProgram::GetCombinedPushContant() const {
     return mCombinedPushContants;
 }
 
@@ -361,6 +390,10 @@ void ShaderProgram::SetShader(ShaderStage stage, Shader* shader) {
 void ShaderProgram::GenerateProgram(void* layoutPNext) {
     MergeDescLayoutDatas(layoutPNext);
     MergePushContantDatas();
+
+    if (auto frag = pShaders[Utils::EnumCast(ShaderStage::Fragment)]) {
+        mRtvNames = frag->mGLSL_OutVarNames;
+    }
 }
 
 void ShaderProgram::MergeDescLayoutDatas(void* pNext) {
@@ -462,7 +495,8 @@ void ShaderProgram::MergePushContantDatas() {
     for (auto const& shader : pShaders)
         if (shader)
             if (auto data = shader->mPushContantData)
-                mCombinedPushContants.push_back(*data);
+                mCombinedPushContants.emplace_back(
+                    shader->mGLSL_PushContantName, *data);
 }
 
 void ShaderProgram::CreateDescLayouts(

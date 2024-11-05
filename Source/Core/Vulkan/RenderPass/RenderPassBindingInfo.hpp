@@ -16,7 +16,7 @@ class RenderResourceManager;
 
 namespace RenderPassBinding {
 
-enum class Type { PushContant, RTV, DSV, RenderInfo, Count };
+enum class Type { DSV, RenderInfo, Count };
 
 struct PushContants {
     uint32_t size;
@@ -33,18 +33,8 @@ template <Type Type>
 struct TypeTraits;
 
 template <>
-struct TypeTraits<Type::PushContant> {
-    using value = Type_STLVector<PushContants>;
-};
-
-template <>
-struct TypeTraits<Type::RTV> {
-    using value = Type_STLVector<::std::array<Type_STLString, 2>>;
-};
-
-template <>
 struct TypeTraits<Type::DSV> {
-    using value = ::std::array<Type_STLString, 2>;
+    using value = Type_STLVector<Type_STLString>;
 };
 
 template <>
@@ -63,24 +53,19 @@ class RenderPassBindingInfo {
         using Type_PC = RenderPassBinding::PushContants;
         using Type_RenderInfo = RenderPassBinding::RenderInfo;
         using Type_Value =
-            ::std::variant<Type_STLVector<Type_PC>,
-                           Type_STLVector<::std::array<Type_STLString, 2>>,
-                           ::std::array<Type_STLString, 2>, Type_RenderInfo>;
+            ::std::variant<Type_STLString, Type_PC,
+                           Type_STLVector<Type_STLString>, Type_RenderInfo>;
 
     public:
-        // dsv
-        Type_BindingValue(::std::array<const char*, 2> const& str);
-        Type_BindingValue(::std::array<Type_STLString, 2> const& str);
+        Type_BindingValue(const char* str);
+        Type_BindingValue(Type_STLString const& str);
 
-        // rtvs
-        Type_BindingValue(
-            ::std::initializer_list<::std::array<const char*, 2>> strs);
-        Type_BindingValue(
-            Type_STLVector<::std::array<Type_STLString, 2>> const& strs);
+        // image name + view name
+        Type_BindingValue(::std::initializer_list<Type_STLString> const& str);
+        Type_BindingValue(Type_STLVector<Type_STLString> const& str);
 
         // push constants
         Type_BindingValue(Type_PC const& data);
-        Type_BindingValue(Type_STLVector<Type_PC> const& data);
 
         // render info
         Type_BindingValue(Type_RenderInfo const& info);
@@ -97,7 +82,7 @@ public:
                      const char* pipelineLayoutName = nullptr);
 
     Type_BindingValue& operator[](RenderPassBinding::Type type);
-    Type_STLString& operator[](const char* name);
+    Type_BindingValue& operator[](const char* name);
     // auto& operator[](EnumType shaderStage);
 
     void OnResize(vk::Extent2D extent);
@@ -130,7 +115,10 @@ private:
 
     Type_STLUnorderedMap<RenderPassBinding::Type, Type_BindingValue>
         mBuiltInInfos {};
-    Type_STLUnorderedMap_String<Type_STLString> mDescInfos {};
+    Type_STLUnorderedMap_String<Type_BindingValue> mDescInfos {};
+    Type_STLUnorderedMap_String<Type_BindingValue> mPCInfos {};
+    Type_STLVector<::std::pair<Type_STLString, Type_BindingValue>> mRTVInfos {};
+
     Type_STLString mPipelineName;
     Type_STLString mPipelineLayoutName;
     vk::PipelineBindPoint mBindPoint;
@@ -143,8 +131,8 @@ private:
         if constexpr (Type == RenderPassBinding::Type::Count) {
             return;
         } else {
-            mBuiltInInfos.emplace(
-                Type, typename RenderPassBinding::TypeTraits<Type>::value {});
+            mBuiltInInfos.emplace(Type,
+                                  RenderPassBinding::TypeTraits_t<Type> {});
             return InitBuiltInInfo<static_cast<RenderPassBinding::Type>(
                 Utils::EnumCast(Type) + 1)>();
         }

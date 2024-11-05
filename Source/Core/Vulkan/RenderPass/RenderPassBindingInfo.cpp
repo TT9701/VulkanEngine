@@ -7,35 +7,22 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
-    std::array<const char*, 2> const& str)
-    : value(::std::array<Type_STLString, 2> {str[0], str[1]}) {}
+RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(const char* str)
+    : value(Type_STLString {str}) {}
 
 RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
-    std::array<Type_STLString, 2> const& str)
+    Type_STLString const& str)
     : value(str) {}
 
 RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
-    std::initializer_list<std::array<const char*, 2>> strs)
-    : value(Type_STLVector<::std::array<Type_STLString, 2>> {}) {
-    for (auto const& str : strs) {
-        ::std::array<Type_STLString, 2> temp {str[0], str[1]};
-        ::std::get<Type_STLVector<::std::array<Type_STLString, 2>>>(value)
-            .push_back(temp);
-    }
-}
+    ::std::initializer_list<Type_STLString> const& str)
+    : value(Type_STLVector<Type_STLString> {str}) {}
 
 RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
-    Type_STLVector<std::array<Type_STLString, 2>> const& strs)
-    : value(strs) {}
+    Type_STLVector<Type_STLString> const& str)
+    : value(str) {}
 
 RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(Type_PC const& data)
-    : value(Type_STLVector<Type_PC> {}) {
-    ::std::get<Type_STLVector<Type_PC>>(value).push_back(data);
-}
-
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
-    Type_STLVector<Type_PC> const& data)
     : value(data) {}
 
 RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
@@ -80,7 +67,8 @@ auto isPrefix = [](std::string_view prefix, std::string_view full) {
 
 }  // namespace
 
-Type_STLString& RenderPassBindingInfo::operator[](const char* name) {
+RenderPassBindingInfo::Type_BindingValue& RenderPassBindingInfo::operator[](
+    const char* name) {
     // Descriptor set resources
     Type_STLVector<Type_STLString> matched;
     for (auto const& [k, _] : mDescInfos) {
@@ -93,6 +81,19 @@ Type_STLString& RenderPassBindingInfo::operator[](const char* name) {
             return mDescInfos.at(matched.front());
         } else {
             // TODO: deal with same name bindings
+        }
+    }
+
+    // push constant resources
+    for (auto& pc : mPCInfos) {
+        if (pc.first == name)
+            return pc.second;
+    }
+
+    // rtv resources
+    for (auto& rtv : mRTVInfos) {
+        if (rtv.first == name) {
+            return rtv.second;
         }
     }
 
@@ -114,61 +115,56 @@ void RenderPassBindingInfo::GenerateMetaData(void* descriptorPNext) {
     CreateDescriptorSets(descriptorPNext);
     BindDescriptorSets();
 
+    // push constant infos
+    Type_STLVector<RenderPassBinding::PushContants> pcData;
+    for (auto const& pcInfo : mPCInfos) {
+        pcData.push_back(
+            ::std::get<RenderPassBinding::PushContants>(pcInfo.second.value));
+    }
+    GeneratePushContantMetaData(pcData);
+
     // render infos
-    bool isSwapchainImage {false};
     Type_STLVector<RenderingAttachmentInfo> colors {};
     RenderingAttachmentInfo depthStencil {};
     RenderPassBinding::RenderInfo renderInfo {};
 
+    // color attachment
+    for (auto const& [_, info] : mRTVInfos) {
+        auto colorImage =
+            ::std::get<Type_STLVector<Type_STLString>>(info.value);
+
+        vk::RenderingAttachmentInfo color {};
+        color.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            .setLoadOp(vk::AttachmentLoadOp::eDontCare)
+            .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+        const char* imageName = colorImage[0].c_str();
+        const char* viewName = nullptr;
+
+        if (colorImage[0] == Type_STLString {"_Swapchain_"}) {
+            auto idx = pSwapchain->GetCurrentImageIndex();
+            viewName = ::std::to_string(idx).c_str();
+            color.setImageView(pSwapchain->GetImageViewHandle(idx));
+        } else {
+            if (!colorImage[1].empty()) {
+                viewName = colorImage[1].c_str();
+            }
+            color.setImageView(
+                (*pResMgr)[imageName]->GetTexViewHandle(viewName));
+        }
+
+        colors.emplace_back(imageName, viewName, color);
+    }
+
     for (auto& [type, v] : mBuiltInInfos) {
         switch (type) {
-            case RenderPassBinding::Type::PushContant: {
-                GeneratePushContantMetaData(
-                    ::std::get<Type_STLVector<RenderPassBinding::PushContants>>(
-                        v.value));
-                break;
-            }
-            case RenderPassBinding::Type::RTV: {
-                auto const& colorImages =
-                    ::std::get<Type_STLVector<::std::array<Type_STLString, 2>>>(
-                        v.value);
-                if (colorImages.empty())
-                    break;
-
-                for (auto image : colorImages) {
-                    vk::RenderingAttachmentInfo color {};
-                    color
-                        .setImageLayout(
-                            vk::ImageLayout::eColorAttachmentOptimal)
-                        .setLoadOp(vk::AttachmentLoadOp::eDontCare)
-                        .setStoreOp(vk::AttachmentStoreOp::eStore);
-
-                    const char* imageName = image[0].c_str();
-                    const char* viewName = nullptr;
-
-                    if (image[0] == Type_STLString {"_Swapchain_"}) {
-                        auto idx = pSwapchain->GetCurrentImageIndex();
-                        viewName = ::std::to_string(idx).c_str();
-                        color.setImageView(pSwapchain->GetImageViewHandle(idx));
-                    } else {
-                        if (!image[1].empty()) {
-                            viewName = image[1].c_str();
-                        }
-                        color.setImageView(
-                            (*pResMgr)[imageName]->GetTexViewHandle(viewName));
-                    }
-
-                    colors.emplace_back(imageName, viewName, color);
-                }
-                break;
-            }
             case RenderPassBinding::Type::DSV: {
                 auto const& depthImage =
-                    ::std::get<::std::array<Type_STLString, 2>>(v.value);
-                depthStencil.imageName = depthImage[0];
-                depthStencil.viewName = {};
-                if (depthStencil.imageName.empty())
+                    ::std::get<Type_STLVector<Type_STLString>>(v.value);
+                if (depthImage.empty())
                     break;
+
+                depthStencil.imageName = depthImage[0];
 
                 depthStencil.info
                     .setImageLayout(
@@ -208,7 +204,7 @@ DrawCallManager& RenderPassBindingInfo::GetDrawCallManager() {
 }
 
 void RenderPassBindingInfo::InitBuiltInInfos() {
-    InitBuiltInInfo<RenderPassBinding::Type::PushContant>();
+    InitBuiltInInfo<static_cast<RenderPassBinding::Type>(0)>();
 }
 
 void RenderPassBindingInfo::GeneratePipelineMetaData(::std::string_view name) {
@@ -239,12 +235,21 @@ void RenderPassBindingInfo::GeneratePipelineMetaData(::std::string_view name) {
             mDescInfos.emplace(data.bindingNames[i], Type_STLString {});
         }
     }
+
+    for (auto const& pc : layout->GetCombinedPushContant()) {
+        auto pcName = pc.first;
+        mPCInfos.emplace(pcName, RenderPassBinding::PushContants {});
+    }
+
+    for (auto const& rtv : layout->GetRTVNames()) {
+        mRTVInfos.emplace_back(rtv, Type_STLVector<Type_STLString> {});
+    }
 }
 
 void RenderPassBindingInfo::GeneratePushContantMetaData(
     Type_STLVector<RenderPassBinding::PushContants> const& data) {
     auto const& ranges =
-        pPipelineMgr->GetLayout(mPipelineName.c_str())->GetPushConstants();
+        pPipelineMgr->GetLayout(mPipelineName.c_str())->GetPCRanges();
     uint32_t count = ranges.size();
     assert(count == data.size());
 
@@ -302,7 +307,8 @@ void RenderPassBindingInfo::CreateDescriptorSets(void* descriptorPNext) {
              ++binding) {
             auto param = descLayout->GetData().bindingNames[binding];
 
-            auto argument = mDescInfos.at(param);
+            auto argument =
+                ::std::get<Type_STLString>(mDescInfos.at(param).value);
             if (argument.empty())
                 continue;
 

@@ -83,7 +83,12 @@ public:
 private:
     vk::ShaderModule CreateShader(void* pNext) const;
 
-    void GLSLReflect_DescriptorBindingName(Type_STLString const& source);
+    void GLSLReflect(Type_STLString const& source);
+    void GLSLReflect_DescriptorBindingName(
+        Type_STLVector<Type_STLString> const& layouts);
+    void GLSLReflect_PushConstantName(
+        Type_STLVector<Type_STLString> const& layouts);
+    void GLSLReflect_OutVarName(Type_STLVector<Type_STLString> const& layouts);
 
 private:
     Context* pContext;
@@ -95,6 +100,8 @@ private:
     Type_STLVector<uint32_t> mSPIRVBinaryCode {};
 
     Type_GLSL_SetBindingName_Map mGLSL_SetBindingNameMap {};
+    Type_STLString mGLSL_PushContantName {};
+    Type_STLVector<Type_STLString> mGLSL_OutVarNames {};
 
     vk::ShaderModule mShader {};
 
@@ -106,6 +113,14 @@ private:
 };
 
 class ShaderProgram {
+    friend class PipelineLayout;
+
+public:
+    using Type_CombinedPushContant =
+        Type_STLVector<::std::pair<Type_STLString, vk::PushConstantRange>>;
+    using Type_ShaderArray =
+        ::std::array<Shader*, Utils::EnumCast(ShaderStage::Count)>;
+
 public:
     ShaderProgram(Shader* comp, void* layoutPNext = nullptr);
     ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext = nullptr);
@@ -118,11 +133,10 @@ public:
     const Shader* operator[](ShaderStage stage) const;
     Shader* operator[](ShaderStage stage);
 
-    ::std::array<Shader*, Utils::EnumCast(ShaderStage::Count)> GetShaderArray()
-        const;
+    Type_ShaderArray GetShaderArray() const;
 
-    Type_STLVector<vk::PushConstantRange> const& GetCombinedPushConstants()
-        const;
+    Type_STLVector<vk::PushConstantRange> GetPCRanges() const;
+    Type_CombinedPushContant const& GetCombinedPushContant() const;
 
     Type_STLVector<DescriptorSetLayout*> GetCombinedDescLayouts() const;
     Type_STLVector<vk::DescriptorSetLayout> GetCombinedDescLayoutHandles()
@@ -140,12 +154,13 @@ private:
 
 private:
     Context* pContext;
-    ::std::array<Shader*, Utils::EnumCast(ShaderStage::Count)> pShaders {
-        nullptr};
+    Type_ShaderArray pShaders {nullptr};
 
-    Type_STLVector<vk::PushConstantRange> mCombinedPushContants {};
+    Type_CombinedPushContant mCombinedPushContants {};
 
     Type_STLVector<SharedPtr<DescriptorSetLayout>> mDescLayouts {};
+
+    Type_STLVector<Type_STLString> mRtvNames {};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -2,7 +2,6 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
-// #extension ARB_shader_draw_parameters : require
 
 layout (location = 0) out vec3 outVertPosition;
 layout (location = 1) out vec3 outVertNormal;

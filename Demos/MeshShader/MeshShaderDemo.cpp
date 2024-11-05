@@ -38,7 +38,7 @@ void MeshShaderDemo::LoadShaders() {
 
     mShaderMgr.CreateShaderFromGLSL("Mesh shader fragment",
                                     SHADER_PATH_CSTR("MeshShader.frag"),
-                                    vk::ShaderStageFlagBits::eFragment);
+                                    vk::ShaderStageFlagBits::eFragment, true);
 
     Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
@@ -80,11 +80,11 @@ void MeshShaderDemo::Update_OnResize() {
     vk::Extent2D extent = {static_cast<uint32_t>(mWindow->GetWidth()),
                            static_cast<uint32_t>(mWindow->GetHeight())};
 
-    mRenderResMgr.ResizeScreenSizeRelatedResources(extent);
+    mRenderResMgr.ResizeResources_ScreenSizeRelated(extent);
 
     mBackgroundPass.OnResize(extent);
-    mMeshDrawPass.OnResize(extent);
-    // mMeshShaderPass.OnResize(extent);
+    // mMeshDrawPass.OnResize(extent);
+    mMeshShaderPass.OnResize(extent);
     mQuadDrawPass.OnResize(extent);
 }
 
@@ -125,7 +125,7 @@ void MeshShaderDemo::Prepare() {
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
         Buffer::MemoryType::Staging);
 
-    mRenderResMgr.CreateScreenSizeRelatedBuffer(
+    mRenderResMgr.CreateBuffer_ScreenSizeRelated(
         "RWBuffer",
         sizeof(glm::vec4) * mWindow->GetWidth() * mWindow->GetHeight(),
         vk::BufferUsageFlagBits::eStorageBuffer
@@ -142,8 +142,8 @@ void MeshShaderDemo::Prepare() {
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
-        mFactoryModel->GenerateBuffers(mContext.get(), this);
-        // mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
+        // mFactoryModel->GenerateBuffers(mContext.get(), this);
+        mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model.c_str(),
@@ -175,8 +175,8 @@ void MeshShaderDemo::Prepare() {
     // }
 
     RecordDrawBackgroundCmds();
-    RecordDrawMeshCmds();
-    // RecordMeshShaderDrawCmds();
+    // RecordDrawMeshCmds();
+    RecordMeshShaderDrawCmds();
     RecordDrawQuadCmds();
 
     PrepareUIContext();
@@ -223,8 +223,8 @@ void MeshShaderDemo::RenderFrame() {
     {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
 
-        mMeshDrawPass.RecordCmd(cmd.GetHandle());
-        // mMeshShaderPass.RecordCmd(cmd.GetHandle());
+        // mMeshDrawPass.RecordCmd(cmd.GetHandle());
+        mMeshShaderPass.RecordCmd(cmd.GetHandle());
 
         mQuadDrawPass.GetDrawCallManager().UpdateArgument_Attachments(
             {0}, {mSwapchain->GetColorAttachmentInfo(scIdx)});
@@ -285,7 +285,7 @@ void MeshShaderDemo::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
-    auto ptr = mRenderResMgr.CreateScreenSizeRelatedTexture(
+    auto ptr = mRenderResMgr.CreateTexture_ScreenSizeRelated(
         "DrawImage", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
     ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
@@ -299,7 +299,7 @@ void MeshShaderDemo::CreateDepthImage() {
     vk::ImageUsageFlags depthImageUsage {};
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-    auto ptr = mRenderResMgr.CreateScreenSizeRelatedTexture(
+    auto ptr = mRenderResMgr.CreateTexture_ScreenSizeRelated(
         "DepthImage", RenderResource::Type::Texture2D,
         vk::Format::eD24UnormS8Uint, depthImageExtent, depthImageUsage);
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
@@ -512,17 +512,17 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     {
         mMeshDrawPass.SetPipeline("TriangleDraw");
 
-        mMeshDrawPass[RenderPassBinding::Type::PushContant] =
-            RenderPassBinding::PushContants {sizeof(*pPushConstants),
-                                             pPushConstants};
+        mMeshDrawPass["constants"] = RenderPassBinding::PushContants {
+            sizeof(*pPushConstants), pPushConstants};
 
         mMeshDrawPass["SceneDataUBO"] = "SceneUniformBuffer";
         mMeshDrawPass["tex0"] = "ErrorCheckImage";
 
-        mMeshDrawPass[RenderPassBinding::Type::RTV] = {
-            ::std::array {"DrawImage", "Color-Whole"}};
-        mMeshDrawPass[RenderPassBinding::Type::DSV] =
-            ::std::array {"DepthImage", "Depth-Whole"};
+        mMeshDrawPass["outFragColor"] = {"DrawImage", "Color-Whole"};
+
+        mMeshDrawPass[RenderPassBinding::Type::DSV] = {"DepthImage",
+                                                       "Depth-Whole"};
+
         mMeshDrawPass[RenderPassBinding::Type::RenderInfo] =
             RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
@@ -569,8 +569,8 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
 
         mQuadDrawPass["tex0"] = "DrawImage";
 
-        mQuadDrawPass[RenderPassBinding::Type::RTV] = {
-            ::std::array {"_Swapchain_", ""}};
+        mQuadDrawPass["outFragColor"] = {"_Swapchain_", ""};
+
         mQuadDrawPass[RenderPassBinding::Type::RenderInfo] =
             RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
@@ -622,16 +622,15 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     {
         mMeshShaderPass.SetPipeline("MeshShaderDraw");
 
-        mMeshShaderPass[RenderPassBinding::Type::PushContant] =
-            RenderPassBinding::PushContants {sizeof(*meshPushContants),
-                                             meshPushContants};
+        mMeshShaderPass["PushConstants"] = RenderPassBinding::PushContants {
+            sizeof(*meshPushContants), meshPushContants};
 
         mMeshShaderPass["UBO"] = "SceneUniformBuffer";
 
-        mMeshShaderPass[RenderPassBinding::Type::RTV] = {
-            ::std::array {"DrawImage", "Color-Whole"}};
-        mMeshShaderPass[RenderPassBinding::Type::DSV] =
-            ::std::array {"DepthImage", "Depth-Whole"};
+        mMeshShaderPass["outFragColor"] = {"DrawImage", "Color-Whole"};
+        mMeshShaderPass[RenderPassBinding::Type::DSV] = {"DepthImage",
+                                                         "Depth-Whole"};
+
         mMeshShaderPass[RenderPassBinding::Type::RenderInfo] =
             RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
@@ -680,8 +679,8 @@ void MeshShaderDemo::UpdateSceneUBO() {
 void MeshShaderDemo::PrepareUIContext() {
     mGui.AddContext([&]() {
         if (ImGui::Begin("SceneStats")) {
-            ImGui::SliderFloat3("Sun light position:",
-                               (float*)&mSceneData.sunLightPos, -1.0f, 1.0f);
+            ImGui::SliderFloat3("Sun light position",
+                                (float*)&mSceneData.sunLightPos, -1.0f, 1.0f);
         }
         ImGui::End();
     });
