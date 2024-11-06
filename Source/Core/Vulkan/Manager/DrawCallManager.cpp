@@ -1,6 +1,6 @@
 #include "DrawCallManager.h"
 
-#include "RenderResourceManager.hpp"
+#include "RenderResourceManager.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

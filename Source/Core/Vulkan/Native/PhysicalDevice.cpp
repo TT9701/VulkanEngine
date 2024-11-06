@@ -1,8 +1,8 @@
-#include "PhysicalDevice.hpp"
+#include "PhysicalDevice.h"
 
-#include "Core/Utilities/Defines.hpp"
-#include "Core/Utilities/Logger.hpp"
-#include "Instance.hpp"
+#include "Core/Utilities/Defines.h"
+#include "Core/Utilities/Logger.h"
+#include "Instance.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

@@ -3,99 +3,97 @@ find_package(Vulkan REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
 
 set (UTILITIES_SRC 
-    Utilities/Logger.hpp
-    Utilities/VulkanUtilities.hpp
+    Utilities/Logger.h
+    Utilities/VulkanUtilities.h
     Utilities/VulkanUtilities.cpp
-    Utilities/MemoryPool.hpp
+    Utilities/MemoryPool.h
     Utilities/MemoryPool.cpp
-    Utilities/Defines.hpp
-    Utilities/Camera.hpp
+    Utilities/Defines.h
+    Utilities/Camera.h
     Utilities/Camera.cpp
     Utilities/Functor.hpp
-    Utilities/Functor.cpp
-    Utilities/Timer.hpp
+    Utilities/Timer.h
     Utilities/Timer.cpp
-    Utilities/GUI.hpp
+    Utilities/GUI.h
     Utilities/GUI.cpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
 set (APPLICATION_SRC 
-    Application/Application.hpp
+    Application/Application.h
     Application/Application.cpp
     Application/EntryPoint.h
 )
 set (APPLICATION_SRC_GROUP_NAME "Application")
 
 set (VULKAN_CORE_SRC 
-    Vulkan/Native/Instance.hpp
+    Vulkan/Native/Instance.h
     Vulkan/Native/Instance.cpp
-    Vulkan/Native/DebugUtils.hpp
+    Vulkan/Native/DebugUtils.h
     Vulkan/Native/DebugUtils.cpp
-    Vulkan/Native/Surface.hpp
+    Vulkan/Native/Surface.h
     Vulkan/Native/Surface.cpp
-    Vulkan/Native/PhysicalDevice.hpp
+    Vulkan/Native/PhysicalDevice.h
     Vulkan/Native/PhysicalDevice.cpp
-    Vulkan/Native/Device.hpp
+    Vulkan/Native/Device.h
     Vulkan/Native/Device.cpp
-    Vulkan/Native/MemoryAllocator.hpp
+    Vulkan/Native/MemoryAllocator.h
     Vulkan/Native/MemoryAllocator.cpp
-    Vulkan/Native/Swapchain.hpp
+    Vulkan/Native/Swapchain.h
     Vulkan/Native/Swapchain.cpp
-    Vulkan/Native/Texture.hpp
+    Vulkan/Native/Texture.h
     Vulkan/Native/Texture.cpp
-    Vulkan/Native/SyncStructures.hpp
+    Vulkan/Native/SyncStructures.h
     Vulkan/Native/SyncStructures.cpp
-    Vulkan/Native/Commands.hpp
+    Vulkan/Native/Commands.h
     Vulkan/Native/Commands.cpp
-    Vulkan/Native/Descriptors.hpp
+    Vulkan/Native/Descriptors.h
     Vulkan/Native/Descriptors.cpp
-    Vulkan/Native/DescriptorSetAllocator.hpp
+    Vulkan/Native/DescriptorSetAllocator.h
     Vulkan/Native/DescriptorSetAllocator.cpp
-    Vulkan/Native/Pipeline.hpp
+    Vulkan/Native/Pipeline.h
     Vulkan/Native/Pipeline.cpp
-    Vulkan/Native/Buffer.hpp
+    Vulkan/Native/Buffer.h
     Vulkan/Native/Buffer.cpp
-    Vulkan/Native/Sampler.hpp
+    Vulkan/Native/Sampler.h
     Vulkan/Native/Sampler.cpp
-    Vulkan/Native/Shader.hpp
+    Vulkan/Native/Shader.h
     Vulkan/Native/Shader.cpp
     Vulkan/Native/RenderResource.cpp
-    Vulkan/Native/RenderResource.hpp
+    Vulkan/Native/RenderResource.h
     Vulkan/Native/DrawCallMetaData.h
     Vulkan/Native/DrawCallMetaData.cpp
     
-    Vulkan/Manager/Context.hpp
+    Vulkan/Manager/Context.h
     Vulkan/Manager/Context.cpp
     Vulkan/Manager/CommandManager.cpp
-    Vulkan/Manager/CommandManager.hpp
-    Vulkan/Manager/RenderResourceManager.hpp
+    Vulkan/Manager/CommandManager.h
+    Vulkan/Manager/RenderResourceManager.h
     Vulkan/Manager/RenderResourceManager.cpp
-    Vulkan/Manager/PipelineManager.hpp
+    Vulkan/Manager/PipelineManager.h
     Vulkan/Manager/PipelineManager.cpp
-    Vulkan/Manager/ShaderManager.hpp
+    Vulkan/Manager/ShaderManager.h
     Vulkan/Manager/ShaderManager.cpp
     Vulkan/Manager/DrawCallManager.h
     Vulkan/Manager/DrawCallManager.cpp
 
-    Vulkan/RenderPass/RenderPassBindingInfo.hpp
+    Vulkan/RenderPass/RenderPassBindingInfo.h
     Vulkan/RenderPass/RenderPassBindingInfo.cpp
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 
 set (PLATFORM_SRC 
-    Platform/Window.hpp 
+    Platform/Window.h
     Platform/Window.cpp
 )
 set (PLATFORM_SRC_GROUP_NAME "Platform")
 
 set (MODEL_SRC
-    Model/MeshType.hpp
-    Model/Mesh.hpp
+    Model/Mesh.h
     Model/Mesh.cpp
     Model/Geometry.cpp
-    Model/Geometry.hpp
-    Model/CISDI_3DModelData.hpp
+    Model/Geometry.h
+    Model/CISDI_3DModelData.h
     Model/CISDI_3DModelData.cpp
 )
 set (MODEL_SRC_GROUP_NAME "Model")

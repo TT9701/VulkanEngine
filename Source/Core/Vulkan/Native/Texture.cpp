@@ -1,9 +1,9 @@
-#include "Texture.hpp"
+#include "Texture.h"
 
-#include "Core/Utilities/VulkanUtilities.hpp"
-#include "Device.hpp"
-#include "MemoryAllocator.hpp"
-#include "Sampler.hpp"
+#include "Core/Utilities/VulkanUtilities.h"
+#include "Device.h"
+#include "MemoryAllocator.h"
+#include "Sampler.h"
 
 //
 // void Texture::CopyToImage(vk::CommandBuffer cmd, vk::Image dstImage,

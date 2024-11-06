@@ -1,35 +1,35 @@
-#include "RenderPassBindingInfo.hpp"
+#include "RenderPassBindingInfo.h"
 
 #include "Core/Vulkan/Manager/DrawCallManager.h"
-#include "Core/Vulkan/Manager/PipelineManager.hpp"
-#include "Core/Vulkan/Manager/RenderResourceManager.hpp"
-#include "Core/Vulkan/Native/Swapchain.hpp"
+#include "Core/Vulkan/Manager/PipelineManager.h"
+#include "Core/Vulkan/Manager/RenderResourceManager.h"
+#include "Core/Vulkan/Native/Swapchain.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(const char* str)
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(const char* str)
     : value(Type_STLString {str}) {}
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_STLString const& str)
     : value(str) {}
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     ::std::initializer_list<Type_STLString> const& str)
     : value(Type_STLVector<Type_STLString> {str}) {}
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_STLVector<Type_STLString> const& str)
     : value(str) {}
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(Type_PC const& data)
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(Type_PC const& data)
     : value(data) {}
 
-RenderPassBindingInfo::Type_BindingValue::Type_BindingValue(
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_RenderInfo const& info)
     : value(info) {}
 
-RenderPassBindingInfo::RenderPassBindingInfo(Context* context,
+RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(Context* context,
                                              RenderResourceManager* resMgr,
                                              PipelineManager* pipelineMgr,
                                              DescriptorSetPool* descPool,
@@ -43,7 +43,7 @@ RenderPassBindingInfo::RenderPassBindingInfo(Context* context,
     InitBuiltInInfos();
 }
 
-void RenderPassBindingInfo::SetPipeline(const char* pipelineName,
+void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
                                         const char* pipelineLayoutName) {
     mPipelineName = pipelineName;
     if (pipelineLayoutName)
@@ -54,7 +54,7 @@ void RenderPassBindingInfo::SetPipeline(const char* pipelineName,
     GeneratePipelineMetaData(mPipelineName);
 }
 
-RenderPassBindingInfo::Type_BindingValue& RenderPassBindingInfo::operator[](
+RenderPassBindingInfo_PSO::Type_BindingValue& RenderPassBindingInfo_PSO::operator[](
     RenderPassBinding::Type type) {
     return mBuiltInInfos.at(type);
 }
@@ -67,7 +67,7 @@ auto isPrefix = [](std::string_view prefix, std::string_view full) {
 
 }  // namespace
 
-RenderPassBindingInfo::Type_BindingValue& RenderPassBindingInfo::operator[](
+RenderPassBindingInfo_PSO::Type_BindingValue& RenderPassBindingInfo_PSO::operator[](
     const char* name) {
     // Descriptor set resources
     Type_STLVector<Type_STLString> matched;
@@ -100,17 +100,17 @@ RenderPassBindingInfo::Type_BindingValue& RenderPassBindingInfo::operator[](
     throw ::std::runtime_error("not implemented");
 }
 
-void RenderPassBindingInfo::OnResize(vk::Extent2D extent) {
+void RenderPassBindingInfo_PSO::OnResize(vk::Extent2D extent) {
     CreateDescriptorSets(nullptr);
     BindDescriptorSets();
     mDrawCallMgr.UpdateArgument_OnResize(extent);
 }
 
-void RenderPassBindingInfo::RecordCmd(vk::CommandBuffer cmd) {
+void RenderPassBindingInfo_PSO::RecordCmd(vk::CommandBuffer cmd) {
     mDrawCallMgr.RecordCmd(cmd);
 }
 
-void RenderPassBindingInfo::GenerateMetaData(void* descriptorPNext) {
+void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
     // descriptor sets
     CreateDescriptorSets(descriptorPNext);
     BindDescriptorSets();
@@ -199,15 +199,15 @@ void RenderPassBindingInfo::GenerateMetaData(void* descriptorPNext) {
     }
 }
 
-DrawCallManager& RenderPassBindingInfo::GetDrawCallManager() {
+DrawCallManager& RenderPassBindingInfo_PSO::GetDrawCallManager() {
     return mDrawCallMgr;
 }
 
-void RenderPassBindingInfo::InitBuiltInInfos() {
+void RenderPassBindingInfo_PSO::InitBuiltInInfos() {
     InitBuiltInInfo<static_cast<RenderPassBinding::Type>(0)>();
 }
 
-void RenderPassBindingInfo::GeneratePipelineMetaData(::std::string_view name) {
+void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(::std::string_view name) {
     Type_STLString pipelineName {name};
     if (!pipelineName.empty()) {
         if (pPipelineMgr->GetComputePipelines().contains(pipelineName)) {
@@ -246,7 +246,7 @@ void RenderPassBindingInfo::GeneratePipelineMetaData(::std::string_view name) {
     }
 }
 
-void RenderPassBindingInfo::GeneratePushContantMetaData(
+void RenderPassBindingInfo_PSO::GeneratePushContantMetaData(
     Type_STLVector<RenderPassBinding::PushContants> const& data) {
     auto const& ranges =
         pPipelineMgr->GetLayout(mPipelineName.c_str())->GetPCRanges();
@@ -266,10 +266,10 @@ void RenderPassBindingInfo::GeneratePushContantMetaData(
     }
 }
 
-void RenderPassBindingInfo::GenerateRTVMetaData(
+void RenderPassBindingInfo_PSO::GenerateRTVMetaData(
     Type_STLVector<std::array<Type_STLString, 2>> const& data) {}
 
-void RenderPassBindingInfo::CreateDescriptorSets(void* descriptorPNext) {
+void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
     mDescSets.clear();
 
     auto pipelineLayout = pPipelineMgr->GetLayout(mPipelineLayoutName.c_str());
@@ -359,7 +359,7 @@ void RenderPassBindingInfo::CreateDescriptorSets(void* descriptorPNext) {
     }
 }
 
-void RenderPassBindingInfo::BindDescriptorSets() {
+void RenderPassBindingInfo_PSO::BindDescriptorSets() {
     Type_STLUnorderedSet<vk::DeviceAddress> uniqueBufAddrs;
     uniqueBufAddrs.reserve(mDescSets.size());
     for (auto const& descSet : mDescSets) {

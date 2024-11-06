@@ -1,9 +1,9 @@
-#include "PipelineManager.hpp"
+#include "PipelineManager.h"
 
 #include <spirv_glsl.hpp>
 
-#include "Context.hpp"
-#include "Core/Vulkan/Native/Shader.hpp"
+#include "Context.h"
+#include "Core/Vulkan/Native/Shader.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

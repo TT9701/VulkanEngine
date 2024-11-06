@@ -1,7 +1,7 @@
-#include "DebugUtils.hpp"
+#include "DebugUtils.h"
 
-#include "Core/Utilities/Logger.hpp"
-#include "Instance.hpp"
+#include "Core/Utilities/Logger.h"
+#include "Instance.h"
 
 namespace {
 

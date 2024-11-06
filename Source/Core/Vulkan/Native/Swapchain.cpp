@@ -1,8 +1,8 @@
-#include "Swapchain.hpp"
+#include "Swapchain.h"
 
-#include "Core/Utilities/VulkanUtilities.hpp"
-#include "Core/Vulkan/Manager/Context.hpp"
-#include "RenderResource.hpp"
+#include "Core/Utilities/VulkanUtilities.h"
+#include "Core/Vulkan/Manager/Context.h"
+#include "RenderResource.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

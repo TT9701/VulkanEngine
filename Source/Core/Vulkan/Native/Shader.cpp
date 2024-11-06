@@ -1,7 +1,7 @@
-#include "Shader.hpp"
+#include "Shader.h"
 
-#include "Core/Utilities/Defines.hpp"
-#include "Core/Vulkan/Manager/Context.hpp"
+#include "Core/Utilities/Defines.h"
+#include "Core/Vulkan/Manager/Context.h"
 
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>

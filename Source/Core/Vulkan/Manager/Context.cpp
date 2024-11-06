@@ -1,4 +1,4 @@
-#include "Context.hpp"
+#include "Context.h"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAVulkan.h"

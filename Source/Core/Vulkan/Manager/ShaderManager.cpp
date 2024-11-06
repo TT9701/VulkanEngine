@@ -1,6 +1,6 @@
-#include "ShaderManager.hpp"
+#include "ShaderManager.h"
 
-#include "Context.hpp"
+#include "Context.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

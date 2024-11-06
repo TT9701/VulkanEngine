@@ -1,8 +1,8 @@
-#include "Geometry.hpp"
+#include "Geometry.h"
 
-#include "Core/Application/Application.hpp"
-#include "Core/Utilities/VulkanUtilities.hpp"
-#include "Core/Vulkan/Manager/Context.hpp"
+#include "Core/Application/Application.h"
+#include "Core/Utilities/VulkanUtilities.h"
+#include "Core/Vulkan/Manager/Context.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

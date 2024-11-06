@@ -1,8 +1,8 @@
-#include "Gui.hpp"
+#include "Gui.h"
 
-#include "Core/Platform/Window.hpp"
-#include "Core/Vulkan/Manager/Context.hpp"
-#include "Core/Vulkan/Native/Swapchain.hpp"
+#include "Core/Platform/Window.h"
+#include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Native/Swapchain.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

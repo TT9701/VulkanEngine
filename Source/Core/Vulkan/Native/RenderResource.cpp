@@ -1,6 +1,6 @@
-#include "RenderResource.hpp"
+#include "RenderResource.h"
 
-#include "Device.hpp"
+#include "Device.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

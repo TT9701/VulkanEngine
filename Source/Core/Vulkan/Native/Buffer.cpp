@@ -1,8 +1,8 @@
-#include "Buffer.hpp"
+#include "Buffer.h"
 
-#include "Core/Utilities/VulkanUtilities.hpp"
-#include "Device.hpp"
-#include "MemoryAllocator.hpp"
+#include "Core/Utilities/VulkanUtilities.h"
+#include "Device.h"
+#include "MemoryAllocator.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

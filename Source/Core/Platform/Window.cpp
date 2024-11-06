@@ -1,9 +1,9 @@
-#include "Window.hpp"
+#include "Window.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-#include "Core/Utilities/Logger.hpp"
+#include "Core/Utilities/Logger.h"
 
 namespace {
 

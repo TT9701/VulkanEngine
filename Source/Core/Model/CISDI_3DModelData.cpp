@@ -1,4 +1,4 @@
-#include "CISDI_3DModelData.hpp"
+#include "CISDI_3DModelData.h"
 
 #include <array>
 #include <filesystem>

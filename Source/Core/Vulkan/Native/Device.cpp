@@ -1,7 +1,7 @@
-#include "Device.hpp"
+#include "Device.h"
 
-#include "Core/Utilities/VulkanUtilities.hpp"
-#include "PhysicalDevice.hpp"
+#include "Core/Utilities/VulkanUtilities.h"
+#include "PhysicalDevice.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

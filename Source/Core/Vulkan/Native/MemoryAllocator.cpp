@@ -1,9 +1,9 @@
-#include "MemoryAllocator.hpp"
+#include "MemoryAllocator.h"
 
-#include "Core/Utilities/Logger.hpp"
-#include "Device.hpp"
-#include "Instance.hpp"
-#include "PhysicalDevice.hpp"
+#include "Core/Utilities/Logger.h"
+#include "Device.h"
+#include "Instance.h"
+#include "PhysicalDevice.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

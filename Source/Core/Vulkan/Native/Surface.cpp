@@ -1,10 +1,10 @@
-#include "Surface.hpp"
+#include "Surface.h"
 
 #include <SDL2/SDL_vulkan.h>
 
-#include "Core/Utilities/Logger.hpp"
-#include "Instance.hpp"
-#include "Core/Platform/Window.hpp"
+#include "Core/Utilities/Logger.h"
+#include "Instance.h"
+#include "Core/Platform/Window.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

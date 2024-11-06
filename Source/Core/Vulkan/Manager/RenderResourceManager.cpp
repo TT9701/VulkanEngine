@@ -1,6 +1,6 @@
-#include "RenderResourceManager.hpp"
+#include "RenderResourceManager.h"
 
-#include "Core/Vulkan/Native/Device.hpp"
+#include "Core/Vulkan/Native/Device.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

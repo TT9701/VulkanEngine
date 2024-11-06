@@ -1,6 +1,6 @@
 add_executable (MeshShaderDemo 
     MeshShaderDemo.cpp
-    MeshShaderDemo.hpp
+    MeshShaderDemo.h
 )
 
 set_property(TARGET MeshShaderDemo 

@@ -1,6 +1,6 @@
-#include "Sampler.hpp"
+#include "Sampler.h"
 
-#include "Core/Vulkan/Manager/Context.hpp"
+#include "Core/Vulkan/Manager/Context.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

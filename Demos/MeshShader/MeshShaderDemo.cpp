@@ -1,4 +1,4 @@
-#include "MeshShaderDemo.hpp"
+#include "MeshShaderDemo.h"
 
 using namespace IDNS_VC;
 

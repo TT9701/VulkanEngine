@@ -2,7 +2,7 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #define VMA_EXTERNAL_MEMORY 1
 #define VMA_IMPLEMENTATION
-#include "VulkanUtilities.hpp"
+#include "VulkanUtilities.h"
 
 namespace IntelliDesign_NS::Vulkan::Core::Utils {
 
