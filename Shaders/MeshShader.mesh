@@ -89,12 +89,10 @@ layout( push_constant ) uniform PushConstants
 	MeshletCountBuffer meshletCountBuffer;
 } constants;
 
-layout(location = 0) out VertexOutput
-{
-	vec4 color;
-	vec3 normal;
-	vec3 pos;
-} vertexOutput[];
+layout (location = 0) out vec4 OutColor[];
+layout (location = 1) out vec3 OutNormal[];
+layout (location = 2) out vec3 OutPos[];
+layout (location = 3) out vec2 OutUV[];
 
 struct Task {
 	uint baseID;
@@ -126,9 +124,7 @@ void main()
 	uint vertCount = meshlet.vertexCount;
 	uint triCount = meshlet.triangleCount;
 
-	if (gl_LocalInvocationID.x == 0) {
-		SetMeshOutputsEXT(vertCount, triCount);		
-	}
+	SetMeshOutputsEXT(vertCount, triCount);		
 
 	mat4 mvp = ubo.data.viewproj * constants.modelMatrix;
 
@@ -138,15 +134,17 @@ void main()
 
 		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
 
-		vec4 pos = mvp * vec4(constants.posBuffer.position[meshVertexOffset + verticesID].xyz, 1.0);
-		gl_MeshVerticesEXT[idx].gl_Position = pos;
+		vec4 wPos = constants.modelMatrix * vec4(constants.posBuffer.position[meshVertexOffset + verticesID].xyz, 1.0);
+		vec4 hPos = ubo.data.viewproj *  wPos;
+		gl_MeshVerticesEXT[idx].gl_Position = hPos;
 
 		vec2 encodedNorm = constants.normBuffer.normal[meshVertexOffset + verticesID];
 		vec3 normal = DecodeNormal(encodedNorm);
 
-		vertexOutput[idx].normal = normal;
-		vertexOutput[idx].color = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
-		vertexOutput[idx].pos = pos.xyz;
+		OutNormal[idx] = normalize((constants.modelMatrix * vec4(normal, 0.0)).xyz);
+		OutColor[idx] = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
+		OutPos[idx] = wPos.xyz;
+		OutUV[idx] = constants.texBuffer.texcoords[meshVertexOffset + verticesID];
 	}
 
 	UNROLL_LOOP
@@ -160,6 +158,7 @@ void main()
 		uint triID_0 = triBuffer.meshletTriangles[temp];
 		uint triID_1 = triBuffer.meshletTriangles[temp + 1];
 		uint triID_2 = triBuffer.meshletTriangles[temp + 2];
+
 		gl_PrimitiveTriangleIndicesEXT[idx] = uvec3(triID_0, triID_1, triID_2);
 	}
 }

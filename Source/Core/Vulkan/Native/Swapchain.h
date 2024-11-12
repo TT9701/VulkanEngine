@@ -36,8 +36,6 @@ public:
     vk::Image GetImageHandle(uint32_t index) const;
     vk::ImageView GetImageViewHandle(uint32_t index) const;
     vk::RenderingAttachmentInfo GetColorAttachmentInfo(uint32_t index) const;
-    vk::ImageMemoryBarrier2 GetImageBarrier_BeforePass(uint32_t index) const;
-    vk::ImageMemoryBarrier2 GetImageBarrier_AfterPass(uint32_t index) const;
     vk::Format GetFormat() const;
     vk::Extent2D GetExtent2D() const;
     uint32_t GetImageCount() const;

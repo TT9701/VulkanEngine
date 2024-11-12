@@ -5,14 +5,22 @@ using namespace IDNS_VC;
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescriptorSetPool(mContext.get())),
-      mBackgroundPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                       &mDescSetPool},
+      mPrepassCopy(&mRenderResMgr),
+      mBackgroundPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
+                           &mDescSetPool},
+      mBackgroundPass_Barrier(mContext.get(), &mRenderResMgr),
       mMeshDrawPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                      &mDescSetPool},
+      mMeshDrawPass_Barrier(mContext.get(), &mRenderResMgr),
       mMeshShaderPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                        &mDescSetPool},
-      mQuadDrawPass {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                     &mDescSetPool, mSwapchain.get()},
+      mMeshShaderPass_Barrier(mContext.get(), &mRenderResMgr),
+      mQuadDrawPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
+                         &mDescSetPool, mSwapchain.get()},
+      mQuadDrawPass_Barrier_Pre(mContext.get(), &mRenderResMgr,
+                                mSwapchain.get()),
+      mQuadDrawPass_Barrier_Post(mContext.get(), &mRenderResMgr,
+                                 mSwapchain.get()),
       mGui(mContext.get(), mSwapchain.get(), mWindow.get()) {}
 
 MeshShaderDemo::~MeshShaderDemo() = default;
@@ -82,10 +90,21 @@ void MeshShaderDemo::Update_OnResize() {
 
     mRenderResMgr.ResizeResources_ScreenSizeRelated(extent);
 
-    mBackgroundPass.OnResize(extent);
+    auto resNames = mRenderResMgr.GetResourceNames_SrcreenSizeRelated();
+
+    // mBackgroundPass_PSO.OnResize(extent);
+    mBackgroundPass_PSO.Update(resNames);
+    mBackgroundPass_Barrier.Update(resNames);
+
     // mMeshDrawPass.OnResize(extent);
+    // mMeshDrawPass_Barrier.OnResize(extent);
+
     mMeshShaderPass.OnResize(extent);
-    mQuadDrawPass.OnResize(extent);
+    mMeshShaderPass_Barrier.Update(resNames);
+
+    mQuadDrawPass_Barrier_Pre.Update(resNames);
+    mQuadDrawPass_PSO.OnResize(extent);
+    mQuadDrawPass_Barrier_Post.Update(resNames);
 }
 
 void MeshShaderDemo::UpdateScene() {
@@ -97,7 +116,7 @@ void MeshShaderDemo::UpdateScene() {
         glm::perspective(glm::radians(45.0f),
                          static_cast<float>(mWindow->GetWidth())
                              / static_cast<float>(mWindow->GetHeight()),
-                         10000.0f, 0.0001f);
+                         500.0f, 0.01f);
 
     proj[1][1] *= -1;
 
@@ -138,7 +157,7 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        Type_STLString model = "RM_HP_59930007DR0130HP000.fbx";
+        Type_STLString model = "sponza/sponza.obj";
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
@@ -200,7 +219,8 @@ void MeshShaderDemo::RenderFrame() {
     {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
 
-        mBackgroundPass.RecordCmd(cmd.GetHandle());
+        mBackgroundPass_Barrier.RecordCmd(cmd.GetHandle());
+        mBackgroundPass_PSO.RecordCmd(cmd.GetHandle());
 
         cmd.End();
 
@@ -223,19 +243,19 @@ void MeshShaderDemo::RenderFrame() {
     {
         auto cmd = mCmdMgr.GetCmdBufferToBegin();
 
+        // mMeshDrawPass_Barrier.RecordCmd(cmd.GetHandle());
         // mMeshDrawPass.RecordCmd(cmd.GetHandle());
+
         mMeshShaderPass.RecordCmd(cmd.GetHandle());
+        mMeshShaderPass_Barrier.RecordCmd(cmd.GetHandle());
 
-        mQuadDrawPass.GetDrawCallManager().UpdateArgument_Attachments(
-            {0}, {mSwapchain->GetColorAttachmentInfo(scIdx)});
-        mQuadDrawPass.GetDrawCallManager().UpdateArgument_Barriers_BeforePass(
-            {"Swapchain"}, {mSwapchain->GetImageBarrier_BeforePass(scIdx)}, {},
-            {});
-        mQuadDrawPass.GetDrawCallManager().UpdateArgument_Barriers_AfterPass(
-            {"Swapchain"}, {mSwapchain->GetImageBarrier_AfterPass(scIdx)}, {},
-            {});
+        mQuadDrawPass_Barrier_Pre.Update("_Swapchain_");
+        mQuadDrawPass_PSO.Update("_Swapchain_");
+        mQuadDrawPass_Barrier_Post.Update("_Swapchain_");
 
-        mQuadDrawPass.RecordCmd(cmd.GetHandle());
+        mQuadDrawPass_Barrier_Pre.RecordCmd(cmd.GetHandle());
+        mQuadDrawPass_PSO.RecordCmd(cmd.GetHandle());
+        mQuadDrawPass_Barrier_Post.RecordCmd(cmd.GetHandle());
 
         mGui.Draw(cmd.GetHandle());
 
@@ -333,22 +353,29 @@ void MeshShaderDemo::CreateErrorCheckTexture() {
     {
         size_t dataSize = extent.width * extent.height * 4;
 
-        auto uploadBuffer = mContext->CreateStagingBuffer("", dataSize);
-        memcpy(uploadBuffer->GetMapPtr(), pixels.data(), dataSize);
+        auto uploadBuffer = mRenderResMgr.CreateBuffer(
+            "staging", dataSize, vk::BufferUsageFlagBits::eTransferSrc,
+            Buffer::MemoryType::Staging);
+
+        memcpy(uploadBuffer->GetBufferMappedPtr(), pixels.data(), dataSize);
 
         mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
             Utils::TransitionImageLayout(cmd, ptr->GetTexHandle(),
                                          vk::ImageLayout::eUndefined,
                                          vk::ImageLayout::eTransferDstOptimal);
 
-            vk::BufferImageCopy copyRegion {};
+            vk::BufferImageCopy2 copyRegion {};
             copyRegion
                 .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
                 .setImageExtent(extent);
 
-            cmd.copyBufferToImage(
-                uploadBuffer->GetHandle(), ptr->GetTexHandle(),
-                vk::ImageLayout::eTransferDstOptimal, copyRegion);
+            mPrepassCopy.CopyBufferToImage("staging", "ErrorCheckImage",
+                                           copyRegion);
+            mPrepassCopy.GenerateMetaData();
+
+            mPrepassCopy.Update("ErrorCheckImage");
+
+            mPrepassCopy.RecordCmd(cmd);
 
             Utils::TransitionImageLayout(
                 cmd, ptr->GetTexHandle(), vk::ImageLayout::eTransferDstOptimal,
@@ -465,37 +492,38 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
     auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
     auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
 
+    // barrier
     {
-        mBackgroundPass.SetPipeline("Background");
-
-        mBackgroundPass["image"] = "DrawImage";
-        mBackgroundPass["StorageBuffer"] = "RWBuffer";
-
-        mBackgroundPass.GenerateMetaData();
+        mBackgroundPass_Barrier.AddImageBarrier(
+            "DrawImage",
+            {.srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+             .srcAccessMask = vk::AccessFlagBits2::eShaderRead,
+             .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+             .dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
+             .newLayout = vk::ImageLayout::eGeneral,
+             .aspect = vk::ImageAspectFlagBits::eColor});
+        mBackgroundPass_Barrier.GenerateMetaData();
     }
 
-    auto& dcMgr = mBackgroundPass.GetDrawCallManager();
+    // PSO
+    {
+        mBackgroundPass_PSO.SetPipeline("Background");
 
-    vk::ImageMemoryBarrier2 drawImageBarrier {
-        vk::PipelineStageFlagBits2::eFragmentShader,
-        vk::AccessFlagBits2::eShaderRead,
-        vk::PipelineStageFlagBits2::eComputeShader,
-        vk::AccessFlagBits2::eShaderStorageWrite,
-        vk::ImageLayout::eUndefined,
-        vk::ImageLayout::eGeneral,
-        {},
-        {},
-        mRenderResMgr["DrawImage"]->GetTexHandle(),
-        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"}, {drawImageBarrier});
+        mBackgroundPass_PSO["image"] = "DrawImage";
+        mBackgroundPass_PSO["StorageBuffer"] = "RWBuffer";
+
+        mBackgroundPass_PSO.GenerateMetaData();
+    }
+
+    auto& dcMgr = mBackgroundPass_PSO.GetDrawCallManager();
 
     float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
     vk::ClearColorValue clearValue {flash, flash, flash, 1.0f};
     auto subresource = vk::ImageSubresourceRange {
         vk::ImageAspectFlagBits::eColor, 0, vk::RemainingMipLevels, 0,
         vk::RemainingArrayLayers};
-    dcMgr.AddArgument_ClearColorImage("DrawImage", vk::ImageLayout::eGeneral,
-                                      clearValue, {subresource});
+    // dcMgr.AddArgument_ClearColorImage("DrawImage", vk::ImageLayout::eGeneral,
+    //                                   clearValue, {subresource});
 
     dcMgr.AddArgument_Dispatch(::std::ceil(width / 16.0),
                                ::std::ceil(height / 16.0), 1);
@@ -509,6 +537,22 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     pPushConstants->mModelMatrix =
         glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
 
+    // barrier
+    {
+        mMeshDrawPass_Barrier.AddImageBarrier(
+            "DrawImage",
+            {.srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+             .srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
+             .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader
+                           | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+             .oldLayout = vk::ImageLayout::eGeneral,
+             .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+             .aspect = vk::ImageAspectFlagBits::eColor});
+        mMeshDrawPass_Barrier.GenerateMetaData();
+    }
+
+    // PSO
     {
         mMeshDrawPass.SetPipeline("TriangleDraw");
 
@@ -528,32 +572,14 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
 
         mMeshDrawPass.GenerateMetaData();
     }
+
     auto& dcMgr = mMeshDrawPass.GetDrawCallManager();
 
-    /*****************************************************************/
-    {
-        vk::Viewport viewport {0.0f,          0.0f, (float)width,
-                               (float)height, 0.0f, 1.0f};
-        dcMgr.AddArgument_Viewport(0, {viewport});
+    vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
+    dcMgr.AddArgument_Viewport(0, {viewport});
 
-        vk::Rect2D scissor {{0, 0}, {width, height}};
-        dcMgr.AddArgument_Scissor(0, {scissor});
-
-        vk::ImageMemoryBarrier2 drawImageBarrier {
-            vk::PipelineStageFlagBits2::eComputeShader,
-            vk::AccessFlagBits2::eShaderStorageWrite,
-            vk::PipelineStageFlagBits2::eFragmentShader
-                | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::ImageLayout::eGeneral,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            {},
-            {},
-            mRenderResMgr["DrawImage"]->GetTexHandle(),
-            Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-        dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"},
-                                              {drawImageBarrier});
-    }
+    vk::Rect2D scissor {{0, 0}, {width, height}};
+    dcMgr.AddArgument_Scissor(0, {scissor});
 
     dcMgr.AddArgument_DrawIndiret(
         mFactoryModel->GetIndirectCmdBuffer()->GetHandle(), 0,
@@ -564,38 +590,56 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     auto width = mSwapchain->GetExtent2D().width;
     auto height = mSwapchain->GetExtent2D().height;
 
+    // barriers
     {
-        mQuadDrawPass.SetPipeline("QuadDraw");
+        mQuadDrawPass_Barrier_Pre.AddImageBarrier(
+            "DrawImage",
+            {.srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader
+                           | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+             .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+             .dstAccessMask = vk::AccessFlagBits2::eShaderSampledRead,
+             .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+             .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+             .aspect = vk::ImageAspectFlagBits::eColor});
 
-        mQuadDrawPass["tex0"] = "DrawImage";
+        mQuadDrawPass_Barrier_Pre.AddImageBarrier(
+            "_Swapchain_",
+            {.srcStageMask = vk::PipelineStageFlagBits2::eBottomOfPipe,
+             .srcAccessMask = vk::AccessFlagBits2::eNone,
+             .dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+             .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+             .aspect = vk::ImageAspectFlagBits::eColor});
 
-        mQuadDrawPass["outFragColor"] = {"_Swapchain_", ""};
+        mQuadDrawPass_Barrier_Pre.GenerateMetaData();
 
-        mQuadDrawPass[RenderPassBinding::Type::RenderInfo] =
+        mQuadDrawPass_Barrier_Post.AddImageBarrier(
+            "_Swapchain_",
+            {.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+             .dstStageMask = vk::PipelineStageFlagBits2::eBottomOfPipe,
+             .dstAccessMask = vk::AccessFlagBits2::eNone,
+             .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+             .newLayout = vk::ImageLayout::ePresentSrcKHR,
+             .aspect = vk::ImageAspectFlagBits::eColor});
+        mQuadDrawPass_Barrier_Post.GenerateMetaData();
+    }
+
+    // PSO
+    {
+        mQuadDrawPass_PSO.SetPipeline("QuadDraw");
+
+        mQuadDrawPass_PSO["tex0"] = "DrawImage";
+
+        mQuadDrawPass_PSO["outFragColor"] = {"_Swapchain_", ""};
+
+        mQuadDrawPass_PSO[RenderPassBinding::Type::RenderInfo] =
             RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
-        mQuadDrawPass.GenerateMetaData();
+        mQuadDrawPass_PSO.GenerateMetaData();
     }
-    auto& dcMgr = mQuadDrawPass.GetDrawCallManager();
-
-    vk::ImageMemoryBarrier2 drawImageBarrier {
-        vk::PipelineStageFlagBits2::eFragmentShader
-            | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        vk::AccessFlagBits2::eColorAttachmentWrite,
-        vk::PipelineStageFlagBits2::eFragmentShader,
-        vk::AccessFlagBits2::eShaderSampledRead,
-        vk::ImageLayout::eColorAttachmentOptimal,
-        vk::ImageLayout::eShaderReadOnlyOptimal,
-        {},
-        {},
-        mRenderResMgr["DrawImage"]->GetTexHandle(),
-        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-
-    auto scBarrier = mSwapchain->GetImageBarrier_BeforePass(
-        mSwapchain->GetCurrentImageIndex());
-
-    dcMgr.AddArgument_Barriers_BeforePass({"DrawImage", "Swapchain"},
-                                          {drawImageBarrier, scBarrier});
+    auto& dcMgr = mQuadDrawPass_PSO.GetDrawCallManager();
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});
@@ -604,11 +648,6 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     dcMgr.AddArgument_Scissor(0, {scissor});
 
     dcMgr.AddArgument_Draw(3, 1, 0, 0);
-
-    scBarrier = mSwapchain->GetImageBarrier_AfterPass(
-        mSwapchain->GetCurrentImageIndex());
-
-    dcMgr.AddArgument_Barriers_AfterPass({"Swapchain"}, {scBarrier});
 }
 
 void MeshShaderDemo::RecordMeshShaderDrawCmds() {
@@ -617,8 +656,25 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     meshPushContants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
+        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.01f}),
+                    glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
 
+    // barrier
+    {
+        mMeshShaderPass_Barrier.AddImageBarrier(
+            "DrawImage",
+            {.srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+             .srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
+             .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader
+                           | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+             .oldLayout = vk::ImageLayout::eGeneral,
+             .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+             .aspect = vk::ImageAspectFlagBits::eColor});
+        mMeshShaderPass_Barrier.GenerateMetaData();
+    }
+
+    // PSO
     {
         mMeshShaderPass.SetPipeline("MeshShaderDraw");
 
@@ -638,20 +694,6 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     }
 
     auto& dcMgr = mMeshShaderPass.GetDrawCallManager();
-
-    vk::ImageMemoryBarrier2 drawImageBarrier {
-        vk::PipelineStageFlagBits2::eComputeShader,
-        vk::AccessFlagBits2::eShaderStorageWrite,
-        vk::PipelineStageFlagBits2::eFragmentShader
-            | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        vk::AccessFlagBits2::eColorAttachmentWrite,
-        vk::ImageLayout::eGeneral,
-        vk::ImageLayout::eColorAttachmentOptimal,
-        {},
-        {},
-        mRenderResMgr["DrawImage"]->GetTexHandle(),
-        Utils::GetWholeImageSubresource(vk::ImageAspectFlagBits::eColor)};
-    dcMgr.AddArgument_Barriers_BeforePass({"DrawImage"}, {drawImageBarrier});
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});

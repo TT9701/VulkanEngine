@@ -47,14 +47,18 @@ using TypeTraits_t = typename TypeTraits<Type>::value;
 
 }  // namespace RenderPassBinding
 
-class RenderPassBindingInfo_Barrier;
+class IRenderPassBindingInfo {
+protected:
+    IRenderPassBindingInfo() = default;
+    virtual ~IRenderPassBindingInfo() = default;
 
-class RenderPassBindingInfo_Copy;
+    virtual void RecordCmd(vk::CommandBuffer cmd) = 0;
+    virtual void GenerateMetaData(void* descriptorPNext = nullptr) = 0;
 
-class RenderPassBindingInfo_Executor;
+    virtual void Update(const char* resName) = 0;
+};
 
-class RenderPassBindingInfo_PSO {
-
+class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     class Type_BindingValue {
         using Type_PC = RenderPassBinding::PushContants;
         using Type_RenderInfo = RenderPassBinding::RenderInfo;
@@ -81,8 +85,10 @@ class RenderPassBindingInfo_PSO {
 
 public:
     RenderPassBindingInfo_PSO(Context* context, RenderResourceManager* resMgr,
-                          PipelineManager* pipelineMgr,
-                          DescriptorSetPool* descPool, Swapchain* sc = nullptr);
+                              PipelineManager* pipelineMgr,
+                              DescriptorSetPool* descPool,
+                              Swapchain* sc = nullptr);
+    virtual ~RenderPassBindingInfo_PSO() override = default;
 
     void SetPipeline(const char* pipelineName,
                      const char* pipelineLayoutName = nullptr);
@@ -92,9 +98,12 @@ public:
     // auto& operator[](EnumType shaderStage);
 
     void OnResize(vk::Extent2D extent);
-    void RecordCmd(vk::CommandBuffer cmd);
 
-    void GenerateMetaData(void* descriptorPNext = nullptr);
+    virtual void RecordCmd(vk::CommandBuffer cmd) override;
+    virtual void GenerateMetaData(void* descriptorPNext = nullptr) override;
+    virtual void Update(const char* resName) override;
+    void Update(Type_STLVector<Type_STLString> const& names);
+
 
     DrawCallManager& GetDrawCallManager();
 
@@ -109,6 +118,9 @@ private:
 
     void CreateDescriptorSets(void* descriptorPNext);
     void BindDescriptorSets();
+    void AllocateDescriptor(const char* resName, DescriptorSet* set,
+                            DescriptorSetLayout* layout, uint32_t binding,
+                            void* pNext);
 
 private:
     Context* pContext;
@@ -144,5 +156,93 @@ private:
         }
     }
 };
+
+class RenderPassBindingInfo_Barrier : public IRenderPassBindingInfo {
+public:
+    // using whole image subresource as most cases use.
+    struct ImageBarrier {
+        vk::PipelineStageFlags2 srcStageMask {};
+        vk::AccessFlags2 srcAccessMask {};
+        vk::PipelineStageFlags2 dstStageMask {};
+        vk::AccessFlags2 dstAccessMask {};
+        vk::ImageLayout oldLayout {vk::ImageLayout::eUndefined};
+        vk::ImageLayout newLayout {vk::ImageLayout::eUndefined};
+        uint32_t srcQueueFamilyIndex = {};
+        uint32_t dstQueueFamilyIndex = {};
+        vk::ImageAspectFlags aspect = {};
+    };
+
+    // TODO: buffer barrier
+    struct BufferBarrier {};
+
+    // memory barrier is barely used.
+    struct MemoryBarrier {};
+
+public:
+    RenderPassBindingInfo_Barrier(Context* context,
+                                  RenderResourceManager* resMgr,
+                                  Swapchain* sc = nullptr);
+    virtual ~RenderPassBindingInfo_Barrier() override = default;
+
+    virtual void RecordCmd(vk::CommandBuffer cmd) override;
+    virtual void GenerateMetaData(void* p = nullptr) override;
+    virtual void Update(const char* resName) override;
+    void Update(Type_STLVector<Type_STLString> const& names);
+
+    void AddImageBarrier(const char* name, ImageBarrier const& image);
+    void AddBufferBarrier(const char* name, BufferBarrier const& buffer);
+    // void AddMemoryBarrier();
+
+private:
+    using Type_Barrier =
+        ::std::variant<ImageBarrier, BufferBarrier, MemoryBarrier>;
+
+private:
+    Context* pContext;
+    RenderResourceManager* pResMgr;
+    Swapchain* pSwapchain;
+
+    Type_STLVector<::std::pair<Type_STLString, Type_Barrier>> mBarriers;
+
+    DrawCallManager mDrawCallMgr;
+};
+
+// only whole resource region copy for now
+class RenderPassBindingInfo_Copy : public IRenderPassBindingInfo {
+    using Type_CopyRegion = DrawCallMetaData<DrawCallMetaDataType::Copy>::Type_CopyRegion;
+    using Type_Copy = DrawCallMetaData<DrawCallMetaDataType::Copy>::Type;
+
+    struct CopyInfo {
+        Type_STLString src;
+        Type_STLString dst;
+        Type_Copy type;
+        Type_CopyRegion region;
+    };
+
+public:
+    RenderPassBindingInfo_Copy(RenderResourceManager* resMgr);
+
+    virtual void RecordCmd(vk::CommandBuffer cmd) override;
+    virtual void GenerateMetaData(void* p = nullptr) override;
+    virtual void Update(const char* resName) override;
+
+    void CopyBufferToBuffer(const char* src, const char* dst,
+                            vk::BufferCopy2 const& region);
+    void CopyBufferToImage(const char* src, const char* dst,
+                           vk::BufferImageCopy2 const& region);
+    void CopyImageToImage(const char* src, const char* dst,
+                          vk::ImageCopy2 const& region);
+    void CopyImageToBuffer(const char* src, const char* dst,
+                           vk::BufferImageCopy2 const& region);
+
+private:
+    RenderResourceManager* pResMgr;
+
+    DrawCallManager mDrawCallMgr;
+
+    Type_STLVector<CopyInfo> mInfos;
+};
+
+class RenderPassBindingInfo_Executor {};
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -10,15 +10,19 @@ namespace IntelliDesign_NS::Vulkan::Core {
 enum class DrawCallMetaDataType {
     ClearColorImage,
     ClearDepthStencilImage,
+
     MemoryBarrier,
+
     RenderingInfo,
     Viewport,
     Scissor,
+
     Pipeline,
     PushContant,
     DescriptorBuffer,
     DescriptorSet,
     IndexBuffer,
+
     DrawIndexedIndirect,
     DrawIndirect,
     Draw,
@@ -26,6 +30,8 @@ enum class DrawCallMetaDataType {
     Dispatch,
     DrawMeshTasksIndirect,
     DrawMeshTask,
+
+    Copy,
 
     NumTypes
 };
@@ -230,6 +236,27 @@ template <>
 struct DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask>
     : IDrawCallMetaData {
     uint32_t x, y, z;
+
+    void RecordCmds(vk::CommandBuffer cmd) const override;
+};
+
+template <>
+struct DrawCallMetaData<DrawCallMetaDataType::Copy> : IDrawCallMetaData {
+    enum class Type {
+        BufferToBuffer,
+        BufferToImage,
+        ImageToImage,
+        ImageToBuffer
+    };
+
+    using Type_CopyRegion =
+        ::std::variant<vk::BufferCopy2, vk::BufferImageCopy2, vk::ImageCopy2>;
+    using Type_CopyInfo =
+        ::std::variant<vk::CopyBufferInfo2, vk::CopyBufferToImageInfo2,
+                       vk::CopyImageInfo2, vk::CopyImageToBufferInfo2>;
+
+    Type_CopyRegion copyRegion;
+    Type_CopyInfo info;
 
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

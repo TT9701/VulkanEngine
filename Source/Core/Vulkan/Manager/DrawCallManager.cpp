@@ -1,11 +1,12 @@
 #include "DrawCallManager.h"
 
+#include "Core/Vulkan/Native/Swapchain.h"
 #include "RenderResourceManager.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-DrawCallManager::DrawCallManager(RenderResourceManager* manager)
-    : pRenderResManager(manager) {}
+DrawCallManager::DrawCallManager(RenderResourceManager* manager, Swapchain* sc)
+    : pRenderResManager(manager), pSwapchain(sc) {}
 
 void DrawCallManager::AddArgument_ClearColorImage(
     const char* imageName, vk::ImageLayout layout,
@@ -87,7 +88,7 @@ void PushBarrierMapping(
 
 }  // namespace
 
-void DrawCallManager::AddArgument_Barriers_BeforePass(
+void DrawCallManager::AddArgument_Barriers(
     Type_STLVector<Type_STLString> const& names,
     Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
     Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
@@ -95,24 +96,9 @@ void DrawCallManager::AddArgument_Barriers_BeforePass(
     assert(names.size()
            == imgBarriers.size() + memBarriers.size() + bufBarriers.size());
 
-    mBarriers_BeforePass = ::std::make_optional<
+    mBarriers = ::std::make_optional<
         DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>();
-    auto& metaData = mBarriers_BeforePass.value();
-
-    PushBarrierMapping(metaData, names, imgBarriers, memBarriers, bufBarriers);
-}
-
-void DrawCallManager::AddArgument_Barriers_AfterPass(
-    Type_STLVector<Type_STLString> const& names,
-    Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
-    Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
-    Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers) {
-    assert(names.size()
-           == imgBarriers.size() + memBarriers.size() + bufBarriers.size());
-
-    mBarriers_AfterPass = ::std::make_optional<
-        DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>();
-    auto& metaData = mBarriers_AfterPass.value();
+    auto& metaData = mBarriers.value();
 
     PushBarrierMapping(metaData, names, imgBarriers, memBarriers, bufBarriers);
 }
@@ -344,6 +330,79 @@ void DrawCallManager::AddArgument_DrawMeshTask(uint32_t x, uint32_t y,
     mMetaDatas.emplace_back(metaData);
 }
 
+void DrawCallManager::AddArgument_CopyBufferToBuffer(const char* src,
+                                                     const char* dst,
+                                                     vk::BufferCopy2 region) {
+    mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
+    auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
+
+    metaData.copyRegion.emplace<vk::BufferCopy2>(region);
+    metaData.info.emplace<vk::CopyBufferInfo2>();
+
+    auto pRegion = ::std::get_if<vk::BufferCopy2>(&metaData.copyRegion);
+    auto& info = ::std::get<vk::CopyBufferInfo2>(metaData.info);
+    info.setSrcBuffer((*pRenderResManager)[src]->GetBufferHandle())
+        .setDstBuffer((*pRenderResManager)[dst]->GetBufferHandle())
+        .setRegionCount(1)
+        .setPRegions(pRegion);
+}
+
+void DrawCallManager::AddArgument_CopyBufferToImage(
+    const char* src, const char* dst, vk::BufferImageCopy2 region) {
+    mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
+    auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
+
+    metaData.copyRegion.emplace<vk::BufferImageCopy2>(region);
+    metaData.info.emplace<vk::CopyBufferToImageInfo2>();
+
+    auto pRegion = ::std::get_if<vk::BufferImageCopy2>(&metaData.copyRegion);
+
+    auto& info = ::std::get<vk::CopyBufferToImageInfo2>(metaData.info);
+    info.setSrcBuffer((*pRenderResManager)[src]->GetBufferHandle())
+        .setDstImage((*pRenderResManager)[dst]->GetTexHandle())
+        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setRegionCount(1)
+        .setPRegions(pRegion);
+}
+
+void DrawCallManager::AddArgument_CopyImageToBuffer(
+    const char* src, const char* dst, vk::BufferImageCopy2 region) {
+    mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
+    auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
+
+    metaData.copyRegion.emplace<vk::BufferImageCopy2>(region);
+    metaData.info.emplace<vk::CopyImageToBufferInfo2>();
+
+    auto pRegion = ::std::get_if<vk::BufferImageCopy2>(&metaData.copyRegion);
+
+    auto& info = ::std::get<vk::CopyImageToBufferInfo2>(metaData.info);
+    info.setSrcImage((*pRenderResManager)[src]->GetTexHandle())
+        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
+        .setDstBuffer((*pRenderResManager)[dst]->GetBufferHandle())
+        .setRegionCount(1)
+        .setPRegions(pRegion);
+}
+
+void DrawCallManager::AddArgument_CopyImageToImage(const char* src,
+                                                   const char* dst,
+                                                   vk::ImageCopy2 region) {
+    mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
+    auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
+
+    metaData.copyRegion.emplace<vk::ImageCopy2>(region);
+    metaData.info.emplace<vk::CopyImageToBufferInfo2>();
+
+    auto pRegion = ::std::get_if<vk::ImageCopy2>(&metaData.copyRegion);
+
+    auto& info = ::std::get<vk::CopyImageInfo2>(metaData.info);
+    info.setSrcImage((*pRenderResManager)[src]->GetTexHandle())
+        .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
+        .setDstImage((*pRenderResManager)[dst]->GetTexHandle())
+        .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+        .setRegionCount(1)
+        .setPRegions(pRegion);
+}
+
 void DrawCallManager::UpdateArgument_RenderArea(vk::Rect2D renderArea) {
     mRenderingInfo.value().info.setRenderArea(renderArea);
 }
@@ -466,9 +525,15 @@ void DrawCallManager::UpdateArgument_Attachments(
                 (*pRenderResManager)[imageName.c_str()]->GetTexViewHandle(
                     viewName.c_str());
         } else {
-            mRenderingInfo->colorAttachments[index].imageView =
-                (*pRenderResManager)[imageName.c_str()]->GetTexViewHandle(
-                    viewName.c_str());
+            if (imageName == "_Swapchain_") {
+                mRenderingInfo->colorAttachments[index].imageView =
+                    pSwapchain->GetImageViewHandle(
+                        pSwapchain->GetCurrentImageIndex());
+            } else {
+                mRenderingInfo->colorAttachments[index].imageView =
+                    (*pRenderResManager)[imageName.c_str()]->GetTexViewHandle(
+                        viewName.c_str());
+            }
         }
     }
 }
@@ -485,7 +550,7 @@ void DrawCallManager::UpdateArgument_Attachments(
     }
 }
 
-void DrawCallManager::UpdateArgument_Barriers_BeforePass(
+void DrawCallManager::UpdateArgument_Barriers(
     Type_STLVector<Type_STLString> const& names,
     Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
     Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
@@ -498,33 +563,37 @@ void DrawCallManager::UpdateArgument_Barriers_BeforePass(
     uint32_t index {0};
     for (auto const& imgBar : imgBarriers) {
         auto ptr = std::get<vk::ImageMemoryBarrier2*>(
-            mBarriers_BeforePass->mapping.at(names[index]));
+            mBarriers->mapping.at(names[index]));
         *ptr = imgBar;
         ++index;
     }
 
     for (auto const& memBar : memBarriers) {
-        auto ptr = std::get<vk::MemoryBarrier2*>(
-            mBarriers_BeforePass->mapping.at(names[index]));
+        auto ptr =
+            std::get<vk::MemoryBarrier2*>(mBarriers->mapping.at(names[index]));
         *ptr = memBar;
         ++index;
     }
 
     for (auto const& bufBar : bufBarriers) {
         auto ptr = std::get<vk::BufferMemoryBarrier2*>(
-            mBarriers_BeforePass->mapping.at(names[index]));
+            mBarriers->mapping.at(names[index]));
         *ptr = bufBar;
         ++index;
     }
 }
 
-void DrawCallManager::UpdateArgument_Barriers_BeforePass(
+void DrawCallManager::UpdateArgument_Barriers(
     Type_STLVector<Type_STLString> const& names) {
     for (auto const& name : names) {
-        auto var = mBarriers_BeforePass->mapping.at(name);
+        auto var = mBarriers->mapping.at(name);
         if (auto pib = ::std::get_if<vk::ImageMemoryBarrier2*>(&var)) {
-            (*pib)->setImage(
-                (*pRenderResManager)[name.c_str()]->GetTexHandle());
+            if (name == "_Swapchain_") {
+                (*pib)->setImage(pSwapchain->GetCurrentImage().GetTexHandle());
+            } else {
+                (*pib)->setImage(
+                    (*pRenderResManager)[name.c_str()]->GetTexHandle());
+            }
         } else if (auto pbb = ::std::get_if<vk::BufferMemoryBarrier2*>(&var)) {
             (*pbb)->setBuffer(
                 (*pRenderResManager)[name.c_str()]->GetBufferHandle());
@@ -535,53 +604,37 @@ void DrawCallManager::UpdateArgument_Barriers_BeforePass(
     }
 }
 
-void DrawCallManager::UpdateArgument_Barriers_AfterPass(
-    Type_STLVector<Type_STLString> const& names,
-    Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers,
-    Type_STLVector<vk::MemoryBarrier2> const& memBarriers,
-    Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers) {
-    auto imgSize = imgBarriers.size();
-    auto memSize = memBarriers.size();
-    auto bufSize = bufBarriers.size();
-    assert(names.size() == imgSize + memSize + bufSize);
+void DrawCallManager::UpdateArgument_CopySrc(const char* name, uint32_t index) {
+    auto metaData = FindMetaDataPtr<DrawCallMetaDataType::Copy>(index);
 
-    uint32_t index {0};
-    for (auto const& imgBar : imgBarriers) {
-        auto ptr = std::get<vk::ImageMemoryBarrier2*>(
-            mBarriers_AfterPass->mapping.at(names[index]));
-        *ptr = imgBar;
-        ++index;
-    }
-
-    for (auto const& memBar : memBarriers) {
-        auto ptr = std::get<vk::MemoryBarrier2*>(
-            mBarriers_AfterPass->mapping.at(names[index]));
-        *ptr = memBar;
-        ++index;
-    }
-
-    for (auto const& bufBar : bufBarriers) {
-        auto ptr = std::get<vk::BufferMemoryBarrier2*>(
-            mBarriers_AfterPass->mapping.at(names[index]));
-        *ptr = bufBar;
-        ++index;
+    if (auto b2bInfo = ::std::get_if<vk::CopyBufferInfo2>(&metaData->info)) {
+        b2bInfo->setSrcBuffer((*pRenderResManager)[name]->GetBufferHandle());
+    } else if (auto b2iInfo =
+                   ::std::get_if<vk::CopyBufferToImageInfo2>(&metaData->info)) {
+        b2iInfo->setSrcBuffer((*pRenderResManager)[name]->GetBufferHandle());
+    } else if (auto i2iInfo =
+                   ::std::get_if<vk::CopyImageInfo2>(&metaData->info)) {
+        i2iInfo->setSrcImage((*pRenderResManager)[name]->GetTexHandle());
+    } else if (auto i2bInfo =
+                   ::std::get_if<vk::CopyImageToBufferInfo2>(&metaData->info)) {
+        i2bInfo->setSrcImage((*pRenderResManager)[name]->GetTexHandle());
     }
 }
 
-void DrawCallManager::UpdateArgument_Barriers_AfterPass(
-    Type_STLVector<Type_STLString> const& names) {
-    for (auto const& name : names) {
-        auto var = mBarriers_AfterPass->mapping.at(name);
-        if (auto pib = ::std::get_if<vk::ImageMemoryBarrier2*>(&var)) {
-            (*pib)->setImage(
-                (*pRenderResManager)[name.c_str()]->GetTexHandle());
-        } else if (auto pbb = ::std::get_if<vk::BufferMemoryBarrier2*>(&var)) {
-            (*pbb)->setBuffer(
-                (*pRenderResManager)[name.c_str()]->GetBufferHandle());
-        } else {
-            throw ::std::runtime_error(
-                "resource is not needed for vk::MemoryBarrier2");
-        }
+void DrawCallManager::UpdateArgument_CopyDst(const char* name, uint32_t index) {
+    auto metaData = FindMetaDataPtr<DrawCallMetaDataType::Copy>(index);
+
+    if (auto b2bInfo = ::std::get_if<vk::CopyBufferInfo2>(&metaData->info)) {
+        b2bInfo->setDstBuffer((*pRenderResManager)[name]->GetBufferHandle());
+    } else if (auto b2iInfo =
+                   ::std::get_if<vk::CopyBufferToImageInfo2>(&metaData->info)) {
+        b2iInfo->setDstImage((*pRenderResManager)[name]->GetTexHandle());
+    } else if (auto i2iInfo =
+                   ::std::get_if<vk::CopyImageInfo2>(&metaData->info)) {
+        i2iInfo->setDstImage((*pRenderResManager)[name]->GetTexHandle());
+    } else if (auto i2bInfo =
+                   ::std::get_if<vk::CopyImageToBufferInfo2>(&metaData->info)) {
+        i2bInfo->setDstBuffer((*pRenderResManager)[name]->GetBufferHandle());
     }
 }
 
@@ -601,18 +654,10 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
     Type_STLVector<Type_STLString> afterPassBarrierResourceNames {};
     Type_STLVector<Type_STLString> attachmentResourceNames {};
 
-    for (auto const& resource :
-         pRenderResManager->GetResources_SrcreenSizeRelated()) {
-        auto name = resource.first;
-
-        if (mBarriers_BeforePass
-            && mBarriers_BeforePass->mapping.contains(name)) {
+    for (auto const& name :
+         pRenderResManager->GetResourceNames_SrcreenSizeRelated()) {
+        if (mBarriers && mBarriers->mapping.contains(name)) {
             beforePassBarrierResourceNames.push_back(name);
-        }
-
-        if (mBarriers_AfterPass
-            && mBarriers_AfterPass->mapping.contains(name)) {
-            afterPassBarrierResourceNames.push_back(name);
         }
 
         if (mRenderingInfo) {
@@ -642,14 +687,13 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
         }
     }
 
-    UpdateArgument_Barriers_BeforePass(beforePassBarrierResourceNames);
-    UpdateArgument_Barriers_AfterPass(afterPassBarrierResourceNames);
+    UpdateArgument_Barriers(beforePassBarrierResourceNames);
     UpdateArgument_Attachments(attachmentResourceNames);
 }
 
 void DrawCallManager::RecordCmd(vk::CommandBuffer cmd) const {
-    if (mBarriers_BeforePass)
-        mBarriers_BeforePass->RecordCmds(cmd);
+    if (mBarriers)
+        mBarriers->RecordCmds(cmd);
 
     bool bIsGraphics {mRenderingInfo};
 
@@ -661,16 +705,12 @@ void DrawCallManager::RecordCmd(vk::CommandBuffer cmd) const {
 
     if (bIsGraphics)
         cmd.endRendering();
-
-    if (mBarriers_AfterPass)
-        mBarriers_AfterPass->RecordCmds(cmd);
 }
 
 void DrawCallManager::Clear() {
-    mBarriers_BeforePass.reset();
+    mBarriers.reset();
     mRenderingInfo.reset();
     mMetaDatas.clear();
-    mBarriers_AfterPass.reset();
     mResourceMetaDataMapping.clear();
 }
 

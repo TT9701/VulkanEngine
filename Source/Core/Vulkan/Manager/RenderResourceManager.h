@@ -47,6 +47,8 @@ public:
     Type_Resource_SizeRelations const&
     GetResources_SrcreenSizeRelated() const;
 
+    Type_STLVector<Type_STLString> GetResourceNames_SrcreenSizeRelated() const;
+
 private:
     static Fn_SizeRelation sFullSize;
 

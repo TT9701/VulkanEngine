@@ -59,10 +59,20 @@ private:
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mBackgroundPass;
+    IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
+
+    IDNS_VC::RenderPassBindingInfo_PSO mBackgroundPass_PSO;
+    IDNS_VC::RenderPassBindingInfo_Barrier mBackgroundPass_Barrier;
+
     IDNS_VC::RenderPassBindingInfo_PSO mMeshDrawPass;
+    IDNS_VC::RenderPassBindingInfo_Barrier mMeshDrawPass_Barrier;
+
     IDNS_VC::RenderPassBindingInfo_PSO mMeshShaderPass;
-    IDNS_VC::RenderPassBindingInfo_PSO mQuadDrawPass;
+    IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier;
+
+    IDNS_VC::RenderPassBindingInfo_PSO mQuadDrawPass_PSO;
+    IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Pre;
+    IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Post;
 
     IDNS_VC::GUI mGui;
 

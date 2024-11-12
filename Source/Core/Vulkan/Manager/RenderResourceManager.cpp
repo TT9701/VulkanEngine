@@ -80,4 +80,13 @@ RenderResourceManager::GetResources_SrcreenSizeRelated() const {
     return mScreenSizeRalatedResources;
 }
 
+Type_STLVector<Type_STLString>
+RenderResourceManager::GetResourceNames_SrcreenSizeRelated() const {
+    Type_STLVector<Type_STLString> names {};
+    for (auto const& [name, _] : mScreenSizeRalatedResources) {
+        names.push_back(name);
+    }
+    return names;
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

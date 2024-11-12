@@ -58,6 +58,7 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
     CISDI_3DModel::Mesh cisdiMesh {};
     cisdiMesh.vertices.positions.resize(vertCount);
     cisdiMesh.vertices.normals.resize(vertCount);
+    cisdiMesh.vertices.uvs.resize(vertCount);
 
     // position
     for (uint32_t i = 0; i < vertCount; ++i) {
@@ -131,52 +132,60 @@ void ProcessNode(CISDI_3DModel& data, aiNode* node, const aiScene* scene,
 }
 
 void OptimizeMesh(CISDI_3DModel::Mesh& mesh) {
-    size_t vertexCount = mesh.header.vertexCount;
-    size_t indexCount = mesh.header.indexCount;
-
-    // TODO: other attributes
-
-    Type_STLVector<meshopt_Stream> streams = {
-        {mesh.vertices.positions.data(), sizeof(mesh.vertices.positions[0]),
-         sizeof(mesh.vertices.positions[0])},
-        {mesh.vertices.normals.data(), sizeof(mesh.vertices.normals[0]),
-         sizeof(mesh.vertices.normals[0])}};
-
-    Type_STLVector<uint32_t> remap(indexCount);
-    vertexCount = meshopt_generateVertexRemapMulti(
-        remap.data(), mesh.indices.data(), indexCount, vertexCount,
-        streams.data(), streams.size());
-
-    Type_STLVector<Float4> optimizedVertexPositions(vertexCount);
-    Type_STLVector<Float2> optimizedVertexNormals(vertexCount);
-
-    Type_STLVector<uint32_t> optimizedIndices(indexCount);
-
-    meshopt_remapVertexBuffer(optimizedVertexPositions.data(),
-                              mesh.vertices.positions.data(), vertexCount,
-                              sizeof(mesh.vertices.positions[0]), remap.data());
-
-    meshopt_remapVertexBuffer(optimizedVertexNormals.data(),
-                              mesh.vertices.normals.data(), vertexCount,
-                              sizeof(mesh.vertices.normals[0]), remap.data());
-
-    meshopt_remapIndexBuffer(optimizedIndices.data(), mesh.indices.data(),
-                             indexCount, remap.data());
-
-    mesh.header.vertexCount = vertexCount;
-
-    meshopt_optimizeVertexCache(optimizedIndices.data(),
-                                optimizedIndices.data(), indexCount,
-                                vertexCount);
-
-    meshopt_optimizeOverdraw(
-        optimizedIndices.data(), optimizedIndices.data(), indexCount,
-        (const float*)optimizedVertexPositions.data(), vertexCount,
-        sizeof(mesh.vertices.positions[0]), 1.05f);
-
-    mesh.vertices.positions = std::move(optimizedVertexPositions);
-    mesh.vertices.normals = std::move(optimizedVertexNormals);
-    mesh.indices = std::move(optimizedIndices);
+    // size_t vertexCount = mesh.header.vertexCount;
+    // size_t indexCount = mesh.header.indexCount;
+    //
+    // // TODO: other attributes
+    //
+    // Type_STLVector<meshopt_Stream> streams = {
+    //     {mesh.vertices.positions.data(), sizeof(mesh.vertices.positions[0]),
+    //      sizeof(mesh.vertices.positions[0])},
+    //     {mesh.vertices.normals.data(), sizeof(mesh.vertices.normals[0]),
+    //      sizeof(mesh.vertices.normals[0])},
+    //     {mesh.vertices.uvs.data(), sizeof(mesh.vertices.uvs[0]),
+    //      sizeof(mesh.vertices.uvs[0])}};
+    //
+    // Type_STLVector<uint32_t> remap(indexCount);
+    // vertexCount = meshopt_generateVertexRemapMulti(
+    //     remap.data(), mesh.indices.data(), indexCount, vertexCount,
+    //     streams.data(), streams.size());
+    //
+    // Type_STLVector<Float4> optimizedVertexPositions(vertexCount);
+    // Type_STLVector<Float2> optimizedVertexNormals(vertexCount);
+    // Type_STLVector<Float2> optimizedVertexUVs(vertexCount);
+    //
+    // Type_STLVector<uint32_t> optimizedIndices(indexCount);
+    //
+    // meshopt_remapVertexBuffer(optimizedVertexPositions.data(),
+    //                           mesh.vertices.positions.data(), vertexCount,
+    //                           sizeof(mesh.vertices.positions[0]), remap.data());
+    //
+    // meshopt_remapVertexBuffer(optimizedVertexNormals.data(),
+    //                           mesh.vertices.normals.data(), vertexCount,
+    //                           sizeof(mesh.vertices.normals[0]), remap.data());
+    //
+    // meshopt_remapVertexBuffer(optimizedVertexUVs.data(),
+    //                           mesh.vertices.uvs.data(), vertexCount,
+    //                           sizeof(mesh.vertices.uvs[0]), remap.data());
+    //
+    // meshopt_remapIndexBuffer(optimizedIndices.data(), mesh.indices.data(),
+    //                          indexCount, remap.data());
+    //
+    // mesh.header.vertexCount = vertexCount;
+    //
+    // meshopt_optimizeVertexCache(optimizedIndices.data(),
+    //                             optimizedIndices.data(), indexCount,
+    //                             vertexCount);
+    //
+    // meshopt_optimizeOverdraw(
+    //     optimizedIndices.data(), optimizedIndices.data(), indexCount,
+    //     (const float*)optimizedVertexPositions.data(), vertexCount,
+    //     sizeof(mesh.vertices.positions[0]), 1.05f);
+    //
+    // mesh.vertices.positions = std::move(optimizedVertexPositions);
+    // mesh.vertices.normals = std::move(optimizedVertexNormals);
+    // mesh.vertices.uvs = std::move(optimizedVertexUVs);
+    // mesh.indices = std::move(optimizedIndices);
 }
 
 void OptimizeData(CISDI_3DModel& data) {
@@ -248,6 +257,10 @@ void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
         // normals
         out.write((char*)mesh.vertices.normals.data(),
                   sizeof(mesh.vertices.normals[0]) * mesh.header.vertexCount);
+
+        // uvs
+        out.write((char*)mesh.vertices.uvs.data(),
+                  sizeof(mesh.vertices.uvs[0]) * mesh.header.vertexCount);
 
         // TODO: other attributes
 
@@ -350,6 +363,10 @@ CISDI_3DModel CISDI_3DModel::Load(const char* path) {
         mesh.vertices.normals.resize(mesh.header.vertexCount);
         in.read((char*)mesh.vertices.normals.data(),
                 mesh.header.vertexCount * sizeof(mesh.vertices.normals[0]));
+
+        mesh.vertices.uvs.resize(mesh.header.vertexCount);
+        in.read((char*)mesh.vertices.uvs.data(),
+                mesh.header.vertexCount * sizeof(mesh.vertices.uvs[0]));
         // TODO: other attributes
 
         mesh.indices.resize(mesh.header.indexCount);

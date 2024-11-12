@@ -120,4 +120,19 @@ void DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask>::RecordCmds(
     cmd.drawMeshTasksEXT(x, y, z);
 }
 
+void DrawCallMetaData<DrawCallMetaDataType::Copy>::RecordCmds(
+    vk::CommandBuffer cmd) const {
+    if (auto buffer2Buffer = ::std::get_if<vk::CopyBufferInfo2>(&info)) {
+        cmd.copyBuffer2(buffer2Buffer);
+    } else if (auto buffer2Image =
+                   ::std::get_if<vk::CopyBufferToImageInfo2>(&info)) {
+        cmd.copyBufferToImage2(buffer2Image);
+    } else if (auto image2Image = ::std::get_if<vk::CopyImageInfo2>(&info)) {
+        cmd.copyImage2(image2Image);
+    } else if (auto image2Buffer =
+                   ::std::get_if<vk::CopyImageToBufferInfo2>(&info)) {
+        cmd.copyImageToBuffer2(image2Buffer);
+    }
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

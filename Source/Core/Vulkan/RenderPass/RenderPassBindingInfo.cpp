@@ -22,29 +22,28 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_STLVector<Type_STLString> const& str)
     : value(str) {}
 
-RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(Type_PC const& data)
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
+    Type_PC const& data)
     : value(data) {}
 
 RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_RenderInfo const& info)
     : value(info) {}
 
-RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(Context* context,
-                                             RenderResourceManager* resMgr,
-                                             PipelineManager* pipelineMgr,
-                                             DescriptorSetPool* descPool,
-                                             Swapchain* sc)
+RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(
+    Context* context, RenderResourceManager* resMgr,
+    PipelineManager* pipelineMgr, DescriptorSetPool* descPool, Swapchain* sc)
     : pContext(context),
       pResMgr(resMgr),
       pPipelineMgr(pipelineMgr),
       pDescSetPool(descPool),
       pSwapchain(sc),
-      mDrawCallMgr {resMgr} {
+      mDrawCallMgr {resMgr, sc} {
     InitBuiltInInfos();
 }
 
 void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
-                                        const char* pipelineLayoutName) {
+                                            const char* pipelineLayoutName) {
     mPipelineName = pipelineName;
     if (pipelineLayoutName)
         mPipelineLayoutName = pipelineLayoutName;
@@ -54,8 +53,8 @@ void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
     GeneratePipelineMetaData(mPipelineName);
 }
 
-RenderPassBindingInfo_PSO::Type_BindingValue& RenderPassBindingInfo_PSO::operator[](
-    RenderPassBinding::Type type) {
+RenderPassBindingInfo_PSO::Type_BindingValue&
+RenderPassBindingInfo_PSO::operator[](RenderPassBinding::Type type) {
     return mBuiltInInfos.at(type);
 }
 
@@ -67,8 +66,8 @@ auto isPrefix = [](std::string_view prefix, std::string_view full) {
 
 }  // namespace
 
-RenderPassBindingInfo_PSO::Type_BindingValue& RenderPassBindingInfo_PSO::operator[](
-    const char* name) {
+RenderPassBindingInfo_PSO::Type_BindingValue&
+RenderPassBindingInfo_PSO::operator[](const char* name) {
     // Descriptor set resources
     Type_STLVector<Type_STLString> matched;
     for (auto const& [k, _] : mDescInfos) {
@@ -199,6 +198,53 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
     }
 }
 
+void RenderPassBindingInfo_PSO::Update(const char* resName) {
+    // update descriptors
+    for (auto const& descInfo : mDescInfos) {
+        if (::std::get<Type_STLString>(descInfo.second.value) == resName) {
+            auto param = descInfo.first;
+            auto const& descLayouts =
+                pPipelineMgr->GetLayout(mPipelineLayoutName.c_str())
+                    ->GetDescSetLayoutDatas();
+
+            uint32_t set = -1;
+            vk::DescriptorSetLayoutBinding binding {};
+            for (uint32_t s = 0; s < descLayouts.size(); ++s) {
+                auto const& data = descLayouts[s]->GetData();
+                for (uint32_t b = 0; b < data.size; ++b) {
+                    if (data.bindingNames[b] == param) {
+                        set = s;
+                        binding = data.bindings[b];
+                        break;
+                    }
+                }
+            }
+            if (set == -1)
+                throw ::std::runtime_error("");
+
+            AllocateDescriptor(resName, mDescSets[set].get(), descLayouts[set],
+                               binding.binding, nullptr);
+        }
+    }
+
+    // update rtv
+    Type_STLVector<Type_STLString> rtvCombinedNames;
+    for (auto const& rtv : mRTVInfos) {
+        auto nameVec =
+            ::std::get<Type_STLVector<Type_STLString>>(rtv.second.value);
+        auto combinedName = nameVec[0] + "@" + nameVec[1];
+        rtvCombinedNames.push_back(combinedName);
+    }
+    mDrawCallMgr.UpdateArgument_Attachments(rtvCombinedNames);
+}
+
+void RenderPassBindingInfo_PSO::Update(
+    Type_STLVector<Type_STLString> const& names) {
+    for (auto const& name : names) {
+        Update(name.c_str());
+    }
+}
+
 DrawCallManager& RenderPassBindingInfo_PSO::GetDrawCallManager() {
     return mDrawCallMgr;
 }
@@ -207,7 +253,8 @@ void RenderPassBindingInfo_PSO::InitBuiltInInfos() {
     InitBuiltInInfo<static_cast<RenderPassBinding::Type>(0)>();
 }
 
-void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(::std::string_view name) {
+void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
+    ::std::string_view name) {
     Type_STLString pipelineName {name};
     if (!pipelineName.empty()) {
         if (pPipelineMgr->GetComputePipelines().contains(pipelineName)) {
@@ -283,22 +330,6 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
         mDescSets.push_back(ptr);
     }
 
-    // allocate descriptors
-    auto allocateDescriptor = [this](DescriptorSet* set, vk::DeviceSize size,
-                                     uint32_t binding, vk::DescriptorType type,
-                                     vk::DescriptorDataEXT data,
-                                     const void* pNext) {
-        vk::DescriptorGetInfoEXT descInfo {};
-        descInfo.setType(type).setData(data).setPNext(pNext);
-
-        auto resource = set->GetPoolResource();
-
-        pContext->GetDeviceHandle().getDescriptorEXT(
-            descInfo, size,
-            (char*)resource.hostAddr + resource.offset
-                + set->GetBingdingOffset(binding));
-    };
-
     for (uint32_t set = 0; set < descLayouts.size(); ++set) {
         auto descLayout = descLayouts[set];
         auto descSet = mDescSets[set].get();
@@ -312,49 +343,8 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
             if (argument.empty())
                 continue;
 
-            auto resource = (*pResMgr)[argument.c_str()];
-            auto resType = resource->GetType();
-            auto descriptorType =
-                descLayout->GetBindings()[binding].descriptorType;
-            auto descriptorSize = descLayout->GetDescriptorSize(descriptorType);
-
-            if (resType == RenderResource::Type::Buffer) {
-                // buffer
-                vk::DescriptorAddressInfoEXT bufferInfo {};
-                bufferInfo.setAddress(resource->GetBufferDeviceAddress())
-                    .setRange(resource->GetBufferSize());
-                allocateDescriptor(descSet, descriptorSize, binding,
-                                   descriptorType, &bufferInfo,
-                                   descriptorPNext);
-            } else {
-                // texture
-                vk::ImageLayout imageLayout;
-                bool sampled = false;
-                if (descriptorType == vk::DescriptorType::eStorageImage) {
-                    imageLayout = vk::ImageLayout::eGeneral;
-                } else if (descriptorType
-                               == vk::DescriptorType::eCombinedImageSampler
-                           || descriptorType
-                                  == vk::DescriptorType::eSampledImage) {
-                    imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-                    sampled = true;
-                } else {
-                    throw ::std::runtime_error("un-implemented type");
-                }
-
-                vk::DescriptorImageInfo imageInfo {};
-                imageInfo.setImageView(resource->GetTexViewHandle())
-                    .setImageLayout(imageLayout);
-
-                // TODO: sampler setting
-                if (sampled) {
-                    imageInfo.setSampler(
-                        pContext->GetDefaultLinearSamplerHandle());
-                }
-
-                allocateDescriptor(descSet, descriptorSize, binding,
-                                   descriptorType, &imageInfo, descriptorPNext);
-            }
+            AllocateDescriptor(argument.c_str(), descSet, descLayout, binding,
+                               descriptorPNext);
         }
     }
 }
@@ -387,6 +377,220 @@ void RenderPassBindingInfo_PSO::BindDescriptorSets() {
     mDrawCallMgr.AddArgument_DescriptorSet(
         mBindPoint, pPipelineMgr->GetLayoutHandle(mPipelineLayoutName.c_str()),
         0, bufIndices, offsets);
+}
+
+void RenderPassBindingInfo_PSO::AllocateDescriptor(const char* resName,
+                                                   DescriptorSet* set,
+                                                   DescriptorSetLayout* layout,
+                                                   uint32_t binding,
+                                                   void* pNext) {
+    auto getDescriptor = [this](DescriptorSet* set, vk::DeviceSize size,
+                                uint32_t binding, vk::DescriptorType type,
+                                vk::DescriptorDataEXT data, const void* pNext) {
+        vk::DescriptorGetInfoEXT descInfo {};
+        descInfo.setType(type).setData(data).setPNext(pNext);
+
+        auto resource = set->GetPoolResource();
+
+        pContext->GetDeviceHandle().getDescriptorEXT(
+            descInfo, size,
+            (char*)resource.hostAddr + resource.offset
+                + set->GetBingdingOffset(binding));
+    };
+
+    auto resource = (*pResMgr)[resName];
+    auto resType = resource->GetType();
+    auto descriptorType = layout->GetBindings()[binding].descriptorType;
+    auto descriptorSize = layout->GetDescriptorSize(descriptorType);
+
+    if (resType == RenderResource::Type::Buffer) {
+        // buffer
+        vk::DescriptorAddressInfoEXT bufferInfo {};
+        bufferInfo.setAddress(resource->GetBufferDeviceAddress())
+            .setRange(resource->GetBufferSize());
+        getDescriptor(set, descriptorSize, binding, descriptorType, &bufferInfo,
+                      pNext);
+    } else {
+        // texture
+        vk::ImageLayout imageLayout;
+        bool sampled = false;
+        if (descriptorType == vk::DescriptorType::eStorageImage) {
+            imageLayout = vk::ImageLayout::eGeneral;
+        } else if (descriptorType == vk::DescriptorType::eCombinedImageSampler
+                   || descriptorType == vk::DescriptorType::eSampledImage) {
+            imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            sampled = true;
+        } else {
+            throw ::std::runtime_error("un-implemented type");
+        }
+
+        vk::DescriptorImageInfo imageInfo {};
+        imageInfo.setImageView(resource->GetTexViewHandle())
+            .setImageLayout(imageLayout);
+
+        // TODO: sampler setting
+        if (sampled) {
+            imageInfo.setSampler(pContext->GetDefaultLinearSamplerHandle());
+        }
+
+        getDescriptor(set, descriptorSize, binding, descriptorType, &imageInfo,
+                      pNext);
+    }
+}
+
+RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(
+    Context* context, RenderResourceManager* resMgr, Swapchain* sc)
+    : pContext(context),
+      pResMgr(resMgr),
+      pSwapchain(sc),
+      mDrawCallMgr {resMgr, sc} {}
+
+void RenderPassBindingInfo_Barrier::RecordCmd(vk::CommandBuffer cmd) {
+    mDrawCallMgr.RecordCmd(cmd);
+}
+
+void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
+    Type_STLVector<Type_STLString> bNames;
+    Type_STLVector<vk::ImageMemoryBarrier2> imgBarriers;
+    Type_STLVector<vk::BufferMemoryBarrier2> bufBarriers;
+    Type_STLVector<vk::MemoryBarrier2> memBarriers;
+
+    for (auto const& [name, v] : mBarriers) {
+        if (auto barrier = ::std::get_if<ImageBarrier>(&v)) {
+            vk::ImageMemoryBarrier2 barrierInfo {};
+            barrierInfo.setSrcStageMask(barrier->srcStageMask)
+                .setSrcAccessMask(barrier->srcAccessMask)
+                .setDstStageMask(barrier->dstStageMask)
+                .setDstAccessMask(barrier->dstAccessMask)
+                .setOldLayout(barrier->oldLayout)
+                .setNewLayout(barrier->newLayout)
+                .setSrcQueueFamilyIndex(barrier->srcQueueFamilyIndex)
+                .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
+                .setSubresourceRange(
+                    Utils::GetWholeImageSubresource(barrier->aspect));
+            if (name == "_Swapchain_") {
+                barrierInfo.setImage(
+                    pSwapchain->GetCurrentImage().GetTexHandle());
+            } else {
+                barrierInfo.setImage((*pResMgr)[name.c_str()]->GetTexHandle());
+            }
+
+            bNames.push_back(name);
+            imgBarriers.push_back(barrierInfo);
+
+        } else if (auto barrier = ::std::get_if<BufferBarrier>(&v)) {
+            vk::BufferMemoryBarrier2 barrierInfo {};
+
+            // TODO: buffer barrier
+
+            bNames.push_back(name);
+            bufBarriers.push_back(barrierInfo);
+        } else if (auto barrier = ::std::get_if<MemoryBarrier>(&v)) {
+            vk::MemoryBarrier2 barrierInfo {};
+
+            // TODO: memory barrier
+
+            bNames.push_back(name);
+            memBarriers.push_back(barrierInfo);
+        }
+    }
+
+    mDrawCallMgr.AddArgument_Barriers(bNames, imgBarriers, memBarriers,
+                                              bufBarriers);
+}
+
+void RenderPassBindingInfo_Barrier::AddImageBarrier(const char* name,
+                                                    ImageBarrier const& image) {
+    mBarriers.emplace_back(name, image);
+}
+
+void RenderPassBindingInfo_Barrier::AddBufferBarrier(
+    const char* name, BufferBarrier const& buffer) {
+    mBarriers.emplace_back(name, buffer);
+}
+
+void RenderPassBindingInfo_Barrier::Update(const char* name) {
+    auto it = ::std::find_if(
+        mBarriers.cbegin(), mBarriers.cend(),
+        [name](::std::pair<Type_STLString, Type_Barrier> const& t) {
+            return t.first == name;
+        });
+
+    if (it != mBarriers.cend()) {
+        mDrawCallMgr.UpdateArgument_Barriers({name});
+    }
+}
+
+void RenderPassBindingInfo_Barrier::Update(
+    Type_STLVector<Type_STLString> const& names) {
+    for (auto const& name : names) {
+        Update(name.c_str());
+    }
+}
+
+RenderPassBindingInfo_Copy::RenderPassBindingInfo_Copy(
+    RenderResourceManager* resMgr)
+    : pResMgr(resMgr), mDrawCallMgr(resMgr) {}
+
+void RenderPassBindingInfo_Copy::RecordCmd(vk::CommandBuffer cmd) {
+    mDrawCallMgr.RecordCmd(cmd);
+}
+
+void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
+    for (auto const& info : mInfos) {
+        switch (info.type) {
+            case Type_Copy::BufferToBuffer:
+                mDrawCallMgr.AddArgument_CopyBufferToBuffer(
+                    info.src.c_str(), info.dst.c_str(),
+                    ::std::get<vk::BufferCopy2>(info.region));
+                break;
+            case Type_Copy::BufferToImage:
+                mDrawCallMgr.AddArgument_CopyBufferToImage(
+                    info.src.c_str(), info.dst.c_str(),
+                    ::std::get<vk::BufferImageCopy2>(info.region));
+                break;
+            case Type_Copy::ImageToImage:
+                mDrawCallMgr.AddArgument_CopyImageToImage(
+                    info.src.c_str(), info.dst.c_str(),
+                    ::std::get<vk::ImageCopy2>(info.region));
+                break;
+            case Type_Copy::ImageToBuffer:
+                mDrawCallMgr.AddArgument_CopyImageToBuffer(
+                    info.src.c_str(), info.dst.c_str(),
+                    ::std::get<vk::BufferImageCopy2>(info.region));
+                break;
+        }
+    }
+}
+
+void RenderPassBindingInfo_Copy::Update(const char* resName) {
+    for (uint32_t i = 0; i < mInfos.size(); ++i) {
+        if (resName == mInfos[i].src) {
+            mDrawCallMgr.UpdateArgument_CopySrc(resName, i);
+        } else if (resName == mInfos[i].dst) {
+            mDrawCallMgr.UpdateArgument_CopyDst(resName, i);
+        }
+    }
+}
+
+void RenderPassBindingInfo_Copy::CopyBufferToBuffer(
+    const char* src, const char* dst, vk::BufferCopy2 const& region) {
+    mInfos.emplace_back(src, dst, Type_Copy::BufferToBuffer, region);
+}
+
+void RenderPassBindingInfo_Copy::CopyBufferToImage(
+    const char* src, const char* dst, vk::BufferImageCopy2 const& region) {
+    mInfos.emplace_back(src, dst, Type_Copy::BufferToImage, region);
+}
+
+void RenderPassBindingInfo_Copy::CopyImageToImage(
+    const char* src, const char* dst, vk::ImageCopy2 const& region) {
+    mInfos.emplace_back(src, dst, Type_Copy::ImageToImage, region);
+}
+
+void RenderPassBindingInfo_Copy::CopyImageToBuffer(
+    const char* src, const char* dst, vk::BufferImageCopy2 const& region) {
+    mInfos.emplace_back(src, dst, Type_Copy::BufferToBuffer, region);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
