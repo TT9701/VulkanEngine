@@ -273,6 +273,11 @@ void Shader::GLSLReflect_DescriptorBindingName(
             name = m.str(7);
             ::std::erase(name, ' ');
 
+            ::std::regex postReg(R"((.*)\[([0-9]*)\])");
+            if (::std::regex_match(name.cbegin(), name.cend(), m, postReg)) {
+                name = m.str(1);
+            }
+
             mGLSL_SetBindingNameMap.emplace_back(info, name);
         }
     }
@@ -549,6 +554,7 @@ Shader::SPIRVReflect_DescSetLayouts() {
             compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
         uint32_t binding =
             compiler.get_decoration(resource.id, spv::DecorationBinding);
+        uint32_t descCount = 1;
 
         Type_STLString name {};
         for (auto const& [setBinding, v] : mGLSL_SetBindingNameMap) {
@@ -557,7 +563,22 @@ Shader::SPIRVReflect_DescSetLayouts() {
             }
         }
 
-        uint32_t descCount = 1;  // TODO: Parse Desc Count
+        const spirv_cross::SPIRType& spirtype =
+            compiler.get_type(resource.type_id);
+
+        // array
+        if (!spirtype.array.empty()) {
+            descCount = spirtype.array[0];
+
+            // uniform sampler2D tex[], size == 0;
+            if (descCount == 0) {
+                descCount = ::std::min(
+                    MAX_BINDLESS_DESCRIPTOR_COUNT,
+                    pContext->GetDescIndexingProps()
+                        .maxDescriptorSetUpdateAfterBindSampledImages);
+            }
+        }
+
         datas.emplace_back(name, setIdx, binding, type, mStage, descCount);
     };
 

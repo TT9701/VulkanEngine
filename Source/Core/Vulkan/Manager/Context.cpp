@@ -57,6 +57,9 @@ Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
     vk::PhysicalDeviceProperties2 deviceProp {};
     deviceProp.pNext = &mDescBufProps;
     mPPhysicalDevice->GetHandle().getProperties2(&deviceProp);
+
+    deviceProp.pNext = &mDescIndexingProps;
+    mPPhysicalDevice->GetHandle().getProperties2(&deviceProp);
 }
 
 SharedPtr<Texture> Context::CreateTexture2D(
@@ -246,6 +249,11 @@ vk::Sampler Context::GetDefaultLinearSamplerHandle() const {
 vk::PhysicalDeviceDescriptorBufferPropertiesEXT const&
 Context::GetDescBufProps() const {
     return mDescBufProps;
+}
+
+vk::PhysicalDeviceDescriptorIndexingProperties const&
+Context::GetDescIndexingProps() const {
+    return mDescIndexingProps;
 }
 
 UniquePtr<Instance> Context::CreateInstance(

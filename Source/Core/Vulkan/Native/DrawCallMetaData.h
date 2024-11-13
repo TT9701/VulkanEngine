@@ -255,7 +255,6 @@ struct DrawCallMetaData<DrawCallMetaDataType::Copy> : IDrawCallMetaData {
         ::std::variant<vk::CopyBufferInfo2, vk::CopyBufferToImageInfo2,
                        vk::CopyImageInfo2, vk::CopyImageToBufferInfo2>;
 
-    Type_CopyRegion copyRegion;
     Type_CopyInfo info;
 
     void RecordCmds(vk::CommandBuffer cmd) const override;

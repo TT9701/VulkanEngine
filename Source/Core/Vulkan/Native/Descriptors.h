@@ -12,14 +12,15 @@ class Buffer;
 class DescriptorSetLayout;
 
 class DescriptorSet {
-    using PR_HandleRequest = IntelliDesign_NS::Core::AP_MultiConsecutiveUnitManager<PoolResource_DescriptorSet>::HandleRequest;
+    using PR_HandleRequest =
+        IntelliDesign_NS::Core::AP_MultiConsecutiveUnitManager<
+            PoolResource_DescriptorSet>::HandleRequest;
 
 public:
     DescriptorSet(Context* context, DescriptorSetLayout* setLayout);
 
     uint32_t GetBindingCount() const;
     vk::DeviceSize GetBingdingOffset(uint32_t binding) const;
-    uint32_t GetBingdingDescCount(uint32_t binding) const;
 
     void SetRequestedHandle(PR_HandleRequest&& handle);
     PoolResource GetPoolResource() const;

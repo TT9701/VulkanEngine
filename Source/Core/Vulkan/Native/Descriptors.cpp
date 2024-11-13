@@ -7,10 +7,10 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 DescriptorSet::DescriptorSet(Context* context, DescriptorSetLayout* setLayout)
     : pSetLayout(setLayout) {
-    auto bindings = setLayout->GetBindings();
+    const auto& bindings = setLayout->GetBindings();
     auto bindingCount = bindings.size();
 
-    mBindingOffsets.resize(bindings.size());
+    mBindingOffsets.resize(bindingCount);
     for (uint32_t i = 0; i < bindingCount; ++i) {
         mBindingOffsets[i] =
             context->GetDeviceHandle().getDescriptorSetLayoutBindingOffsetEXT(
@@ -25,11 +25,6 @@ uint32_t DescriptorSet::GetBindingCount() const {
 vk::DeviceSize DescriptorSet::GetBingdingOffset(uint32_t binding) const {
     VE_ASSERT(binding < mBindingOffsets.size(), "Invalid binding");
     return mBindingOffsets[binding];
-}
-
-uint32_t DescriptorSet::GetBingdingDescCount(uint32_t binding) const {
-    VE_ASSERT(binding < mBindingOffsets.size(), "Invalid binding");
-    return pSetLayout->GetBindings()[binding].descriptorCount;
 }
 
 void DescriptorSet::SetRequestedHandle(PR_HandleRequest&& handle) {

@@ -49,8 +49,8 @@ public:
                                               size_t allocByteSize,
                                               vk::BufferUsageFlags usage);
 
-    SharedPtr<Buffer> CreateStagingBuffer(const char* name,
-        size_t allocByteSize,
+    SharedPtr<Buffer> CreateStagingBuffer(
+        const char* name, size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
 
     SharedPtr<Buffer> CreateStorageBuffer(
@@ -122,6 +122,8 @@ public:
 
     vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& GetDescBufProps()
         const;
+    vk::PhysicalDeviceDescriptorIndexingProperties const& GetDescIndexingProps()
+        const;
 
 private:
     UniquePtr<Instance> CreateInstance(
@@ -178,6 +180,7 @@ private:
     SharedPtr<Sampler> mDefaultSamplerNearest {};
 
     vk::PhysicalDeviceDescriptorBufferPropertiesEXT mDescBufProps;
+    vk::PhysicalDeviceDescriptorIndexingProperties mDescIndexingProps;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

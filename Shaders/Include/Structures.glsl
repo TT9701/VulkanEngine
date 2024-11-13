@@ -7,6 +7,10 @@ struct SceneData
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
+
+	vec4 objColor;
+	vec4 metallicRoughness;
+	int texIndex;
 };
 
 // normal

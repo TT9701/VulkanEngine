@@ -29,6 +29,11 @@ struct RenderInfo {
     uint32_t viewMask;
 };
 
+struct BindlessDescBufInfo {
+    vk::DeviceAddress deviceAddress;
+    vk::DeviceSize offset;
+};
+
 template <Type Type>
 struct TypeTraits;
 
@@ -62,9 +67,11 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     class Type_BindingValue {
         using Type_PC = RenderPassBinding::PushContants;
         using Type_RenderInfo = RenderPassBinding::RenderInfo;
+        using Type_BindlessDescInfo = RenderPassBinding::BindlessDescBufInfo;
         using Type_Value =
             ::std::variant<Type_STLString, Type_PC,
-                           Type_STLVector<Type_STLString>, Type_RenderInfo>;
+                           Type_STLVector<Type_STLString>, Type_RenderInfo,
+                           Type_BindlessDescInfo>;
 
     public:
         Type_BindingValue(const char* str);
@@ -79,6 +86,9 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
 
         // render info
         Type_BindingValue(Type_RenderInfo const& info);
+
+        // bindless descriptro infos
+        Type_BindingValue(Type_BindlessDescInfo const& info);
 
         Type_Value value;
     };
@@ -104,7 +114,6 @@ public:
     virtual void Update(const char* resName) override;
     void Update(Type_STLVector<Type_STLString> const& names);
 
-
     DrawCallManager& GetDrawCallManager();
 
 private:
@@ -119,8 +128,9 @@ private:
     void CreateDescriptorSets(void* descriptorPNext);
     void BindDescriptorSets();
     void AllocateDescriptor(const char* resName, DescriptorSet* set,
-                            DescriptorSetLayout* layout, uint32_t binding,
-                            void* pNext);
+                            size_t descSize, vk::DescriptorType descriptorType,
+                            uint32_t binding, uint32_t idxInBinding = 0,
+                            void* pNext = nullptr);
 
 private:
     Context* pContext;
@@ -134,6 +144,7 @@ private:
     Type_STLUnorderedMap<RenderPassBinding::Type, Type_BindingValue>
         mBuiltInInfos {};
     Type_STLUnorderedMap_String<Type_BindingValue> mDescInfos {};
+    Type_STLUnorderedMap_String<Type_BindingValue> mBindlessDescInfos {};
     Type_STLUnorderedMap_String<Type_BindingValue> mPCInfos {};
     Type_STLVector<::std::pair<Type_STLString, Type_BindingValue>> mRTVInfos {};
 
@@ -209,7 +220,8 @@ private:
 
 // only whole resource region copy for now
 class RenderPassBindingInfo_Copy : public IRenderPassBindingInfo {
-    using Type_CopyRegion = DrawCallMetaData<DrawCallMetaDataType::Copy>::Type_CopyRegion;
+    using Type_CopyRegion =
+        DrawCallMetaData<DrawCallMetaDataType::Copy>::Type_CopyRegion;
     using Type_Copy = DrawCallMetaData<DrawCallMetaDataType::Copy>::Type;
 
     struct CopyInfo {

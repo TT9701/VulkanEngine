@@ -30,6 +30,10 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_RenderInfo const& info)
     : value(info) {}
 
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
+    Type_BindlessDescInfo const& info)
+    : value(info) {}
+
 RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(
     Context* context, RenderResourceManager* resMgr,
     PipelineManager* pipelineMgr, DescriptorSetPool* descPool, Swapchain* sc)
@@ -70,14 +74,29 @@ RenderPassBindingInfo_PSO::Type_BindingValue&
 RenderPassBindingInfo_PSO::operator[](const char* name) {
     // Descriptor set resources
     Type_STLVector<Type_STLString> matched;
+    Type_STLString prefix = Type_STLString {name} + "@";
     for (auto const& [k, _] : mDescInfos) {
-        if (isPrefix(name, k))
+        if (isPrefix(prefix, k))
             matched.push_back(k);
     }
 
     if (!matched.empty()) {
         if (matched.size() == 1) {
             return mDescInfos.at(matched.front());
+        } else {
+            // TODO: deal with same name bindings
+        }
+    }
+
+    // bindless descriptor buffer info
+    for (auto const& [k, _] : mBindlessDescInfos) {
+        if (isPrefix(prefix, k))
+            matched.push_back(k);
+    }
+
+    if (!matched.empty()) {
+        if (matched.size() == 1) {
+            return mBindlessDescInfos.at(matched.front());
         } else {
             // TODO: deal with same name bindings
         }
@@ -142,7 +161,7 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
 
         if (colorImage[0] == Type_STLString {"_Swapchain_"}) {
             auto idx = pSwapchain->GetCurrentImageIndex();
-            viewName = ::std::to_string(idx).c_str();
+            viewName = "";
             color.setImageView(pSwapchain->GetImageViewHandle(idx));
         } else {
             if (!colorImage[1].empty()) {
@@ -222,8 +241,13 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
             if (set == -1)
                 throw ::std::runtime_error("");
 
-            AllocateDescriptor(resName, mDescSets[set].get(), descLayouts[set],
-                               binding.binding, nullptr);
+            auto descSize =
+                descLayouts[set]->GetDescriptorSize(binding.descriptorType);
+
+            // TODO: index descriptor that is element array
+            AllocateDescriptor(resName, mDescSets[set].get(), descSize,
+                               binding.descriptorType, binding.binding, 0,
+                               nullptr);
         }
     }
 
@@ -278,8 +302,21 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
 
     for (auto const& layoutData : layoutDatas) {
         auto data = layoutData->GetData();
-        for (uint32_t i = 0; i < data.bindingNames.size(); ++i) {
-            mDescInfos.emplace(data.bindingNames[i], Type_STLString {});
+        for (uint32_t i = 0; i < data.bindings.size(); ++i) {
+            auto descCount = data.bindings[i].descriptorCount;
+            if (descCount == 1) {
+                mDescInfos.emplace(data.bindingNames[i], Type_STLString {});
+            } else if (descCount > 1) {
+                // for (uint32_t j = 0; j < descCount; ++j) {
+                //     auto bindingName = data.bindingNames[i];
+                //     auto idx = bindingName.find("@");
+                //     bindingName.insert(idx, ::std::to_string(j));
+                //     mDescInfos.emplace(bindingName, Type_STLString {});
+                // }
+                mBindlessDescInfos.emplace(
+                    data.bindingNames[i],
+                    RenderPassBinding::BindlessDescBufInfo {});
+            }
         }
     }
 
@@ -324,6 +361,8 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
 
     // Create descriptor sets
     for (auto const& descLayout : descLayouts) {
+        if (descLayout->GetData().bindings[0].descriptorCount > 1)
+            continue;
         auto ptr = MakeShared<DescriptorSet>(pContext, descLayout);
         auto requestHandle = pDescSetPool->RequestUnit(descLayout->GetSize());
         ptr->SetRequestedHandle(std::move(requestHandle));
@@ -332,19 +371,30 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
 
     for (uint32_t set = 0; set < descLayouts.size(); ++set) {
         auto descLayout = descLayouts[set];
+        if (descLayout->GetData().bindings[0].descriptorCount > 1)
+            continue;
         auto descSet = mDescSets[set].get();
 
         for (uint32_t binding = 0; binding < descLayout->GetBindings().size();
              ++binding) {
             auto param = descLayout->GetData().bindingNames[binding];
+            auto descCount =
+                descLayout->GetData().bindings[binding].descriptorCount;
+            auto descType =
+                descLayout->GetData().bindings[binding].descriptorType;
+            auto descSize = descLayout->GetDescriptorSize(descType);
 
-            auto argument =
-                ::std::get<Type_STLString>(mDescInfos.at(param).value);
-            if (argument.empty())
-                continue;
+            if (descCount == 1) {
+                auto argument =
+                    ::std::get<Type_STLString>(mDescInfos.at(param).value);
+                if (argument.empty())
+                    continue;
 
-            AllocateDescriptor(argument.c_str(), descSet, descLayout, binding,
-                               descriptorPNext);
+                AllocateDescriptor(argument.c_str(), descSet, descSize,
+                                   descType, binding, 0, descriptorPNext);
+            } else if (descCount > 1) {
+                // bindless descriptors are created before configuring PSO
+            }
         }
     }
 }
@@ -354,6 +404,13 @@ void RenderPassBindingInfo_PSO::BindDescriptorSets() {
     uniqueBufAddrs.reserve(mDescSets.size());
     for (auto const& descSet : mDescSets) {
         uniqueBufAddrs.emplace(descSet->GetPoolResource().deviceAddr);
+    }
+
+    // bindless
+    for (auto const& descInfo : mBindlessDescInfos) {
+        auto info = ::std::get<RenderPassBinding::BindlessDescBufInfo>(
+            descInfo.second.value);
+        uniqueBufAddrs.emplace(info.deviceAddress);
     }
 
     Type_STLVector<vk::DeviceAddress> bufAddrs {uniqueBufAddrs.begin(),
@@ -374,42 +431,49 @@ void RenderPassBindingInfo_PSO::BindDescriptorSets() {
         bufIndices.push_back(bufIdxMap.at(resource.deviceAddr));
     }
 
+    // bindless
+    for (auto const& descInfo : mBindlessDescInfos) {
+        auto info = ::std::get<RenderPassBinding::BindlessDescBufInfo>(
+            descInfo.second.value);
+        offsets.push_back(info.offset);
+        bufIndices.push_back(bufIdxMap.at(info.deviceAddress));
+    }
+
     mDrawCallMgr.AddArgument_DescriptorSet(
         mBindPoint, pPipelineMgr->GetLayoutHandle(mPipelineLayoutName.c_str()),
         0, bufIndices, offsets);
 }
 
-void RenderPassBindingInfo_PSO::AllocateDescriptor(const char* resName,
-                                                   DescriptorSet* set,
-                                                   DescriptorSetLayout* layout,
-                                                   uint32_t binding,
-                                                   void* pNext) {
+void RenderPassBindingInfo_PSO::AllocateDescriptor(
+    const char* resName, DescriptorSet* set, size_t descSize,
+    vk::DescriptorType descriptorType, uint32_t binding, uint32_t idxInBinding,
+    void* pNext) {
     auto getDescriptor = [this](DescriptorSet* set, vk::DeviceSize size,
-                                uint32_t binding, vk::DescriptorType type,
+                                uint32_t binding, uint32_t idxInBinding,
+                                vk::DescriptorType type,
                                 vk::DescriptorDataEXT data, const void* pNext) {
         vk::DescriptorGetInfoEXT descInfo {};
         descInfo.setType(type).setData(data).setPNext(pNext);
 
         auto resource = set->GetPoolResource();
 
+        // location = bufferAddr + setOffset + descriptorOffset + (arrayElement * descSize)
         pContext->GetDeviceHandle().getDescriptorEXT(
             descInfo, size,
             (char*)resource.hostAddr + resource.offset
-                + set->GetBingdingOffset(binding));
+                + set->GetBingdingOffset(binding) + idxInBinding * size);
     };
 
     auto resource = (*pResMgr)[resName];
     auto resType = resource->GetType();
-    auto descriptorType = layout->GetBindings()[binding].descriptorType;
-    auto descriptorSize = layout->GetDescriptorSize(descriptorType);
 
     if (resType == RenderResource::Type::Buffer) {
         // buffer
         vk::DescriptorAddressInfoEXT bufferInfo {};
         bufferInfo.setAddress(resource->GetBufferDeviceAddress())
             .setRange(resource->GetBufferSize());
-        getDescriptor(set, descriptorSize, binding, descriptorType, &bufferInfo,
-                      pNext);
+        getDescriptor(set, descSize, binding, idxInBinding, descriptorType,
+                      &bufferInfo, pNext);
     } else {
         // texture
         vk::ImageLayout imageLayout;
@@ -433,8 +497,8 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(const char* resName,
             imageInfo.setSampler(pContext->GetDefaultLinearSamplerHandle());
         }
 
-        getDescriptor(set, descriptorSize, binding, descriptorType, &imageInfo,
-                      pNext);
+        getDescriptor(set, descSize, binding, idxInBinding, descriptorType,
+                      &imageInfo, pNext);
     }
 }
 
@@ -496,7 +560,7 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
     }
 
     mDrawCallMgr.AddArgument_Barriers(bNames, imgBarriers, memBarriers,
-                                              bufBarriers);
+                                      bufBarriers);
 }
 
 void RenderPassBindingInfo_Barrier::AddImageBarrier(const char* name,
@@ -542,22 +606,22 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
             case Type_Copy::BufferToBuffer:
                 mDrawCallMgr.AddArgument_CopyBufferToBuffer(
                     info.src.c_str(), info.dst.c_str(),
-                    ::std::get<vk::BufferCopy2>(info.region));
+                    ::std::get_if<vk::BufferCopy2>(&info.region));
                 break;
             case Type_Copy::BufferToImage:
                 mDrawCallMgr.AddArgument_CopyBufferToImage(
                     info.src.c_str(), info.dst.c_str(),
-                    ::std::get<vk::BufferImageCopy2>(info.region));
+                    ::std::get_if<vk::BufferImageCopy2>(&info.region));
                 break;
             case Type_Copy::ImageToImage:
                 mDrawCallMgr.AddArgument_CopyImageToImage(
                     info.src.c_str(), info.dst.c_str(),
-                    ::std::get<vk::ImageCopy2>(info.region));
+                    ::std::get_if<vk::ImageCopy2>(&info.region));
                 break;
             case Type_Copy::ImageToBuffer:
                 mDrawCallMgr.AddArgument_CopyImageToBuffer(
                     info.src.c_str(), info.dst.c_str(),
-                    ::std::get<vk::BufferImageCopy2>(info.region));
+                    ::std::get_if<vk::BufferImageCopy2>(&info.region));
                 break;
         }
     }

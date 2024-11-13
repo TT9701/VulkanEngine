@@ -12,11 +12,15 @@ namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
 struct SceneData {
     glm::vec4 sunLightPos {-0.4f, 0.6f, 0.2f, 1.0f};
-    glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 sunLightColor {5.0f, 5.0f, 5.0f, 1.0f};
     glm::vec4 cameraPos {};
     glm::mat4 view {};
     glm::mat4 proj {};
     glm::mat4 viewProj {};
+
+    glm::vec4 objColor {0.7f};
+    glm::vec4 metallicRoughness {0.5f};
+    int32_t texIndex {0};
 };
 
 class MeshShaderDemo : public IDNS_VC::Application {
@@ -40,7 +44,7 @@ private:
 private:
     void CreateDrawImage();
     void CreateDepthImage();
-    void CreateErrorCheckTexture();
+    void CreateRandomTexture();
 
     void CreateBackgroundComputePipeline();
     void CreateMeshPipeline();
@@ -58,6 +62,9 @@ private:
 
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
+    IDNS_VC::DescriptorSetPool mBindlessDescSetPool;
+
+    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSet> mBindlessSet;
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 
@@ -81,8 +88,6 @@ private:
     IDNS_VC::SharedPtr<IDNS_VC::Geometry> mFactoryModel {};
 
     // IDNS_VC::Type_STLVector<IDNS_VC::SharedPtr<IDNS_VC::Geometry>> mModels {};
-
-    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetPool> mDSPool;
 };
 
 VE_CREATE_APPLICATION(MeshShaderDemo, 1600, 900);

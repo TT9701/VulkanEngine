@@ -1,10 +1,13 @@
 #include "MeshShaderDemo.h"
 
+#include <random>
+
 using namespace IDNS_VC;
 
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescriptorSetPool(mContext.get())),
+      mBindlessDescSetPool(CreateDescriptorSetPool(mContext.get(), 1 << 22)),
       mPrepassCopy(&mRenderResMgr),
       mBackgroundPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                            &mDescSetPool},
@@ -92,7 +95,6 @@ void MeshShaderDemo::Update_OnResize() {
 
     auto resNames = mRenderResMgr.GetResourceNames_SrcreenSizeRelated();
 
-    // mBackgroundPass_PSO.OnResize(extent);
     mBackgroundPass_PSO.Update(resNames);
     mBackgroundPass_Barrier.Update(resNames);
 
@@ -136,7 +138,7 @@ void MeshShaderDemo::Prepare() {
     LoadShaders();
     CreatePipelines();
 
-    CreateErrorCheckTexture();
+    CreateRandomTexture();
 
     mRenderResMgr.CreateBuffer(
         "SceneUniformBuffer", sizeof(SceneData),
@@ -332,55 +334,103 @@ void MeshShaderDemo::CreateDepthImage() {
     });
 }
 
-void MeshShaderDemo::CreateErrorCheckTexture() {
+void MeshShaderDemo::CreateRandomTexture() {
     auto extent = VkExtent3D {16, 16, 1};
-    uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
-    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
-    std::array<uint32_t, 16 * 16> pixels;  //for 16x16 checkerboard texture
-    for (int x = 0; x < 16; x++) {
-        for (int y = 0; y < 16; y++) {
-            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+
+    size_t dataSize = extent.width * extent.height * 4;
+
+    auto uploadBuffer = mRenderResMgr.CreateBuffer(
+        "staging", dataSize * 32, vk::BufferUsageFlagBits::eTransferSrc,
+        Buffer::MemoryType::Staging);
+
+    ::std::string baseName {"RandomImage"};
+
+    for (uint32_t i = 0; i < 32; ++i) {
+        std::random_device rndDevice;
+        std::default_random_engine rndEngine(rndDevice());
+        std::uniform_int_distribution rndDist(50, UCHAR_MAX);
+
+        std::array<uint8_t, 16 * 16 * 4> pixels;
+        for (uint32_t j = 0; j < 16 * 16; ++j) {
+            pixels[j * 4] = rndDist(rndEngine);
+            pixels[j * 4 + 1] = rndDist(rndEngine);
+            pixels[j * 4 + 2] = rndDist(rndEngine);
+            pixels[j * 4 + 3] = 255;
         }
+
+        auto name = baseName + ::std::to_string(i);
+        auto ptr = mRenderResMgr.CreateTexture(
+            name.c_str(), RenderResource::Type::Texture2D,
+            vk::Format::eR8G8B8A8Unorm, extent,
+            vk::ImageUsageFlagBits::eSampled
+                | vk::ImageUsageFlagBits::eTransferDst);
+        ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+
+        memcpy((char*)uploadBuffer->GetBufferMappedPtr() + dataSize * i,
+               pixels.data(), dataSize);
     }
 
-    auto ptr = mRenderResMgr.CreateTexture(
-        "ErrorCheckImage", RenderResource::Type::Texture2D,
-        vk::Format::eR8G8B8A8Unorm, extent,
-        vk::ImageUsageFlagBits::eSampled
-            | vk::ImageUsageFlagBits::eTransferDst);
-    ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
-
-    {
-        size_t dataSize = extent.width * extent.height * 4;
-
-        auto uploadBuffer = mRenderResMgr.CreateBuffer(
-            "staging", dataSize, vk::BufferUsageFlagBits::eTransferSrc,
-            Buffer::MemoryType::Staging);
-
-        memcpy(uploadBuffer->GetBufferMappedPtr(), pixels.data(), dataSize);
-
-        mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
-            Utils::TransitionImageLayout(cmd, ptr->GetTexHandle(),
-                                         vk::ImageLayout::eUndefined,
-                                         vk::ImageLayout::eTransferDstOptimal);
+    mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
+        for (uint32_t i = 0; i < 32; ++i) {
+            auto name = baseName + ::std::to_string(i);
+            Utils::TransitionImageLayout(
+                cmd, mRenderResMgr[name.c_str()]->GetTexHandle(),
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eTransferDstOptimal);
 
             vk::BufferImageCopy2 copyRegion {};
-            copyRegion
+            copyRegion.setBufferOffset(16 * 16 * 4 * i)
                 .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
                 .setImageExtent(extent);
 
-            mPrepassCopy.CopyBufferToImage("staging", "ErrorCheckImage",
-                                           copyRegion);
-            mPrepassCopy.GenerateMetaData();
+            mPrepassCopy.CopyBufferToImage("staging", name.c_str(), copyRegion);
+        }
 
-            mPrepassCopy.Update("ErrorCheckImage");
+        mPrepassCopy.GenerateMetaData();
 
-            mPrepassCopy.RecordCmd(cmd);
+        mPrepassCopy.RecordCmd(cmd);
 
+        for (uint32_t i = 0; i < 32; ++i) {
+            auto name = baseName + ::std::to_string(i);
             Utils::TransitionImageLayout(
-                cmd, ptr->GetTexHandle(), vk::ImageLayout::eTransferDstOptimal,
+                cmd, mRenderResMgr[name.c_str()]->GetTexHandle(),
+                vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
-        });
+        }
+    });
+
+    // create descriptor
+    vk::DescriptorType descType {vk::DescriptorType::eCombinedImageSampler};
+    auto descBufProps = mContext->GetDescBufProps();
+    DescriptorSetLayout bindlessLayout {
+        mContext.get(),
+        {"tex"},
+        {{0, descType, 1024 * 1024, vk::ShaderStageFlagBits::eFragment}},
+        descBufProps,
+        nullptr};
+
+    mBindlessSet = MakeShared<DescriptorSet>(mContext.get(), &bindlessLayout);
+    auto requestHandle =
+        mBindlessDescSetPool.RequestUnit(bindlessLayout.GetSize());
+    mBindlessSet->SetRequestedHandle(std::move(requestHandle));
+    auto descSize = bindlessLayout.GetDescriptorSize(descType);
+
+    auto resource = mBindlessSet->GetPoolResource();
+
+    vk::DescriptorImageInfo imageInfo {};
+    imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(mContext->GetDefaultNearestSamplerHandle());
+
+    for (uint32_t i = 0; i < 32; ++i) {
+        auto name = baseName + ::std::to_string(i);
+        imageInfo.setImageView(mRenderResMgr[name.c_str()]->GetTexViewHandle());
+        vk::DescriptorGetInfoEXT descInfo {};
+        descInfo.setType(descType).setData(&imageInfo).setPNext(nullptr);
+
+        mContext->GetDeviceHandle().getDescriptorEXT(
+            descInfo, descSize,
+            (char*)resource.hostAddr + resource.offset
+                + mBindlessSet->GetBingdingOffset(0) + i * descSize);
     }
 }
 
@@ -560,7 +610,7 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
             sizeof(*pPushConstants), pPushConstants};
 
         mMeshDrawPass["SceneDataUBO"] = "SceneUniformBuffer";
-        mMeshDrawPass["tex0"] = "ErrorCheckImage";
+        mMeshDrawPass["tex"] = "ErrorCheckImage";
 
         mMeshDrawPass["outFragColor"] = {"DrawImage", "Color-Whole"};
 
@@ -630,7 +680,7 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     {
         mQuadDrawPass_PSO.SetPipeline("QuadDraw");
 
-        mQuadDrawPass_PSO["tex0"] = "DrawImage";
+        mQuadDrawPass_PSO["tex"] = "DrawImage";
 
         mQuadDrawPass_PSO["outFragColor"] = {"_Swapchain_", ""};
 
@@ -655,6 +705,8 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     uint32_t height = mRenderResMgr["DrawImage"]->GetTexHeight();
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
+    // meshPushContants->mModelMatrix =
+    //     glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
     meshPushContants->mModelMatrix =
         glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.01f}),
                     glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
@@ -682,6 +734,10 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
             sizeof(*meshPushContants), meshPushContants};
 
         mMeshShaderPass["UBO"] = "SceneUniformBuffer";
+
+        auto bindlessSet = mBindlessSet->GetPoolResource();
+        mMeshShaderPass["tex"] = RenderPassBinding::BindlessDescBufInfo {
+            bindlessSet.deviceAddr, bindlessSet.offset};
 
         mMeshShaderPass["outFragColor"] = {"DrawImage", "Color-Whole"};
         mMeshShaderPass[RenderPassBinding::Type::DSV] = {"DepthImage",
@@ -721,8 +777,16 @@ void MeshShaderDemo::UpdateSceneUBO() {
 void MeshShaderDemo::PrepareUIContext() {
     mGui.AddContext([&]() {
         if (ImGui::Begin("SceneStats")) {
+            ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
+                        mSceneData.cameraPos.x, mSceneData.cameraPos.y,
+                        mSceneData.cameraPos.z);
             ImGui::SliderFloat3("Sun light position",
                                 (float*)&mSceneData.sunLightPos, -1.0f, 1.0f);
+            ImGui::ColorEdit4("ObjColor", (float*)&mSceneData.objColor);
+            ImGui::SliderFloat2("MetallicRoughness",
+                                (float*)&mSceneData.metallicRoughness, 0.0f,
+                                1.0f);
+            ImGui::InputInt("Texture Index", &mSceneData.texIndex);
         }
         ImGui::End();
     });

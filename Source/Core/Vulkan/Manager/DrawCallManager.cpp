@@ -330,69 +330,56 @@ void DrawCallManager::AddArgument_DrawMeshTask(uint32_t x, uint32_t y,
     mMetaDatas.emplace_back(metaData);
 }
 
-void DrawCallManager::AddArgument_CopyBufferToBuffer(const char* src,
-                                                     const char* dst,
-                                                     vk::BufferCopy2 region) {
+void DrawCallManager::AddArgument_CopyBufferToBuffer(
+    const char* src, const char* dst, const vk::BufferCopy2* region) {
     mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
     auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
 
-    metaData.copyRegion.emplace<vk::BufferCopy2>(region);
     metaData.info.emplace<vk::CopyBufferInfo2>();
 
-    auto pRegion = ::std::get_if<vk::BufferCopy2>(&metaData.copyRegion);
     auto& info = ::std::get<vk::CopyBufferInfo2>(metaData.info);
     info.setSrcBuffer((*pRenderResManager)[src]->GetBufferHandle())
         .setDstBuffer((*pRenderResManager)[dst]->GetBufferHandle())
         .setRegionCount(1)
-        .setPRegions(pRegion);
+        .setPRegions(region);
 }
 
 void DrawCallManager::AddArgument_CopyBufferToImage(
-    const char* src, const char* dst, vk::BufferImageCopy2 region) {
+    const char* src, const char* dst, const vk::BufferImageCopy2* region) {
     mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
     auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
 
-    metaData.copyRegion.emplace<vk::BufferImageCopy2>(region);
     metaData.info.emplace<vk::CopyBufferToImageInfo2>();
-
-    auto pRegion = ::std::get_if<vk::BufferImageCopy2>(&metaData.copyRegion);
 
     auto& info = ::std::get<vk::CopyBufferToImageInfo2>(metaData.info);
     info.setSrcBuffer((*pRenderResManager)[src]->GetBufferHandle())
         .setDstImage((*pRenderResManager)[dst]->GetTexHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegionCount(1)
-        .setPRegions(pRegion);
+        .setPRegions(region);
 }
 
 void DrawCallManager::AddArgument_CopyImageToBuffer(
-    const char* src, const char* dst, vk::BufferImageCopy2 region) {
+    const char* src, const char* dst, const vk::BufferImageCopy2* region) {
     mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
     auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
 
-    metaData.copyRegion.emplace<vk::BufferImageCopy2>(region);
     metaData.info.emplace<vk::CopyImageToBufferInfo2>();
-
-    auto pRegion = ::std::get_if<vk::BufferImageCopy2>(&metaData.copyRegion);
 
     auto& info = ::std::get<vk::CopyImageToBufferInfo2>(metaData.info);
     info.setSrcImage((*pRenderResManager)[src]->GetTexHandle())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
         .setDstBuffer((*pRenderResManager)[dst]->GetBufferHandle())
         .setRegionCount(1)
-        .setPRegions(pRegion);
+        .setPRegions(region);
 }
 
-void DrawCallManager::AddArgument_CopyImageToImage(const char* src,
-                                                   const char* dst,
-                                                   vk::ImageCopy2 region) {
+void DrawCallManager::AddArgument_CopyImageToImage(
+    const char* src, const char* dst, const vk::ImageCopy2* region) {
     mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
     auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
 
-    metaData.copyRegion.emplace<vk::ImageCopy2>(region);
     metaData.info.emplace<vk::CopyImageToBufferInfo2>();
-
-    auto pRegion = ::std::get_if<vk::ImageCopy2>(&metaData.copyRegion);
 
     auto& info = ::std::get<vk::CopyImageInfo2>(metaData.info);
     info.setSrcImage((*pRenderResManager)[src]->GetTexHandle())
@@ -400,7 +387,7 @@ void DrawCallManager::AddArgument_CopyImageToImage(const char* src,
         .setDstImage((*pRenderResManager)[dst]->GetTexHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegionCount(1)
-        .setPRegions(pRegion);
+        .setPRegions(region);
 }
 
 void DrawCallManager::UpdateArgument_RenderArea(vk::Rect2D renderArea) {

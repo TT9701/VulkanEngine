@@ -87,16 +87,16 @@ public:
     void AddArgument_DrawMeshTask(uint32_t x, uint32_t y, uint32_t z);
 
     void AddArgument_CopyBufferToBuffer(const char* src, const char* dst,
-                                        vk::BufferCopy2 region);
+                                        const vk::BufferCopy2* region);
 
     void AddArgument_CopyBufferToImage(const char* src, const char* dst,
-                                       vk::BufferImageCopy2 region);
+                                       const vk::BufferImageCopy2* region);
 
     void AddArgument_CopyImageToBuffer(const char* src, const char* dst,
-                                       vk::BufferImageCopy2 region);
+                                       const vk::BufferImageCopy2* region);
 
     void AddArgument_CopyImageToImage(const char* src, const char* dst,
-                                      vk::ImageCopy2 region);
+                                      const vk::ImageCopy2* region);
 
     /*
      *   Update Argument methods
@@ -162,8 +162,7 @@ public:
         Type_STLVector<vk::BufferMemoryBarrier2> const& bufBarriers);
 
     // only update resources
-    void UpdateArgument_Barriers(
-        Type_STLVector<Type_STLString> const& names);
+    void UpdateArgument_Barriers(Type_STLVector<Type_STLString> const& names);
 
     void UpdateArgument_CopySrc(const char* name, uint32_t index);
     void UpdateArgument_CopyDst(const char* name, uint32_t index);
