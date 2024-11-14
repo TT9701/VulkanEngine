@@ -45,12 +45,20 @@ size_t PoolResource_DescriptorSet::_Get_numUnits_() const {
     return mNumBytes;
 }
 
-DescriptorSetPool CreateDescriptorSetPool(Context* context,
-                                          size_t minPoolSize) {
+DescriptorSetPool CreateDescSetPool(Context* context, size_t minPoolSize) {
 #ifndef NDEBUG
     return DescriptorSetPool {true, true, minPoolSize, context};
 #else
     return DescriptorSetPool {false, true, minPoolSize, context};
+#endif
+}
+
+SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(Context* context,
+                                                size_t minPoolSize) {
+#ifndef NDEBUG
+    return MakeShared<DescriptorSetPool>(true, true, minPoolSize, context);
+#else
+    return MakeShared<DescriptorSetPool>(false, true, minPoolSize, context);
 #endif
 }
 

@@ -54,7 +54,7 @@ public:
     vk::Image GetHandle() const;
     Type GetType() const;
     ImageView* GetView(const char* name) const;
-    vk::ImageView GetViewHandle(const char* name) const;
+    vk::ImageView GetViewHandle(const char* name = nullptr) const;
 
     void SetName(const char* name) const;
 

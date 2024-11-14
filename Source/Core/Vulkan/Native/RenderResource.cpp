@@ -95,6 +95,10 @@ void RenderResource::CreateTexView(const char* name,
         name, aspect, mostDetailedMip, mipCount, firstArray, arraySize);
 }
 
+Texture const* RenderResource::GetTexPtr() const {
+    return ::std::get_if<Texture>(&mResource);
+}
+
 vk::Image RenderResource::GetTexHandle() const {
     return ::std::get<Texture>(mResource).GetHandle();
 }

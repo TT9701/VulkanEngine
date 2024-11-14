@@ -17,7 +17,7 @@ layout (set = 0, binding = 0) uniform UBO
     SceneData data;
 } ubo;
 
-layout (set = 1, binding = 0) uniform sampler2D tex[];
+layout (set = 1, binding = 0) uniform sampler2D sceneTexs[];
 
 const float PI = 3.14159265359;
 // ----------------------------------------------------------------------------
@@ -64,7 +64,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 
 void main()
 {
-    vec3 texColor = texture(tex[ubo.data.texIndex], InUV).xyz;
+    vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
 
     vec3 albedo = texColor;
 

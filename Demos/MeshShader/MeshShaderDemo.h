@@ -7,6 +7,8 @@
 
 #include "Core/Utilities/GUI.h"
 
+#include "Core/System/concurrentqueue.h"
+
 namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
 namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
@@ -21,6 +23,38 @@ struct SceneData {
     glm::vec4 objColor {0.7f};
     glm::vec4 metallicRoughness {0.5f};
     int32_t texIndex {0};
+};
+
+class BindlessTexturePool {
+public:
+    BindlessTexturePool(
+        IDNS_VC::Context* context,
+        vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
+
+    IDNS_VC::PoolResource GetPoolResource() const;
+
+    // return texture descriptor idx at bindless set binding.
+    uint32_t Add(IDNS_VC::Texture const* texture);
+
+    // return texture descriptor idx at bindless set binding.
+    uint32_t Delete(IDNS_VC::Texture const* texture);
+
+private:
+    IDNS_VC::Context* pContext;
+
+    vk::DescriptorType mDescType;
+
+    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetPool> mDescSetPool;
+    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetLayout> mLayout;
+    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSet> mSet;
+
+    uint32_t mDescCount;
+    vk::DeviceSize mDescSize; 
+
+    uint32_t mCurrentDescCount {0};
+    moodycamel::ConcurrentQueue<uint32_t> mAvailableIndices;
+    IDNC_CMP::Type_STLUnorderedMap<IDNS_VC::Texture const*, uint32_t>
+        mDescIndexMap;
 };
 
 class MeshShaderDemo : public IDNS_VC::Application {
@@ -62,19 +96,18 @@ private:
 
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
-    IDNS_VC::DescriptorSetPool mBindlessDescSetPool;
 
-    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSet> mBindlessSet;
+    BindlessTexturePool mBindlessTexturePool;
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 
     IDNS_VC::RenderPassBindingInfo_PSO mBackgroundPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mBackgroundPass_Barrier;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mMeshDrawPass;
+    IDNS_VC::RenderPassBindingInfo_PSO mMeshDrawPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mMeshDrawPass_Barrier;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mMeshShaderPass;
+    IDNS_VC::RenderPassBindingInfo_PSO mMeshShaderPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier;
 
     IDNS_VC::RenderPassBindingInfo_PSO mQuadDrawPass_PSO;
@@ -88,6 +121,9 @@ private:
     IDNS_VC::SharedPtr<IDNS_VC::Geometry> mFactoryModel {};
 
     // IDNS_VC::Type_STLVector<IDNS_VC::SharedPtr<IDNS_VC::Geometry>> mModels {};
+
+    IDNS_VC::Type_STLString mImageName0;
+    IDNS_VC::Type_STLString mImageName1;
 };
 
 VE_CREATE_APPLICATION(MeshShaderDemo, 1600, 900);

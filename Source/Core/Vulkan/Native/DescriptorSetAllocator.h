@@ -53,8 +53,12 @@ using DescriptorSetPool =
 /*
  * descriptor set pool min size : 16MB
  */
-DescriptorSetPool CreateDescriptorSetPool(Context* context,
-                                          size_t minPoolSize = 1ui64 << 24);
+DescriptorSetPool CreateDescSetPool(Context* context,
+                                    size_t minPoolSize = 1ui64 << 24);
+
+SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(Context* context,
+                                                size_t minPoolSize = 1ui64
+                                                                  << 24);
 
 class DescriptorSetAllocator {
 public:

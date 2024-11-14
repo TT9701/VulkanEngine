@@ -65,6 +65,7 @@ public:
                        uint32_t firstArray = 0,
                        uint32_t arraySize = vk::RemainingArrayLayers);
 
+    Texture const* GetTexPtr() const;
     vk::Image GetTexHandle() const;
     vk::ImageView GetTexViewHandle(const char* name = nullptr) const;
     uint32_t GetTexWidth(uint32_t mipLevel = 0) const;
