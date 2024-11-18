@@ -572,10 +572,11 @@ Shader::SPIRVReflect_DescSetLayouts() {
 
             // uniform sampler2D tex[], size == 0;
             if (descCount == 0) {
-                descCount = ::std::min(
-                    MAX_BINDLESS_DESCRIPTOR_COUNT,
-                    pContext->GetDescIndexingProps()
-                        .maxDescriptorSetUpdateAfterBindSampledImages);
+                descCount = 128;
+                // descCount = ::std::min(
+                //     MAX_BINDLESS_DESCRIPTOR_COUNT,
+                //     pContext->GetDescIndexingProps()
+                //         .maxDescriptorSetUpdateAfterBindSampledImages);
             }
         }
 

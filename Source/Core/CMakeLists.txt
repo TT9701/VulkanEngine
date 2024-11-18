@@ -77,8 +77,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Manager/DrawCallManager.h
     Vulkan/Manager/DrawCallManager.cpp
 
-    Vulkan/RenderPass/RenderPassBindingInfo.h
-    Vulkan/RenderPass/RenderPassBindingInfo.cpp
+    Vulkan/RenderGraph/RenderPassBindingInfo.h
+    Vulkan/RenderGraph/RenderPassBindingInfo.cpp
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 

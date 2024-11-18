@@ -25,10 +25,11 @@ struct SceneData {
     int32_t texIndex {0};
 };
 
-class BindlessTexturePool {
+class BindlessDescPool {
 public:
-    BindlessTexturePool(
+    BindlessDescPool(
         IDNS_VC::Context* context,
+        IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const& pso,
         vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
 
     IDNS_VC::PoolResource GetPoolResource() const;
@@ -40,7 +41,11 @@ public:
     uint32_t Delete(IDNS_VC::Texture const* texture);
 
 private:
+    void ExpandSet();
+
+private:
     IDNS_VC::Context* pContext;
+    IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> mPSOs;
 
     vk::DescriptorType mDescType;
 
@@ -49,12 +54,30 @@ private:
     IDNS_VC::SharedPtr<IDNS_VC::DescriptorSet> mSet;
 
     uint32_t mDescCount;
-    vk::DeviceSize mDescSize; 
+    vk::DeviceSize mDescSize;
 
     uint32_t mCurrentDescCount {0};
     moodycamel::ConcurrentQueue<uint32_t> mAvailableIndices;
     IDNC_CMP::Type_STLUnorderedMap<IDNS_VC::Texture const*, uint32_t>
         mDescIndexMap;
+};
+
+struct FrameResource {
+    IDNS_VC::SharedPtr<BindlessDescPool> mBindlessDescPool;
+};
+
+class FrameResourceManager {
+public:
+    FrameResourceManager() = default;
+
+    void BuildFrameResources(
+        IDNS_VC::Context* context,
+        IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const&
+            pso = {});
+
+    FrameResource* GetCurrentFrameResource(uint32_t frameIdx);
+
+    IDNC_CMP::Type_STLVector<FrameResource> mFrameResources;
 };
 
 class MeshShaderDemo : public IDNS_VC::Application {
@@ -97,7 +120,7 @@ private:
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
-    BindlessTexturePool mBindlessTexturePool;
+    FrameResourceManager mFrameResMgr;
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 

@@ -100,6 +100,8 @@ public:
                               Swapchain* sc = nullptr);
     virtual ~RenderPassBindingInfo_PSO() override = default;
 
+    void SetName(const char* name);
+
     void SetPipeline(const char* pipelineName,
                      const char* pipelineLayoutName = nullptr);
 
@@ -112,6 +114,7 @@ public:
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
     virtual void GenerateMetaData(void* descriptorPNext = nullptr) override;
     virtual void Update(const char* resName) override;
+    void Update(const char* name, RenderPassBinding::BindlessDescBufInfo info);
     void Update(Type_STLVector<Type_STLString> const& names);
 
     DrawCallManager& GetDrawCallManager();
@@ -132,11 +135,16 @@ private:
                             uint32_t binding, uint32_t idxInBinding = 0,
                             void* pNext = nullptr);
 
+    void GenerateDescBufInfos(Type_STLVector<vk::DeviceAddress>& addrs,
+                              Type_STLVector<vk::DeviceSize>& offsets,
+                              Type_STLVector<uint32_t>& indices);
+
 private:
     Context* pContext;
     RenderResourceManager* pResMgr;
     PipelineManager* pPipelineMgr;
     DescriptorSetPool* pDescSetPool;
+
     Swapchain* pSwapchain;
 
     DrawCallManager mDrawCallMgr;
@@ -153,6 +161,8 @@ private:
     vk::PipelineBindPoint mBindPoint;
 
     Type_STLVector<SharedPtr<DescriptorSet>> mDescSets {};
+
+    Type_STLString mName;
 
 private:
     template <RenderPassBinding::Type Type>

@@ -499,6 +499,24 @@ void DrawCallManager::UpdateArgument_DrawMeshTask(uint32_t x, uint32_t y,
     data->z = z;
 }
 
+void DrawCallManager::UpdateArgument_DescriptorBuffer(
+    Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index) {
+    auto data = FindMetaDataPtr<DrawCallMetaDataType::DescriptorBuffer>(index);
+    data->addresses = addresses;
+}
+
+void DrawCallManager::UpdateArgument_DescriptorSet(
+    vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
+    uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
+    Type_STLVector<vk::DeviceSize> const& offsets, uint32_t index) {
+    auto data = FindMetaDataPtr<DrawCallMetaDataType::DescriptorSet>(index);
+    data->bindPoint = bindPoint;
+    data->layout = layout;
+    data->firstSet = firstSet;
+    data->bufferIndices = bufferIndices;
+    data->offsets = offsets;
+}
+
 void DrawCallManager::UpdateArgument_Attachments(
     Type_STLVector<Type_STLString> const& names) {
     for (auto const& name : names) {

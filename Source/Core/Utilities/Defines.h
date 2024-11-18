@@ -1,6 +1,7 @@
 #pragma once
 
-#define MAX_BINDLESS_DESCRIPTOR_COUNT (1048576ui32)
+// #define MAX_BINDLESS_DESCRIPTOR_COUNT (1048576ui32)
+#define MAX_BINDLESS_DESCRIPTOR_COUNT (64ui32)
 
 #define SHADER_PATH(name)                                                 \
     (IntelliDesign_NS::Core::MemoryPool::Type_STLString("../../Shaders/") \

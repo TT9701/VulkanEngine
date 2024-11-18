@@ -15,7 +15,7 @@
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
 #include "Core/Vulkan/Manager/ShaderManager.h"
 #include "Core/Vulkan/Native/Swapchain.h"
-#include "Core/Vulkan/RenderPass/RenderPassBindingInfo.h"
+#include "Core/Vulkan/RenderGraph/RenderPassBindingInfo.h"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"

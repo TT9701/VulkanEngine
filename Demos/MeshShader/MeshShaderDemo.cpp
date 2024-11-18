@@ -4,16 +4,16 @@
 
 using namespace IDNS_VC;
 
-BindlessTexturePool::BindlessTexturePool(Context* context,
-                                         vk::DescriptorType type)
-    : pContext(context), mDescType(type) {
+BindlessDescPool::BindlessDescPool(
+    Context* context,
+    IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const& pso,
+    vk::DescriptorType type)
+    : pContext(context), mPSOs(pso), mDescType(type) {
     auto descBufProps = pContext->GetDescBufProps();
     mDescCount =
         ::std::min(MAX_BINDLESS_DESCRIPTOR_COUNT,
                    pContext->GetDescIndexingProps()
                        .maxPerStageDescriptorUpdateAfterBindSampledImages);
-
-    mDescSetPool = MakeDescSetPoolPtr(pContext, mDescCount);
 
     mLayout = MakeShared<DescriptorSetLayout>(
         pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
@@ -27,22 +27,30 @@ BindlessTexturePool::BindlessTexturePool(Context* context,
         descBufProps, nullptr);
 
     mDescSize = mLayout->GetDescriptorSize(mDescType);
+    mDescSetPool = MakeDescSetPoolPtr(pContext, mDescSize * mDescCount);
 
     mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
     auto requestHandle = mDescSetPool->RequestUnit(mLayout->GetSize());
     mSet->SetRequestedHandle(std::move(requestHandle));
 }
 
-PoolResource BindlessTexturePool::GetPoolResource() const {
+PoolResource BindlessDescPool::GetPoolResource() const {
     return mSet->GetPoolResource();
 }
 
-uint32_t BindlessTexturePool::Add(Texture const* texture) {
+uint32_t BindlessDescPool::Add(Texture const* texture) {
+    if (mDescIndexMap.contains(texture))
+        return mDescIndexMap.at(texture);
+
     uint32_t idx;
     bool success = mAvailableIndices.try_dequeue(idx);
     if (!success) {
-        assert(mCurrentDescCount <= mDescCount);
-        idx = mCurrentDescCount++;
+        if (mCurrentDescCount < mDescCount) {
+            idx = mCurrentDescCount++;
+        } else {
+            ExpandSet();
+            return Add(texture);
+        }
     }
 
     auto resource = mSet->GetPoolResource();
@@ -65,7 +73,7 @@ uint32_t BindlessTexturePool::Add(Texture const* texture) {
     return idx;
 }
 
-uint32_t BindlessTexturePool::Delete(IDNS_VC::Texture const* texture) {
+uint32_t BindlessDescPool::Delete(IDNS_VC::Texture const* texture) {
     uint32_t idx;
     if (mDescIndexMap.contains(texture)) {
         idx = mDescIndexMap.at(texture);
@@ -85,10 +93,55 @@ uint32_t BindlessTexturePool::Delete(IDNS_VC::Texture const* texture) {
     return idx;
 }
 
+void BindlessDescPool::ExpandSet() {
+    mDescCount *= 2;
+    auto origSize = mLayout->GetSize();
+
+    mLayout.reset();
+    mLayout = MakeShared<DescriptorSetLayout>(
+        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
+        Type_STLVector<vk::DescriptorSetLayoutBinding> {
+            vk::DescriptorSetLayoutBinding {
+                0,
+                mDescType,
+                mDescCount,
+                vk::ShaderStageFlagBits::eFragment,
+            }},
+        pContext->GetDescBufProps(), nullptr);
+
+    auto requestHandle = mDescSetPool->RequestUnit(origSize * 2);
+    auto resource = requestHandle.Get_Resource();
+    memcpy(resource.hostAddr, mSet->GetPoolResource().hostAddr, origSize);
+
+    mSet.reset();
+    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
+    mSet->SetRequestedHandle(std::move(requestHandle));
+
+    for (auto& pso : mPSOs) {
+        pso->Update("sceneTexs", RenderPassBinding::BindlessDescBufInfo {
+                                     resource.deviceAddr, resource.offset});
+    }
+}
+
+void FrameResourceManager::BuildFrameResources(
+    Context* context,
+    IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const& pso) {
+    mFrameResources.resize(FRAME_OVERLAP);
+    auto ptr = MakeShared<BindlessDescPool>(context, pso);
+    for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
+        mFrameResources[i].mBindlessDescPool = ptr;
+    }
+}
+
+FrameResource* FrameResourceManager::GetCurrentFrameResource(
+    uint32_t frameIdx) {
+    return &mFrameResources[frameIdx % FRAME_OVERLAP];
+}
+
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescSetPool(mContext.get())),
-      mBindlessTexturePool(mContext.get()),
+      // mBindlessDescPool(mContext.get()),
       mPrepassCopy(&mRenderResMgr),
       mBackgroundPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
                            &mDescSetPool},
@@ -213,13 +266,14 @@ void MeshShaderDemo::UpdateScene() {
 void MeshShaderDemo::Prepare() {
     Application::Prepare();
 
+    mFrameResMgr.BuildFrameResources(mContext.get(), {&mMeshShaderPass_PSO});
+    CreateRandomTexture();
+
     CreateDrawImage();
     CreateDepthImage();
 
     LoadShaders();
     CreatePipelines();
-
-    CreateRandomTexture();
 
     mRenderResMgr.CreateBuffer(
         "SceneUniformBuffer", sizeof(SceneData),
@@ -481,11 +535,14 @@ void MeshShaderDemo::CreateRandomTexture() {
         }
     });
 
-    for (uint32_t i = 0; i < randomImageCount / 2; ++i) {
-        auto name = baseName + ::std::to_string(i);
-        auto texture = mRenderResMgr[name.c_str()]->GetTexPtr();
+    for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
+        for (uint32_t j = 0; j < randomImageCount / 2; ++j) {
+            auto name = baseName + ::std::to_string(j);
+            auto texture = mRenderResMgr[name.c_str()]->GetTexPtr();
 
-        mBindlessTexturePool.Add(texture);
+            mFrameResMgr.GetCurrentFrameResource(mFrameNum)[i]
+                .mBindlessDescPool->Add(texture);
+        }
     }
 }
 
@@ -790,7 +847,8 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
 
         mMeshShaderPass_PSO["UBO"] = "SceneUniformBuffer";
 
-        auto bindlessSet = mBindlessTexturePool.GetPoolResource();
+        auto bindlessSet = mFrameResMgr.GetCurrentFrameResource(mFrameNum)
+                               ->mBindlessDescPool->GetPoolResource();
         mMeshShaderPass_PSO["sceneTexs"] =
             RenderPassBinding::BindlessDescBufInfo {bindlessSet.deviceAddr,
                                                     bindlessSet.offset};
@@ -850,7 +908,8 @@ void MeshShaderDemo::PrepareUIContext() {
             ImGui::SameLine();
             if (ImGui::Button("Add")) {
                 auto tex = mRenderResMgr[mImageName0.c_str()]->GetTexPtr();
-                auto idx = mBindlessTexturePool.Add(tex);
+                auto idx = mFrameResMgr.GetCurrentFrameResource(mFrameNum)
+                               ->mBindlessDescPool->Add(tex);
 
                 DBG_LOG_INFO("Add Button pressed, add texture at idx %d", idx);
             }
@@ -859,7 +918,8 @@ void MeshShaderDemo::PrepareUIContext() {
             ImGui::SameLine();
             if (ImGui::Button("Delete")) {
                 auto tex = mRenderResMgr[mImageName1.c_str()]->GetTexPtr();
-                auto idx = mBindlessTexturePool.Delete(tex);
+                auto idx = mFrameResMgr.GetCurrentFrameResource(mFrameNum)
+                               ->mBindlessDescPool->Delete(tex);
                 DBG_LOG_INFO("Delete Button pressed, delete texture at idx %d",
                              idx);
             }

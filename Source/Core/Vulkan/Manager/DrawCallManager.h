@@ -147,6 +147,14 @@ public:
     void UpdateArgument_DrawMeshTask(uint32_t x, uint32_t y, uint32_t z,
                                      uint32_t index = 0);
 
+    void UpdateArgument_DescriptorBuffer(
+        Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index = 0);
+
+    void UpdateArgument_DescriptorSet(
+        vk::PipelineBindPoint bindPoint, vk::PipelineLayout layout,
+        uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
+        Type_STLVector<vk::DeviceSize> const& offsets, uint32_t index = 0);
+
     // name = imageName@viewName
     void UpdateArgument_Attachments(
         Type_STLVector<Type_STLString> const& names);

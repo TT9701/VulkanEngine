@@ -46,6 +46,10 @@ RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(
     InitBuiltInInfos();
 }
 
+void RenderPassBindingInfo_PSO::SetName(const char* name) {
+    mName = name;
+}
+
 void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
                                             const char* pipelineLayoutName) {
     mPipelineName = pipelineName;
@@ -263,6 +267,38 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
 }
 
 void RenderPassBindingInfo_PSO::Update(
+    const char* name, RenderPassBinding::BindlessDescBufInfo info) {
+    for (auto& [n,_] : mBindlessDescInfos) {
+        if (isPrefix(name, n)) {
+            ::std::get<RenderPassBinding::BindlessDescBufInfo>(
+                mBindlessDescInfos.at(n).value) = info;
+
+            Type_STLVector<vk::DeviceAddress> bufAddrs;
+            Type_STLVector<vk::DeviceSize> offsets;
+            Type_STLVector<uint32_t> bufIndices;
+            GenerateDescBufInfos(bufAddrs, offsets, bufIndices);
+
+            for (auto const& descInfo : mBindlessDescInfos) {
+                auto bufInfo =
+                    ::std::get<RenderPassBinding::BindlessDescBufInfo>(
+                        descInfo.second.value);
+                bufAddrs.push_back(bufInfo.deviceAddress);
+                offsets.push_back(bufInfo.offset);
+                bufIndices.push_back(bufAddrs.size() - 1);
+            }
+
+            mDrawCallMgr.UpdateArgument_DescriptorBuffer(bufAddrs);
+
+            mDrawCallMgr.UpdateArgument_DescriptorSet(
+                mBindPoint,
+                pPipelineMgr->GetLayoutHandle(mPipelineLayoutName.c_str()), 0,
+                bufIndices, offsets);
+            break;
+        }
+    }
+}
+
+void RenderPassBindingInfo_PSO::Update(
     Type_STLVector<Type_STLString> const& names) {
     for (auto const& name : names) {
         Update(name.c_str());
@@ -400,44 +436,21 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
 }
 
 void RenderPassBindingInfo_PSO::BindDescriptorSets() {
-    Type_STLUnorderedSet<vk::DeviceAddress> uniqueBufAddrs;
-    uniqueBufAddrs.reserve(mDescSets.size());
-    for (auto const& descSet : mDescSets) {
-        uniqueBufAddrs.emplace(descSet->GetPoolResource().deviceAddr);
-    }
+    Type_STLVector<vk::DeviceAddress> bufAddrs;
+    Type_STLVector<vk::DeviceSize> offsets;
+    Type_STLVector<uint32_t> bufIndices;
+    GenerateDescBufInfos(bufAddrs, offsets, bufIndices);
 
     // bindless
     for (auto const& descInfo : mBindlessDescInfos) {
         auto info = ::std::get<RenderPassBinding::BindlessDescBufInfo>(
             descInfo.second.value);
-        uniqueBufAddrs.emplace(info.deviceAddress);
-    }
-
-    Type_STLVector<vk::DeviceAddress> bufAddrs {uniqueBufAddrs.begin(),
-                                                uniqueBufAddrs.end()};
-
-    Type_STLUnorderedMap<vk::DeviceAddress, uint32_t> bufIdxMap;
-    for (uint32_t i = 0; i < bufAddrs.size(); ++i) {
-        bufIdxMap.emplace(bufAddrs[i], i);
+        bufAddrs.push_back(info.deviceAddress);
+        offsets.push_back(info.offset);
+        bufIndices.push_back(bufAddrs.size() - 1);
     }
 
     mDrawCallMgr.AddArgument_DescriptorBuffer(bufAddrs);
-
-    Type_STLVector<vk::DeviceSize> offsets;
-    Type_STLVector<uint32_t> bufIndices;
-    for (auto const& descSet : mDescSets) {
-        auto resource = descSet->GetPoolResource();
-        offsets.push_back(resource.offset);
-        bufIndices.push_back(bufIdxMap.at(resource.deviceAddr));
-    }
-
-    // bindless
-    for (auto const& descInfo : mBindlessDescInfos) {
-        auto info = ::std::get<RenderPassBinding::BindlessDescBufInfo>(
-            descInfo.second.value);
-        offsets.push_back(info.offset);
-        bufIndices.push_back(bufIdxMap.at(info.deviceAddress));
-    }
 
     mDrawCallMgr.AddArgument_DescriptorSet(
         mBindPoint, pPipelineMgr->GetLayoutHandle(mPipelineLayoutName.c_str()),
@@ -499,6 +512,31 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
 
         getDescriptor(set, descSize, binding, idxInBinding, descriptorType,
                       &imageInfo, pNext);
+    }
+}
+
+void RenderPassBindingInfo_PSO::GenerateDescBufInfos(
+    Type_STLVector<vk::DeviceAddress>& addrs,
+    Type_STLVector<vk::DeviceSize>& offsets,
+    Type_STLVector<uint32_t>& indices) {
+    Type_STLUnorderedSet<vk::DeviceAddress> uniqueBufAddrs;
+    uniqueBufAddrs.reserve(mDescSets.size());
+    for (auto const& descSet : mDescSets) {
+        uniqueBufAddrs.emplace(descSet->GetPoolResource().deviceAddr);
+    }
+
+    addrs = Type_STLVector<vk::DeviceAddress> {uniqueBufAddrs.begin(),
+                                               uniqueBufAddrs.end()};
+
+    Type_STLUnorderedMap<vk::DeviceAddress, uint32_t> bufIdxMap;
+    for (uint32_t i = 0; i < addrs.size(); ++i) {
+        bufIdxMap.emplace(addrs[i], i);
+    }
+
+    for (auto const& descSet : mDescSets) {
+        auto resource = descSet->GetPoolResource();
+        offsets.push_back(resource.offset);
+        indices.push_back(bufIdxMap.at(resource.deviceAddr));
     }
 }
 
