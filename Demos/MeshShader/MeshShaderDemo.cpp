@@ -345,8 +345,6 @@ void MeshShaderDemo::BeginFrame() {
 }
 
 void MeshShaderDemo::RenderFrame() {
-    auto scIdx = mSwapchain->GetCurrentImageIndex();
-
     const uint64_t graphicsFinished =
         mContext->GetTimelineSemphore()->GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
@@ -354,7 +352,7 @@ void MeshShaderDemo::RenderFrame() {
 
     // Compute Draw
     {
-        auto cmd = mCmdMgr.GetCmdBufferToBegin();
+        auto cmd = mCmdMgr.GetGfxCmdBufToBegin();
 
         mBackgroundPass_Barrier.RecordCmd(cmd.GetHandle());
         mBackgroundPass_PSO.RecordCmd(cmd.GetHandle());
@@ -372,13 +370,13 @@ void MeshShaderDemo::RenderFrame() {
              mContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(), waits,
+                       mContext->GetDevice()->GetGraphicQueue(1), waits,
                        signals);
     }
 
     // Graphics Draw
     {
-        auto cmd = mCmdMgr.GetCmdBufferToBegin();
+        auto cmd = mCmdMgr.GetGfxCmdBufToBegin();
 
         // mMeshDrawPass_Barrier.RecordCmd(cmd.GetHandle());
         // mMeshDrawPass_PSO.RecordCmd(cmd.GetHandle());
@@ -411,18 +409,6 @@ void MeshShaderDemo::RenderFrame() {
         mCmdMgr.Submit(cmd.GetHandle(),
                        mContext->GetDevice()->GetGraphicQueue(), waits,
                        signals);
-    }
-
-    {
-        auto cmd = mCmdMgr.GetCmdBufferToBegin();
-        cmd.End();
-
-        Type_STLVector<SemSubmitInfo> signals = {
-            {vk::PipelineStageFlagBits2::eAllGraphics,
-             mContext->GetTimelineSemaphoreHandle(), allFinished + 1}};
-
-        mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(), {}, signals);
     }
 }
 

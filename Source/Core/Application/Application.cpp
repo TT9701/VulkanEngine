@@ -122,7 +122,8 @@ ImmediateSubmitManager Application::CreateImmediateSubmitManager() {
 CommandManager Application::CreateCommandManager() {
     return {
         mContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
-        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value()};
+        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value(),
+        mContext->GetPhysicalDevice()->GetComputeQueueFamilyIndex().value()};
 }
 
 PipelineManager Application::CreatePipelineManager() {
@@ -156,7 +157,6 @@ void Application::Update_OnResize() {
     mSwapchain->Resize({static_cast<uint32_t>(mWindow->GetWidth()),
                         static_cast<uint32_t>(mWindow->GetHeight())});
 }
-
 
 #ifdef CUDA_VULKAN_INTEROP
 SharedPtr<CUDA::VulkanExternalImage> Application::CreateExternalImage() {
@@ -211,6 +211,5 @@ void Application::SetCudaInterop() {
     DBG_LOG_INFO("Cuda Interop: physical device uuid: %d", result);
 }
 #endif
-
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -48,7 +48,8 @@ private:
 class CommandManager {
 public:
     CommandManager(Context* ctx, uint32_t count,
-                   uint32_t concurrentCommandsCount, uint32_t queueFamilyIndex,
+                   uint32_t concurrentCommandsCount,
+                   uint32_t gfxQueueFamilyIndex, uint32_t cmpQueueFamilyIndex,
                    vk::CommandPoolCreateFlags flags =
                        vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
 
@@ -65,14 +66,16 @@ public:
 
     void WaitUntilAllSubmitsAreComplete();
 
-    CmdBufferToBegin GetCmdBufferToBegin();
+    CmdBufferToBegin GetGfxCmdBufToBegin();
+    CmdBufferToBegin GetCmpCmdBufToBegin();
 
-    vk::Fence GetCurrentFence() const;
+    vk::Fence GetCurFence() const;
 
 private:
-    SharedPtr<CommandPool> CreateCommandPool(vk::CommandPoolCreateFlags flags);
+    SharedPtr<CommandPool> CreateCmdPool(uint32_t queueFamilyIndex,
+                                         vk::CommandPoolCreateFlags flags);
 
-    SharedPtr<CommandBuffers> CreateCommandBuffers(uint32_t count);
+    SharedPtr<CommandBuffers> CreateCmdBufs(CommandPool* pool, uint32_t count);
 
     Type_STLVector<SharedPtr<Fence>> CreateFences();
 
@@ -80,16 +83,21 @@ private:
     Context* pContex;
     friend CmdBufferToBegin;
 
-    uint32_t mCommandInFlight;
-    uint32_t mGraphicsQueueFamilyIndex;
+    uint32_t mCmdInFlight;
+    uint32_t mGfxQueueFamilyIndex;
+    uint32_t mCmpQueueFamilyIndex;
 
-    SharedPtr<CommandPool> mSPCommandPool;
-    SharedPtr<CommandBuffers> mSPCommandbuffers;
-    Type_STLVector<SharedPtr<Fence>> mSPFences;
+    SharedPtr<CommandPool> mGfxCmdPool;
+    SharedPtr<CommandPool> mCmpCmdPool;
+
+    SharedPtr<CommandBuffers> mGfxCmdbufs;
+    SharedPtr<CommandBuffers> mCmpCmdbufs;
+
+    Type_STLVector<SharedPtr<Fence>> mFences;
 
     Type_STLVector<bool> mIsSubmitted {};
     uint32_t mFenceCurIdx {};
-    uint32_t mCmdBufferCurIdx {};
+    uint32_t mCmdBufCurIdx {};
 };
 
 class ImmediateSubmitManager {
