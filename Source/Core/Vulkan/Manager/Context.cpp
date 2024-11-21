@@ -259,7 +259,8 @@ Context::GetDescIndexingProps() const {
 UniquePtr<Instance> Context::CreateInstance(
     ::std::span<Type_STLString> requestedLayers,
     ::std::span<Type_STLString> requestedExtensions) {
-    return MakeUnique<Instance>(requestedLayers, requestedExtensions);
+    return MakeUnique<Instance>("Vulkan App", requestedExtensions,
+                                requestedLayers, VK_API_VERSION_1_3);
 }
 
 #ifndef NDEBUG

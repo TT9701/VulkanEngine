@@ -59,7 +59,7 @@ public:
            void* pNext = nullptr);
 
     ~Shader();
-    MOVABLE_ONLY(Shader);
+    CLASS_MOVABLE_ONLY(Shader);
 
 public:
     Type_STLVector<DescriptorSetLayoutData> SPIRVReflect_DescSetLayouts();
@@ -128,7 +128,7 @@ public:
                   void* layoutPNext = nullptr);
 
     ~ShaderProgram() = default;
-    MOVABLE_ONLY(ShaderProgram);
+    CLASS_MOVABLE_ONLY(ShaderProgram);
 
     const Shader* operator[](ShaderStage stage) const;
     Shader* operator[](ShaderStage stage);

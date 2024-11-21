@@ -54,7 +54,7 @@ class Application {
 public:
     Application(ApplicationSpecification const& spec);
     virtual ~Application();
-    MOVABLE_ONLY(Application);
+    CLASS_MOVABLE_ONLY(Application);
 
 public:
     void Run();

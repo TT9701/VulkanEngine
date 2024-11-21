@@ -18,7 +18,7 @@ public:
 
     ~MemoryAllocator();
 
-    MOVABLE_ONLY(MemoryAllocator);
+    CLASS_MOVABLE_ONLY(MemoryAllocator);
 
 public:
     VmaAllocator GetHandle() const { return mAllocator; }
@@ -38,7 +38,7 @@ class ExternalMemoryPool {
 public:
     ExternalMemoryPool(MemoryAllocator* allocator);
     ~ExternalMemoryPool();
-    MOVABLE_ONLY(ExternalMemoryPool);
+    CLASS_MOVABLE_ONLY(ExternalMemoryPool);
 
 public:
     VmaPool GetHandle() const { return mPool; }

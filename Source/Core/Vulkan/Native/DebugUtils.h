@@ -12,7 +12,7 @@ class DebugUtils {
 public:
     DebugUtils(Instance* instance);
     ~DebugUtils();
-    MOVABLE_ONLY(DebugUtils);
+    CLASS_MOVABLE_ONLY(DebugUtils);
 
 public:
     vk::DebugUtilsMessengerEXT GetHandle() const { return mDebugMessenger; }

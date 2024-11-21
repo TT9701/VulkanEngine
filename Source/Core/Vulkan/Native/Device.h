@@ -1,76 +1,79 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-
+#include "CommandBuffer.h"
+#include "CommandPool.h"
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
+#include "DebugUtils.h"
+#include "PhysicalDevice.h"
+#include "Queue.h"
+#include "FencePool.h"
+#include "VulkanResource.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class PhysicalDevice;
-
-class Device {
+class Device : public VulkanResource<vk::Device> {
 public:
-    Device(PhysicalDevice* physicalDevice,
-           ::std::span<Type_STLString> requestedLayers = {},
-           ::std::span<Type_STLString> requestedExtensions = {},
-           vk::PhysicalDeviceFeatures* pFeatures = {}, void* pNext = nullptr);
+    Device(PhysicalDevice& physicalDevice, vk::SurfaceKHR surface,
+           UniquePtr<DebugUtils>&& debug_utils,
+           std::unordered_map<const char*, bool> requested_extensions = {});
 
-    ~Device();
-    MOVABLE_ONLY(Device);
+    ~Device() override;
+    CLASS_NO_COPY_MOVE(Device);
 
-public:
-    vk::Device GetHandle() const { return mDevice; }
+    PhysicalDevice const& get_gpu() const;
 
-    vk::Queue GetGraphicQueue(uint32_t index = 0) const {
-        return mGraphicQueues[index];
-    }
+    DebugUtils const& get_debug_utils() const;
 
-    vk::Queue GetComputeQueue(uint32_t index = 0) const {
-        return mComputeQueues[index];
-    }
+    Queue const& get_queue(uint32_t queue_family_index,
+                                         uint32_t queue_index) const;
 
-    vk::Queue GetTransferQueue(uint32_t index = 0) const {
-        return mTransferQueues[index];
-    }
+    Queue const& get_queue_by_flags(vk::QueueFlags queue_flags,
+                                                  uint32_t queue_index) const;
 
-    template <class VkCppHandle>
-    void SetObjectName(VkCppHandle handle, const char* name);
+    Queue const& get_queue_by_present(uint32_t queue_index) const;
+
+    Queue const& get_suitable_graphics_queue() const;
+
+    bool is_extension_supported(std::string const& extension) const;
+
+    bool is_enabled(std::string const& extension) const;
+
+    uint32_t get_queue_family_index(vk::QueueFlagBits queue_flag) const;
+
+    HPPCommandPool& get_command_pool();
+
+    // std::pair<vk::Image, vk::DeviceMemory> create_image(
+    //     vk::Format format, vk::Extent2D const& extent, uint32_t mip_levels,
+    //     vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) const;
+    //
+    // void copy_buffer(vkb::core::BufferCpp& src, vkb::core::BufferCpp& dst,
+    //                  vk::Queue queue,
+    //                  vk::BufferCopy* copy_region = nullptr) const;
+
+    vk::CommandBuffer create_command_buffer(vk::CommandBufferLevel level,
+                                            bool begin = false) const;
+
+    void flush_command_buffer(
+        vk::CommandBuffer command_buffer, vk::Queue queue, bool free = true,
+        vk::Semaphore signalSemaphore = VK_NULL_HANDLE) const;
+
+    FencePool& get_fence_pool();
 
 private:
-    vk::Device CreateDevice(std::span<Type_STLString> requestedLayers,
-                            std::span<Type_STLString> requestedExtensions,
-                            vk::PhysicalDeviceFeatures* pFeatures, void* pNext);
+    PhysicalDevice const& gpu;
 
-    void SetQueues();
+    vk::SurfaceKHR surface {nullptr};
 
-private:
-    PhysicalDevice* pPhysicalDevice;
+    UniquePtr<DebugUtils> debug_utils;
 
-    Type_STLVector<Type_STLString> enabledLayers {};
-    Type_STLVector<Type_STLString> enabledExtensions {};
+    std::vector<const char*> enabled_extensions {};
 
-    vk::Device mDevice;
+    std::vector<std::vector<Queue>> queues;
 
-    Type_STLVector<vk::Queue> mGraphicQueues {};
-    Type_STLVector<vk::Queue> mComputeQueues {};
-    Type_STLVector<vk::Queue> mTransferQueues {};
+    UniquePtr<HPPCommandPool> command_pool;
+
+    UniquePtr<FencePool> fence_pool;
 };
 
-}  // namespace IntelliDesign_NS::Vulkan::Core
-
-namespace IntelliDesign_NS::Vulkan::Core {
-
-// TODO: template requirements
-template <class VkCppHandle>
-void Device::SetObjectName(VkCppHandle handle, const char* name) {
-#ifndef NDEBUG
-    vk::DebugUtilsObjectNameInfoEXT info {};
-    using CType = typename VkCppHandle::CType;
-    info.setObjectHandle((uint64_t)(CType)handle)
-        .setObjectType(VkCppHandle::objectType)
-        .setPObjectName(name);
-    mDevice.setDebugUtilsObjectNameEXT(info);
-#endif
-}
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -1,5 +1,8 @@
 #pragma once
 
+static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
+static constexpr uint64_t DEFAULT_FENCE_TIME_OUT = 1000000000;
+
 // #define MAX_BINDLESS_DESCRIPTOR_COUNT (1048576ui32)
 #define MAX_BINDLESS_DESCRIPTOR_COUNT (64ui32)
 
@@ -25,7 +28,19 @@
         assert(expr);            \
     }
 
-#define MOVABLE_ONLY(CLASS_NAME)                       \
+#define CLASS_NO_COPY(CLASS_NAME)           \
+    CLASS_NAME(const CLASS_NAME&) = delete; \
+    CLASS_NAME& operator=(const CLASS_NAME&) = delete
+
+#define CLASS_NO_MOVE(CLASS_NAME)               \
+    CLASS_NAME(CLASS_NAME&&) noexcept = delete; \
+    CLASS_NAME& operator=(CLASS_NAME&&) noexcept = delete
+
+#define CLASS_NO_COPY_MOVE(CLASS_NAME) \
+    CLASS_NO_COPY(CLASS_NAME);         \
+    CLASS_NO_MOVE(CLASS_NAME)
+
+#define CLASS_MOVABLE_ONLY(CLASS_NAME)                 \
     CLASS_NAME(const CLASS_NAME&) = delete;            \
     CLASS_NAME& operator=(const CLASS_NAME&) = delete; \
     CLASS_NAME(CLASS_NAME&&) noexcept = default;       \

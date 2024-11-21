@@ -37,6 +37,11 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/PhysicalDevice.cpp
     Vulkan/Native/Device.h
     Vulkan/Native/Device.cpp
+    Vulkan/Native/Queue.h
+    Vulkan/Native/Queue.cpp
+    Vulkan/Native/FencePool.h
+    Vulkan/Native/FencePool.cpp
+    
     Vulkan/Native/MemoryAllocator.h
     Vulkan/Native/MemoryAllocator.cpp
     Vulkan/Native/Swapchain.h
@@ -47,6 +52,10 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/SyncStructures.cpp
     Vulkan/Native/Commands.h
     Vulkan/Native/Commands.cpp
+    Vulkan/Native/CommandBuffer.h
+    Vulkan/Native/CommandBuffer.cpp
+    Vulkan/Native/CommandPool.h
+    Vulkan/Native/CommandPool.cpp
     Vulkan/Native/Descriptors.h
     Vulkan/Native/Descriptors.cpp
     Vulkan/Native/DescriptorSetAllocator.h
@@ -63,6 +72,7 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/RenderResource.h
     Vulkan/Native/DrawCallMetaData.h
     Vulkan/Native/DrawCallMetaData.cpp
+    Vulkan/Native/VulkanResource.h
     
     Vulkan/Manager/Context.h
     Vulkan/Manager/Context.cpp

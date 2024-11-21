@@ -13,7 +13,7 @@ public:
     Fence(Context* ctx,
           vk::FenceCreateFlags flags = vk::FenceCreateFlagBits::eSignaled);
     ~Fence();
-    MOVABLE_ONLY(Fence);
+    CLASS_MOVABLE_ONLY(Fence);
 
 public:
     vk::Fence GetHandle() const { return mFence; }
@@ -33,7 +33,7 @@ class Semaphore {
 public:
     Semaphore(Context* ctx);
     ~Semaphore();
-    MOVABLE_ONLY(Semaphore);
+    CLASS_MOVABLE_ONLY(Semaphore);
 
 public:
     vk::Semaphore GetHandle() const { return mSemaphore; }
@@ -51,7 +51,7 @@ class TimelineSemaphore {
 public:
     TimelineSemaphore(Context* ctx, uint64_t initialValue = 0ui64);
     ~TimelineSemaphore();
-    MOVABLE_ONLY(TimelineSemaphore);
+    CLASS_MOVABLE_ONLY(TimelineSemaphore);
 
 public:
     vk::Semaphore GetHandle() const { return mSemaphore; }

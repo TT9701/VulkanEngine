@@ -15,7 +15,7 @@ public:
                 vk::CommandPoolCreateFlags flags =
                     vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
     ~CommandPool();
-    MOVABLE_ONLY(CommandPool);
+    CLASS_MOVABLE_ONLY(CommandPool);
 
 public:
     vk::CommandPool GetHandle() const { return mCmdPool; }
@@ -37,7 +37,7 @@ public:
         Context* ctx, CommandPool* pool, uint32_t count = 1u,
         vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary);
     ~CommandBuffers() = default;
-    MOVABLE_ONLY(CommandBuffers);
+    CLASS_MOVABLE_ONLY(CommandBuffers);
 
 public:
     vk::CommandBuffer GetHandle(uint32_t index = 0) const {

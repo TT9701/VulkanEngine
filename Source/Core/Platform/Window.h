@@ -12,7 +12,7 @@ class SDLWindow {
 public:
     SDLWindow(const char* name, int width, int height);
     ~SDLWindow();
-    MOVABLE_ONLY(SDLWindow);
+    CLASS_MOVABLE_ONLY(SDLWindow);
 
 public:
     void PollEvents(bool& quit, bool& stopRendering,

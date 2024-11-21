@@ -370,7 +370,7 @@ void MeshShaderDemo::RenderFrame() {
              mContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(1), waits,
+                       mContext->GetDevice()->GetGraphicQueue(), waits,
                        signals);
     }
 

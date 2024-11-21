@@ -97,7 +97,8 @@ UniquePtr<Context> Application::CreateContext() {
 
     return MakeUnique<Context>(
         mWindow.get(),
-        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
+        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute
+            | vk::QueueFlagBits::eTransfer,
         requestedInstanceLayers, requestedInstanceExtensions,
         enabledDeivceExtensions);
 }

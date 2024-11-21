@@ -16,7 +16,7 @@ public:
                   vk::SamplerAddressMode addressModeW, float maxLod,
                   bool compareEnable, vk::CompareOp compareOp);
     ~Sampler();
-    MOVABLE_ONLY(Sampler);
+    CLASS_MOVABLE_ONLY(Sampler);
 
 public:
     vk::Sampler GetHandle() const { return mSampler; }

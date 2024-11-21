@@ -32,7 +32,7 @@ public:
             ::std::span<Type_STLString> requestedInstanceExtensions = {},
             ::std::span<Type_STLString> requestedDeviceExtensions = {});
     ~Context() = default;
-    MOVABLE_ONLY(Context);
+    CLASS_MOVABLE_ONLY(Context);
 
 public:
     SharedPtr<Texture> CreateTexture2D(const char* name, vk::Extent3D extent,

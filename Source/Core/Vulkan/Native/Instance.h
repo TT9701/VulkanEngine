@@ -4,24 +4,42 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Utilities/VulkanUtilities.h"
 
+#include "VulkanResource.h"
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Instance {
+class PhysicalDevice;
+
+std::vector<const char*> GetOptimalValidationLayers(
+    ::std::span<vk::LayerProperties> supportedInstanceLayers);
+
+class Instance : public VulkanResource<vk::Instance> {
 public:
-    Instance(::std::span<Type_STLString> requestedInstanceLayers,
-             ::std::span<Type_STLString> requestedInstanceExtensions);
-    ~Instance();
-    MOVABLE_ONLY(Instance);
+    Instance(::std::string_view& appName,
+             ::std::unordered_map<const char*, bool> const& requiredExts,
+             ::std::span<const char*> requiredValidationLayers,
+             ::std::span<vk::LayerSettingEXT> requiredLayerSettings,
+             uint32_t apiVersion);
+    ~Instance() override;
+    CLASS_NO_COPY_MOVE(Instance);
 
-    vk::Instance GetHandle() const { return mInstance; }
+    ::std::span<const char*> GetExtensions();
+    PhysicalDevice& GetFirstGPU();
+    PhysicalDevice& GetSuitableGPU(vk::SurfaceKHR surface,
+                                   bool headless_surface);
+
+    bool IsEnabled(const char* extension) const;
+    void QueryGPUs();
 
 private:
-    vk::Instance CreateInstance();
+    Type_STLVector<const char*> mEnabledExtensions;
 
-private:
-    Type_STLVector<Type_STLString> mEnabledInstanceLayers;
-    Type_STLVector<Type_STLString> mEnabledInstanceExtensions;
-    vk::Instance mInstance;
+#ifndef NDEBUG
+    vk::DebugUtilsMessengerEXT mDebugUtilsMessenger;
+    vk::DebugReportCallbackEXT mDebugReportCallback;
+#endif
+
+    Type_STLVector<UniquePtr<PhysicalDevice>> mGPUs;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
