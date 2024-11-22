@@ -2,6 +2,7 @@
 
 #include "Core/Utilities/VulkanUtilities.h"
 #include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Manager/RenderFrame.h"
 #include "RenderResource.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -14,31 +15,25 @@ Swapchain::Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D)
         "Vulkan Swapchain Created. PresentMode: %s. \n\t\t\t    "
         "Swapchain Image Count: %d",
         vk::to_string(mCreateInfo.presentMode).c_str(), mImages.size());
-
-    pContex->SetName(mAcquireFence.GetHandle(), "Swapchain Acquire");
-    pContex->SetName(mReady4Present.GetHandle(), "Swapchain Ready 4 Present");
-    pContex->SetName(mReady4Render.GetHandle(), "Swapchain Ready 4 Render");
 }
 
 Swapchain::~Swapchain() {
     pContex->GetDeviceHandle().destroy(mSwapchain);
 }
 
-uint32_t Swapchain::AcquireNextImageIndex() {
-    VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mAcquireFence.GetHandle(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
-
-    pContex->GetDeviceHandle().resetFences(mAcquireFence.GetHandle());
+uint32_t Swapchain::AcquireNextImageIndex(RenderFrame& frame) {
+    frame.Reset();
 
     VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
-        mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT, mReady4Render.GetHandle(),
-        mAcquireFence.GetHandle(), &mCurrentImageIndex));
+        mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT,
+        frame.GetReady4RenderSemaphore().GetHandle(), VK_NULL_HANDLE,
+        &mCurrentImageIndex));
 
     return mCurrentImageIndex;
 }
 
-void Swapchain::Present(vk::Queue queue) {
-    auto sem = mReady4Present.GetHandle();
+void Swapchain::Present(RenderFrame& frame, vk::Queue queue) {
+    auto sem = frame.GetReady4PresentSemaphore().GetHandle();
 
     vk::PresentInfoKHR presentInfo {};
     presentInfo.setSwapchains(mSwapchain)
@@ -112,18 +107,6 @@ uint32_t Swapchain::GetPrevImageIndex() const {
 
 RenderResource const& Swapchain::GetCurrentImage() const {
     return mImages[mCurrentImageIndex];
-}
-
-vk::Fence Swapchain::GetAquireFenceHandle() const {
-    return mAcquireFence.GetHandle();
-}
-
-vk::Semaphore Swapchain::GetReady4PresentSemHandle() const {
-    return mReady4Present.GetHandle();
-}
-
-vk::Semaphore Swapchain::GetReady4RenderSemHandle() const {
-    return mReady4Render.GetHandle();
 }
 
 void Swapchain::Resize(vk::Extent2D extent) {

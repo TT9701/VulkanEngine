@@ -9,8 +9,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
-class Semaphore;
-class Fence;
+class RenderFrame;
 class RenderResource;
 
 class Swapchain {
@@ -22,9 +21,9 @@ public:
 public:
     static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
 
-    uint32_t AcquireNextImageIndex();
+    uint32_t AcquireNextImageIndex(RenderFrame& frame);
 
-    void Present(vk::Queue queue);
+    void Present(RenderFrame& frame, vk::Queue queue);
 
     vk::SwapchainKHR RecreateSwapchain(vk::Extent2D extent,
                                        vk::SwapchainKHR old = VK_NULL_HANDLE);
@@ -42,9 +41,6 @@ public:
     uint32_t GetCurrentImageIndex() const;
     uint32_t GetPrevImageIndex() const;
     RenderResource const& GetCurrentImage() const;
-    vk::Fence GetAquireFenceHandle() const;
-    vk::Semaphore GetReady4PresentSemHandle() const;
-    vk::Semaphore GetReady4RenderSemHandle() const;
 
 private:
     void SetSwapchainImages();
@@ -57,10 +53,6 @@ private:
 
     vk::SwapchainCreateInfoKHR mCreateInfo {};
     vk::SwapchainKHR mSwapchain;
-
-    Semaphore mReady4Present {pContex};
-    Semaphore mReady4Render {pContex};
-    Fence mAcquireFence {pContex};
 
     Type_STLVector<RenderResource> mImages {};
     uint32_t mCurrentImageIndex {0};

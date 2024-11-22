@@ -3,30 +3,33 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.h"
+#include "Core/Utilities/MemoryPool.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
+class FencePool;
 
-class Fence {
+class FencePool {
 public:
-    Fence(Context* ctx,
-          vk::FenceCreateFlags flags = vk::FenceCreateFlagBits::eSignaled);
-    ~Fence();
-    MOVABLE_ONLY(Fence);
+    FencePool(Context* ctx);
+    ~FencePool();
 
 public:
-    vk::Fence GetHandle() const { return mFence; }
-
     static constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
 
-private:
-    vk::Fence CreateFence(vk::FenceCreateFlags flags);
+    vk::Fence RequestFence(
+        vk::FenceCreateFlags flags = {});
+
+    vk::Result Wait() const;
+
+    vk::Result Reset();
 
 private:
     Context* pContext;
 
-    vk::Fence mFence;
+    Type_STLVector<vk::Fence> mFences;
+    uint32_t mActiveFenceCount {0};
 };
 
 class Semaphore {

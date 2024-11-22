@@ -1,20 +1,34 @@
 #include "Commands.h"
 
-#include <utility>
-
 #include "Core/Vulkan/Manager/Context.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 CommandPool::CommandPool(Context* ctx, uint32_t queueFamilysIndex,
                          vk::CommandPoolCreateFlags flags)
-    : pCtx(std::move(ctx)),
+    : pCtx(ctx),
       mFlags(flags),
       mQueueFamilysIndex(queueFamilysIndex),
       mCmdPool(CreateCommandPool()) {}
 
 CommandPool::~CommandPool() {
     pCtx->GetDeviceHandle().destroy(mCmdPool);
+}
+
+CommandBuffer& CommandPool::RequestCommandBuffer() {
+    if (mActiveCmdBufCount < mCmdBuffers.size()) {
+        return *mCmdBuffers[mActiveCmdBufCount++];
+    }
+
+    mCmdBuffers.emplace_back(MakeUnique<CommandBuffer>(pCtx, this));
+
+    mActiveCmdBufCount++;
+
+    return *mCmdBuffers.back();
+}
+
+void CommandPool::Reset() {
+    mActiveCmdBufCount = 0;
 }
 
 vk::CommandPool CommandPool::CreateCommandPool() {
@@ -24,22 +38,46 @@ vk::CommandPool CommandPool::CreateCommandPool() {
     return pCtx->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
 }
 
-CommandBuffers::CommandBuffers(Context* ctx, CommandPool* pool, uint32_t count,
-                               vk::CommandBufferLevel level)
+CommandBuffer::CommandBuffer(Context* ctx, CommandPool* pool,
+                             vk::CommandBufferLevel level)
     : pContex(ctx),
       pCmdPool(pool),
       mLevel(level),
-      mCmdBuffer(CreateCommandBuffers(count)) {}
+      mCmdBuffer(CreateCommandBuffer()) {}
 
-Type_STLVector<vk::CommandBuffer> CommandBuffers::CreateCommandBuffers(
-    uint32_t count) {
+void CommandBuffer::Reset() {
+    mCmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+}
+
+void CommandBuffer::End() {
+    mCmdBuffer.end();
+}
+
+vk::CommandBuffer CommandBuffer::CreateCommandBuffer() {
     vk::CommandBufferAllocateInfo cmdAllocInfo {};
     cmdAllocInfo.setCommandPool(pCmdPool->GetHandle())
         .setLevel(mLevel)
-        .setCommandBufferCount(count);
+        .setCommandBufferCount(1);
 
     auto vec = pContex->GetDeviceHandle().allocateCommandBuffers(cmdAllocInfo);
-    return {vec.begin(), vec.end()};
+    return vec.front();
+}
+
+CmdBufferToBegin::CmdBufferToBegin(CommandBuffer& cmd) : mBuffer(cmd) {
+    // mBuffer.Reset();
+
+    vk::CommandBufferBeginInfo beginInfo {};
+    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+    mBuffer.GetHandle().begin(beginInfo);
+}
+
+vk::CommandBuffer CmdBufferToBegin::GetHandle() const {
+    return mBuffer.GetHandle();
+}
+
+void CmdBufferToBegin::End() {
+    mBuffer.End();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

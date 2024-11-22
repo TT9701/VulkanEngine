@@ -7,8 +7,6 @@
 
 #include "Core/Utilities/GUI.h"
 
-#include "Core/System/concurrentqueue.h"
-
 namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
 namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
@@ -25,45 +23,8 @@ struct SceneData {
     int32_t texIndex {0};
 };
 
-class BindlessDescPool {
-public:
-    BindlessDescPool(
-        IDNS_VC::Context* context,
-        IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const& pso,
-        vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
-
-    IDNS_VC::PoolResource GetPoolResource() const;
-
-    // return texture descriptor idx at bindless set binding.
-    uint32_t Add(IDNS_VC::Texture const* texture);
-
-    // return texture descriptor idx at bindless set binding.
-    uint32_t Delete(IDNS_VC::Texture const* texture);
-
-private:
-    void ExpandSet();
-
-private:
-    IDNS_VC::Context* pContext;
-    IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> mPSOs;
-
-    vk::DescriptorType mDescType;
-
-    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetPool> mDescSetPool;
-    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSetLayout> mLayout;
-    IDNS_VC::SharedPtr<IDNS_VC::DescriptorSet> mSet;
-
-    uint32_t mDescCount;
-    vk::DeviceSize mDescSize;
-
-    uint32_t mCurrentDescCount {0};
-    moodycamel::ConcurrentQueue<uint32_t> mAvailableIndices;
-    IDNC_CMP::Type_STLUnorderedMap<IDNS_VC::Texture const*, uint32_t>
-        mDescIndexMap;
-};
-
 struct FrameResource {
-    IDNS_VC::SharedPtr<BindlessDescPool> mBindlessDescPool;
+    IDNS_VC::SharedPtr<IDNS_VC::BindlessDescPool> mBindlessDescPool;
 };
 
 class FrameResourceManager {
@@ -94,9 +55,9 @@ private:
     virtual void UpdateScene() override;
     virtual void Prepare() override;
 
-    virtual void BeginFrame() override;
-    virtual void RenderFrame() override;
-    virtual void EndFrame() override;
+    virtual void BeginFrame(IDNS_VC::RenderFrame& frame) override;
+    virtual void RenderFrame(IDNS_VC::RenderFrame& frame) override;
+    virtual void EndFrame(IDNS_VC::RenderFrame& frame) override;
 
 private:
     void CreateDrawImage();

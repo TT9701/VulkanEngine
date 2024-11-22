@@ -5,6 +5,8 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
+#include <Core/System/concurrentqueue.h>
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
@@ -60,6 +62,43 @@ private:
     Data mData;
 
     vk::DescriptorSetLayout mHandle {};
+};
+
+class RenderPassBindingInfo_PSO;
+
+class BindlessDescPool {
+public:
+    BindlessDescPool(
+        Context* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+        vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
+
+    PoolResource GetPoolResource() const;
+
+    // return texture descriptor idx at bindless set binding.
+    uint32_t Add(Texture const* texture);
+
+    // return texture descriptor idx at bindless set binding.
+    uint32_t Delete(Texture const* texture);
+
+private:
+    void ExpandSet();
+
+private:
+    Context* pContext;
+    Type_STLVector<RenderPassBindingInfo_PSO*> mPSOs;
+
+    vk::DescriptorType mDescType;
+
+    SharedPtr<DescriptorSetPool> mDescSetPool;
+    SharedPtr<DescriptorSetLayout> mLayout;
+    SharedPtr<DescriptorSet> mSet;
+
+    uint32_t mDescCount;
+    vk::DeviceSize mDescSize;
+
+    uint32_t mCurrentDescCount {0};
+    moodycamel::ConcurrentQueue<uint32_t> mAvailableIndices;
+    Type_STLUnorderedMap<Texture const*, uint32_t> mDescIndexMap;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

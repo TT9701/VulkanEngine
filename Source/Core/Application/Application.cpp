@@ -48,15 +48,16 @@ void Application::Run() {
         } else {
             UpdateScene();
 
-            BeginFrame();
-            RenderFrame();
-            EndFrame();
+            auto& frame = GetCurFrame();
+            BeginFrame(frame);
+            RenderFrame(frame);
+            EndFrame(frame);
         }
     }
     mContext->GetDeviceHandle().waitIdle();
 }
 
-void Application::RenderFrame() {}
+void Application::RenderFrame(Core::RenderFrame& frame) {}
 
 UniquePtr<SDLWindow> Application::CreateSDLWindow(const char* name,
                                                   uint32_t width,
@@ -97,7 +98,8 @@ UniquePtr<Context> Application::CreateContext() {
 
     return MakeUnique<Context>(
         mWindow.get(),
-        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute,
+        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute
+            | vk::QueueFlagBits::eTransfer,
         requestedInstanceLayers, requestedInstanceExtensions,
         enabledDeivceExtensions);
 }
@@ -120,10 +122,7 @@ ImmediateSubmitManager Application::CreateImmediateSubmitManager() {
 }
 
 CommandManager Application::CreateCommandManager() {
-    return {
-        mContext.get(), FRAME_OVERLAP, FRAME_OVERLAP,
-        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value(),
-        mContext->GetPhysicalDevice()->GetComputeQueueFamilyIndex().value()};
+    return {mContext.get()};
 }
 
 PipelineManager Application::CreatePipelineManager() {
@@ -140,15 +139,23 @@ void Application::LoadShaders() {}
 
 void Application::UpdateScene() {}
 
-void Application::Prepare() {}
-
-void Application::BeginFrame() {
-    auto swapchainImageIdx = mSwapchain->AcquireNextImageIndex();
+void Application::Prepare() {
+    for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
+        mFrames.emplace_back(mContext.get());
+    }
 }
 
-void Application::EndFrame() {
-    mSwapchain->Present(mContext->GetDevice()->GetGraphicQueue());
+void Application::BeginFrame(Core::RenderFrame& frame) {
+    auto swapchainImageIdx = mSwapchain->AcquireNextImageIndex(frame);
+}
+
+void Application::EndFrame(Core::RenderFrame& frame) {
+    mSwapchain->Present(frame, mContext->GetDevice()->GetGraphicQueue());
     ++mFrameNum;
+}
+
+RenderFrame& Application::GetCurFrame() {
+    return mFrames[mFrameNum % FRAME_OVERLAP];
 }
 
 void Application::PollEvents(SDL_Event* e, float deltaTime) {}

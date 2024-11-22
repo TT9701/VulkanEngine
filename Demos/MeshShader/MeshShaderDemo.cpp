@@ -4,125 +4,6 @@
 
 using namespace IDNS_VC;
 
-BindlessDescPool::BindlessDescPool(
-    Context* context,
-    IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const& pso,
-    vk::DescriptorType type)
-    : pContext(context), mPSOs(pso), mDescType(type) {
-    auto descBufProps = pContext->GetDescBufProps();
-    mDescCount =
-        ::std::min(MAX_BINDLESS_DESCRIPTOR_COUNT,
-                   pContext->GetDescIndexingProps()
-                       .maxPerStageDescriptorUpdateAfterBindSampledImages);
-
-    mLayout = MakeShared<DescriptorSetLayout>(
-        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
-        Type_STLVector<vk::DescriptorSetLayoutBinding> {
-            vk::DescriptorSetLayoutBinding {
-                0,
-                mDescType,
-                mDescCount,
-                vk::ShaderStageFlagBits::eFragment,
-            }},
-        descBufProps, nullptr);
-
-    mDescSize = mLayout->GetDescriptorSize(mDescType);
-    mDescSetPool = MakeDescSetPoolPtr(pContext, mDescSize * mDescCount);
-
-    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
-    auto requestHandle = mDescSetPool->RequestUnit(mLayout->GetSize());
-    mSet->SetRequestedHandle(std::move(requestHandle));
-}
-
-PoolResource BindlessDescPool::GetPoolResource() const {
-    return mSet->GetPoolResource();
-}
-
-uint32_t BindlessDescPool::Add(Texture const* texture) {
-    if (mDescIndexMap.contains(texture))
-        return mDescIndexMap.at(texture);
-
-    uint32_t idx;
-    bool success = mAvailableIndices.try_dequeue(idx);
-    if (!success) {
-        if (mCurrentDescCount < mDescCount) {
-            idx = mCurrentDescCount++;
-        } else {
-            ExpandSet();
-            return Add(texture);
-        }
-    }
-
-    auto resource = mSet->GetPoolResource();
-
-    vk::DescriptorImageInfo imageInfo {};
-    imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-        .setSampler(pContext->GetDefaultNearestSamplerHandle());
-
-    imageInfo.setImageView(texture->GetViewHandle());
-    vk::DescriptorGetInfoEXT descInfo {};
-    descInfo.setType(mDescType).setData(&imageInfo).setPNext(nullptr);
-
-    pContext->GetDeviceHandle().getDescriptorEXT(
-        descInfo, mDescSize,
-        (char*)resource.hostAddr + resource.offset + mSet->GetBingdingOffset(0)
-            + idx * mDescSize);
-
-    mDescIndexMap.emplace(texture, idx);
-
-    return idx;
-}
-
-uint32_t BindlessDescPool::Delete(IDNS_VC::Texture const* texture) {
-    uint32_t idx;
-    if (mDescIndexMap.contains(texture)) {
-        idx = mDescIndexMap.at(texture);
-
-        auto resource = mSet->GetPoolResource();
-        auto descSize = mLayout->GetDescriptorSize(mDescType);
-        memset((char*)resource.hostAddr + resource.offset
-                   + mSet->GetBingdingOffset(0) + idx * descSize,
-               0, descSize);
-
-        mAvailableIndices.enqueue(idx);
-        mDescIndexMap.erase(texture);
-    } else {
-        throw ::std::runtime_error(
-            "texture is not contained in bindless pool.");
-    }
-    return idx;
-}
-
-void BindlessDescPool::ExpandSet() {
-    mDescCount *= 2;
-    auto origSize = mLayout->GetSize();
-
-    mLayout.reset();
-    mLayout = MakeShared<DescriptorSetLayout>(
-        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
-        Type_STLVector<vk::DescriptorSetLayoutBinding> {
-            vk::DescriptorSetLayoutBinding {
-                0,
-                mDescType,
-                mDescCount,
-                vk::ShaderStageFlagBits::eFragment,
-            }},
-        pContext->GetDescBufProps(), nullptr);
-
-    auto requestHandle = mDescSetPool->RequestUnit(origSize * 2);
-    auto resource = requestHandle.Get_Resource();
-    memcpy(resource.hostAddr, mSet->GetPoolResource().hostAddr, origSize);
-
-    mSet.reset();
-    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
-    mSet->SetRequestedHandle(std::move(requestHandle));
-
-    for (auto& pso : mPSOs) {
-        pso->Update("sceneTexs", RenderPassBinding::BindlessDescBufInfo {
-                                     resource.deviceAddr, resource.offset});
-    }
-}
-
 void FrameResourceManager::BuildFrameResources(
     Context* context,
     IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const& pso) {
@@ -338,13 +219,12 @@ void MeshShaderDemo::Prepare() {
     PrepareUIContext();
 }
 
-void MeshShaderDemo::BeginFrame() {
-    Application::BeginFrame();
-
+void MeshShaderDemo::BeginFrame(IDNS_VC::RenderFrame& frame) {
+    Application::BeginFrame(frame);
     mGui.BeginFrame();
 }
 
-void MeshShaderDemo::RenderFrame() {
+void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     const uint64_t graphicsFinished =
         mContext->GetTimelineSemphore()->GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
@@ -352,7 +232,7 @@ void MeshShaderDemo::RenderFrame() {
 
     // Compute Draw
     {
-        auto cmd = mCmdMgr.GetGfxCmdBufToBegin();
+        auto cmd = frame.GetCmpCmdBuf();
 
         mBackgroundPass_Barrier.RecordCmd(cmd.GetHandle());
         mBackgroundPass_PSO.RecordCmd(cmd.GetHandle());
@@ -360,23 +240,21 @@ void MeshShaderDemo::RenderFrame() {
         cmd.End();
 
         Type_STLVector<SemSubmitInfo> waits = {
-            {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-             mSwapchain->GetReady4RenderSemHandle(), 0ui64},
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
              mContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
 
         Type_STLVector<SemSubmitInfo> signals = {
-            {vk::PipelineStageFlagBits2::eAllGraphics,
+            {vk::PipelineStageFlagBits2::eAllCommands,
              mContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(1), waits,
-                       signals);
+                       mContext->GetDevice()->GetComputeQueue(), waits, signals,
+                       frame.GetFencePool().RequestFence());
     }
 
     // Graphics Draw
     {
-        auto cmd = mCmdMgr.GetGfxCmdBufToBegin();
+        auto cmd = frame.GetGfxCmdBuf();
 
         // mMeshDrawPass_Barrier.RecordCmd(cmd.GetHandle());
         // mMeshDrawPass_PSO.RecordCmd(cmd.GetHandle());
@@ -397,6 +275,8 @@ void MeshShaderDemo::RenderFrame() {
         cmd.End();
 
         Type_STLVector<SemSubmitInfo> waits = {
+            {vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+             frame.GetReady4RenderSemaphore().GetHandle(), 0ui64},
             {vk::PipelineStageFlagBits2::eComputeShader,
              mContext->GetTimelineSemaphoreHandle(), computeFinished}};
 
@@ -404,16 +284,16 @@ void MeshShaderDemo::RenderFrame() {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              mContext->GetTimelineSemaphoreHandle(), allFinished},
             {vk::PipelineStageFlagBits2::eAllGraphics,
-             mSwapchain->GetReady4PresentSemHandle()}};
+             frame.GetReady4PresentSemaphore().GetHandle()}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(), waits,
-                       signals);
+                       mContext->GetDevice()->GetGraphicQueue(), waits, signals,
+                       frame.GetFencePool().RequestFence());
     }
 }
 
-void MeshShaderDemo::EndFrame() {
-    Application::EndFrame();
+void MeshShaderDemo::EndFrame(IDNS_VC::RenderFrame& frame) {
+    Application::EndFrame(frame);
 }
 
 void MeshShaderDemo::CreateDrawImage() {
@@ -456,10 +336,10 @@ void MeshShaderDemo::CreateDepthImage() {
 }
 
 void MeshShaderDemo::CreateRandomTexture() {
-    auto extent = vk::Extent3D {16, 16, 1};
-    const uint32_t randomImageCount = 128;
+    constexpr auto extent = vk::Extent3D {128, 128, 1};
+    constexpr uint32_t randomImageCount = 64;
 
-    size_t dataSize = extent.width * extent.height * 4;
+    constexpr size_t dataSize = extent.width * extent.height * 4;
 
     auto uploadBuffer = mRenderResMgr.CreateBuffer(
         "staging", dataSize * randomImageCount,
@@ -472,8 +352,8 @@ void MeshShaderDemo::CreateRandomTexture() {
         std::default_random_engine rndEngine(rndDevice());
         std::uniform_int_distribution rndDist(50, UCHAR_MAX);
 
-        std::array<uint8_t, 16 * 16 * 4> pixels;
-        for (uint32_t j = 0; j < 16 * 16; ++j) {
+        std::vector<uint8_t> pixels(dataSize);
+        for (uint32_t j = 0; j < extent.width * extent.height; ++j) {
             pixels[j * 4] = rndDist(rndEngine);
             pixels[j * 4 + 1] = rndDist(rndEngine);
             pixels[j * 4 + 2] = rndDist(rndEngine);
@@ -501,7 +381,7 @@ void MeshShaderDemo::CreateRandomTexture() {
                 vk::ImageLayout::eTransferDstOptimal);
 
             vk::BufferImageCopy2 copyRegion {};
-            copyRegion.setBufferOffset(16 * 16 * 4 * i)
+            copyRegion.setBufferOffset(dataSize * i)
                 .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
                 .setImageExtent(extent);
 
@@ -644,7 +524,7 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
     {
         mBackgroundPass_Barrier.AddImageBarrier(
             "DrawImage",
-            {.srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+            {.srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
              .srcAccessMask = vk::AccessFlagBits2::eShaderRead,
              .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
              .dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,

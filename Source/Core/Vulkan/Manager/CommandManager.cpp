@@ -11,49 +11,14 @@ void QueueSubmitRequest::Wait_CPUBlocking() {
     while (*pTimelineValue < mFenceValue) {}
 }
 
-CmdBufferToBegin::CmdBufferToBegin(vk::CommandBuffer cmd,
-                                   CommandManager* manager)
-    : pManager(manager), mBuffer(cmd) {
-    mBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-
-    vk::CommandBufferBeginInfo beginInfo {};
-    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-    mBuffer.begin(beginInfo);
-}
-
-CmdBufferToBegin::~CmdBufferToBegin() {
-    pManager->mCmdBufCurIdx =
-        (pManager->mCmdBufCurIdx + 1) % pManager->mGfxCmdbufs->GetBufferCount();
-    pManager->mFenceCurIdx =
-        (pManager->mFenceCurIdx + 1) % pManager->mCmdInFlight;
-}
-
-void CmdBufferToBegin::End() {
-    mBuffer.end();
-}
-
-CommandManager::CommandManager(Context* ctx, uint32_t count,
-                               uint32_t concurrentCommandsCount,
-                               uint32_t gfxQueueFamilyIndex,
-                               uint32_t cmpQueueFamilyIndex,
-                               vk::CommandPoolCreateFlags flags)
-    : pContex(ctx),
-      mCmdInFlight(concurrentCommandsCount),
-      mGfxQueueFamilyIndex(gfxQueueFamilyIndex),
-      mCmpQueueFamilyIndex(cmpQueueFamilyIndex),
-      mGfxCmdPool(CreateCmdPool(mGfxQueueFamilyIndex, flags)),
-      mCmpCmdPool(CreateCmdPool(mCmpQueueFamilyIndex, flags)),
-      mGfxCmdbufs(CreateCmdBufs(mGfxCmdPool.get(), count)),
-      mCmpCmdbufs(CreateCmdBufs(mGfxCmdPool.get(), count)),
-      mFences(CreateFences()) {
-    mIsSubmitted.resize(mCmdInFlight);
+CommandManager::CommandManager(Context* ctx)
+    : pContex(ctx) {
 }
 
 QueueSubmitRequest CommandManager::Submit(
     vk::CommandBuffer cmd, vk::Queue queue,
     ::std::span<SemSubmitInfo> waitInfos,
-    ::std::span<SemSubmitInfo> signalInfos) {
+    ::std::span<SemSubmitInfo> signalInfos, vk::Fence fence) {
     uint64_t signalValue {0ui64};
 
     vk::CommandBufferSubmitInfo cmdInfo {cmd};
@@ -71,10 +36,9 @@ QueueSubmitRequest CommandManager::Submit(
 
     vk::SubmitInfo2 submit {{}, waits, cmdInfo, signals};
 
-    pContex->GetDeviceHandle().resetFences(GetCurFence());
+    // pContex->GetDeviceHandle().resetFences(GetCurFence());
 
-    queue.submit2(submit, GetCurFence());
-    mIsSubmitted[mFenceCurIdx] = true;
+    queue.submit2(submit, fence);
 
     auto timelineValue = pContex->GetTimelineSemphore()->GetValue();
     if (signalValue - timelineValue > 0) {
@@ -87,76 +51,18 @@ QueueSubmitRequest CommandManager::Submit(
     return {signalValue, pContex->GetTimelineSemphore()->GetValueAddress()};
 }
 
-void CommandManager::WaitUntilSubmitIsComplete() {
-    if (!mIsSubmitted[mFenceCurIdx])
-        return;
-
-    const auto result = pContex->GetDeviceHandle().waitForFences(
-        GetCurFence(), vk::True, Fence::TIME_OUT_NANO_SECONDS);
-
-    if (result == vk::Result::eTimeout) {
-        ::std::cerr << "Timeout! \n";
-        pContex->GetDeviceHandle().waitIdle();
-    }
-
-    mIsSubmitted[mFenceCurIdx] = false;
-}
-
-void CommandManager::WaitUntilAllSubmitsAreComplete() {
-    for (uint32_t index = 0; auto& fence : mFences) {
-        VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-            fence->GetHandle(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
-        pContex->GetDeviceHandle().resetFences(fence->GetHandle());
-        mIsSubmitted[index++] = false;
-    }
-}
-
-CmdBufferToBegin CommandManager::GetGfxCmdBufToBegin() {
-    VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        GetCurFence(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
-    mIsSubmitted[mFenceCurIdx] = false;
-
-    auto currentCmdBuf = mGfxCmdbufs->GetHandle(mCmdBufCurIdx);
-
-    return {currentCmdBuf, this};
-}
-
-CmdBufferToBegin CommandManager::GetCmpCmdBufToBegin() {
-    auto currentCmdBuf = mCmpCmdbufs->GetHandle(mCmdBufCurIdx);
-
-    return {currentCmdBuf, this};
-}
-
-vk::Fence CommandManager::GetCurFence() const {
-    return mFences[mFenceCurIdx]->GetHandle();
-}
-
-SharedPtr<CommandPool> CommandManager::CreateCmdPool(
-    uint32_t queueFamilyIndex, vk::CommandPoolCreateFlags flags) {
-    return MakeShared<CommandPool>(pContex, queueFamilyIndex, flags);
-}
-
-SharedPtr<CommandBuffers> CommandManager::CreateCmdBufs(CommandPool* pool,
-                                                        uint32_t count) {
-    return MakeShared<CommandBuffers>(pContex, pool, count);
-}
-
-Type_STLVector<SharedPtr<Fence>> CommandManager::CreateFences() {
-    Type_STLVector<SharedPtr<Fence>> vec;
-    for (uint32_t i = 0; i < mCmdInFlight; ++i) {
-        vec.push_back(MakeShared<Fence>(pContex));
-    }
-    return vec;
-}
-
 ImmediateSubmitManager::ImmediateSubmitManager(Context* ctx,
                                                uint32_t queueFamilyIndex)
     : pContex(ctx),
       mQueueFamilyIndex(queueFamilyIndex),
-      mSPFence(CreateFence()),
+      mFence(CreateFence()),
       mSPCommandPool(CreateCommandPool()),
       mSPCommandBuffer(CreateCommandBuffer()) {
     DBG_LOG_INFO("Vulkan Immediate submit CommandPool & CommandBuffer Created");
+}
+
+ImmediateSubmitManager::~ImmediateSubmitManager() {
+    pContex->GetDeviceHandle().destroy(mFence);
 }
 
 void ImmediateSubmitManager::Submit(
@@ -164,7 +70,7 @@ void ImmediateSubmitManager::Submit(
     auto func =
         ::std::forward<std::function<void(vk::CommandBuffer cmd)>>(function);
 
-    pContex->GetDeviceHandle().resetFences(mSPFence->GetHandle());
+    pContex->GetDeviceHandle().resetFences(mFence);
 
     auto cmd = mSPCommandBuffer->GetHandle();
 
@@ -183,17 +89,18 @@ void ImmediateSubmitManager::Submit(
     vk::SubmitInfo2 submit {{}, {}, cmdSubmitInfo, {}};
 
     pContex->GetDevice()->GetGraphicQueue().submit2(submit,
-                                                    mSPFence->GetHandle());
+                                                    mFence);
     VK_CHECK(pContex->GetDeviceHandle().waitForFences(
-        mSPFence->GetHandle(), vk::True, Fence::TIME_OUT_NANO_SECONDS));
+        mFence, vk::True, FencePool::TIME_OUT_NANO_SECONDS));
 }
 
-SharedPtr<Fence> ImmediateSubmitManager::CreateFence() {
-    return MakeShared<Fence>(pContex);
+vk::Fence ImmediateSubmitManager::CreateFence() {
+    vk::FenceCreateInfo info {vk::FenceCreateFlagBits::eSignaled};
+    return pContex->GetDeviceHandle().createFence(info);
 }
 
-SharedPtr<CommandBuffers> ImmediateSubmitManager::CreateCommandBuffer() {
-    return MakeShared<CommandBuffers>(pContex, mSPCommandPool.get());
+SharedPtr<CommandBuffer> ImmediateSubmitManager::CreateCommandBuffer() {
+    return MakeShared<CommandBuffer>(pContex, mSPCommandPool.get());
 }
 
 SharedPtr<CommandPool> ImmediateSubmitManager::CreateCommandPool() {

@@ -2,6 +2,7 @@
 
 #include "Core/Utilities/Defines.h"
 #include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/RenderGraph/RenderPassBindingInfo.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -128,6 +129,125 @@ size_t DescriptorSetLayout::GetDescriptorSize(vk::DescriptorType type) const {
                 + " )");
     }
     return descSize;
+}
+
+BindlessDescPool::BindlessDescPool(
+    Context* context,
+    Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+    vk::DescriptorType type)
+    : pContext(context), mPSOs(pso), mDescType(type) {
+    auto descBufProps = pContext->GetDescBufProps();
+    mDescCount =
+        ::std::min(MAX_BINDLESS_DESCRIPTOR_COUNT,
+                   pContext->GetDescIndexingProps()
+                       .maxPerStageDescriptorUpdateAfterBindSampledImages);
+
+    mLayout = MakeShared<DescriptorSetLayout>(
+        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
+        Type_STLVector<vk::DescriptorSetLayoutBinding> {
+            vk::DescriptorSetLayoutBinding {
+                0,
+                mDescType,
+                mDescCount,
+                vk::ShaderStageFlagBits::eFragment,
+            }},
+        descBufProps, nullptr);
+
+    mDescSize = mLayout->GetDescriptorSize(mDescType);
+    mDescSetPool = MakeDescSetPoolPtr(pContext, mDescSize * mDescCount);
+
+    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
+    auto requestHandle = mDescSetPool->RequestUnit(mLayout->GetSize());
+    mSet->SetRequestedHandle(std::move(requestHandle));
+}
+
+PoolResource BindlessDescPool::GetPoolResource() const {
+    return mSet->GetPoolResource();
+}
+
+uint32_t BindlessDescPool::Add(Texture const* texture) {
+    if (mDescIndexMap.contains(texture))
+        return mDescIndexMap.at(texture);
+
+    uint32_t idx;
+    bool success = mAvailableIndices.try_dequeue(idx);
+    if (!success) {
+        if (mCurrentDescCount < mDescCount) {
+            idx = mCurrentDescCount++;
+        } else {
+            ExpandSet();
+            return Add(texture);
+        }
+    }
+
+    auto resource = mSet->GetPoolResource();
+
+    vk::DescriptorImageInfo imageInfo {};
+    imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+        .setSampler(pContext->GetDefaultNearestSamplerHandle());
+
+    imageInfo.setImageView(texture->GetViewHandle());
+    vk::DescriptorGetInfoEXT descInfo {};
+    descInfo.setType(mDescType).setData(&imageInfo).setPNext(nullptr);
+
+    pContext->GetDeviceHandle().getDescriptorEXT(
+        descInfo, mDescSize,
+        (char*)resource.hostAddr + resource.offset + mSet->GetBingdingOffset(0)
+            + idx * mDescSize);
+
+    mDescIndexMap.emplace(texture, idx);
+
+    return idx;
+}
+
+uint32_t BindlessDescPool::Delete(Texture const* texture) {
+    uint32_t idx;
+    if (mDescIndexMap.contains(texture)) {
+        idx = mDescIndexMap.at(texture);
+
+        auto resource = mSet->GetPoolResource();
+        auto descSize = mLayout->GetDescriptorSize(mDescType);
+        memset((char*)resource.hostAddr + resource.offset
+                   + mSet->GetBingdingOffset(0) + idx * descSize,
+               0, descSize);
+
+        mAvailableIndices.enqueue(idx);
+        mDescIndexMap.erase(texture);
+    } else {
+        throw ::std::runtime_error(
+            "texture is not contained in bindless pool.");
+    }
+    return idx;
+}
+
+void BindlessDescPool::ExpandSet() {
+    mDescCount *= 2;
+    auto origSize = mLayout->GetSize();
+
+    mLayout.reset();
+    mLayout = MakeShared<DescriptorSetLayout>(
+        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
+        Type_STLVector<vk::DescriptorSetLayoutBinding> {
+            vk::DescriptorSetLayoutBinding {
+                0,
+                mDescType,
+                mDescCount,
+                vk::ShaderStageFlagBits::eFragment,
+            }},
+        pContext->GetDescBufProps(), nullptr);
+
+    auto requestHandle = mDescSetPool->RequestUnit(origSize * 2);
+    auto resource = requestHandle.Get_Resource();
+    memcpy(resource.hostAddr, mSet->GetPoolResource().hostAddr, origSize);
+
+    mSet.reset();
+    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
+    mSet->SetRequestedHandle(std::move(requestHandle));
+
+    for (auto& pso : mPSOs) {
+        pso->Update("sceneTexs", RenderPassBinding::BindlessDescBufInfo {
+                                     resource.deviceAddr, resource.offset});
+    }
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

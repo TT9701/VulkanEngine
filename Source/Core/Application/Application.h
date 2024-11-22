@@ -12,6 +12,7 @@
 #include "Core/Vulkan/Manager/CommandManager.h"
 #include "Core/Vulkan/Manager/Context.h"
 #include "Core/Vulkan/Manager/PipelineManager.h"
+#include "Core/Vulkan/Manager/RenderFrame.h"
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
 #include "Core/Vulkan/Manager/ShaderManager.h"
 #include "Core/Vulkan/Native/Swapchain.h"
@@ -83,9 +84,11 @@ protected:
     virtual void UpdateScene();
     virtual void Prepare();
 
-    virtual void BeginFrame();
-    virtual void RenderFrame();
-    virtual void EndFrame();
+    virtual void BeginFrame(Core::RenderFrame& frame);
+    virtual void RenderFrame(Core::RenderFrame& frame);
+    virtual void EndFrame(Core::RenderFrame& frame);
+
+    Core::RenderFrame& GetCurFrame();
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage();
@@ -110,6 +113,7 @@ protected:
     ShaderManager mShaderMgr;
 
     IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
+    Type_STLVector<Core::RenderFrame> mFrames;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;

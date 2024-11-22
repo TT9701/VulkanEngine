@@ -76,6 +76,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Manager/ShaderManager.cpp
     Vulkan/Manager/DrawCallManager.h
     Vulkan/Manager/DrawCallManager.cpp
+    Vulkan/Manager/RenderFrame.h
+    Vulkan/Manager/RenderFrame.cpp
 
     Vulkan/RenderGraph/RenderPassBindingInfo.h
     Vulkan/RenderGraph/RenderPassBindingInfo.cpp

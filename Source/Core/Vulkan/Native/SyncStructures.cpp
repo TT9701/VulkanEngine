@@ -4,17 +4,54 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Fence::Fence(Context* ctx, vk::FenceCreateFlags flags)
-    : pContext(ctx), mFence(CreateFence(flags)) {}
+FencePool::FencePool(Context* ctx) : pContext(ctx) {}
 
-Fence::~Fence() {
-    pContext->GetDeviceHandle().destroy(mFence);
+FencePool::~FencePool() {
+    Wait();
+    Reset();
+
+    for (auto& fence : mFences) {
+        pContext->GetDeviceHandle().destroy(fence);
+    }
+
+    mFences.clear();
 }
 
-vk::Fence Fence::CreateFence(vk::FenceCreateFlags flags) {
-    vk::FenceCreateInfo fenceCreateInfo {flags};
+vk::Fence FencePool::RequestFence(vk::FenceCreateFlags flags) {
+    if (mActiveFenceCount < mFences.size()) {
+        return mFences[mActiveFenceCount++];
+    }
 
-    return pContext->GetDeviceHandle().createFence(fenceCreateInfo);
+    vk::FenceCreateInfo info {flags};
+
+    auto fence = pContext->GetDeviceHandle().createFence(info);
+
+    mFences.push_back(fence);
+
+    mActiveFenceCount++;
+
+    return mFences.back();
+}
+
+vk::Result FencePool::Wait() const {
+    if (mActiveFenceCount < 1 || mFences.empty()) {
+        return vk::Result::eSuccess;
+    }
+
+    return pContext->GetDeviceHandle().waitForFences(
+        mFences, vk::True, TIME_OUT_NANO_SECONDS);
+}
+
+vk::Result FencePool::Reset() {
+    if (mActiveFenceCount < 1 || mFences.empty()) {
+        return vk::Result::eSuccess;
+    }
+
+    pContext->GetDeviceHandle().resetFences(mFences);
+
+    mActiveFenceCount = 0;
+
+    return vk::Result::eSuccess;
 }
 
 Semaphore::Semaphore(Context* ctx) : pContext(ctx), mSemaphore(CreateSem()) {}

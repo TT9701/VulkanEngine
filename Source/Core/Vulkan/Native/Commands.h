@@ -8,6 +8,32 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
+class CommandPool;
+
+class CommandBuffer {
+public:
+    CommandBuffer(
+        Context* ctx, CommandPool* pool,
+        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary);
+    ~CommandBuffer() = default;
+    MOVABLE_ONLY(CommandBuffer);
+
+public:
+    vk::CommandBuffer GetHandle() const { return mCmdBuffer; }
+
+    void Reset();
+    void End();
+
+private:
+    vk::CommandBuffer CreateCommandBuffer();
+
+private:
+    Context* pContex;
+    CommandPool* pCmdPool;
+    vk::CommandBufferLevel mLevel;
+
+    vk::CommandBuffer mCmdBuffer;
+};
 
 class CommandPool {
 public:
@@ -20,6 +46,9 @@ public:
 public:
     vk::CommandPool GetHandle() const { return mCmdPool; }
 
+    CommandBuffer& RequestCommandBuffer();
+    void Reset();
+
 private:
     vk::CommandPool CreateCommandPool();
 
@@ -29,34 +58,20 @@ private:
     uint32_t mQueueFamilysIndex;
 
     vk::CommandPool mCmdPool;
+
+    uint32_t mActiveCmdBufCount {0};
+    Type_STLVector<UniquePtr<CommandBuffer>> mCmdBuffers;
 };
 
-class CommandBuffers {
-public:
-    CommandBuffers(
-        Context* ctx, CommandPool* pool, uint32_t count = 1u,
-        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary);
-    ~CommandBuffers() = default;
-    MOVABLE_ONLY(CommandBuffers);
+struct CmdBufferToBegin {
+    CmdBufferToBegin(CommandBuffer& cmd);
 
-public:
-    vk::CommandBuffer GetHandle(uint32_t index = 0) const {
-        return mCmdBuffer[index];
-    }
+    vk::CommandBuffer GetHandle() const;
 
-    uint32_t GetBufferCount() const {
-        return static_cast<uint32_t>(mCmdBuffer.size());
-    }
+    void End();
 
 private:
-    Type_STLVector<vk::CommandBuffer> CreateCommandBuffers(uint32_t count);
-
-private:
-    Context* pContex;
-    CommandPool* pCmdPool;
-    vk::CommandBufferLevel mLevel;
-
-    Type_STLVector<vk::CommandBuffer> mCmdBuffer;
+    CommandBuffer& mBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
