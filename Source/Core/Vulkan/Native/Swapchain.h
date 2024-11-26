@@ -16,7 +16,7 @@ class Swapchain {
 public:
     Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D);
     ~Swapchain();
-    MOVABLE_ONLY(Swapchain);
+    CLASS_MOVABLE_ONLY(Swapchain);
 
 public:
     static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;

@@ -36,7 +36,7 @@ public:
 
     ~CommandManager() = default;
 
-    MOVABLE_ONLY(CommandManager);
+    CLASS_MOVABLE_ONLY(CommandManager);
 
 public:
     QueueSubmitRequest Submit(vk::CommandBuffer cmd, vk::Queue queue,
@@ -52,7 +52,7 @@ class ImmediateSubmitManager {
 public:
     ImmediateSubmitManager(Context* ctx, uint32_t queueFamilyIndex);
     ~ImmediateSubmitManager();
-    MOVABLE_ONLY(ImmediateSubmitManager);
+    CLASS_MOVABLE_ONLY(ImmediateSubmitManager);
 
 public:
     void Submit(::std::function<void(vk::CommandBuffer cmd)>&& function) const;

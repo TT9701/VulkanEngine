@@ -16,7 +16,7 @@ class PipelineBuilder<PipelineType::Graphics> {
 public:
     PipelineBuilder(PipelineManager* manager);
     ~PipelineBuilder() = default;
-    MOVABLE_ONLY(PipelineBuilder);
+    CLASS_MOVABLE_ONLY(PipelineBuilder);
 
 public:
     PipelineBuilder& SetLayout(vk::PipelineLayout layout);
@@ -75,7 +75,7 @@ class PipelineBuilder<PipelineType::Compute> {
 public:
     PipelineBuilder(PipelineManager* manager);
     ~PipelineBuilder() = default;
-    MOVABLE_ONLY(PipelineBuilder);
+    CLASS_MOVABLE_ONLY(PipelineBuilder);
 
 public:
     PipelineBuilder& SetShaderProgram(ShaderProgram* program);
@@ -119,7 +119,7 @@ class PipelineManager {
 public:
     PipelineManager(Context* contex);
     ~PipelineManager() = default;
-    MOVABLE_ONLY(PipelineManager);
+    CLASS_MOVABLE_ONLY(PipelineManager);
 
     friend Type_CPBuilder;
     friend Type_GPBuilder;

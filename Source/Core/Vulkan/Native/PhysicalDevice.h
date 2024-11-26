@@ -13,7 +13,7 @@ public:
     PhysicalDevice(Instance* instance,
                          vk::QueueFlags requestedQueueTypes);
     ~PhysicalDevice() = default;
-    MOVABLE_ONLY(PhysicalDevice);
+    CLASS_MOVABLE_ONLY(PhysicalDevice);
 
 public:
     vk::PhysicalDevice const& GetHandle() const { return mPhysicalDevice; }

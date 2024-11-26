@@ -11,7 +11,7 @@ public:
     MemoryPoolInstance() : mResource(::std::pmr::get_default_resource()) {}
 
     ~MemoryPoolInstance() = default;
-    MOVABLE_ONLY(MemoryPoolInstance);
+    CLASS_MOVABLE_ONLY(MemoryPoolInstance);
 
 public:
     static MemoryPoolInstance* Get() {

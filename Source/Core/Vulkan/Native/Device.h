@@ -17,7 +17,7 @@ public:
            vk::PhysicalDeviceFeatures* pFeatures = {}, void* pNext = nullptr);
 
     ~Device();
-    MOVABLE_ONLY(Device);
+    CLASS_MOVABLE_ONLY(Device);
 
 public:
     vk::Device GetHandle() const { return mDevice; }

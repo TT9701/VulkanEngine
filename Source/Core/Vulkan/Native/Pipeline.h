@@ -18,7 +18,7 @@ public:
                    vk::PipelineLayoutCreateFlags flags = {},
                    void* pNext = nullptr);
     ~PipelineLayout();
-    MOVABLE_ONLY(PipelineLayout);
+    CLASS_MOVABLE_ONLY(PipelineLayout);
 
 public:
     vk::PipelineLayout GetHandle() const { return mLayout; }
@@ -52,7 +52,7 @@ public:
     Pipeline(Context* context, vk::GraphicsPipelineCreateInfo const& info,
              vk::PipelineCache cache = {});
     ~Pipeline();
-    MOVABLE_ONLY(Pipeline);
+    CLASS_MOVABLE_ONLY(Pipeline);
 
 public:
     vk::Pipeline GetHandle() const { return mPipeline; }
@@ -74,7 +74,7 @@ public:
     Pipeline(Context* context, vk::ComputePipelineCreateInfo const& info,
              vk::PipelineCache cache = {});
     ~Pipeline();
-    MOVABLE_ONLY(Pipeline);
+    CLASS_MOVABLE_ONLY(Pipeline);
 
 public:
     vk::Pipeline GetHandle() const { return mPipeline; }

@@ -14,7 +14,7 @@ class Surface {
 public:
     Surface(Instance* instance, const SDLWindow* window);
     ~Surface();
-    MOVABLE_ONLY(Surface);
+    CLASS_MOVABLE_ONLY(Surface);
 
 public:
     vk::SurfaceKHR const& GetHandle() const { return mSurface; }

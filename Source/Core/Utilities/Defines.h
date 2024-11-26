@@ -25,10 +25,21 @@
         assert(expr);            \
     }
 
-#define MOVABLE_ONLY(CLASS_NAME)                       \
-    CLASS_NAME(const CLASS_NAME&) = delete;            \
-    CLASS_NAME& operator=(const CLASS_NAME&) = delete; \
-    CLASS_NAME(CLASS_NAME&&) noexcept = default;       \
+#define CLASS_NO_COPY(CLASS_NAME)           \
+    CLASS_NAME(const CLASS_NAME&) = delete; \
+    CLASS_NAME& operator=(const CLASS_NAME&) = delete
+
+#define CLASS_NO_MOVE(CLASS_NAME)      \
+    CLASS_NAME(CLASS_NAME&&) = delete; \
+    CLASS_NAME& operator=(CLASS_NAME&&) = delete
+
+#define CLASS_NO_COPY_MOVE(CLASS_NAME) \
+    CLASS_NO_COPY(CLASS_NAME);         \
+    CLASS_NO_MOVE(CLASS_NAME)
+
+#define CLASS_MOVABLE_ONLY(CLASS_NAME)           \
+    CLASS_NO_COPY(CLASS_NAME);                   \
+    CLASS_NAME(CLASS_NAME&&) noexcept = default; \
     CLASS_NAME& operator=(CLASS_NAME&&) noexcept = default
 
 #define VE_STRINGIFY_MACRO(x) #x

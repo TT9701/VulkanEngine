@@ -11,7 +11,7 @@ public:
     Instance(::std::span<Type_STLString> requestedInstanceLayers,
              ::std::span<Type_STLString> requestedInstanceExtensions);
     ~Instance();
-    MOVABLE_ONLY(Instance);
+    CLASS_MOVABLE_ONLY(Instance);
 
     vk::Instance GetHandle() const { return mInstance; }
 
