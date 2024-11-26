@@ -23,24 +23,6 @@ struct SceneData {
     int32_t texIndex {0};
 };
 
-struct FrameResource {
-    IDNS_VC::SharedPtr<IDNS_VC::BindlessDescPool> mBindlessDescPool;
-};
-
-class FrameResourceManager {
-public:
-    FrameResourceManager() = default;
-
-    void BuildFrameResources(
-        IDNS_VC::Context* context,
-        IDNC_CMP::Type_STLVector<IDNS_VC::RenderPassBindingInfo_PSO*> const&
-            pso = {});
-
-    FrameResource* GetCurrentFrameResource(uint32_t frameIdx);
-
-    IDNC_CMP::Type_STLVector<FrameResource> mFrameResources;
-};
-
 class MeshShaderDemo : public IDNS_VC::Application {
 public:
     MeshShaderDemo(IDNS_VC::ApplicationSpecification const& spec);
@@ -63,6 +45,7 @@ private:
     void CreateDrawImage();
     void CreateDepthImage();
     void CreateRandomTexture();
+    void CreateShadowImages();
 
     void CreateBackgroundComputePipeline();
     void CreateMeshPipeline();
@@ -74,14 +57,15 @@ private:
     void RecordDrawQuadCmds();
     void RecordMeshShaderDrawCmds();
 
+    void RecordShadowDrawCmds();
+    void RecordRuntimeCopyCmds();
+
     void UpdateSceneUBO();
 
     void PrepareUIContext();
 
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
-
-    FrameResourceManager mFrameResMgr;
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 
@@ -92,11 +76,22 @@ private:
     IDNS_VC::RenderPassBindingInfo_Barrier mMeshDrawPass_Barrier;
 
     IDNS_VC::RenderPassBindingInfo_PSO mMeshShaderPass_PSO;
-    IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier;
+    IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier_Pre;
+    IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier_Post;
 
     IDNS_VC::RenderPassBindingInfo_PSO mQuadDrawPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Pre;
     IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Post;
+
+    IDNS_VC::RenderPassBindingInfo_PSO mShadowPass_PSO;
+    IDNS_VC::RenderPassBindingInfo_Barrier mShadowPass_Barrier;
+
+    IDNS_VC::RenderPassBindingInfo_Copy mRuntimeCopy;
+    IDNS_VC::RenderPassBindingInfo_Barrier mRuntimeCopy_Barrier_Pre;
+    IDNS_VC::RenderPassBindingInfo_Barrier mRuntimeCopy_Barrier_Post;
+
+    IDNS_VC::Semaphore mCopySem;
+    IDNS_VC::Semaphore mCmpSem;
 
     IDNS_VC::GUI mGui;
 

@@ -36,8 +36,6 @@ QueueSubmitRequest CommandManager::Submit(
 
     vk::SubmitInfo2 submit {{}, waits, cmdInfo, signals};
 
-    // pContex->GetDeviceHandle().resetFences(GetCurFence());
-
     queue.submit2(submit, fence);
 
     auto timelineValue = pContex->GetTimelineSemphore()->GetValue();

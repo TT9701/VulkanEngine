@@ -30,14 +30,15 @@ void TransitionImageLayout(vk::CommandBuffer cmd, vk::Image img,
 
 vk::ImageSubresourceRange GetWholeImageSubresource(vk::ImageAspectFlags aspect);
 
-#define VK_CHECK(x)                                                        \
-    {                                                                      \
-        vk::Result err = x;                                                \
-        if (err != vk::Result::eSuccess) {                                 \
-            ::std::cout << "Detected Vulkan error: " << vk::to_string(err) \
-                        << "\n";                                           \
-            abort();                                                       \
-        }                                                                  \
+#define VK_CHECK(x)                                                      \
+    {                                                                    \
+        vk::Result err = x;                                              \
+        if (err != vk::Result::eSuccess) {                               \
+            ::std::cout << "Detected Vulkan error in file: " << __FILE__ \
+                        << ", at line " << __LINE__ << ": "              \
+                        << vk::to_string(err) << "\n";                   \
+            abort();                                                     \
+        }                                                                \
     }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core::Utils

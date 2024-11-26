@@ -21,6 +21,8 @@ public:
     CmdBufferToBegin GetCmpCmdBuf() const;
     CmdBufferToBegin GetTsfCmdBuf() const;
 
+    BindlessDescPool& GetBindlessDescPool() const;
+
     void Reset();
 
 private:

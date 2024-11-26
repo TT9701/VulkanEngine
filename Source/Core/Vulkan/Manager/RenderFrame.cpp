@@ -70,6 +70,10 @@ CmdBufferToBegin RenderFrame::GetTsfCmdBuf() const {
     }
 }
 
+BindlessDescPool& RenderFrame::GetBindlessDescPool() const {
+    return *mBindlessDescPool;
+}
+
 void RenderFrame::Reset() {
     VK_CHECK(mFencePool->Wait());
     VK_CHECK(mFencePool->Reset());

@@ -39,16 +39,6 @@ public:
     MOVABLE_ONLY(CommandManager);
 
 public:
-    /**
-     * .
-     * 
-     * \param cmd
-     * \param queue
-     * \param waitInfos
-     * \param signalInfos
-     * \param fence
-     * \return 
-     */
     QueueSubmitRequest Submit(vk::CommandBuffer cmd, vk::Queue queue,
                               ::std::span<SemSubmitInfo> waitInfos = {},
                               ::std::span<SemSubmitInfo> signalInfos = {}, 
