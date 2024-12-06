@@ -1,4 +1,4 @@
-#include "Gui.h"
+#include "GUI.h"
 
 #include "Core/Platform/Window.h"
 #include "Core/Vulkan/Manager/Context.h"

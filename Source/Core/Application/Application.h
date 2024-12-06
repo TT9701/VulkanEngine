@@ -55,7 +55,7 @@ class Application {
 public:
     Application(ApplicationSpecification const& spec);
     virtual ~Application();
-    CLASS_MOVABLE_ONLY(Application);
+    CLASS_NO_COPY_MOVE(Application);
 
 public:
     void Run();

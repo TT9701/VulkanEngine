@@ -59,7 +59,7 @@ public:
            void* pNext = nullptr);
 
     ~Shader();
-    CLASS_MOVABLE_ONLY(Shader);
+    CLASS_NO_COPY_MOVE(Shader);
 
 public:
     Type_STLVector<DescriptorSetLayoutData> SPIRVReflect_DescSetLayouts();

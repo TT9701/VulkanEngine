@@ -1,4 +1,5 @@
 build/
+buildClang/
 cmake-build-debug/
 /bin
 Output/

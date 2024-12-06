@@ -173,14 +173,14 @@ target_include_directories(Core
 add_library(INTELLI_DS_MemoryPool_DEBUG STATIC IMPORTED)
 add_library(INTELLI_DS_MemoryPool_RELEASE STATIC IMPORTED)
 
-if (MSVC)
+# if (MSVC)
     set_target_properties(INTELLI_DS_MemoryPool_DEBUG 
         PROPERTIES
             IMPORTED_LOCATION ${INTELLIGENDESIGN_LIB_PATH}/Debug/LibMemoryPool.lib)
     set_target_properties(INTELLI_DS_MemoryPool_RELEASE 
         PROPERTIES
             IMPORTED_LOCATION ${INTELLIGENDESIGN_LIB_PATH}/Release/LibMemoryPool.lib)
-endif(MSVC)
+# endif(MSVC)
 
 target_link_libraries(Core
     PUBLIC

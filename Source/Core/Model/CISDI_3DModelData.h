@@ -22,9 +22,9 @@ using Type_STLVector = ::std::pmr::vector<T>;
 using Type_STLString = ::std::string;
 
 struct Version {
-    uint8_t major;
-    uint8_t minor;
-    uint16_t patch;
+    uint32_t major : 8;
+    uint32_t minor : 8;
+    uint32_t patch : 16;
 };
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
