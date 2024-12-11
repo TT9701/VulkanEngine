@@ -18,13 +18,13 @@ Swapchain::Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D)
 }
 
 Swapchain::~Swapchain() {
-    pContex->GetDeviceHandle().destroy(mSwapchain);
+    pContex->GetDevice()->destroy(mSwapchain);
 }
 
 uint32_t Swapchain::AcquireNextImageIndex(RenderFrame& frame) {
     frame.Reset();
 
-    VK_CHECK(pContex->GetDeviceHandle().acquireNextImageKHR(
+    VK_CHECK(pContex->GetDevice()->acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT,
         frame.GetReady4RenderSemaphore().GetHandle(), VK_NULL_HANDLE,
         &mCurrentImageIndex));
@@ -46,7 +46,7 @@ void Swapchain::Present(RenderFrame& frame, vk::Queue queue) {
 vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::Extent2D extent,
                                               vk::SwapchainKHR old) {
     mExtent2D = extent;
-    mCreateInfo.setSurface(pContex->GetSurface()->GetHandle())
+    mCreateInfo.setSurface(pContex->GetSurface().GetHandle())
         .setMinImageCount(3u)
         .setImageFormat(mFormat)
         .setImageExtent(mExtent2D)
@@ -57,7 +57,7 @@ vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::Extent2D extent,
         .setClipped(vk::True)
         .setOldSwapchain(old);
 
-    auto handle = pContex->GetDeviceHandle().createSwapchainKHR(mCreateInfo);
+    auto handle = pContex->GetDevice()->createSwapchainKHR(mCreateInfo);
     pContex->SetName(handle, "Default Swapchain");
     return handle;
 }
@@ -110,20 +110,20 @@ RenderResource const& Swapchain::GetCurrentImage() const {
 }
 
 void Swapchain::Resize(vk::Extent2D extent) {
-    pContex->GetDeviceHandle().waitIdle();
+    pContex->GetDevice()->waitIdle();
     auto newSP = RecreateSwapchain(extent, mSwapchain);
-    pContex->GetDeviceHandle().destroy(mSwapchain);
+    pContex->GetDevice()->destroy(mSwapchain);
     mSwapchain = newSP;
     SetSwapchainImages();
 }
 
 void Swapchain::SetSwapchainImages() {
     mImages.clear();
-    auto images = pContex->GetDeviceHandle().getSwapchainImagesKHR(mSwapchain);
+    auto images = pContex->GetDevice()->getSwapchainImagesKHR(mSwapchain);
     mImages.reserve(images.size());
     for (auto& img : images) {
         mImages.emplace_back(
-            pContex->GetDevice(), img, RenderResource::Type::Texture2D, mFormat,
+            &pContex->GetDevice(), img, RenderResource::Type::Texture2D, mFormat,
             vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
 
         pContex->SetName(mImages.back().GetTexHandle(), "Swapchain Images");

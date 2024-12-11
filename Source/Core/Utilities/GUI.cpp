@@ -16,7 +16,7 @@ GUI::~GUI() {
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-    pContext->GetDeviceHandle().destroy(mDescPool);
+    pContext->GetDevice()->destroy(mDescPool);
 }
 
 void GUI::PollEvent(const SDL_Event* event) {
@@ -66,10 +66,10 @@ void GUI::PrepareContext() {
     auto swapchainImageFormat = pSwapchain->GetFormat();
 
     ImGui_ImplVulkan_InitInfo info {};
-    info.Instance = pContext->GetInstanceHandle();
-    info.PhysicalDevice = pContext->GetPhysicalDeviceHandle();
-    info.Device = pContext->GetDeviceHandle();
-    info.Queue = pContext->GetDevice()->GetGraphicQueue();
+    info.Instance = pContext->GetInstance().GetHandle();
+    info.PhysicalDevice = pContext->GetPhysicalDevice().GetHandle();
+    info.Device = pContext->GetDevice().GetHandle();
+    info.Queue = pContext->GetGraphicsQueue().GetHandle();
     info.DescriptorPool = mDescPool;
     info.MinImageCount = 2;
     info.ImageCount = pSwapchain->GetImageCount();
@@ -108,7 +108,7 @@ void GUI::CreateDescPool() {
         .setMaxSets(100)
         .setPoolSizes(mPoolSizes);
 
-    mDescPool = pContext->GetDeviceHandle().createDescriptorPool(dpInfo);
+    mDescPool = pContext->GetDevice()->createDescriptorPool(dpInfo);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

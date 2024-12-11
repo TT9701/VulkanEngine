@@ -37,6 +37,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/PhysicalDevice.cpp
     Vulkan/Native/Device.h
     Vulkan/Native/Device.cpp
+    Vulkan/Native/Queue.h
+    Vulkan/Native/Queue.cpp
     Vulkan/Native/MemoryAllocator.h
     Vulkan/Native/MemoryAllocator.cpp
     Vulkan/Native/Swapchain.h

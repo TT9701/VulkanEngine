@@ -12,19 +12,16 @@ class Instance;
 
 class Surface {
 public:
-    Surface(Instance* instance, const SDLWindow* window);
+    Surface(Instance& instance, const SDLWindow& window);
     ~Surface();
     CLASS_MOVABLE_ONLY(Surface);
 
 public:
-    vk::SurfaceKHR const& GetHandle() const { return mSurface; }
+    vk::SurfaceKHR const& GetHandle() const { return mHandle; }
 
 private:
-    vk::SurfaceKHR CreateSurface(const SDLWindow* window) const;
-
-private:
-    Instance* pInstance;
-    vk::SurfaceKHR mSurface;
+    Instance& mInstance;
+    vk::SurfaceKHR mHandle;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -28,7 +28,7 @@ Application::Application(ApplicationSpecification const& spec)
 }
 
 Application::~Application() {
-    mContext->GetDeviceHandle().waitIdle();
+    mContext->GetDevice()->waitIdle();
 }
 
 void Application::Run() {
@@ -54,7 +54,7 @@ void Application::Run() {
             EndFrame(frame);
         }
     }
-    mContext->GetDeviceHandle().waitIdle();
+    mContext->GetDevice()->waitIdle();
 }
 
 void Application::RenderFrame(Core::RenderFrame& frame) {}
@@ -79,6 +79,8 @@ UniquePtr<Context> Application::CreateContext() {
 #ifndef NDEBUG
     requestedInstanceExtensions.emplace_back(vk::EXTDebugUtilsExtensionName);
 #endif
+    requestedInstanceExtensions.emplace_back(
+        vk::KHRGetPhysicalDeviceProperties2ExtensionName);
 
     Type_STLVector<Type_STLString> enabledDeivceExtensions {};
 
@@ -86,6 +88,11 @@ UniquePtr<Context> Application::CreateContext() {
     enabledDeivceExtensions.emplace_back(vk::EXTDescriptorBufferExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTMeshShaderExtensionName);
     enabledDeivceExtensions.emplace_back(vk::KHRMaintenance6ExtensionName);
+    enabledDeivceExtensions.emplace_back(
+        vk::KHRBufferDeviceAddressExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::EXTMemoryBudgetExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::EXTMemoryPriorityExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::KHRBindMemory2ExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(
@@ -94,14 +101,11 @@ UniquePtr<Context> Application::CreateContext() {
         vk::KHRExternalSemaphoreWin32ExtensionName);
 #endif
 
-    Context::EnableDefaultFeatures();
+    // Context::EnableDefaultFeatures();
 
-    return MakeUnique<Context>(
-        mWindow.get(),
-        vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute
-            | vk::QueueFlagBits::eTransfer,
-        requestedInstanceLayers, requestedInstanceExtensions,
-        enabledDeivceExtensions);
+    return MakeUnique<Context>(*mWindow, requestedInstanceLayers,
+                               requestedInstanceExtensions,
+                               enabledDeivceExtensions);
 }
 
 UniquePtr<Swapchain> Application::CreateSwapchain() {
@@ -112,13 +116,13 @@ UniquePtr<Swapchain> Application::CreateSwapchain() {
 }
 
 RenderResourceManager Application::CreateRenderResourceManager() {
-    return {mContext->GetDevice(), mContext->GetVmaAllocator()};
+    return {&mContext->GetDevice(), mContext->GetVmaAllocator()};
 }
 
 ImmediateSubmitManager Application::CreateImmediateSubmitManager() {
     return {
         mContext.get(),
-        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value()};
+        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value()};
 }
 
 CommandManager Application::CreateCommandManager() {
@@ -150,7 +154,7 @@ void Application::BeginFrame(Core::RenderFrame& frame) {
 }
 
 void Application::EndFrame(Core::RenderFrame& frame) {
-    mSwapchain->Present(frame, mContext->GetDevice()->GetGraphicQueue());
+    mSwapchain->Present(frame, mContext->GetPresentQueue().GetHandle());
     ++mFrameNum;
 }
 
@@ -200,14 +204,14 @@ void Application::CreateExternalTriangleData() {
         mTriangleExternalMesh.mVertexBuffer->GetVkBuffer());
 
     mTriangleExternalMesh.mVertexBufferAddress =
-        mContext->GetDeviceHandle().getBufferAddress(deviceAddrInfo);
+        mContext->GetDevice()->getBufferAddress(deviceAddrInfo);
 }
 
 void Application::CreateCUDASyncStructures() {
-    mCUDAWaitSemaphore =
-        MakeShared<CUDA::VulkanExternalSemaphore>(mContext->GetDeviceHandle());
-    mCUDASignalSemaphore =
-        MakeShared<CUDA::VulkanExternalSemaphore>(mContext->GetDeviceHandle());
+    mCUDAWaitSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
+        mContext->GetDevice().GetHandle());
+    mCUDASignalSemaphore = MakeShared<CUDA::VulkanExternalSemaphore>(
+        mContext->GetDevice().GetHandle());
 
     DBG_LOG_INFO("Vulkan CUDA External Semaphore Created");
 }

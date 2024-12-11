@@ -471,7 +471,7 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
         auto resource = set->GetPoolResource();
 
         // location = bufferAddr + setOffset + descriptorOffset + (arrayElement * descSize)
-        pContext->GetDeviceHandle().getDescriptorEXT(
+        pContext->GetDevice()->getDescriptorEXT(
             descInfo, size,
             (char*)resource.hostAddr + resource.offset
                 + set->GetBingdingOffset(binding) + idxInBinding * size);
@@ -507,7 +507,7 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
 
         // TODO: sampler setting
         if (sampled) {
-            imageInfo.setSampler(pContext->GetDefaultLinearSamplerHandle());
+            imageInfo.setSampler(pContext->GetDefaultLinearSampler().GetHandle());
         }
 
         getDescriptor(set, descSize, binding, idxInBinding, descriptorType,

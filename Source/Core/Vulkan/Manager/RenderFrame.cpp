@@ -9,11 +9,11 @@ RenderFrame::RenderFrame(Context* context)
       mReady4Present(MakeUnique<Semaphore>(context)) {
     ::std::vector<::std::optional<uint32_t>> indices {};
     indices.emplace_back(
-        pContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex());
+        pContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex());
     indices.emplace_back(
-        pContext->GetPhysicalDevice()->GetComputeQueueFamilyIndex());
+        pContext->GetPhysicalDevice().GetComputeQueueFamilyIndex());
     indices.emplace_back(
-        pContext->GetPhysicalDevice()->GetTransferQueueFamilyIndex());
+        pContext->GetPhysicalDevice().GetTransferQueueFamilyIndex());
 
     for (auto const& idx : indices) {
         if (idx) {
@@ -42,30 +42,30 @@ Semaphore const& RenderFrame::GetReady4PresentSemaphore() const {
 }
 
 CmdBufferToBegin RenderFrame::GetGfxCmdBuf() const {
-    auto gfxIdx = *pContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex();
+    auto gfxIdx = *pContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex();
     return {mCmdPools.at(gfxIdx)->RequestCommandBuffer()};
 }
 
 CmdBufferToBegin RenderFrame::GetCmpCmdBuf() const {
     if (auto cmpIdx =
-            pContext->GetPhysicalDevice()->GetComputeQueueFamilyIndex()) {
+            pContext->GetPhysicalDevice().GetComputeQueueFamilyIndex()) {
         return {mCmdPools.at(cmpIdx.value())->RequestCommandBuffer()};
     } else {
         return {mCmdPools
                     .at(*pContext->GetPhysicalDevice()
-                             ->GetGraphicsQueueFamilyIndex())
+                             .GetGraphicsQueueFamilyIndex())
                     ->RequestCommandBuffer()};
     }
 }
 
 CmdBufferToBegin RenderFrame::GetTsfCmdBuf() const {
     if (auto tsfIdx =
-            pContext->GetPhysicalDevice()->GetTransferQueueFamilyIndex()) {
+            pContext->GetPhysicalDevice().GetTransferQueueFamilyIndex()) {
         return {mCmdPools.at(tsfIdx.value())->RequestCommandBuffer()};
     } else {
         return {mCmdPools
                     .at(*pContext->GetPhysicalDevice()
-                             ->GetGraphicsQueueFamilyIndex())
+                             .GetGraphicsQueueFamilyIndex())
                     ->RequestCommandBuffer()};
     }
 }

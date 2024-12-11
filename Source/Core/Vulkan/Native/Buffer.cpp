@@ -6,10 +6,10 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Buffer::Buffer(Device* device, MemoryAllocator* allocator, size_t size,
+Buffer::Buffer(Device* device, MemoryAllocator& allocator, size_t size,
                vk::BufferUsageFlags usage, MemoryType memType, size_t texelSize)
     : pDevice(device),
-      pAllocator(allocator),
+      mAllocator(allocator),
       mUsageFlags(usage),
       mMemoryType(memType),
       mSize(size),
@@ -91,7 +91,7 @@ vk::Buffer Buffer::CreateBufferResource() {
 
     VkBuffer buffer {};
     VK_CHECK((vk::Result)vmaCreateBuffer(
-        pAllocator->GetHandle(),
+        mAllocator.GetHandle(),
         reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo), &vmaAllocInfo,
         &buffer, &mAllocation, &mAllocationInfo));
 
@@ -99,7 +99,7 @@ vk::Buffer Buffer::CreateBufferResource() {
 }
 
 void Buffer::Destroy() {
-    vmaDestroyBuffer(pAllocator->GetHandle(), mHandle, mAllocation);
+    vmaDestroyBuffer(mAllocator.GetHandle(), mHandle, mAllocation);
 }
 
 vk::BufferUsageFlags Buffer::GetUsageFlags() const {

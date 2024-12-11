@@ -10,19 +10,16 @@ class Instance;
 
 class DebugUtils {
 public:
-    DebugUtils(Instance* instance);
+    DebugUtils(Instance& instance);
     ~DebugUtils();
     CLASS_MOVABLE_ONLY(DebugUtils);
 
 public:
-    vk::DebugUtilsMessengerEXT GetHandle() const { return mDebugMessenger; }
+    vk::DebugUtilsMessengerEXT GetHandle() const { return mHandle; }
 
 private:
-    vk::DebugUtilsMessengerEXT CreateDebugMessenger();
-
-private:
-    Instance* pInstance;
-    vk::DebugUtilsMessengerEXT mDebugMessenger;
+    Instance& mInstance;
+    vk::DebugUtilsMessengerEXT mHandle;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

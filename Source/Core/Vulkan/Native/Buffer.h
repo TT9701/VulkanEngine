@@ -13,7 +13,7 @@ class Buffer {
 public:
     enum class MemoryType { DeviceLocal, Staging, ReadBack };
 
-    Buffer(Device* device, MemoryAllocator* allocator, size_t size,
+    Buffer(Device* device, MemoryAllocator& allocator, size_t size,
            vk::BufferUsageFlags usage, MemoryType memType,
            size_t texelSize = 1);
 
@@ -48,7 +48,7 @@ private:
 
 private:
     Device* pDevice;
-    MemoryAllocator* pAllocator;
+    MemoryAllocator& mAllocator;
 
     vk::BufferUsageFlags mUsageFlags;
     MemoryType mMemoryType;

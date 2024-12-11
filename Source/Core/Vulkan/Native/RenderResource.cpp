@@ -4,7 +4,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
+RenderResource::RenderResource(Device* device, MemoryAllocator& allocator,
                                Type type, size_t size,
                                vk::BufferUsageFlags usage,
                                Buffer::MemoryType memType, size_t texelSize)
@@ -12,12 +12,12 @@ RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
                 memType, texelSize),
       mType(type) {}
 
-RenderResource::RenderResource(Device* device, MemoryAllocator* allocator,
+RenderResource::RenderResource(Device* device, MemoryAllocator& allocator,
                                Type type, vk::Format format,
                                vk::Extent3D extent, vk::ImageUsageFlags usage,
                                uint32_t mipLevels, uint32_t arraySize,
                                uint32_t sampleCount)
-    : mResource(std::in_place_type<Texture>, device, allocator,
+    : mResource(std::in_place_type<Texture>, device, &allocator,
                 static_cast<Texture::Type>(type), format, extent, usage,
                 mipLevels, arraySize, sampleCount),
       mType(type) {}

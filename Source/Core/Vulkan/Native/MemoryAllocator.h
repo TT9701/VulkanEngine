@@ -13,25 +13,25 @@ class Instance;
 
 class MemoryAllocator {
 public:
-    MemoryAllocator(PhysicalDevice* physicalDevice,
-                          Device* device, Instance* instance);
+    MemoryAllocator(PhysicalDevice& physicalDevice, Device& device,
+                    Instance& instance);
 
     ~MemoryAllocator();
 
     CLASS_MOVABLE_ONLY(MemoryAllocator);
 
 public:
-    VmaAllocator GetHandle() const { return mAllocator; }
+    VmaAllocator GetHandle() const { return mHandle; }
 
 private:
     VmaAllocator CreateAllocator();
 
 private:
-    PhysicalDevice* pPhysicalDevice;
-    Device* pDevice;
-    Instance* pInstance;
+    PhysicalDevice& mPhysicalDevice;
+    Device& mDevice;
+    Instance& mInstance;
 
-    VmaAllocator mAllocator;
+    VmaAllocator mHandle;
 };
 
 class ExternalMemoryPool {

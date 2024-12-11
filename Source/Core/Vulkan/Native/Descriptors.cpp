@@ -14,7 +14,7 @@ DescriptorSet::DescriptorSet(Context* context, DescriptorSetLayout* setLayout)
     mBindingOffsets.resize(bindingCount);
     for (uint32_t i = 0; i < bindingCount; ++i) {
         mBindingOffsets[i] =
-            context->GetDeviceHandle().getDescriptorSetLayoutBindingOffsetEXT(
+            context->GetDevice()->getDescriptorSetLayoutBindingOffsetEXT(
                 setLayout->GetHandle(), i);
     }
 }
@@ -48,15 +48,15 @@ DescriptorSetLayout::DescriptorSetLayout(
         .setBindings(bindings)
         .setPNext(pNext);
 
-    mHandle = pContext->GetDeviceHandle().createDescriptorSetLayout(layoutInfo);
+    mHandle = pContext->GetDevice()->createDescriptorSetLayout(layoutInfo);
 
     mData.size = Utils::AlignedSize(
-        pContext->GetDeviceHandle().getDescriptorSetLayoutSizeEXT(mHandle),
+        pContext->GetDevice()->getDescriptorSetLayoutSizeEXT(mHandle),
         props.descriptorBufferOffsetAlignment);
 }
 
 DescriptorSetLayout::~DescriptorSetLayout() {
-    pContext->GetDeviceHandle().destroy(mHandle);
+    pContext->GetDevice()->destroy(mHandle);
 }
 
 vk::DescriptorSetLayout DescriptorSetLayout::GetHandle() const {
@@ -77,10 +77,11 @@ DescriptorSetLayout::Data const& DescriptorSetLayout::GetData() const {
 }
 
 size_t DescriptorSetLayout::GetDescriptorSize(vk::DescriptorType type) const {
-    vk::PhysicalDeviceDescriptorBufferPropertiesEXT prop;
-    vk::PhysicalDeviceProperties2 deviceProp {};
-    deviceProp.pNext = &prop;
-    pContext->GetPhysicalDeviceHandle().getProperties2(&deviceProp);
+    auto prop =
+        pContext->GetPhysicalDevice()
+            .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
+
+    // pContext->GetPhysicalDevice().GetHandle().getProperties2(&deviceProp);
     size_t descSize {0};
     switch (type) {
         case vk::DescriptorType::eSampler:
@@ -132,15 +133,20 @@ size_t DescriptorSetLayout::GetDescriptorSize(vk::DescriptorType type) const {
 }
 
 BindlessDescPool::BindlessDescPool(
-    Context* context,
-    Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+    Context* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
     vk::DescriptorType type)
     : pContext(context), mPSOs(pso), mDescType(type) {
-    auto descBufProps = pContext->GetDescBufProps();
-    mDescCount =
-        ::std::min(MAX_BINDLESS_DESCRIPTOR_COUNT,
-                   pContext->GetDescIndexingProps()
-                       .maxPerStageDescriptorUpdateAfterBindSampledImages);
+    auto descBufProps =
+        pContext->GetPhysicalDevice()
+            .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
+
+    auto descIndexingProps =
+        pContext->GetPhysicalDevice()
+            .GetProperties<vk::PhysicalDeviceDescriptorIndexingProperties>();
+
+    mDescCount = ::std::min(
+        MAX_BINDLESS_DESCRIPTOR_COUNT,
+        descIndexingProps.maxPerStageDescriptorUpdateAfterBindSampledImages);
 
     mLayout = MakeShared<DescriptorSetLayout>(
         pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
@@ -184,13 +190,13 @@ uint32_t BindlessDescPool::Add(Texture const* texture) {
 
     vk::DescriptorImageInfo imageInfo {};
     imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-        .setSampler(pContext->GetDefaultNearestSamplerHandle());
+        .setSampler(pContext->GetDefaultNearestSampler().GetHandle());
 
     imageInfo.setImageView(texture->GetViewHandle());
     vk::DescriptorGetInfoEXT descInfo {};
     descInfo.setType(mDescType).setData(&imageInfo).setPNext(nullptr);
 
-    pContext->GetDeviceHandle().getDescriptorEXT(
+    pContext->GetDevice()->getDescriptorEXT(
         descInfo, mDescSize,
         (char*)resource.hostAddr + resource.offset + mSet->GetBingdingOffset(0)
             + idx * mDescSize);
@@ -224,6 +230,10 @@ void BindlessDescPool::ExpandSet() {
     mDescCount *= 2;
     auto origSize = mLayout->GetSize();
 
+    auto descBufProps =
+        pContext->GetPhysicalDevice()
+            .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
+
     mLayout.reset();
     mLayout = MakeShared<DescriptorSetLayout>(
         pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
@@ -234,7 +244,7 @@ void BindlessDescPool::ExpandSet() {
                 mDescCount,
                 vk::ShaderStageFlagBits::eFragment,
             }},
-        pContext->GetDescBufProps(), nullptr);
+        descBufProps, nullptr);
 
     auto requestHandle = mDescSetPool->RequestUnit(origSize * 2);
     auto resource = requestHandle.Get_Resource();

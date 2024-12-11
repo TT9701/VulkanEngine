@@ -1,60 +1,56 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
+#include "Core/Vulkan/Native/Queue.h"
+
+#include <vulkan/vulkan.hpp>
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class PhysicalDevice;
+class Surface;
 
 class Device {
 public:
-    Device(PhysicalDevice* physicalDevice,
-           ::std::span<Type_STLString> requestedLayers = {},
-           ::std::span<Type_STLString> requestedExtensions = {},
-           vk::PhysicalDeviceFeatures* pFeatures = {}, void* pNext = nullptr);
+    Device(PhysicalDevice& physicalDevice, Surface& surface,
+           ::std::span<Type_STLString> requestedExtensions = {});
 
     ~Device();
     CLASS_MOVABLE_ONLY(Device);
 
 public:
-    vk::Device GetHandle() const { return mDevice; }
+    vk::Device GetHandle() const;
 
-    vk::Queue GetGraphicQueue(uint32_t index = 0) const {
-        return mGraphicQueues[index];
-    }
+    vk::Device const* operator->() const;
 
-    vk::Queue GetComputeQueue(uint32_t index = 0) const {
-        return mComputeQueues[index];
-    }
+    uint32_t GetQueueFamilyIndex(vk::QueueFlagBits queueFlag) const;
 
-    vk::Queue GetTransferQueue(uint32_t index = 0) const {
-        return mTransferQueues[index];
-    }
+    bool IsExtensionSupported(const char* extension) const;
+
+    bool IsExtensionEnabled(const char* extension) const;
+
+    Queue const& GetQueue(uint32_t familyIndex, uint32_t index) const;
 
     template <class VkCppHandle>
     void SetObjectName(VkCppHandle handle, const char* name);
 
 private:
-    vk::Device CreateDevice(std::span<Type_STLString> requestedLayers,
-                            std::span<Type_STLString> requestedExtensions,
-                            vk::PhysicalDeviceFeatures* pFeatures, void* pNext);
+    uint32_t GetFamilyIndex(vk::QueueFlagBits queueFlag) const;
 
-    void SetQueues();
+    vk::Device CreateDevice(std::span<Type_STLString> requestedExtensions);
+
+    void CreateQueues(Surface& surface);
 
 private:
-    PhysicalDevice* pPhysicalDevice;
+    PhysicalDevice& mPhysicalDevice;
 
-    Type_STLVector<Type_STLString> enabledLayers {};
     Type_STLVector<Type_STLString> enabledExtensions {};
 
-    vk::Device mDevice;
+    vk::Device mHandle;
 
-    Type_STLVector<vk::Queue> mGraphicQueues {};
-    Type_STLVector<vk::Queue> mComputeQueues {};
-    Type_STLVector<vk::Queue> mTransferQueues {};
+    Type_STLVector<Type_STLVector<Queue>> mQueues {};
+    Type_STLUnorderedMap<vk::QueueFlagBits, uint32_t> mQueueFamilyIndices;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
@@ -70,7 +66,7 @@ void Device::SetObjectName(VkCppHandle handle, const char* name) {
     info.setObjectHandle((uint64_t)(CType)handle)
         .setObjectType(VkCppHandle::objectType)
         .setPObjectName(name);
-    mDevice.setDebugUtilsObjectNameEXT(info);
+    mHandle.setDebugUtilsObjectNameEXT(info);
 #endif
 }
 }  // namespace IntelliDesign_NS::Vulkan::Core

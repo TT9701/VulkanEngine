@@ -7,18 +7,17 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-MemoryAllocator::MemoryAllocator(
-    PhysicalDevice* physicalDevice, Device* device,
-    Instance* instance)
-    : pPhysicalDevice(physicalDevice),
-      pDevice(device),
-      pInstance(instance),
-      mAllocator(CreateAllocator()) {
+MemoryAllocator::MemoryAllocator(PhysicalDevice& physicalDevice, Device& device,
+                                 Instance& instance)
+    : mPhysicalDevice(physicalDevice),
+      mDevice(device),
+      mInstance(instance),
+      mHandle(CreateAllocator()) {
     DBG_LOG_INFO("vma Allocator Created");
 }
 
 MemoryAllocator::~MemoryAllocator() {
-    vmaDestroyAllocator(mAllocator);
+    vmaDestroyAllocator(mHandle);
 }
 
 VmaAllocator MemoryAllocator::CreateAllocator() {
@@ -71,23 +70,59 @@ VmaAllocator MemoryAllocator::CreateAllocator() {
     };
 
     VmaAllocatorCreateInfo allocInfo = {
-#if defined(VK_KHR_buffer_device_address) && defined(_WIN32)
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-#endif
-        .physicalDevice = pPhysicalDevice->GetHandle(),
-        .device = pDevice->GetHandle(),
+        .flags = 0,
+        .physicalDevice = mPhysicalDevice.GetHandle(),
+        .device = mDevice.GetHandle(),
         .pVulkanFunctions = &vulkanFunctions,
-        .instance = pInstance->GetHandle(),
+        .instance = mInstance.GetHandle(),
         .vulkanApiVersion = VK_API_VERSION_1_3,
     };
+
+    bool can_get_memory_requirements = mDevice.IsExtensionSupported(
+        VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+    bool has_dedicated_allocation = mDevice.IsExtensionSupported(
+        VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
+    if (can_get_memory_requirements && has_dedicated_allocation
+        && mDevice.IsExtensionEnabled(
+            VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME)) {
+        allocInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT;
+    }
+
+    if (mDevice.IsExtensionSupported(
+            VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME)
+        && mDevice.IsExtensionEnabled(
+            VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME)) {
+        allocInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    }
+
+    if (mDevice.IsExtensionSupported(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME)
+        && mDevice.IsExtensionEnabled(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME)) {
+        allocInfo.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
+    }
+
+    if (mDevice.IsExtensionSupported(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME)
+        && mDevice.IsExtensionEnabled(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME)) {
+        allocInfo.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT;
+    }
+
+    if (mDevice.IsExtensionSupported(VK_KHR_BIND_MEMORY_2_EXTENSION_NAME)
+        && mDevice.IsExtensionEnabled(VK_KHR_BIND_MEMORY_2_EXTENSION_NAME)) {
+        allocInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+    }
+
+    if (mDevice.IsExtensionSupported(
+            VK_AMD_DEVICE_COHERENT_MEMORY_EXTENSION_NAME)
+        && mDevice.IsExtensionEnabled(
+            VK_AMD_DEVICE_COHERENT_MEMORY_EXTENSION_NAME)) {
+        allocInfo.flags |= VMA_ALLOCATOR_CREATE_AMD_DEVICE_COHERENT_MEMORY_BIT;
+    }
 
     VmaAllocator al {};
     vmaCreateAllocator(&allocInfo, &al);
     return al;
 }
 
-ExternalMemoryPool::ExternalMemoryPool(
-    MemoryAllocator* allocator)
+ExternalMemoryPool::ExternalMemoryPool(MemoryAllocator* allocator)
     : pAllocator(allocator), mPool(CreatePool()) {
     DBG_LOG_INFO("vma External Resource Pool Created");
 }

@@ -13,7 +13,7 @@ PipelineLayout::PipelineLayout(Context* context, ShaderProgram* program,
 }
 
 PipelineLayout::~PipelineLayout() {
-    pContext->GetDeviceHandle().destroy(mLayout);
+    pContext->GetDevice()->destroy(mLayout);
 }
 
 Type_STLVector<DescriptorSetLayout*> PipelineLayout::GetDescSetLayoutDatas()
@@ -43,7 +43,7 @@ vk::PipelineLayout PipelineLayout::CreateLayout(
         .setPushConstantRanges(ranges)
         .setFlags(flags)
         .setPNext(pNext);
-    return pContext->GetDeviceHandle().createPipelineLayout(info);
+    return pContext->GetDevice()->createPipelineLayout(info);
 }
 
 Pipeline<PipelineType::Graphics>::Pipeline(
@@ -52,14 +52,12 @@ Pipeline<PipelineType::Graphics>::Pipeline(
     : pContext(context), mPipeline(CreatePipeline(cache, info)) {}
 
 Pipeline<PipelineType::Graphics>::~Pipeline() {
-    pContext->GetDeviceHandle().destroy(mPipeline);
+    pContext->GetDevice()->destroy(mPipeline);
 }
 
 vk::Pipeline Pipeline<PipelineType::Graphics>::CreatePipeline(
     vk::PipelineCache cache, vk::GraphicsPipelineCreateInfo const& info) const {
-    return pContext->GetDeviceHandle()
-        .createGraphicsPipeline(cache, info)
-        .value;
+    return pContext->GetDevice()->createGraphicsPipeline(cache, info).value;
 }
 
 Pipeline<PipelineType::Compute>::Pipeline(
@@ -68,12 +66,12 @@ Pipeline<PipelineType::Compute>::Pipeline(
     : pContext(context), mPipeline(CreatePipeline(cache, info)) {}
 
 Pipeline<PipelineType::Compute>::~Pipeline() {
-    pContext->GetDeviceHandle().destroy(mPipeline);
+    pContext->GetDevice()->destroy(mPipeline);
 }
 
 vk::Pipeline Pipeline<PipelineType::Compute>::CreatePipeline(
     vk::PipelineCache cache, vk::ComputePipelineCreateInfo const& info) const {
-    return pContext->GetDeviceHandle().createComputePipeline(cache, info).value;
+    return pContext->GetDevice()->createComputePipeline(cache, info).value;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

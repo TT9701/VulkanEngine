@@ -15,7 +15,7 @@ class RenderResourceManager {
         Type_STLUnorderedMap_String<Fn_SizeRelation>;
 
 public:
-    RenderResourceManager(Device* device, MemoryAllocator* allocator);
+    RenderResourceManager(Device* device, MemoryAllocator& allocator);
 
     RenderResource* CreateBuffer(const char* name, size_t size,
                                  vk::BufferUsageFlags usage,
@@ -54,7 +54,7 @@ private:
 
 private:
     Device* pDevice;
-    MemoryAllocator* pAllocator;
+    MemoryAllocator& mAllocator;
 
     Type_RenderResources mResources {};
     Type_Resource_SizeRelations mScreenSizeRalatedResources {};

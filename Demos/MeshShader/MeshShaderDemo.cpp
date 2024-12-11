@@ -225,8 +225,9 @@ void MeshShaderDemo::BeginFrame(IDNS_VC::RenderFrame& frame) {
 }
 
 void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
-    const uint64_t graphicsFinished =
-        mContext->GetTimelineSemphore()->GetValue();
+    auto& timelineSem = mContext->GetTimelineSemphore();
+
+    const uint64_t graphicsFinished = timelineSem.GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t copyFinished = graphicsFinished + 2;
     const uint64_t shadowFinished = graphicsFinished + 3;
@@ -242,17 +243,17 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         cmd.End();
 
         Type_STLVector<SemSubmitInfo> waits = {
-            {vk::PipelineStageFlagBits2::eBottomOfPipe,
-             mContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
+            {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
+             graphicsFinished}};
 
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllCommands, mCmpSem.GetHandle(), 0},
-            {vk::PipelineStageFlagBits2::eAllCommands,
-             mContext->GetTimelineSemaphoreHandle(), computeFinished}};
+            {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
+             computeFinished}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetComputeQueue(), waits, signals,
-                       frame.GetFencePool().RequestFence());
+                       mContext->GetComputeQueue().GetHandle(),
+                       waits, signals, frame.GetFencePool().RequestFence());
     }
 
     // Runtime Copy
@@ -268,17 +269,17 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
              frame.GetReady4RenderSemaphore().GetHandle(), 0},
-            {vk::PipelineStageFlagBits2::eBottomOfPipe,
-             mContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
+            {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
+             graphicsFinished}};
 
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllCommands, mCopySem.GetHandle(), 0},
-            {vk::PipelineStageFlagBits2::eAllCommands,
-             mContext->GetTimelineSemaphoreHandle(), copyFinished}};
+            {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
+             copyFinished}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetTransferQueue(), waits,
-                       signals, frame.GetFencePool().RequestFence());
+                       mContext->GetTransferQueue_ForUpload().GetHandle(), waits, signals,
+                       frame.GetFencePool().RequestFence());
     }
 
     // Shadow Draw
@@ -288,21 +289,20 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         mShadowPass_Barrier.RecordCmd(cmd.GetHandle());
         for (uint32_t i = 0; i < 12; ++i) {
             mShadowPass_PSO.RecordCmd(cmd.GetHandle());
-            
         }
 
         cmd.End();
 
         Type_STLVector<SemSubmitInfo> waits = {
-            {vk::PipelineStageFlagBits2::eBottomOfPipe,
-             mContext->GetTimelineSemaphoreHandle(), graphicsFinished}};
+            {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
+             graphicsFinished}};
 
         Type_STLVector<SemSubmitInfo> signals = {
-            {vk::PipelineStageFlagBits2::eAllCommands,
-             mContext->GetTimelineSemaphoreHandle(), shadowFinished}};
+            {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
+             shadowFinished}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(), waits, signals,
+                       mContext->GetGraphicsQueue().GetHandle(), waits, signals,
                        frame.GetFencePool().RequestFence());
     }
 
@@ -333,17 +333,17 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
             {vk::PipelineStageFlagBits2::eAllCommands, mCmpSem.GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eAllCommands, mCopySem.GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eComputeShader,
-             mContext->GetTimelineSemaphoreHandle(), shadowFinished}};
+             timelineSem.GetHandle(), shadowFinished}};
 
         Type_STLVector<SemSubmitInfo> signals = {
-            {vk::PipelineStageFlagBits2::eAllGraphics,
-             mContext->GetTimelineSemaphoreHandle(), allFinished},
+            {vk::PipelineStageFlagBits2::eAllGraphics, timelineSem.GetHandle(),
+             allFinished},
             {vk::PipelineStageFlagBits2::eAllGraphics,
              frame.GetReady4PresentSemaphore().GetHandle()}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetDevice()->GetGraphicQueue(), waits, signals,
-                       frame.GetFencePool().RequestFence());
+                       mContext->GetGraphicsQueue().GetHandle(),
+                       waits, signals, frame.GetFencePool().RequestFence());
     }
 }
 
@@ -428,9 +428,9 @@ void MeshShaderDemo::CreateRandomTexture() {
     }
 
     auto gfxQueueIdx =
-        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value();
+        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value();
     auto tsfQueueIdx =
-        mContext->GetPhysicalDevice()->GetTransferQueueFamilyIndex().value();
+        mContext->GetPhysicalDevice().GetTransferQueueFamilyIndex().value();
 
     mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
         for (uint32_t i = 0; i < randomImageCount; ++i) {
@@ -806,9 +806,9 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     uint32_t copyCount = 16;
     ::std::string baseName {"RandomImage"};
     auto gfxQueueIdx =
-        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value();
+        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value();
     auto tsfQueueIdx =
-        mContext->GetPhysicalDevice()->GetTransferQueueFamilyIndex().value();
+        mContext->GetPhysicalDevice().GetTransferQueueFamilyIndex().value();
     // barrier
     {
         for (uint32_t i = 0; i < copyCount; ++i) {
@@ -975,9 +975,9 @@ void MeshShaderDemo::RecordRuntimeCopyCmds() {
     ::std::string baseName {"RandomImage"};
 
     auto gfxQueueIdx =
-        mContext->GetPhysicalDevice()->GetGraphicsQueueFamilyIndex().value();
+        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value();
     auto tsfQueueIdx =
-        mContext->GetPhysicalDevice()->GetTransferQueueFamilyIndex().value();
+        mContext->GetPhysicalDevice().GetTransferQueueFamilyIndex().value();
 
     for (uint32_t i = 0; i < copyCount; ++i) {
         auto name = baseName + ::std::to_string(i);

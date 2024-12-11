@@ -6,30 +6,20 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-vk::PhysicalDeviceFeatures Context::sPhysicalDeviceFeatures {};
-vk::PhysicalDeviceVulkan11Features Context::sEnable11Features {};
-vk::PhysicalDeviceVulkan12Features Context::sEnable12Features {};
-vk::PhysicalDeviceVulkan13Features Context::sEnable13Features {};
-vk::PhysicalDeviceMeshShaderFeaturesEXT
-    Context::sEnableMeshShaderFeaturesExt {};
-vk::PhysicalDeviceDescriptorBufferFeaturesEXT
-    Context::sEnableDescriptorBufferFeaturesExt {};
-vk::PhysicalDeviceMaintenance6FeaturesKHR Context::sEnableMaintenance6KHR {};
-
-Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
+Context::Context(SDLWindow& window,
                  ::std::span<Type_STLString> requestedInstanceLayers,
                  ::std::span<Type_STLString> requestedInstanceExtensions,
                  ::std::span<Type_STLString> requestedDeviceExtensions)
-    : mPInstance(
+    : mInstance(
           CreateInstance(requestedInstanceLayers, requestedInstanceExtensions)),
 #ifndef NDEBUG
-      mPDebugUtilsMessenger(CreateDebugUtilsMessenger()),
+      mDebugUtilsMessenger(CreateDebugUtilsMessenger()),
 #endif
-      mPSurface(CreateSurface(window)),
-      mPPhysicalDevice(PickPhysicalDevice(requestedQueueFlags)),
-      mPDevice(CreateDevice(requestedDeviceExtensions)),
-      mPAllocator(CreateVmaAllocator()),
-      mPTimelineSemaphore(CreateTimelineSem())
+      mSurface(CreateSurface(window)),
+      mPhysicalDevice(mInstance->GetSuitableGPU(mSurface->GetHandle())),
+      mDevice(CreateDevice(requestedDeviceExtensions)),
+      mAllocator(CreateVmaAllocator()),
+      mTimelineSemaphore(CreateTimelineSem())
 #ifdef CUDA_VULKAN_INTEROP
       ,
       mPExternalMemoryPool(CreateExternalMemoryPool())
@@ -37,36 +27,28 @@ Context::Context(const SDLWindow* window, vk::QueueFlags requestedQueueFlags,
 {
     CreateDefaultSamplers();
 
-    mPDevice->SetObjectName(mPInstance->GetHandle(), "Default Instance");
-    mPDevice->SetObjectName(mPSurface->GetHandle(), "Default Surface");
-    mPDevice->SetObjectName(
-        mPPhysicalDevice->GetHandle(),
-        mPPhysicalDevice->GetHandle().getProperties2().properties.deviceName);
-    mPDevice->SetObjectName(mPDevice->GetHandle(), "Default Device");
-    mPDevice->SetObjectName(mPTimelineSemaphore->GetHandle(),
-                            "Main Timeline Semaphore");
+    mDevice->SetObjectName(mInstance->GetHandle(), "Default Instance");
+    mDevice->SetObjectName(mSurface->GetHandle(), "Default Surface");
+    mDevice->SetObjectName(mPhysicalDevice.GetHandle(),
+                           mPhysicalDevice.GetProperties().deviceName);
+    mDevice->SetObjectName(mDevice->GetHandle(), "Default Device");
+    mDevice->SetObjectName(mTimelineSemaphore->GetHandle(),
+                           "Main Timeline Semaphore");
 
-    mPDevice->SetObjectName(mDefaultSamplerLinear->GetHandle(),
-                            "Default Linear Sampler");
-    mPDevice->SetObjectName(mDefaultSamplerNearest->GetHandle(),
-                            "Default Nearest Sampler");
+    mDevice->SetObjectName(mDefaultSamplerLinear->GetHandle(),
+                           "Default Linear Sampler");
+    mDevice->SetObjectName(mDefaultSamplerNearest->GetHandle(),
+                           "Default Nearest Sampler");
 
-    mPDevice->SetObjectName(mPTimelineSemaphore->GetHandle(),
-                            "Main Timeline Semaphore");
-
-    vk::PhysicalDeviceProperties2 deviceProp {};
-    deviceProp.pNext = &mDescBufProps;
-    mPPhysicalDevice->GetHandle().getProperties2(&deviceProp);
-
-    deviceProp.pNext = &mDescIndexingProps;
-    mPPhysicalDevice->GetHandle().getProperties2(&deviceProp);
+    mDevice->SetObjectName(mTimelineSemaphore->GetHandle(),
+                           "Main Timeline Semaphore");
 }
 
 SharedPtr<Texture> Context::CreateTexture2D(
     const char* name, vk::Extent3D extent, vk::Format format,
     vk::ImageUsageFlags usage, uint32_t mipLevels, uint32_t arraySize,
     uint32_t sampleCount) {
-    auto ptr = MakeShared<Texture>(mPDevice.get(), mPAllocator.get(),
+    auto ptr = MakeShared<Texture>(mDevice.get(), mAllocator.get(),
                                    Texture::Type::Texture2D, format, extent,
                                    usage, mipLevels, arraySize, sampleCount);
     ptr->SetName(name);
@@ -76,8 +58,8 @@ SharedPtr<Texture> Context::CreateTexture2D(
 SharedPtr<RenderResource> Context::CreateDeviceLocalBufferResource(
     const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
     auto ptr = MakeShared<RenderResource>(
-        mPDevice.get(), mPAllocator.get(), RenderResource::Type::Buffer,
-        allocByteSize, usage, Buffer::MemoryType::DeviceLocal);
+        mDevice.get(), *mAllocator, RenderResource::Type::Buffer, allocByteSize,
+        usage, Buffer::MemoryType::DeviceLocal);
     ptr->SetName(name);
     return ptr;
 }
@@ -85,9 +67,8 @@ SharedPtr<RenderResource> Context::CreateDeviceLocalBufferResource(
 SharedPtr<Buffer> Context::CreateDeviceLocalBuffer(const char* name,
                                                    size_t allocByteSize,
                                                    vk::BufferUsageFlags usage) {
-    auto ptr =
-        MakeShared<Buffer>(mPDevice.get(), mPAllocator.get(), allocByteSize,
-                           usage, Buffer::MemoryType::DeviceLocal);
+    auto ptr = MakeShared<Buffer>(mDevice.get(), *mAllocator, allocByteSize,
+                                  usage, Buffer::MemoryType::DeviceLocal);
     ptr->SetName(name);
     return ptr;
 }
@@ -95,10 +76,9 @@ SharedPtr<Buffer> Context::CreateDeviceLocalBuffer(const char* name,
 SharedPtr<Buffer> Context::CreateStagingBuffer(const char* name,
                                                size_t allocByteSize,
                                                vk::BufferUsageFlags usage) {
-    auto ptr =
-        MakeShared<Buffer>(mPDevice.get(), mPAllocator.get(), allocByteSize,
-                           usage | vk::BufferUsageFlagBits::eTransferSrc,
-                           Buffer::MemoryType::Staging);
+    auto ptr = MakeShared<Buffer>(mDevice.get(), *mAllocator, allocByteSize,
+                                  usage | vk::BufferUsageFlagBits::eTransferSrc,
+                                  Buffer::MemoryType::Staging);
     ptr->SetName(name);
     return ptr;
 }
@@ -123,7 +103,7 @@ SharedPtr<CUDA::VulkanExternalImage> Context::CreateExternalImage2D(
     vk::ImageAspectFlags aspect, VmaAllocationCreateFlags flags,
     uint32_t mipmapLevels, uint32_t arrayLayers) {
     return MakeShared<CUDA::VulkanExternalImage>(
-        mPDevice->GetHandle(), mPAllocator->GetHandle(),
+        mDevice->GetHandle(), mAllocator->GetHandle(),
         mPExternalMemoryPool->GetHandle(), flags, extent, format, usage, aspect,
         mipmapLevels, arrayLayers, vk::ImageType::e2D, vk::ImageViewType::e2D);
 }
@@ -131,7 +111,7 @@ SharedPtr<CUDA::VulkanExternalImage> Context::CreateExternalImage2D(
 SharedPtr<CUDA::VulkanExternalBuffer> Context::CreateExternalPersistentBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
     return MakeShared<CUDA::VulkanExternalBuffer>(
-        mPDevice->GetHandle(), mPAllocator->GetHandle(), allocByteSize, usage,
+        mDevice->GetHandle(), mAllocator->GetHandle(), allocByteSize, usage,
         VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         mPExternalMemoryPool->GetHandle());
 }
@@ -139,7 +119,7 @@ SharedPtr<CUDA::VulkanExternalBuffer> Context::CreateExternalPersistentBuffer(
 SharedPtr<CUDA::VulkanExternalBuffer> Context::CreateExternalStagingBuffer(
     size_t allocByteSize, vk::BufferUsageFlags usage) {
     return MakeShared<CUDA::VulkanExternalBuffer>(
-        mPDevice->GetHandle(), mPAllocator->GetHandle(), allocByteSize, usage,
+        mDevice->GetHandle(), mAllocator->GetHandle(), allocByteSize, usage,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
             | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         mPExternalMemoryPool->GetHandle());
@@ -158,34 +138,34 @@ SharedPtr<Sampler> Context::CreateSampler(vk::Filter minFilter,
                                compareEnable, compareOp);
 }
 
-Instance* Context::GetInstance() const {
-    return mPInstance.get();
+Instance& Context::GetInstance() const {
+    return *mInstance;
 }
 
 #ifndef NDEBUG
-DebugUtils* Context::GetDebugMessenger() const {
-    return mPDebugUtilsMessenger.get();
+DebugUtils& Context::GetDebugMessenger() const {
+    return *mDebugUtilsMessenger;
 }
 #endif
 
-Surface* Context::GetSurface() const {
-    return mPSurface.get();
+Surface& Context::GetSurface() const {
+    return *mSurface;
 }
 
-PhysicalDevice* Context::GetPhysicalDevice() const {
-    return mPPhysicalDevice.get();
+PhysicalDevice& Context::GetPhysicalDevice() const {
+    return mPhysicalDevice;
 }
 
-Device* Context::GetDevice() const {
-    return mPDevice.get();
+Device& Context::GetDevice() const {
+    return *mDevice;
 }
 
-MemoryAllocator* Context::GetVmaAllocator() const {
-    return mPAllocator.get();
+MemoryAllocator& Context::GetVmaAllocator() const {
+    return *mAllocator;
 }
 
-TimelineSemaphore* Context::GetTimelineSemphore() const {
-    return mPTimelineSemaphore.get();
+TimelineSemaphore& Context::GetTimelineSemphore() const {
+    return *mTimelineSemaphore;
 }
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -194,66 +174,41 @@ ExternalMemoryPool* Context::GetExternalMemoryPool() const {
 }
 #endif
 
-Sampler* Context::GetDefaultNearestSampler() const {
-    return mDefaultSamplerNearest.get();
+Sampler& Context::GetDefaultNearestSampler() const {
+    return *mDefaultSamplerNearest;
 }
 
-Sampler* Context::GetDefaultLinearSampler() const {
-    return mDefaultSamplerLinear.get();
+Sampler& Context::GetDefaultLinearSampler() const {
+    return *mDefaultSamplerLinear;
 }
 
-vk::Instance Context::GetInstanceHandle() const {
-    return mPInstance->GetHandle();
+Queue const& Context::GetPresentQueue() const {
+    return GetGraphicsQueue();
 }
 
-#ifndef NDEBUG
-vk::DebugUtilsMessengerEXT Context::GetDebugMessengerHandle() const {
-    return mPDebugUtilsMessenger->GetHandle();
-}
-#endif
-
-vk::SurfaceKHR Context::GetSurfaceHandle() const {
-    return mPSurface->GetHandle();
+Queue const& Context::GetGraphicsQueue() const {
+    return mDevice->GetQueue(
+        mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics), 0);
 }
 
-vk::PhysicalDevice Context::GetPhysicalDeviceHandle() const {
-    return mPPhysicalDevice->GetHandle();
+Queue const& Context::GetComputeQueue() const {
+    return mDevice->GetQueue(
+        mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eCompute), 0);
 }
 
-vk::Device Context::GetDeviceHandle() const {
-    return mPDevice->GetHandle();
+Queue const& Context::GetTransferQueue_ForUpload() const {
+    return mDevice->GetQueue(
+        mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer), 0);
 }
 
-VmaAllocator Context::GetVmaAllocatorHandle() const {
-    return mPAllocator->GetHandle();
+Queue const& Context::GetTransferQueue_ForReadback() const {
+    return mDevice->GetQueue(
+        mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer), 1);
 }
 
-vk::Semaphore Context::GetTimelineSemaphoreHandle() const {
-    return mPTimelineSemaphore->GetHandle();
-}
-
-#ifdef CUDA_VULKAN_INTEROP
-VmaPool Context::GetExternalMemoryPoolHandle() const {
-    return mPExternalMemoryPool->GetHandle();
-}
-#endif
-
-vk::Sampler Context::GetDefaultNearestSamplerHandle() const {
-    return mDefaultSamplerNearest->GetHandle();
-}
-
-vk::Sampler Context::GetDefaultLinearSamplerHandle() const {
-    return mDefaultSamplerLinear->GetHandle();
-}
-
-vk::PhysicalDeviceDescriptorBufferPropertiesEXT const&
-Context::GetDescBufProps() const {
-    return mDescBufProps;
-}
-
-vk::PhysicalDeviceDescriptorIndexingProperties const&
-Context::GetDescIndexingProps() const {
-    return mDescIndexingProps;
+Queue const& Context::GetTransferQueue_ForInternal() const {
+    return mDevice->GetQueue(
+        mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics), 2);
 }
 
 UniquePtr<Instance> Context::CreateInstance(
@@ -264,28 +219,23 @@ UniquePtr<Instance> Context::CreateInstance(
 
 #ifndef NDEBUG
 UniquePtr<DebugUtils> Context::CreateDebugUtilsMessenger() {
-    return MakeUnique<DebugUtils>(mPInstance.get());
+    return MakeUnique<DebugUtils>(*mInstance);
 }
 #endif
 
-UniquePtr<Surface> Context::CreateSurface(const SDLWindow* window) {
-    return MakeUnique<Surface>(mPInstance.get(), window);
-}
-
-UniquePtr<PhysicalDevice> Context::PickPhysicalDevice(vk::QueueFlags flags) {
-    return MakeUnique<PhysicalDevice>(mPInstance.get(), flags);
+UniquePtr<Surface> Context::CreateSurface(SDLWindow& window) {
+    return MakeUnique<Surface>(*mInstance, window);
 }
 
 UniquePtr<Device> Context::CreateDevice(
     ::std::span<Type_STLString> requestedExtensions) {
-    return MakeUnique<Device>(
-        mPPhysicalDevice.get(), ::std::span<Type_STLString> {},
-        requestedExtensions, &sPhysicalDeviceFeatures, &sEnable11Features);
+    EnableFeatures();
+
+    return MakeUnique<Device>(mPhysicalDevice, *mSurface, requestedExtensions);
 }
 
 UniquePtr<MemoryAllocator> Context::CreateVmaAllocator() {
-    return MakeUnique<MemoryAllocator>(mPPhysicalDevice.get(), mPDevice.get(),
-                                       mPInstance.get());
+    return MakeUnique<MemoryAllocator>(mPhysicalDevice, *mDevice, *mInstance);
 }
 
 UniquePtr<TimelineSemaphore> Context::CreateTimelineSem() {
@@ -294,7 +244,7 @@ UniquePtr<TimelineSemaphore> Context::CreateTimelineSem() {
 
 #ifdef CUDA_VULKAN_INTEROP
 UniquePtr<ExternalMemoryPool> Context::CreateExternalMemoryPool() {
-    return MakeUnique<ExternalMemoryPool>(mPAllocator.get());
+    return MakeUnique<ExternalMemoryPool>(mAllocator.get());
 }
 #endif
 
@@ -305,57 +255,60 @@ void Context::CreateDefaultSamplers() {
         CreateSampler(vk::Filter::eLinear, vk::Filter::eLinear);
 }
 
-void Context::EnableDefaultFeatures() {
-    sEnable12Features.setRuntimeDescriptorArray(vk::True);
-    sEnable11Features.setShaderDrawParameters(vk::True);
+void Context::EnableFeatures() {
+    auto& features = mPhysicalDevice.GetMutableRequestedFeatures();
+    features.setMultiDrawIndirect(vk::True).setDrawIndirectFirstInstance(
+        vk::True);
 
-    EnableDynamicRendering();
-    EnableSynchronization2();
-    EnableBufferDeviceAddress();
-    EnableDescriptorIndexing();
-    EnableTimelineSemaphore();
-    EnableMultiDrawIndirect();
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceShaderDrawParametersFeatures,
+                             shaderDrawParameters);
 
-    sEnable11Features.setPNext(&sEnable12Features);
-    sEnable12Features.setPNext(&sEnable13Features);
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceDynamicRenderingFeatures,
+                             dynamicRendering);
 
-    sEnableMaintenance6KHR.setMaintenance6(vk::True);
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceSynchronization2Features,
+                             synchronization2);
 
-    sEnableMeshShaderFeaturesExt.setMeshShader(vk::True)
-        .setTaskShader(vk::True)
-        .setPNext(&sEnableMaintenance6KHR);
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceBufferDeviceAddressFeatures,
+                             bufferDeviceAddress);
 
-    sEnableDescriptorBufferFeaturesExt.setDescriptorBuffer(vk::True).setPNext(
-        &sEnableMeshShaderFeaturesExt);
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceDescriptorIndexingFeatures,
+                             descriptorBindingVariableDescriptorCount);
 
-    sEnable13Features.setPNext(&sEnableDescriptorBufferFeaturesExt);
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceDescriptorIndexingFeatures,
+                             runtimeDescriptorArray);
 
-    sEnable12Features.setStorageBuffer8BitAccess(vk::True);
-}
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceDescriptorIndexingFeatures,
+                             shaderSampledImageArrayNonUniformIndexing);
 
-void Context::EnableDynamicRendering() {
-    sEnable13Features.setDynamicRendering(vk::True);
-}
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceTimelineSemaphoreFeatures,
+                             timelineSemaphore);
 
-void Context::EnableSynchronization2() {
-    sEnable13Features.setSynchronization2(vk::True);
-}
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceMaintenance6FeaturesKHR,
+                             maintenance6);
 
-void Context::EnableBufferDeviceAddress() {
-    sEnable12Features.setBufferDeviceAddress(vk::True);
-}
+    REQUEST_REQUIRED_FEATURE(
+        mPhysicalDevice, vk::PhysicalDeviceMeshShaderFeaturesEXT, meshShader);
 
-void Context::EnableDescriptorIndexing() {
-    sEnable12Features.setDescriptorIndexing(vk::True);
-}
+    REQUEST_REQUIRED_FEATURE(
+        mPhysicalDevice, vk::PhysicalDeviceMeshShaderFeaturesEXT, taskShader);
 
-void Context::EnableTimelineSemaphore() {
-    sEnable12Features.setTimelineSemaphore(vk::True);
-}
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceDescriptorBufferFeaturesEXT,
+                             descriptorBuffer);
 
-void Context::EnableMultiDrawIndirect() {
-    sPhysicalDeviceFeatures.setMultiDrawIndirect(vk::True);
-    sPhysicalDeviceFeatures.setDrawIndirectFirstInstance(vk::True);
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDevice8BitStorageFeatures,
+                             storageBuffer8BitAccess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

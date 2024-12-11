@@ -11,9 +11,7 @@ void QueueSubmitRequest::Wait_CPUBlocking() {
     while (*pTimelineValue < mFenceValue) {}
 }
 
-CommandManager::CommandManager(Context* ctx)
-    : pContex(ctx) {
-}
+CommandManager::CommandManager(Context* ctx) : pContex(ctx) {}
 
 QueueSubmitRequest CommandManager::Submit(
     vk::CommandBuffer cmd, vk::Queue queue,
@@ -38,15 +36,15 @@ QueueSubmitRequest CommandManager::Submit(
 
     queue.submit2(submit, fence);
 
-    auto timelineValue = pContex->GetTimelineSemphore()->GetValue();
+    auto& timelineSem = pContex->GetTimelineSemphore();
+    auto timelineValue = timelineSem.GetValue();
     if (signalValue - timelineValue > 0) {
-        pContex->GetTimelineSemphore()->IncreaseValue(signalValue
-                                                      - timelineValue);
+        timelineSem.IncreaseValue(signalValue - timelineValue);
     } else {
         throw ::std::runtime_error("");
     }
 
-    return {signalValue, pContex->GetTimelineSemphore()->GetValueAddress()};
+    return {signalValue, timelineSem.GetValueAddress()};
 }
 
 ImmediateSubmitManager::ImmediateSubmitManager(Context* ctx,
@@ -60,7 +58,7 @@ ImmediateSubmitManager::ImmediateSubmitManager(Context* ctx,
 }
 
 ImmediateSubmitManager::~ImmediateSubmitManager() {
-    pContex->GetDeviceHandle().destroy(mFence);
+    pContex->GetDevice()->destroy(mFence);
 }
 
 void ImmediateSubmitManager::Submit(
@@ -68,7 +66,7 @@ void ImmediateSubmitManager::Submit(
     auto func =
         ::std::forward<std::function<void(vk::CommandBuffer cmd)>>(function);
 
-    pContex->GetDeviceHandle().resetFences(mFence);
+    pContex->GetDevice()->resetFences(mFence);
 
     auto cmd = mSPCommandBuffer->GetHandle();
 
@@ -86,15 +84,14 @@ void ImmediateSubmitManager::Submit(
     vk::CommandBufferSubmitInfo cmdSubmitInfo {cmd};
     vk::SubmitInfo2 submit {{}, {}, cmdSubmitInfo, {}};
 
-    pContex->GetDevice()->GetGraphicQueue().submit2(submit,
-                                                    mFence);
-    VK_CHECK(pContex->GetDeviceHandle().waitForFences(
+    pContex->GetGraphicsQueue().GetHandle().submit2(submit, mFence);
+    VK_CHECK(pContex->GetDevice()->waitForFences(
         mFence, vk::True, FencePool::TIME_OUT_NANO_SECONDS));
 }
 
 vk::Fence ImmediateSubmitManager::CreateFence() {
     vk::FenceCreateInfo info {vk::FenceCreateFlagBits::eSignaled};
-    return pContex->GetDeviceHandle().createFence(info);
+    return pContex->GetDevice()->createFence(info);
 }
 
 SharedPtr<CommandBuffer> ImmediateSubmitManager::CreateCommandBuffer() {

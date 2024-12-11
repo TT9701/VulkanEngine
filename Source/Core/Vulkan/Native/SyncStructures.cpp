@@ -11,7 +11,7 @@ FencePool::~FencePool() {
     Reset();
 
     for (auto& fence : mFences) {
-        pContext->GetDeviceHandle().destroy(fence);
+        pContext->GetDevice()->destroy(fence);
     }
 
     mFences.clear();
@@ -24,7 +24,7 @@ vk::Fence FencePool::RequestFence(vk::FenceCreateFlags flags) {
 
     vk::FenceCreateInfo info {flags};
 
-    auto fence = pContext->GetDeviceHandle().createFence(info);
+    auto fence = pContext->GetDevice()->createFence(info);
 
     mFences.push_back(fence);
 
@@ -38,7 +38,7 @@ vk::Result FencePool::Wait() const {
         return vk::Result::eSuccess;
     }
 
-    return pContext->GetDeviceHandle().waitForFences(
+    return pContext->GetDevice()->waitForFences(
         mFences, vk::True, TIME_OUT_NANO_SECONDS);
 }
 
@@ -47,7 +47,7 @@ vk::Result FencePool::Reset() {
         return vk::Result::eSuccess;
     }
 
-    pContext->GetDeviceHandle().resetFences(mFences);
+    pContext->GetDevice()->resetFences(mFences);
 
     mActiveFenceCount = 0;
 
@@ -57,13 +57,13 @@ vk::Result FencePool::Reset() {
 Semaphore::Semaphore(Context* ctx) : pContext(ctx), mSemaphore(CreateSem()) {}
 
 Semaphore::~Semaphore() {
-    pContext->GetDeviceHandle().destroy(mSemaphore);
+    pContext->GetDevice()->destroy(mSemaphore);
 }
 
 vk::Semaphore Semaphore::CreateSem() {
     vk::SemaphoreCreateInfo semaphoreCreateInfo {};
 
-    return pContext->GetDeviceHandle().createSemaphore(semaphoreCreateInfo);
+    return pContext->GetDevice()->createSemaphore(semaphoreCreateInfo);
 }
 
 TimelineSemaphore::TimelineSemaphore(Context* ctx, uint64_t initialValue)
@@ -72,7 +72,7 @@ TimelineSemaphore::TimelineSemaphore(Context* ctx, uint64_t initialValue)
       mSemaphore(CreateTimelineSemaphore()) {}
 
 TimelineSemaphore::~TimelineSemaphore() {
-    pContext->GetDeviceHandle().destroy(mSemaphore);
+    pContext->GetDevice()->destroy(mSemaphore);
 }
 
 void TimelineSemaphore::IncreaseValue(uint64_t val) {
@@ -86,7 +86,7 @@ vk::Semaphore TimelineSemaphore::CreateTimelineSemaphore() {
 
     vk::SemaphoreCreateInfo info {};
     info.setPNext(&typeInfo);
-    return pContext->GetDeviceHandle().createSemaphore(info);
+    return pContext->GetDevice()->createSemaphore(info);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

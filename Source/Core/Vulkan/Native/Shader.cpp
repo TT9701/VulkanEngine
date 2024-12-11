@@ -194,7 +194,7 @@ Shader::Shader(Context* context, const char* name, const char* sourcePath,
 }
 
 Shader::~Shader() {
-    pContext->GetDeviceHandle().destroy(mShader);
+    pContext->GetDevice()->destroy(mShader);
 }
 
 vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
@@ -232,7 +232,7 @@ vk::ShaderModule Shader::CreateShader(void* pNext) const {
     vk::ShaderModuleCreateInfo createInfo {};
     createInfo.setCode(mSPIRVBinaryCode).setPNext(pNext);
 
-    return pContext->GetDeviceHandle().createShaderModule(createInfo);
+    return pContext->GetDevice()->createShaderModule(createInfo);
 }
 
 void Shader::GLSLReflect(Type_STLString const& source) {
@@ -506,12 +506,16 @@ void ShaderProgram::MergePushContantDatas() {
 
 void ShaderProgram::CreateDescLayouts(
     Type_STLVector<Shader::DescriptorSetLayoutData> const& datas, void* pNext) {
+    auto descBufProps =
+        pContext->GetPhysicalDevice()
+            .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
+
     auto CreateDescLayout =
         [&](const char* name,
             Type_STLVector<Type_STLString> const& bindingNames,
             Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings) {
             auto ptr = MakeShared<DescriptorSetLayout>(
-                pContext, bindingNames, bindings, pContext->GetDescBufProps(),
+                pContext, bindingNames, bindings, descBufProps,
                 pNext);
 
             pContext->SetName(ptr->GetHandle(), name);

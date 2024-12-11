@@ -22,12 +22,12 @@ public:
     };
 
     // buffer
-    RenderResource(Device* device, MemoryAllocator* allocator, Type type,
+    RenderResource(Device* device, MemoryAllocator& allocator, Type type,
                    size_t size, vk::BufferUsageFlags usage,
                    Buffer::MemoryType memType, size_t texelSize = 1);
 
     // texture
-    RenderResource(Device* device, MemoryAllocator* allocator, Type type,
+    RenderResource(Device* device, MemoryAllocator& allocator, Type type,
                    vk::Format format, vk::Extent3D extent,
                    vk::ImageUsageFlags usage, uint32_t mipLevels,
                    uint32_t arraySize, uint32_t sampleCount);

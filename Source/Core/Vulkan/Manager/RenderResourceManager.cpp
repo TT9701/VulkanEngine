@@ -10,15 +10,15 @@ RenderResourceManager::Fn_SizeRelation RenderResourceManager::sFullSize {
     }};
 
 RenderResourceManager::RenderResourceManager(Device* device,
-                                             MemoryAllocator* allocator)
-    : pDevice(device), pAllocator(allocator) {}
+                                             MemoryAllocator& allocator)
+    : pDevice(device), mAllocator(allocator) {}
 
 RenderResource* RenderResourceManager::CreateBuffer(const char* name,
                                                     size_t size,
                                                     vk::BufferUsageFlags usage,
                                                     Buffer::MemoryType memType,
                                                     size_t texelSize) {
-    auto ptr = MakeShared<RenderResource>(pDevice, pAllocator,
+    auto ptr = MakeShared<RenderResource>(pDevice, mAllocator,
                                           RenderResource::Type::Buffer, size,
                                           usage, memType, texelSize);
 
@@ -34,7 +34,7 @@ RenderResource* RenderResourceManager::CreateTexture(
     vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
     uint32_t arraySize, uint32_t sampleCount) {
     auto ptr =
-        MakeShared<RenderResource>(pDevice, pAllocator, type, format, extent,
+        MakeShared<RenderResource>(pDevice, mAllocator, type, format, extent,
                                    usage, mipLevels, arraySize, sampleCount);
 
     ptr->SetName(name);

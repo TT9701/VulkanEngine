@@ -12,7 +12,7 @@ CommandPool::CommandPool(Context* ctx, uint32_t queueFamilysIndex,
       mCmdPool(CreateCommandPool()) {}
 
 CommandPool::~CommandPool() {
-    pCtx->GetDeviceHandle().destroy(mCmdPool);
+    pCtx->GetDevice()->destroy(mCmdPool);
 }
 
 CommandBuffer& CommandPool::RequestCommandBuffer() {
@@ -35,7 +35,7 @@ vk::CommandPool CommandPool::CreateCommandPool() {
     vk::CommandPoolCreateInfo cmdPoolCreateInfo {};
     cmdPoolCreateInfo.setFlags(mFlags).setQueueFamilyIndex(mQueueFamilysIndex);
 
-    return pCtx->GetDeviceHandle().createCommandPool(cmdPoolCreateInfo);
+    return pCtx->GetDevice()->createCommandPool(cmdPoolCreateInfo);
 }
 
 CommandBuffer::CommandBuffer(Context* ctx, CommandPool* pool,
@@ -59,7 +59,7 @@ vk::CommandBuffer CommandBuffer::CreateCommandBuffer() {
         .setLevel(mLevel)
         .setCommandBufferCount(1);
 
-    auto vec = pContex->GetDeviceHandle().allocateCommandBuffers(cmdAllocInfo);
+    auto vec = pContex->GetDevice()->allocateCommandBuffers(cmdAllocInfo);
     return vec.front();
 }
 

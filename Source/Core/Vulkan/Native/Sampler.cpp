@@ -15,7 +15,7 @@ Sampler::Sampler(Context* context, vk::Filter minFilter,
                              addressModeW, maxLod, compareEnable, compareOp)) {}
 
 Sampler::~Sampler() {
-    pContext->GetDeviceHandle().destroy(mSampler);
+    pContext->GetDevice()->destroy(mSampler);
 }
 
 vk::Sampler Sampler::CreateSampler(vk::Filter minFilter,
@@ -37,7 +37,7 @@ vk::Sampler Sampler::CreateSampler(vk::Filter minFilter,
         .setCompareEnable(compareEnable)
         .setCompareOp(compareOp);
 
-    return pContext->GetDeviceHandle().createSampler(info);
+    return pContext->GetDevice()->createSampler(info);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

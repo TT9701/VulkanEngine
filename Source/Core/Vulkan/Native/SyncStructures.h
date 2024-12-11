@@ -8,7 +8,6 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
-class FencePool;
 
 class FencePool {
 public:
