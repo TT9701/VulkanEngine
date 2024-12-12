@@ -9,7 +9,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 class Buffer;
 class DescriptorSetLayout;
 
@@ -19,7 +19,7 @@ class DescriptorSet {
             PoolResource_DescriptorSet>::HandleRequest;
 
 public:
-    DescriptorSet(Context* context, DescriptorSetLayout* setLayout);
+    DescriptorSet(VulkanContext* context, DescriptorSetLayout* setLayout);
 
     uint32_t GetBindingCount() const;
     vk::DeviceSize GetBingdingOffset(uint32_t binding) const;
@@ -44,7 +44,7 @@ public:
     };
 
     DescriptorSetLayout(
-        Context* context, Type_STLVector<Type_STLString> const& bindingNames,
+        VulkanContext* context, Type_STLVector<Type_STLString> const& bindingNames,
         Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
         vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
         const void* pNext);
@@ -57,7 +57,7 @@ public:
     size_t GetDescriptorSize(vk::DescriptorType type) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     Data mData;
 
@@ -69,7 +69,7 @@ class RenderPassBindingInfo_PSO;
 class BindlessDescPool {
 public:
     BindlessDescPool(
-        Context* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+        VulkanContext* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
         vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
 
     PoolResource GetPoolResource() const;
@@ -84,7 +84,7 @@ private:
     void ExpandSet();
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
     Type_STLVector<RenderPassBindingInfo_PSO*> mPSOs;
 
     vk::DescriptorType mDescType;

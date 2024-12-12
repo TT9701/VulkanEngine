@@ -2,24 +2,15 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderFrame::RenderFrame(Context* context)
+RenderFrame::RenderFrame(VulkanContext* context)
     : pContext(context),
-      mFencePool(MakeUnique<FencePool>(context)),
+      mFencePool(MakeUnique<FencePool>(*context)),
       mReady4Render(MakeUnique<Semaphore>(context)),
       mReady4Present(MakeUnique<Semaphore>(context)) {
-    ::std::vector<::std::optional<uint32_t>> indices {};
-    indices.emplace_back(
-        pContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex());
-    indices.emplace_back(
-        pContext->GetPhysicalDevice().GetComputeQueueFamilyIndex());
-    indices.emplace_back(
-        pContext->GetPhysicalDevice().GetTransferQueueFamilyIndex());
+    auto indexMap = pContext->GetDevice().GetQueueFamilyIndices();
 
-    for (auto const& idx : indices) {
-        if (idx) {
-            auto value = *idx;
-            mCmdPools.emplace(value, MakeUnique<CommandPool>(pContext, value));
-        }
+    for (auto const& [type, index] : indexMap) {
+        mCmdPools.emplace(index, MakeUnique<CommandPool>(*pContext, index));
     }
 }
 
@@ -42,32 +33,24 @@ Semaphore const& RenderFrame::GetReady4PresentSemaphore() const {
 }
 
 CmdBufferToBegin RenderFrame::GetGfxCmdBuf() const {
-    auto gfxIdx = *pContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex();
-    return {mCmdPools.at(gfxIdx)->RequestCommandBuffer()};
+    return {mCmdPools
+                .at(pContext->GetDevice().GetQueueFamilyIndex(
+                    vk::QueueFlagBits::eGraphics))
+                ->RequestCommandBuffer()};
 }
 
 CmdBufferToBegin RenderFrame::GetCmpCmdBuf() const {
-    if (auto cmpIdx =
-            pContext->GetPhysicalDevice().GetComputeQueueFamilyIndex()) {
-        return {mCmdPools.at(cmpIdx.value())->RequestCommandBuffer()};
-    } else {
-        return {mCmdPools
-                    .at(*pContext->GetPhysicalDevice()
-                             .GetGraphicsQueueFamilyIndex())
-                    ->RequestCommandBuffer()};
-    }
+    return {mCmdPools
+                .at(pContext->GetDevice().GetQueueFamilyIndex(
+                    vk::QueueFlagBits::eCompute))
+                ->RequestCommandBuffer()};
 }
 
 CmdBufferToBegin RenderFrame::GetTsfCmdBuf() const {
-    if (auto tsfIdx =
-            pContext->GetPhysicalDevice().GetTransferQueueFamilyIndex()) {
-        return {mCmdPools.at(tsfIdx.value())->RequestCommandBuffer()};
-    } else {
-        return {mCmdPools
-                    .at(*pContext->GetPhysicalDevice()
-                             .GetGraphicsQueueFamilyIndex())
-                    ->RequestCommandBuffer()};
-    }
+    return {mCmdPools
+                .at(pContext->GetDevice().GetQueueFamilyIndex(
+                    vk::QueueFlagBits::eTransfer))
+                ->RequestCommandBuffer()};
 }
 
 BindlessDescPool& RenderFrame::GetBindlessDescPool() const {

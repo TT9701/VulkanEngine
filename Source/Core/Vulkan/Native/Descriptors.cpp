@@ -6,7 +6,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-DescriptorSet::DescriptorSet(Context* context, DescriptorSetLayout* setLayout)
+DescriptorSet::DescriptorSet(VulkanContext* context, DescriptorSetLayout* setLayout)
     : pSetLayout(setLayout) {
     const auto& bindings = setLayout->GetBindings();
     auto bindingCount = bindings.size();
@@ -37,7 +37,7 @@ PoolResource DescriptorSet::GetPoolResource() const {
 }
 
 DescriptorSetLayout::DescriptorSetLayout(
-    Context* context, Type_STLVector<Type_STLString> const& bindingNames,
+    VulkanContext* context, Type_STLVector<Type_STLString> const& bindingNames,
     Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
     vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
     const void* pNext)
@@ -133,7 +133,7 @@ size_t DescriptorSetLayout::GetDescriptorSize(vk::DescriptorType type) const {
 }
 
 BindlessDescPool::BindlessDescPool(
-    Context* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+    VulkanContext* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
     vk::DescriptorType type)
     : pContext(context), mPSOs(pso), mDescType(type) {
     auto descBufProps =

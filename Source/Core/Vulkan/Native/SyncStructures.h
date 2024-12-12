@@ -7,25 +7,24 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 
 class FencePool {
 public:
-    FencePool(Context* ctx);
+    FencePool(VulkanContext& ctx);
     ~FencePool();
 
 public:
     static constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
 
-    vk::Fence RequestFence(
-        vk::FenceCreateFlags flags = {});
+    vk::Fence RequestFence(vk::FenceCreateFlags flags = {});
 
     vk::Result Wait() const;
 
     vk::Result Reset();
 
 private:
-    Context* pContext;
+    VulkanContext& mContext;
 
     Type_STLVector<vk::Fence> mFences;
     uint32_t mActiveFenceCount {0};
@@ -33,7 +32,7 @@ private:
 
 class Semaphore {
 public:
-    Semaphore(Context* ctx);
+    Semaphore(VulkanContext* ctx);
     ~Semaphore();
     CLASS_MOVABLE_ONLY(Semaphore);
 
@@ -44,14 +43,14 @@ private:
     vk::Semaphore CreateSem();
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     vk::Semaphore mSemaphore;
 };
 
 class TimelineSemaphore {
 public:
-    TimelineSemaphore(Context* ctx, uint64_t initialValue = 0ui64);
+    TimelineSemaphore(VulkanContext* ctx, uint64_t initialValue = 0ui64);
     ~TimelineSemaphore();
     CLASS_MOVABLE_ONLY(TimelineSemaphore);
 
@@ -68,7 +67,7 @@ private:
     vk::Semaphore CreateTimelineSemaphore();
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     uint64_t mValue {0};
     vk::Semaphore mSemaphore;

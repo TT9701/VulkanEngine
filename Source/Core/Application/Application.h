@@ -43,7 +43,7 @@ struct ApplicationSpecification {
     ApplicationCommandLineArgs CommandLineArgs;
 };
 
-class Context;
+class VulkanContext;
 class MemoryAllocator;
 class ExternalMemoryPool;
 class Swapchain;
@@ -60,19 +60,13 @@ public:
 public:
     void Run();
 
-public:
-    ImmediateSubmitManager const* GetImmediateSubmitManager() const {
-        return &mImmSubmitMgr;
-    }
-
 protected:
     UniquePtr<SDLWindow> CreateSDLWindow(const char* name, uint32_t width,
                                          uint32_t height);
-    UniquePtr<Context> CreateContext();
+    UniquePtr<VulkanContext> CreateContext();
     UniquePtr<Swapchain> CreateSwapchain();
 
     RenderResourceManager CreateRenderResourceManager();
-    ImmediateSubmitManager CreateImmediateSubmitManager();
     CommandManager CreateCommandManager();
     PipelineManager CreatePipelineManager();
     ShaderManager CreateShaderManager();
@@ -103,12 +97,11 @@ protected:
     uint32_t mFrameNum {0};
 
     UniquePtr<SDLWindow> mWindow;
-    UniquePtr<Context> mContext;
+    UniquePtr<VulkanContext> mContext;
     UniquePtr<Swapchain> mSwapchain;
 
     RenderResourceManager mRenderResMgr;
     CommandManager mCmdMgr;
-    ImmediateSubmitManager mImmSubmitMgr;
     PipelineManager mPipelineMgr;
     ShaderManager mShaderMgr;
 

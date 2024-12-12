@@ -94,7 +94,7 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_PSO(Context* context, RenderResourceManager* resMgr,
+    RenderPassBindingInfo_PSO(VulkanContext* context, RenderResourceManager* resMgr,
                               PipelineManager* pipelineMgr,
                               DescriptorSetPool* descPool,
                               Swapchain* sc = nullptr);
@@ -140,7 +140,7 @@ private:
                               Type_STLVector<uint32_t>& indices);
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
     RenderResourceManager* pResMgr;
     PipelineManager* pPipelineMgr;
     DescriptorSetPool* pDescSetPool;
@@ -200,7 +200,7 @@ public:
     struct MemoryBarrier {};
 
 public:
-    RenderPassBindingInfo_Barrier(Context* context,
+    RenderPassBindingInfo_Barrier(VulkanContext* context,
                                   RenderResourceManager* resMgr,
                                   Swapchain* sc = nullptr);
     virtual ~RenderPassBindingInfo_Barrier() override = default;
@@ -219,7 +219,7 @@ private:
         ::std::variant<ImageBarrier, BufferBarrier, MemoryBarrier>;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
     RenderResourceManager* pResMgr;
     Swapchain* pSwapchain;
 

@@ -3,7 +3,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 PoolResource_DescriptorSet::PoolResource_DescriptorSet(uint32_t _numBytes_,
-                                                       Context* context)
+                                                       VulkanContext* context)
     : mNumBytes(_numBytes_), pContext(context) {
     vk::BufferUsageFlags usage {
         vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT
@@ -45,7 +45,7 @@ size_t PoolResource_DescriptorSet::_Get_numUnits_() const {
     return mNumBytes;
 }
 
-DescriptorSetPool CreateDescSetPool(Context* context, size_t minPoolSize) {
+DescriptorSetPool CreateDescSetPool(VulkanContext* context, size_t minPoolSize) {
 #ifndef NDEBUG
     return DescriptorSetPool {true, true, minPoolSize, context};
 #else
@@ -53,7 +53,7 @@ DescriptorSetPool CreateDescSetPool(Context* context, size_t minPoolSize) {
 #endif
 }
 
-SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(Context* context,
+SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(VulkanContext* context,
                                                 size_t minPoolSize) {
 #ifndef NDEBUG
     return MakeShared<DescriptorSetPool>(true, true, minPoolSize, context);
@@ -62,7 +62,7 @@ SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(Context* context,
 #endif
 }
 
-DescriptorSetAllocator::DescriptorSetAllocator(Context* context,
+DescriptorSetAllocator::DescriptorSetAllocator(VulkanContext* context,
                                                DescriptorSetPool* pool)
     : pContext(context), mPool(pool) {}
 

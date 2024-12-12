@@ -12,7 +12,6 @@ Application::Application(ApplicationSpecification const& spec)
       mSwapchain(CreateSwapchain()),
       mRenderResMgr(CreateRenderResourceManager()),
       mCmdMgr(CreateCommandManager()),
-      mImmSubmitMgr(CreateImmediateSubmitManager()),
       mPipelineMgr(CreatePipelineManager()),
       mShaderMgr(CreateShaderManager())
 #ifdef CUDA_VULKAN_INTEROP
@@ -65,7 +64,7 @@ UniquePtr<SDLWindow> Application::CreateSDLWindow(const char* name,
     return MakeUnique<SDLWindow>(name, width, height);
 }
 
-UniquePtr<Context> Application::CreateContext() {
+UniquePtr<VulkanContext> Application::CreateContext() {
     Type_STLVector<Type_STLString> requestedInstanceLayers {};
 #ifndef NDEBUG
     requestedInstanceLayers.emplace_back("VK_LAYER_KHRONOS_validation");
@@ -101,11 +100,9 @@ UniquePtr<Context> Application::CreateContext() {
         vk::KHRExternalSemaphoreWin32ExtensionName);
 #endif
 
-    // Context::EnableDefaultFeatures();
-
-    return MakeUnique<Context>(*mWindow, requestedInstanceLayers,
-                               requestedInstanceExtensions,
-                               enabledDeivceExtensions);
+    return MakeUnique<VulkanContext>(*mWindow, requestedInstanceLayers,
+                                     requestedInstanceExtensions,
+                                     enabledDeivceExtensions);
 }
 
 UniquePtr<Swapchain> Application::CreateSwapchain() {
@@ -117,12 +114,6 @@ UniquePtr<Swapchain> Application::CreateSwapchain() {
 
 RenderResourceManager Application::CreateRenderResourceManager() {
     return {&mContext->GetDevice(), mContext->GetVmaAllocator()};
-}
-
-ImmediateSubmitManager Application::CreateImmediateSubmitManager() {
-    return {
-        mContext.get(),
-        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value()};
 }
 
 CommandManager Application::CreateCommandManager() {
@@ -154,7 +145,8 @@ void Application::BeginFrame(Core::RenderFrame& frame) {
 }
 
 void Application::EndFrame(Core::RenderFrame& frame) {
-    mSwapchain->Present(frame, mContext->GetPresentQueue().GetHandle());
+    mSwapchain->Present(frame,
+                        mContext->GetQueue(QueueUsage::Present).GetHandle());
     ++mFrameNum;
 }
 

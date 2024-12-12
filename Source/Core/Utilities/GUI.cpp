@@ -6,7 +6,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-GUI::GUI(Context* context, Swapchain* swapchain, SDLWindow* window)
+GUI::GUI(VulkanContext* context, Swapchain* swapchain, SDLWindow* window)
     : pContext(context), pSwapchain(swapchain), pWindow(window) {
     CreateDescPool();
     PrepareContext();
@@ -69,7 +69,7 @@ void GUI::PrepareContext() {
     info.Instance = pContext->GetInstance().GetHandle();
     info.PhysicalDevice = pContext->GetPhysicalDevice().GetHandle();
     info.Device = pContext->GetDevice().GetHandle();
-    info.Queue = pContext->GetGraphicsQueue().GetHandle();
+    info.Queue = pContext->GetQueue(QueueUsage::Graphics).GetHandle();
     info.DescriptorPool = mDescPool;
     info.MinImageCount = 2;
     info.ImageCount = pSwapchain->GetImageCount();

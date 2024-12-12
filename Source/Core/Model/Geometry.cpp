@@ -16,7 +16,7 @@ Geometry::Geometry(const char* path, bool flipYZ, const char* output,
     GenerateStats();
 }
 
-void Geometry::GenerateBuffers(Context* context, Application* engine) {
+void Geometry::GenerateBuffers(VulkanContext* context, Application* engine) {
     // Vertex & index buffer
     {
         constexpr size_t vpSize =
@@ -106,33 +106,35 @@ void Geometry::GenerateBuffers(Context* context, Application* engine) {
         memcpy(data + vpBufSize + vnBufSize + vtBufSize + idxBufSize,
                mMeshDatas.vertexOffsets.data(), offsetBufSize);
 
-        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+        {
+            auto cmd = context->CreateCmdBufToBegin(
+                context->GetQueue(QueueUsage::Transfer_Prepare));
             vk::BufferCopy vertexCopy {};
             vertexCopy.setSize(vpBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mVPBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mVPBuf->GetBufferHandle(), vertexCopy);
 
             vertexCopy.setSize(vnBufSize).setSrcOffset(vpBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mVNBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mVNBuf->GetBufferHandle(), vertexCopy);
 
             vertexCopy.setSize(vtBufSize).setSrcOffset(vpBufSize + vnBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mVTBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mVTBuf->GetBufferHandle(), vertexCopy);
 
             vk::BufferCopy indexCopy {};
             indexCopy.setSize(idxBufSize)
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mIdxBuf->GetBufferHandle(), indexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mIdxBuf->GetBufferHandle(), indexCopy);
 
             vk::BufferCopy offsetCopy {};
             offsetCopy.setSize(offsetBufSize)
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + idxBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mMeshDataBuf->GetBufferHandle(),
-                           offsetCopy);
-        });
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMeshDataBuf->GetBufferHandle(),
+                            offsetCopy);
+        }
 
         mIndexDrawConstants.mVPBufAddr = mBuffers.mVPBufAddr;
         mIndexDrawConstants.mVNBufAddr = mBuffers.mVNBufAddr;
@@ -152,16 +154,19 @@ void Geometry::GenerateBuffers(Context* context, Application* engine) {
         void* data = staging->GetMapPtr();
         memcpy(data, mIndirectCmds.data(), bufSize);
 
-        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+        {
+            auto cmd = context->CreateCmdBufToBegin(
+                context->GetQueue(QueueUsage::Transfer_Prepare));
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mIndirectCmdBuffer->GetHandle(), cmdBufCopy);
-        });
+            cmd->copyBuffer(staging->GetHandle(),
+                            mIndirectCmdBuffer->GetHandle(), cmdBufCopy);
+        }
     }
 }
 
-void Geometry::GenerateMeshletBuffers(Context* context, Application* engine) {
+void Geometry::GenerateMeshletBuffers(VulkanContext* context,
+                                      Application* engine) {
     constexpr size_t vpSize =
         sizeof(mModelData.meshes[0].vertices.positions[0]);
     constexpr size_t vnSize = sizeof(mModelData.meshes[0].vertices.normals[0]);
@@ -320,50 +325,52 @@ void Geometry::GenerateMeshletBuffers(Context* context, Application* engine) {
                    mMeshDatas.meshletCounts.data(), meshCountSize);
         }
 
-        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+        {
+            auto cmd = context->CreateCmdBufToBegin(
+                context->GetQueue(QueueUsage::Transfer_Prepare));
             vk::BufferCopy vertexCopy {};
             vertexCopy.setSize(vpBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mVPBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mVPBuf->GetBufferHandle(), vertexCopy);
 
             vertexCopy.setSize(vnBufSize).setSrcOffset(vpBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mVNBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mVNBuf->GetBufferHandle(), vertexCopy);
 
             vertexCopy.setSize(vtBufSize).setSrcOffset(vpBufSize + vnBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mVTBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mVTBuf->GetBufferHandle(), vertexCopy);
 
             vk::BufferCopy meshletCopy {};
             meshletCopy.setSize(mlBufSize).setSrcOffset(vpBufSize + vnBufSize
                                                         + vtBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mMeshletBuf->GetBufferHandle(),
-                           meshletCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMeshletBuf->GetBufferHandle(),
+                            meshletCopy);
 
             vk::BufferCopy meshletVertCopy {};
             meshletVertCopy.setSize(mlVertBufSize)
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mMeshletVertBuf->GetBufferHandle(),
-                           meshletVertCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMeshletVertBuf->GetBufferHandle(),
+                            meshletVertCopy);
 
             vk::BufferCopy meshletTriCopy {};
             meshletTriCopy.setSize(mlTriBufSize)
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize
                               + mlVertBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mMeshletTriBuf->GetBufferHandle(),
-                           meshletTriCopy);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMeshletTriBuf->GetBufferHandle(),
+                            meshletTriCopy);
 
             vk::BufferCopy offsetsCopy {};
             offsetsCopy.setSize(offsetsBufSize)
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize
                               + mlVertBufSize + mlTriBufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mBuffers.mMeshDataBuf->GetBufferHandle(),
-                           offsetsCopy);
-        });
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMeshDataBuf->GetBufferHandle(),
+                            offsetsCopy);
+        }
 
         mMeshletConstants.mVPBufAddr = mBuffers.mVPBufAddr;
         mMeshletConstants.mVNBufAddr = mBuffers.mVNBufAddr;
@@ -395,12 +402,15 @@ void Geometry::GenerateMeshletBuffers(Context* context, Application* engine) {
         void* data = staging->GetMapPtr();
         memcpy(data, mMeshTaskIndirectCmds.data(), bufSize);
 
-        engine->GetImmediateSubmitManager()->Submit([&](vk::CommandBuffer cmd) {
+        {
+            auto cmd = context->CreateCmdBufToBegin(
+                context->GetQueue(QueueUsage::Transfer_Prepare));
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
-            cmd.copyBuffer(staging->GetHandle(),
-                           mMeshTaskIndirectCmdBuffer->GetHandle(), cmdBufCopy);
-        });
+            cmd->copyBuffer(staging->GetHandle(),
+                            mMeshTaskIndirectCmdBuffer->GetHandle(),
+                            cmdBufCopy);
+        }
     }
 }
 

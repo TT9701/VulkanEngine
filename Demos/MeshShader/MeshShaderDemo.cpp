@@ -251,59 +251,61 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
             {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
              computeFinished}};
 
-        mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetComputeQueue().GetHandle(),
-                       waits, signals, frame.GetFencePool().RequestFence());
+        mCmdMgr.Submit(
+            cmd.GetHandle(),
+            mContext->GetQueue(QueueUsage::Compute_Runtime).GetHandle(), waits,
+            signals, frame.GetFencePool().RequestFence());
     }
 
     // Runtime Copy
     {
         auto cmd = frame.GetTsfCmdBuf();
-
+    
         mRuntimeCopy_Barrier_Pre.RecordCmd(cmd.GetHandle());
         mRuntimeCopy.RecordCmd(cmd.GetHandle());
         mRuntimeCopy_Barrier_Post.RecordCmd(cmd.GetHandle());
-
+    
         cmd.End();
-
+    
         Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
              frame.GetReady4RenderSemaphore().GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
              graphicsFinished}};
-
+    
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllCommands, mCopySem.GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
              copyFinished}};
-
-        mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetTransferQueue_ForUpload().GetHandle(), waits, signals,
-                       frame.GetFencePool().RequestFence());
+    
+        mCmdMgr.Submit(
+            cmd.GetHandle(),
+            mContext->GetQueue(QueueUsage::Transfer_Runtime_Upload).GetHandle(),
+            waits, signals, frame.GetFencePool().RequestFence());
     }
 
     // Shadow Draw
     {
         auto cmd = frame.GetGfxCmdBuf();
-
+    
         mShadowPass_Barrier.RecordCmd(cmd.GetHandle());
         for (uint32_t i = 0; i < 12; ++i) {
             mShadowPass_PSO.RecordCmd(cmd.GetHandle());
         }
-
+    
         cmd.End();
-
+    
         Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
              graphicsFinished}};
-
+    
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
              shadowFinished}};
-
+    
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetGraphicsQueue().GetHandle(), waits, signals,
-                       frame.GetFencePool().RequestFence());
+                       mContext->GetQueue(QueueUsage::Graphics).GetHandle(),
+                       waits, signals, frame.GetFencePool().RequestFence());
     }
 
     // Graphics Draw
@@ -342,7 +344,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
              frame.GetReady4PresentSemaphore().GetHandle()}};
 
         mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetGraphicsQueue().GetHandle(),
+                       mContext->GetQueue(QueueUsage::Graphics).GetHandle(),
                        waits, signals, frame.GetFencePool().RequestFence());
     }
 }
@@ -383,11 +385,13 @@ void MeshShaderDemo::CreateDepthImage() {
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
                                           | vk::ImageAspectFlagBits::eStencil);
 
-    mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
+    {
+        auto cmd = mContext->CreateCmdBufToBegin(
+            mContext->GetQueue(QueueUsage::Graphics));
         Utils::TransitionImageLayout(
-            cmd, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
+            cmd.mHandle, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthStencilAttachmentOptimal);
-    });
+    }
 }
 
 void MeshShaderDemo::CreateRandomTexture() {
@@ -428,15 +432,17 @@ void MeshShaderDemo::CreateRandomTexture() {
     }
 
     auto gfxQueueIdx =
-        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value();
+        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
     auto tsfQueueIdx =
-        mContext->GetPhysicalDevice().GetTransferQueueFamilyIndex().value();
+        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
 
-    mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
+    {
+        auto cmd = mContext->CreateCmdBufToBegin(
+            mContext->GetQueue(QueueUsage::Graphics));
         for (uint32_t i = 0; i < randomImageCount; ++i) {
             auto name = baseName + ::std::to_string(i);
             Utils::TransitionImageLayout(
-                cmd, mRenderResMgr[name.c_str()]->GetTexHandle(),
+                cmd.mHandle, mRenderResMgr[name.c_str()]->GetTexHandle(),
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eTransferDstOptimal);
 
@@ -450,13 +456,13 @@ void MeshShaderDemo::CreateRandomTexture() {
 
         mPrepassCopy.GenerateMetaData();
 
-        mPrepassCopy.RecordCmd(cmd);
+        mPrepassCopy.RecordCmd(cmd.mHandle);
 
         for (uint32_t i = 0; i < randomImageCount; ++i) {
             auto name = baseName + ::std::to_string(i);
 
             Utils::TransitionImageLayout(
-                cmd, mRenderResMgr[name.c_str()]->GetTexHandle(),
+                cmd.mHandle, mRenderResMgr[name.c_str()]->GetTexHandle(),
                 vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
         }
@@ -472,9 +478,9 @@ void MeshShaderDemo::CreateRandomTexture() {
 
             vk::DependencyInfo dep {};
             dep.setImageMemoryBarriers(barrier2);
-            cmd.pipelineBarrier2(dep);
+            cmd->pipelineBarrier2(dep);
         }
-    });
+    }
 
     for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
         for (uint32_t j = 0; j < randomImageCount / 2; ++j) {
@@ -510,11 +516,13 @@ void MeshShaderDemo::CreateShadowImages() {
     ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
                                           | vk::ImageAspectFlagBits::eStencil);
 
-    mImmSubmitMgr.Submit([&](vk::CommandBuffer cmd) {
+    {
+        auto cmd = mContext->CreateCmdBufToBegin(
+            mContext->GetQueue(QueueUsage::Graphics));
         Utils::TransitionImageLayout(
-            cmd, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
+            cmd.mHandle, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthStencilAttachmentOptimal);
-    });
+    }
 }
 
 void MeshShaderDemo::CreateBackgroundComputePipeline() {
@@ -806,9 +814,9 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     uint32_t copyCount = 16;
     ::std::string baseName {"RandomImage"};
     auto gfxQueueIdx =
-        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value();
+        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
     auto tsfQueueIdx =
-        mContext->GetPhysicalDevice().GetTransferQueueFamilyIndex().value();
+        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
     // barrier
     {
         for (uint32_t i = 0; i < copyCount; ++i) {
@@ -975,9 +983,9 @@ void MeshShaderDemo::RecordRuntimeCopyCmds() {
     ::std::string baseName {"RandomImage"};
 
     auto gfxQueueIdx =
-        mContext->GetPhysicalDevice().GetGraphicsQueueFamilyIndex().value();
+        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
     auto tsfQueueIdx =
-        mContext->GetPhysicalDevice().GetTransferQueueFamilyIndex().value();
+        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
 
     for (uint32_t i = 0; i < copyCount; ++i) {
         auto name = baseName + ::std::to_string(i);

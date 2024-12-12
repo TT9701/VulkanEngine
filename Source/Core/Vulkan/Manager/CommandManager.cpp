@@ -11,7 +11,7 @@ void QueueSubmitRequest::Wait_CPUBlocking() {
     while (*pTimelineValue < mFenceValue) {}
 }
 
-CommandManager::CommandManager(Context* ctx) : pContex(ctx) {}
+CommandManager::CommandManager(VulkanContext* ctx) : pContex(ctx) {}
 
 QueueSubmitRequest CommandManager::Submit(
     vk::CommandBuffer cmd, vk::Queue queue,
@@ -45,61 +45,6 @@ QueueSubmitRequest CommandManager::Submit(
     }
 
     return {signalValue, timelineSem.GetValueAddress()};
-}
-
-ImmediateSubmitManager::ImmediateSubmitManager(Context* ctx,
-                                               uint32_t queueFamilyIndex)
-    : pContex(ctx),
-      mQueueFamilyIndex(queueFamilyIndex),
-      mFence(CreateFence()),
-      mSPCommandPool(CreateCommandPool()),
-      mSPCommandBuffer(CreateCommandBuffer()) {
-    DBG_LOG_INFO("Vulkan Immediate submit CommandPool & CommandBuffer Created");
-}
-
-ImmediateSubmitManager::~ImmediateSubmitManager() {
-    pContex->GetDevice()->destroy(mFence);
-}
-
-void ImmediateSubmitManager::Submit(
-    std::function<void(vk::CommandBuffer cmd)>&& function) const {
-    auto func =
-        ::std::forward<std::function<void(vk::CommandBuffer cmd)>>(function);
-
-    pContex->GetDevice()->resetFences(mFence);
-
-    auto cmd = mSPCommandBuffer->GetHandle();
-
-    cmd.reset();
-
-    vk::CommandBufferBeginInfo beginInfo {};
-    beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-
-    cmd.begin(beginInfo);
-
-    func(cmd);
-
-    cmd.end();
-
-    vk::CommandBufferSubmitInfo cmdSubmitInfo {cmd};
-    vk::SubmitInfo2 submit {{}, {}, cmdSubmitInfo, {}};
-
-    pContex->GetGraphicsQueue().GetHandle().submit2(submit, mFence);
-    VK_CHECK(pContex->GetDevice()->waitForFences(
-        mFence, vk::True, FencePool::TIME_OUT_NANO_SECONDS));
-}
-
-vk::Fence ImmediateSubmitManager::CreateFence() {
-    vk::FenceCreateInfo info {vk::FenceCreateFlagBits::eSignaled};
-    return pContex->GetDevice()->createFence(info);
-}
-
-SharedPtr<CommandBuffer> ImmediateSubmitManager::CreateCommandBuffer() {
-    return MakeShared<CommandBuffer>(pContex, mSPCommandPool.get());
-}
-
-SharedPtr<CommandPool> ImmediateSubmitManager::CreateCommandPool() {
-    return MakeShared<CommandPool>(pContex, mQueueFamilyIndex);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

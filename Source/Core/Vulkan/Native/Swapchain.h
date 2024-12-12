@@ -8,13 +8,13 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 class RenderFrame;
 class RenderResource;
 
 class Swapchain {
 public:
-    Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D);
+    Swapchain(VulkanContext* ctx, vk::Format format, vk::Extent2D extent2D);
     ~Swapchain();
     CLASS_MOVABLE_ONLY(Swapchain);
 
@@ -46,7 +46,7 @@ private:
     void SetSwapchainImages();
 
 private:
-    Context* pContex;
+    VulkanContext* pContex;
 
     vk::Format mFormat;
     vk::Extent2D mExtent2D {};

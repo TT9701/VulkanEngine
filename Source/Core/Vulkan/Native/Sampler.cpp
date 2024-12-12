@@ -4,7 +4,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Sampler::Sampler(Context* context, vk::Filter minFilter,
+Sampler::Sampler(VulkanContext* context, vk::Filter minFilter,
                              vk::Filter magFilter,
                              vk::SamplerAddressMode addressModeU,
                              vk::SamplerAddressMode addressModeV,

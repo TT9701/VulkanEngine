@@ -7,7 +7,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 class Fence;
 class CommandBuffer;
 class CommandPool;
@@ -32,7 +32,7 @@ private:
 
 class CommandManager {
 public:
-    CommandManager(Context* ctx);
+    CommandManager(VulkanContext* ctx);
 
     ~CommandManager() = default;
 
@@ -45,30 +45,7 @@ public:
                               vk::Fence fence = VK_NULL_HANDLE);
 
 private:
-    Context* pContex;
-};
-
-class ImmediateSubmitManager {
-public:
-    ImmediateSubmitManager(Context* ctx, uint32_t queueFamilyIndex);
-    ~ImmediateSubmitManager();
-    CLASS_MOVABLE_ONLY(ImmediateSubmitManager);
-
-public:
-    void Submit(::std::function<void(vk::CommandBuffer cmd)>&& function) const;
-
-private:
-    vk::Fence CreateFence();
-    SharedPtr<CommandBuffer> CreateCommandBuffer();
-    SharedPtr<CommandPool> CreateCommandPool();
-
-private:
-    Context* pContex;
-    uint32_t mQueueFamilyIndex;
-
-    vk::Fence mFence;
-    SharedPtr<CommandPool> mSPCommandPool;
-    SharedPtr<CommandBuffer> mSPCommandBuffer;
+    VulkanContext* pContex;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

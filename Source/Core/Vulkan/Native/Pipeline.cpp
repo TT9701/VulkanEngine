@@ -4,7 +4,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-PipelineLayout::PipelineLayout(Context* context, ShaderProgram* program,
+PipelineLayout::PipelineLayout(VulkanContext* context, ShaderProgram* program,
                                vk::PipelineLayoutCreateFlags flags, void* pNext)
     : pContext(context),
       pProgram(program),
@@ -47,7 +47,7 @@ vk::PipelineLayout PipelineLayout::CreateLayout(
 }
 
 Pipeline<PipelineType::Graphics>::Pipeline(
-    Context* context, vk::GraphicsPipelineCreateInfo const& info,
+    VulkanContext* context, vk::GraphicsPipelineCreateInfo const& info,
     vk::PipelineCache cache)
     : pContext(context), mPipeline(CreatePipeline(cache, info)) {}
 
@@ -61,7 +61,7 @@ vk::Pipeline Pipeline<PipelineType::Graphics>::CreatePipeline(
 }
 
 Pipeline<PipelineType::Compute>::Pipeline(
-    Context* context, vk::ComputePipelineCreateInfo const& info,
+    VulkanContext* context, vk::ComputePipelineCreateInfo const& info,
     vk::PipelineCache cache)
     : pContext(context), mPipeline(CreatePipeline(cache, info)) {}
 

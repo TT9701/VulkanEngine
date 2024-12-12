@@ -1,6 +1,5 @@
 #include "PhysicalDevice.h"
 
-#include "Core/Utilities/Defines.h"
 #include "Core/Utilities/Logger.h"
 #include "Instance.h"
 
@@ -22,9 +21,6 @@ PhysicalDevice::PhysicalDevice(Instance& instance,
     auto ext = physicalDevice.enumerateDeviceExtensionProperties();
     mDeviceExtensions =
         Type_STLVector<vk::ExtensionProperties> {ext.begin(), ext.end()};
-
-    SetQueueFamlies(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute
-                    | vk::QueueFlagBits::eTransfer);
 }
 
 vk::PhysicalDeviceProperties const& PhysicalDevice::GetProperties() const {
@@ -134,44 +130,6 @@ DriverVersion PhysicalDevice::GetDriverVersion() const {
     }
 
     return version;
-}
-
-void PhysicalDevice::SetQueueFamlies(vk::QueueFlags requestedQueueTypes) {
-    auto queueFamilyProps = mHandle.getQueueFamilyProperties();
-
-    for (uint32_t queueFamilyIndex = 0;
-         queueFamilyIndex < queueFamilyProps.size()
-         && static_cast<uint32_t>(requestedQueueTypes) != 0;
-         ++queueFamilyIndex) {
-        if (!mGraphicsFamilyIndex.has_value()
-            && (requestedQueueTypes
-                & queueFamilyProps[queueFamilyIndex].queueFlags)
-                   & vk::QueueFlagBits::eGraphics) {
-            mGraphicsFamilyIndex = queueFamilyIndex;
-            mGraphicsQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
-            requestedQueueTypes &= ~vk::QueueFlagBits::eGraphics;
-            continue;
-        }
-
-        if (!mComputeFamilyIndex.has_value()
-            && (requestedQueueTypes
-                & queueFamilyProps[queueFamilyIndex].queueFlags)
-                   & vk::QueueFlagBits::eCompute) {
-            mComputeFamilyIndex = queueFamilyIndex;
-            mComputeQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
-            requestedQueueTypes &= ~vk::QueueFlagBits::eCompute;
-            continue;
-        }
-
-        if (!mTransferFamilyIndex.has_value()
-            && (requestedQueueTypes
-                & queueFamilyProps[queueFamilyIndex].queueFlags)
-                   & vk::QueueFlagBits::eTransfer) {
-            mTransferFamilyIndex = queueFamilyIndex;
-            mTransferQueueCount = queueFamilyProps[queueFamilyIndex].queueCount;
-            requestedQueueTypes &= ~vk::QueueFlagBits::eTransfer;
-        }
-    }
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

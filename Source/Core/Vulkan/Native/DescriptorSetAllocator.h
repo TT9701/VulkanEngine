@@ -17,7 +17,7 @@ public:
         delete;
 
 public:
-    PoolResource_DescriptorSet(uint32_t _numBytes_, Context* context);
+    PoolResource_DescriptorSet(uint32_t _numBytes_, VulkanContext* context);
 
     ~PoolResource_DescriptorSet() = default;
 
@@ -40,7 +40,7 @@ public:
 private:
     uint32_t mNumBytes {0};
 
-    Context* pContext;
+    VulkanContext* pContext;
     SharedPtr<Buffer> pBuffer;
     vk::DeviceAddress baseAddress;
     void* basePtr = nullptr;
@@ -48,26 +48,26 @@ private:
 
 using DescriptorSetPool =
     IntelliDesign_NS::Core::AP_Pool_NS::AP_ResourcePool_FreeSize<
-        PoolResource_DescriptorSet, Context*>;
+        PoolResource_DescriptorSet, VulkanContext*>;
 
 /*
  * descriptor set pool min size : 16MB
  */
-DescriptorSetPool CreateDescSetPool(Context* context,
+DescriptorSetPool CreateDescSetPool(VulkanContext* context,
                                     size_t minPoolSize = 1ui64 << 24);
 
-SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(Context* context,
+SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(VulkanContext* context,
                                                 size_t minPoolSize = 1ui64
                                                                   << 24);
 
 class DescriptorSetAllocator {
 public:
-    DescriptorSetAllocator(Context* context, DescriptorSetPool* pool);
+    DescriptorSetAllocator(VulkanContext* context, DescriptorSetPool* pool);
 
     PoolResource Allocate(size_t size);
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     DescriptorSetPool* mPool;
 };

@@ -10,14 +10,14 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 
 class ShaderManager {
     using Type_Shaders = Type_STLUnorderedMap_String<SharedPtr<Shader>>;
     using Type_Programs = Type_STLUnorderedMap_String<SharedPtr<ShaderProgram>>;
 
 public:
-    ShaderManager(Context* context);
+    ShaderManager(VulkanContext* context);
 
     // persist shader module from spir-v binary code
     SharedPtr<Shader> CreateShaderFromSPIRV(const char* name,
@@ -53,7 +53,7 @@ public:
     ShaderProgram* GetProgram(const char* name) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     Type_Shaders mShaders {};
     Type_Programs mPrograms {};

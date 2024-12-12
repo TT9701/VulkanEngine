@@ -7,7 +7,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 class RenderFrame {
 public:
-    RenderFrame(Context* context);
+    RenderFrame(VulkanContext* context);
 
     void PrepareBindlessDescPool(
         Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
@@ -26,7 +26,7 @@ public:
     void Reset();
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     Type_STLMap<uint32_t, UniquePtr<CommandPool>> mCmdPools;
 

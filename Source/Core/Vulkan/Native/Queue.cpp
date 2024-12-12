@@ -17,6 +17,10 @@ Queue::Queue(Device& device, uint32_t family_index,
     mHandle = device.GetHandle().getQueue2(info);
 }
 
+vk::Queue const* Queue::operator->() const {
+    return &mHandle;
+}
+
 vk::Queue Queue::GetHandle() const {
     return mHandle;
 }

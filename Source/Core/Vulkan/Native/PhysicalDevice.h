@@ -9,12 +9,18 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class Instance;
 
+/**
+ * @brief 
+ */
 struct DriverVersion {
     uint16_t major;
     uint16_t minor;
     uint16_t patch;
 };
 
+/**
+ * @brief 
+ */
 class PhysicalDevice {
 public:
     PhysicalDevice(Instance& instance, vk::PhysicalDevice physicalDevice);
@@ -118,11 +124,7 @@ public:
      * @return 
      */
     template <class StructureType>
-    StructureType GetProperties() {
-        return mHandle
-            .getProperties2<vk::PhysicalDeviceProperties2KHR, StructureType>()
-            .template get<StructureType>();
-    }
+    StructureType GetProperties();
 
     /**
      * @brief 
@@ -130,11 +132,7 @@ public:
      * @return 
      */
     template <class StructureType>
-    StructureType GetExtensionFeatures() {
-        return mHandle
-            .getFeatures2KHR<vk::PhysicalDeviceFeatures2KHR, StructureType>()
-            .template get<StructureType>();
-    }
+    StructureType GetExtensionFeatures();
 
     /**
      * @brief 
@@ -142,19 +140,7 @@ public:
      * @return 
      */
     template <class StructureType>
-    StructureType& AddExtensionFeatures() {
-        auto [it, success] = mExtensionFeatures.emplace(
-            StructureType::structureType, MakeShared<StructureType>());
-        if (success) {
-            if (mLastRequestedExtensionFeature) {
-                static_cast<StructureType*>(it->second.get())->pNext =
-                    mLastRequestedExtensionFeature;
-            }
-            mLastRequestedExtensionFeature = it->second.get();
-        }
-
-        return *static_cast<StructureType*>(it->second.get());
-    }
+    StructureType& AddExtensionFeatures();
 
     /**
      * @brief 
@@ -167,16 +153,7 @@ public:
     template <typename Feature>
     vk::Bool32 RequestOptionalFeature(vk::Bool32 Feature::*flag,
                                       const char* featureName,
-                                      const char* flagName) {
-        vk::Bool32 supported = GetExtensionFeatures<Feature>().*flag;
-        if (supported) {
-            AddExtensionFeatures<Feature>().*flag = true;
-        } else {
-            DBG_LOG_INFO("Requested optional feature <%s::%s> is not supported",
-                         featureName, flagName);
-        }
-        return supported;
-    }
+                                      const char* flagName);
 
     /**
      * @brief 
@@ -187,32 +164,7 @@ public:
      */
     template <typename Feature>
     void RequestRequiredFeature(vk::Bool32 Feature::*flag,
-                                  const char* featureName,
-                                  const char* flagName) {
-        if (GetExtensionFeatures<Feature>().*flag) {
-            AddExtensionFeatures<Feature>().*flag = true;
-        } else {
-            throw std::runtime_error(std::string("Requested required feature <")
-                                     + featureName + "::" + flagName
-                                     + "> is not supported");
-        }
-    }
-
-    std::optional<uint32_t> GetGraphicsQueueFamilyIndex() const {
-        return mGraphicsFamilyIndex;
-    }
-
-    std::optional<uint32_t> GetComputeQueueFamilyIndex() const {
-        return mComputeFamilyIndex;
-    }
-
-    std::optional<uint32_t> GetTransferQueueFamilyIndex() const {
-        return mTransferFamilyIndex;
-    }
-
-private:
-
-    void SetQueueFamlies(vk::QueueFlags requestedQueueTypes);
+                                const char* featureName, const char* flagName);
 
 private:
     Instance& mInstance;
@@ -230,14 +182,63 @@ private:
     Type_STLMap<vk::StructureType, SharedPtr<void>> mExtensionFeatures;
 
     bool mHighPriorityGraphicsQueue {false};
-
-    std::optional<uint32_t> mGraphicsFamilyIndex;
-    uint32_t mGraphicsQueueCount = 0;
-    std::optional<uint32_t> mComputeFamilyIndex;
-    uint32_t mComputeQueueCount = 0;
-    std::optional<uint32_t> mTransferFamilyIndex;
-    uint32_t mTransferQueueCount = 0;
 };
+
+template <class StructureType>
+StructureType PhysicalDevice::GetProperties() {
+    return mHandle
+        .getProperties2<vk::PhysicalDeviceProperties2KHR, StructureType>()
+        .template get<StructureType>();
+}
+
+template <class StructureType>
+StructureType PhysicalDevice::GetExtensionFeatures() {
+    return mHandle
+        .getFeatures2KHR<vk::PhysicalDeviceFeatures2KHR, StructureType>()
+        .template get<StructureType>();
+}
+
+template <class StructureType>
+StructureType& PhysicalDevice::AddExtensionFeatures() {
+    auto [it, success] = mExtensionFeatures.emplace(
+        StructureType::structureType, MakeShared<StructureType>());
+    if (success) {
+        if (mLastRequestedExtensionFeature) {
+            static_cast<StructureType*>(it->second.get())->pNext =
+                mLastRequestedExtensionFeature;
+        }
+        mLastRequestedExtensionFeature = it->second.get();
+    }
+
+    return *static_cast<StructureType*>(it->second.get());
+}
+
+template <typename Feature>
+vk::Bool32 PhysicalDevice::RequestOptionalFeature(vk::Bool32 Feature::*flag,
+                                                  const char* featureName,
+                                                  const char* flagName) {
+    vk::Bool32 supported = GetExtensionFeatures<Feature>().*flag;
+    if (supported) {
+        AddExtensionFeatures<Feature>().*flag = true;
+    } else {
+        DBG_LOG_INFO("Requested optional feature <%s::%s> is not supported",
+                     featureName, flagName);
+    }
+    return supported;
+}
+
+template <typename Feature>
+void PhysicalDevice::RequestRequiredFeature(vk::Bool32 Feature::*flag,
+                                            const char* featureName,
+                                            const char* flagName) {
+    if (GetExtensionFeatures<Feature>().*flag) {
+        AddExtensionFeatures<Feature>().*flag = true;
+    } else {
+        throw std::runtime_error(std::string("Requested required feature <")
+                                 + featureName + "::" + flagName
+                                 + "> is not supported");
+    }
+}
 
 #define REQUEST_OPTIONAL_FEATURE(gpu, Feature, flag) \
     gpu.RequestOptionalFeature<Feature>(&Feature::flag, #Feature, #flag)

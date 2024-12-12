@@ -9,7 +9,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 class Application;
 
 struct LegacyDrawPushConstants {
@@ -46,8 +46,8 @@ public:
              bool optimizeMesh = true, bool buildMeshlet = true,
              bool optimizeMeshlet = true);
 
-    void GenerateBuffers(Context* context, Application* engine);
-    void GenerateMeshletBuffers(Context* context, Application* engine);
+    void GenerateBuffers(VulkanContext* context, Application* engine);
+    void GenerateMeshletBuffers(VulkanContext* context, Application* engine);
 
     uint32_t GetMeshCount();
     uint32_t GetVertexCount() const;

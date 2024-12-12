@@ -76,6 +76,11 @@ uint32_t Device::GetQueueFamilyIndex(vk::QueueFlagBits queueFlag) const {
     return mQueueFamilyIndices.at(queueFlag);
 }
 
+Type_STLUnorderedMap<vk::QueueFlagBits, uint32_t> const&
+Device::GetQueueFamilyIndices() const {
+    return mQueueFamilyIndices;
+}
+
 bool Device::IsExtensionSupported(const char* extension) const {
     return mPhysicalDevice.IsExtensionSupported(extension);
 }
@@ -253,6 +258,11 @@ void Device::CreateQueues(Surface& surface) {
             mQueues[queueFamilyIndex].emplace_back(
                 *this, queueFamilyIndex, queueFamilyProperty, presentSupported,
                 queueIndex);
+
+            auto& queue = mQueues[queueFamilyIndex].back();
+            SetObjectName(
+                queue.GetHandle(),
+                vk::to_string(queue.GetFamilyProperties().queueFlags).c_str());
         }
     }
 

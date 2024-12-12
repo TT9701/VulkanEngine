@@ -14,7 +14,7 @@ class Context;
 
 class PipelineLayout {
 public:
-    PipelineLayout(Context* context, ShaderProgram* program,
+    PipelineLayout(VulkanContext* context, ShaderProgram* program,
                    vk::PipelineLayoutCreateFlags flags = {},
                    void* pNext = nullptr);
     ~PipelineLayout();
@@ -37,7 +37,7 @@ private:
                                     void* pNext) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
     ShaderProgram* pProgram;
 
     vk::PipelineLayout mLayout;
@@ -49,7 +49,7 @@ class Pipeline;
 template <>
 class Pipeline<PipelineType::Graphics> {
 public:
-    Pipeline(Context* context, vk::GraphicsPipelineCreateInfo const& info,
+    Pipeline(VulkanContext* context, vk::GraphicsPipelineCreateInfo const& info,
              vk::PipelineCache cache = {});
     ~Pipeline();
     CLASS_MOVABLE_ONLY(Pipeline);
@@ -63,7 +63,7 @@ private:
         vk::GraphicsPipelineCreateInfo const& info) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     vk::Pipeline mPipeline;
 };
@@ -71,7 +71,7 @@ private:
 template <>
 class Pipeline<PipelineType::Compute> {
 public:
-    Pipeline(Context* context, vk::ComputePipelineCreateInfo const& info,
+    Pipeline(VulkanContext* context, vk::ComputePipelineCreateInfo const& info,
              vk::PipelineCache cache = {});
     ~Pipeline();
     CLASS_MOVABLE_ONLY(Pipeline);
@@ -85,7 +85,7 @@ private:
         vk::ComputePipelineCreateInfo const& info) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     vk::Pipeline mPipeline;
 };

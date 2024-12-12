@@ -171,7 +171,7 @@ Type_STLVector<uint32_t> CompileGLSLSource(
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Shader::Shader(Context* context, const char* name, const char* path,
+Shader::Shader(VulkanContext* context, const char* name, const char* path,
                vk::ShaderStageFlagBits stage, const char* entry, void* pNext)
     : pContext(context), mName(name), mEntry(entry), mStage(stage) {
     mSPIRVBinaryCode = LoadSPIRVCode(path);
@@ -180,7 +180,7 @@ Shader::Shader(Context* context, const char* name, const char* path,
     SPIRVReflect_PushContants();
 }
 
-Shader::Shader(Context* context, const char* name, const char* sourcePath,
+Shader::Shader(VulkanContext* context, const char* name, const char* sourcePath,
                vk::ShaderStageFlagBits stage, bool hasIncludes,
                Type_ShaderMacros const& defines, const char* entry, void* pNext)
     : pContext(context), mName(name), mEntry(entry), mStage(stage) {

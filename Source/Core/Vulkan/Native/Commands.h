@@ -7,19 +7,21 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 class CommandPool;
 
 class CommandBuffer {
 public:
     CommandBuffer(
-        Context* ctx, CommandPool* pool,
+        VulkanContext& ctx, CommandPool& pool,
         vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary);
     ~CommandBuffer() = default;
     CLASS_MOVABLE_ONLY(CommandBuffer);
 
 public:
-    vk::CommandBuffer GetHandle() const { return mCmdBuffer; }
+    vk::CommandBuffer GetHandle() const;
+
+    vk::CommandBuffer const* operator->() const;
 
     void Reset();
     void End();
@@ -28,36 +30,38 @@ private:
     vk::CommandBuffer CreateCommandBuffer();
 
 private:
-    Context* pContex;
-    CommandPool* pCmdPool;
+    VulkanContext& mContex;
+    CommandPool& mCmdPool;
     vk::CommandBufferLevel mLevel;
 
-    vk::CommandBuffer mCmdBuffer;
+    vk::CommandBuffer mHandle;
 };
 
 class CommandPool {
 public:
-    CommandPool(Context* ctx, uint32_t queueFamilysIndex,
+    CommandPool(VulkanContext& ctx, uint32_t queueFamilysIndex,
                 vk::CommandPoolCreateFlags flags =
                     vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
     ~CommandPool();
     CLASS_MOVABLE_ONLY(CommandPool);
 
 public:
-    vk::CommandPool GetHandle() const { return mCmdPool; }
+    vk::CommandPool GetHandle() const;
 
-    CommandBuffer& RequestCommandBuffer();
+    CommandBuffer& RequestCommandBuffer(
+        vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary);
+
     void Reset();
 
 private:
     vk::CommandPool CreateCommandPool();
 
 private:
-    Context* pCtx;
+    VulkanContext& mContext;
     vk::CommandPoolCreateFlags mFlags;
     uint32_t mQueueFamilysIndex;
 
-    vk::CommandPool mCmdPool;
+    vk::CommandPool mHandle;
 
     uint32_t mActiveCmdBufCount {0};
     Type_STLVector<UniquePtr<CommandBuffer>> mCmdBuffers;

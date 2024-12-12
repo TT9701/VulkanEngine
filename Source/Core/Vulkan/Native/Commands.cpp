@@ -4,23 +4,27 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-CommandPool::CommandPool(Context* ctx, uint32_t queueFamilysIndex,
+CommandPool::CommandPool(VulkanContext& ctx, uint32_t queueFamilysIndex,
                          vk::CommandPoolCreateFlags flags)
-    : pCtx(ctx),
+    : mContext(ctx),
       mFlags(flags),
       mQueueFamilysIndex(queueFamilysIndex),
-      mCmdPool(CreateCommandPool()) {}
+      mHandle(CreateCommandPool()) {}
 
 CommandPool::~CommandPool() {
-    pCtx->GetDevice()->destroy(mCmdPool);
+    mContext.GetDevice()->destroy(mHandle);
 }
 
-CommandBuffer& CommandPool::RequestCommandBuffer() {
+vk::CommandPool CommandPool::GetHandle() const {
+    return mHandle;
+}
+
+CommandBuffer& CommandPool::RequestCommandBuffer(vk::CommandBufferLevel level) {
     if (mActiveCmdBufCount < mCmdBuffers.size()) {
         return *mCmdBuffers[mActiveCmdBufCount++];
     }
 
-    mCmdBuffers.emplace_back(MakeUnique<CommandBuffer>(pCtx, this));
+    mCmdBuffers.emplace_back(MakeUnique<CommandBuffer>(mContext, *this, level));
 
     mActiveCmdBufCount++;
 
@@ -35,31 +39,39 @@ vk::CommandPool CommandPool::CreateCommandPool() {
     vk::CommandPoolCreateInfo cmdPoolCreateInfo {};
     cmdPoolCreateInfo.setFlags(mFlags).setQueueFamilyIndex(mQueueFamilysIndex);
 
-    return pCtx->GetDevice()->createCommandPool(cmdPoolCreateInfo);
+    return mContext.GetDevice()->createCommandPool(cmdPoolCreateInfo);
 }
 
-CommandBuffer::CommandBuffer(Context* ctx, CommandPool* pool,
+CommandBuffer::CommandBuffer(VulkanContext& ctx, CommandPool& pool,
                              vk::CommandBufferLevel level)
-    : pContex(ctx),
-      pCmdPool(pool),
+    : mContex(ctx),
+      mCmdPool(pool),
       mLevel(level),
-      mCmdBuffer(CreateCommandBuffer()) {}
+      mHandle(CreateCommandBuffer()) {}
+
+vk::CommandBuffer CommandBuffer::GetHandle() const {
+    return mHandle;
+}
+
+vk::CommandBuffer const* CommandBuffer::operator->() const {
+    return &mHandle;
+}
 
 void CommandBuffer::Reset() {
-    mCmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+    mHandle.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
 }
 
 void CommandBuffer::End() {
-    mCmdBuffer.end();
+    mHandle.end();
 }
 
 vk::CommandBuffer CommandBuffer::CreateCommandBuffer() {
     vk::CommandBufferAllocateInfo cmdAllocInfo {};
-    cmdAllocInfo.setCommandPool(pCmdPool->GetHandle())
+    cmdAllocInfo.setCommandPool(mCmdPool.GetHandle())
         .setLevel(mLevel)
         .setCommandBufferCount(1);
 
-    auto vec = pContex->GetDevice()->allocateCommandBuffers(cmdAllocInfo);
+    auto vec = mContex.GetDevice()->allocateCommandBuffers(cmdAllocInfo);
     return vec.front();
 }
 

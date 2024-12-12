@@ -4,7 +4,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-ShaderManager::ShaderManager(Context* context) : pContext(context) {}
+ShaderManager::ShaderManager(VulkanContext* context) : pContext(context) {}
 
 SharedPtr<Shader> ShaderManager::CreateShaderFromSPIRV(
     const char* name, const char* spirvPath, vk::ShaderStageFlagBits stage,

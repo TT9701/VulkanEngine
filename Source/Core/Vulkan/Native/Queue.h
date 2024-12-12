@@ -9,6 +9,9 @@ namespace IntelliDesign_NS::Vulkan::Core {
 class CommandBuffer;
 class Device;
 
+/**
+ * @brief 
+ */
 class Queue {
 public:
     /**
@@ -26,6 +29,12 @@ public:
     ~Queue() = default;
 
 public:
+    /**
+     * @brief 
+     * @return 
+     */
+    vk::Queue const* operator->() const;
+
     /**
      * @brief 
      * @return 

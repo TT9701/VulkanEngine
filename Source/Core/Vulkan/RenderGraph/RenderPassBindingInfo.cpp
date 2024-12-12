@@ -35,7 +35,7 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     : value(info) {}
 
 RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(
-    Context* context, RenderResourceManager* resMgr,
+    VulkanContext* context, RenderResourceManager* resMgr,
     PipelineManager* pipelineMgr, DescriptorSetPool* descPool, Swapchain* sc)
     : pContext(context),
       pResMgr(resMgr),
@@ -541,7 +541,7 @@ void RenderPassBindingInfo_PSO::GenerateDescBufInfos(
 }
 
 RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(
-    Context* context, RenderResourceManager* resMgr, Swapchain* sc)
+    VulkanContext* context, RenderResourceManager* resMgr, Swapchain* sc)
     : pContext(context),
       pResMgr(resMgr),
       pSwapchain(sc),

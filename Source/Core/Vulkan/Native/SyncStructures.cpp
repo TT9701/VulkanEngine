@@ -4,14 +4,14 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-FencePool::FencePool(Context* ctx) : pContext(ctx) {}
+FencePool::FencePool(VulkanContext& ctx) : mContext(ctx) {}
 
 FencePool::~FencePool() {
     Wait();
     Reset();
 
     for (auto& fence : mFences) {
-        pContext->GetDevice()->destroy(fence);
+        mContext.GetDevice()->destroy(fence);
     }
 
     mFences.clear();
@@ -24,7 +24,7 @@ vk::Fence FencePool::RequestFence(vk::FenceCreateFlags flags) {
 
     vk::FenceCreateInfo info {flags};
 
-    auto fence = pContext->GetDevice()->createFence(info);
+    auto fence = mContext.GetDevice()->createFence(info);
 
     mFences.push_back(fence);
 
@@ -38,8 +38,8 @@ vk::Result FencePool::Wait() const {
         return vk::Result::eSuccess;
     }
 
-    return pContext->GetDevice()->waitForFences(
-        mFences, vk::True, TIME_OUT_NANO_SECONDS);
+    return mContext.GetDevice()->waitForFences(mFences, vk::True,
+                                                TIME_OUT_NANO_SECONDS);
 }
 
 vk::Result FencePool::Reset() {
@@ -47,14 +47,14 @@ vk::Result FencePool::Reset() {
         return vk::Result::eSuccess;
     }
 
-    pContext->GetDevice()->resetFences(mFences);
+    mContext.GetDevice()->resetFences(mFences);
 
     mActiveFenceCount = 0;
 
     return vk::Result::eSuccess;
 }
 
-Semaphore::Semaphore(Context* ctx) : pContext(ctx), mSemaphore(CreateSem()) {}
+Semaphore::Semaphore(VulkanContext* ctx) : pContext(ctx), mSemaphore(CreateSem()) {}
 
 Semaphore::~Semaphore() {
     pContext->GetDevice()->destroy(mSemaphore);
@@ -66,7 +66,7 @@ vk::Semaphore Semaphore::CreateSem() {
     return pContext->GetDevice()->createSemaphore(semaphoreCreateInfo);
 }
 
-TimelineSemaphore::TimelineSemaphore(Context* ctx, uint64_t initialValue)
+TimelineSemaphore::TimelineSemaphore(VulkanContext* ctx, uint64_t initialValue)
     : pContext(ctx),
       mValue(initialValue),
       mSemaphore(CreateTimelineSemaphore()) {}

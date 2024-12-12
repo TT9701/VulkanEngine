@@ -272,7 +272,7 @@ void PipelineBuilder<PipelineType::Compute>::Clear() {
     mBaseIndex = int32_t {};
 }
 
-PipelineManager::PipelineManager(Context* contex) : pContext(contex) {}
+PipelineManager::PipelineManager(VulkanContext* contex) : pContext(contex) {}
 
 SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
     const char* name, ShaderProgram* program,

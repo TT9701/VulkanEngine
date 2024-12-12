@@ -117,7 +117,7 @@ class PipelineManager {
         Type_STLUnorderedMap_String<SharedPtr<Type_GrapPipeline>>;
 
 public:
-    PipelineManager(Context* contex);
+    PipelineManager(VulkanContext* contex);
     ~PipelineManager() = default;
     CLASS_MOVABLE_ONLY(PipelineManager);
 
@@ -149,7 +149,7 @@ private:
     Type_STLString ParsePipelineLayoutName(const char* pipelineName) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
 
     Type_PipelineLayouts mPipelineLayouts;
     Type_ComputePipelines mComputePipelines;

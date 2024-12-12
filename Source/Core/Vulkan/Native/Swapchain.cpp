@@ -7,7 +7,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Swapchain::Swapchain(Context* ctx, vk::Format format, vk::Extent2D extent2D)
+Swapchain::Swapchain(VulkanContext* ctx, vk::Format format, vk::Extent2D extent2D)
     : pContex(ctx), mFormat(format), mSwapchain(RecreateSwapchain(extent2D)) {
     SetSwapchainImages();
 

@@ -13,12 +13,12 @@ class SDLWindow;
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 class Swapchain;
 
 class GUI {
 public:
-    GUI(Context* context, Swapchain* swapchain, SDLWindow* window);
+    GUI(VulkanContext* context, Swapchain* swapchain, SDLWindow* window);
     ~GUI();
 
 public:
@@ -33,7 +33,7 @@ private:
     void CreateDescPool();
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
     Swapchain* pSwapchain;
     SDLWindow* pWindow;
 

@@ -6,11 +6,11 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Context;
+class VulkanContext;
 
 class Sampler {
 public:
-    Sampler(Context* context, vk::Filter minFilter,
+    Sampler(VulkanContext* context, vk::Filter minFilter,
                   vk::Filter magFilter, vk::SamplerAddressMode addressModeU,
                   vk::SamplerAddressMode addressModeV,
                   vk::SamplerAddressMode addressModeW, float maxLod,
@@ -30,7 +30,7 @@ private:
                               vk::CompareOp compareOp) const;
 
 private:
-    Context* pContext;
+    VulkanContext* pContext;
     vk::Sampler mSampler;
 };
 
