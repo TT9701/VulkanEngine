@@ -65,6 +65,13 @@ private:
     void PrepareUIContext();
 
 private:
+    IDNS_VC::RenderPassBindingInfo_PSO CreateBindingInfo_PSO(
+        bool swapchain = false);
+    IDNS_VC::RenderPassBindingInfo_Barrier CreateBindingInfo_Barrier(
+        bool swapchain = false);
+    IDNS_VC::RenderPassBindingInfo_Copy CreateBindingInfo_Copy();
+
+private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;

@@ -5,6 +5,8 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+class VulkanContext;
+
 class RenderResourceManager {
     using Type_RenderResources =
         Type_STLUnorderedMap_String<SharedPtr<RenderResource>>;
@@ -15,32 +17,32 @@ class RenderResourceManager {
         Type_STLUnorderedMap_String<Fn_SizeRelation>;
 
 public:
-    RenderResourceManager(Device* device, MemoryAllocator& allocator);
+    RenderResourceManager(VulkanContext& context);
 
-    RenderResource* CreateBuffer(const char* name, size_t size,
+    RenderResource& CreateBuffer(const char* name, size_t size,
                                  vk::BufferUsageFlags usage,
                                  Buffer::MemoryType memType,
                                  size_t texelSize = 1);
 
-    RenderResource* CreateTexture(const char* name, RenderResource::Type type,
+    RenderResource& CreateTexture(const char* name, RenderResource::Type type,
                                   vk::Format format, vk::Extent3D extent,
                                   vk::ImageUsageFlags usage,
                                   uint32_t mipLevels = 1,
                                   uint32_t arraySize = 1,
                                   uint32_t sampleCount = 1);
 
-    RenderResource* CreateBuffer_ScreenSizeRelated(
+    RenderResource& CreateBuffer_ScreenSizeRelated(
         const char* name, size_t size, vk::BufferUsageFlags usage,
         Buffer::MemoryType memType, size_t texelSize = 1,
         Fn_SizeRelation fn = sFullSize);
 
-    RenderResource* CreateTexture_ScreenSizeRelated(
+    RenderResource& CreateTexture_ScreenSizeRelated(
         const char* name, RenderResource::Type type, vk::Format format,
         vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels = 1,
         uint32_t arraySize = 1, uint32_t sampleCount = 1,
         Fn_SizeRelation fn = sFullSize);
 
-    RenderResource* operator[](const char* name) const;
+    RenderResource const& operator[](const char* name) const;
 
     void ResizeResources_ScreenSizeRelated(vk::Extent2D extent) const;
 
@@ -53,8 +55,7 @@ private:
     static Fn_SizeRelation sFullSize;
 
 private:
-    Device* pDevice;
-    MemoryAllocator& mAllocator;
+    VulkanContext& mContext;
 
     Type_RenderResources mResources {};
     Type_Resource_SizeRelations mScreenSizeRalatedResources {};

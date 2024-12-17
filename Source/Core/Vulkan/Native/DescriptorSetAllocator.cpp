@@ -45,26 +45,33 @@ size_t PoolResource_DescriptorSet::_Get_numUnits_() const {
     return mNumBytes;
 }
 
-DescriptorSetPool CreateDescSetPool(VulkanContext* context, size_t minPoolSize) {
+DescriptorSetPool CreateDescSetPool(VulkanContext& context,
+                                    size_t minPoolSize) {
 #ifndef NDEBUG
-    return DescriptorSetPool {true, true, minPoolSize, context};
+    return DescriptorSetPool {true, true, minPoolSize, &context};
 #else
-    return DescriptorSetPool {false, true, minPoolSize, context};
+    return DescriptorSetPool {false, true, minPoolSize, &context};
 #endif
 }
 
-SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(VulkanContext* context,
+SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(VulkanContext& context,
                                                 size_t minPoolSize) {
 #ifndef NDEBUG
-    return MakeShared<DescriptorSetPool>(true, true, minPoolSize, context);
+    return MakeShared<DescriptorSetPool>(true, true, minPoolSize, &context);
 #else
-    return MakeShared<DescriptorSetPool>(false, true, minPoolSize, context);
+    return MakeShared<DescriptorSetPool>(false, true, minPoolSize, &context);
 #endif
 }
 
-DescriptorSetAllocator::DescriptorSetAllocator(VulkanContext* context,
-                                               DescriptorSetPool* pool)
-    : pContext(context), mPool(pool) {}
+DescriptorSetAllocator::DescriptorSetAllocator(VulkanContext& context,
+                                               size_t minPoolSize)
+    : pContext(context) {
+#ifndef NDEBUG
+    mPool = MakeShared<DescriptorSetPool>(true, true, minPoolSize, &context);
+#else
+    mPool = MakeShared<DescriptorSetPool>(false, true, minPoolSize, &context);
+#endif
+}
 
 PoolResource DescriptorSetAllocator::Allocate(size_t size) {
     auto handle = mPool->RequestUnit(size);

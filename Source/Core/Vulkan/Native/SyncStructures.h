@@ -32,7 +32,7 @@ private:
 
 class Semaphore {
 public:
-    Semaphore(VulkanContext* ctx);
+    Semaphore(VulkanContext& ctx);
     ~Semaphore();
     CLASS_MOVABLE_ONLY(Semaphore);
 
@@ -43,14 +43,40 @@ private:
     vk::Semaphore CreateSem();
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
 
     vk::Semaphore mSemaphore;
 };
 
+class SemaphorePool {
+public:
+    SemaphorePool(VulkanContext& ctx);
+    ~SemaphorePool();
+
+    CLASS_NO_COPY_MOVE(SemaphorePool);
+
+    vk::Semaphore RequestSemaphore();
+
+    vk::Semaphore RequestSemaphore_WithOwnership();
+
+    void ReleaseOwnedSemaphore(vk::Semaphore semaphore);
+
+    void Reset();
+
+    uint32_t GetActiveSemaphoreCount() const;
+
+private:
+    VulkanContext& mContext;
+
+    Type_STLVector<vk::Semaphore> mSemaphores;
+    Type_STLVector<vk::Semaphore> mReleasedSemaphores;
+
+    uint32_t mActiveSemaphoreCount {0};
+};
+
 class TimelineSemaphore {
 public:
-    TimelineSemaphore(VulkanContext* ctx, uint64_t initialValue = 0ui64);
+    TimelineSemaphore(VulkanContext& ctx, uint64_t initialValue = 0ui64);
     ~TimelineSemaphore();
     CLASS_MOVABLE_ONLY(TimelineSemaphore);
 
@@ -67,7 +93,7 @@ private:
     vk::Semaphore CreateTimelineSemaphore();
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
 
     uint64_t mValue {0};
     vk::Semaphore mSemaphore;

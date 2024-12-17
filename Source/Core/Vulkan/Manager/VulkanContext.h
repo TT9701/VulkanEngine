@@ -28,8 +28,6 @@ class VulkanExternalBuffer;
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-enum class Runtime_TransferType { Upload, Readback, DeviceInternal };
-
 enum class QueueUsage {
     Present,
     Graphics,

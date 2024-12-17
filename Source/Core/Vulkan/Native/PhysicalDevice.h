@@ -221,7 +221,7 @@ vk::Bool32 PhysicalDevice::RequestOptionalFeature(vk::Bool32 Feature::*flag,
     if (supported) {
         AddExtensionFeatures<Feature>().*flag = true;
     } else {
-        DBG_LOG_INFO("Requested optional feature <%s::%s> is not supported",
+        DBG_LOG_INFO("Requested optional feature %s::%s is not supported",
                      featureName, flagName);
     }
     return supported;
@@ -234,9 +234,9 @@ void PhysicalDevice::RequestRequiredFeature(vk::Bool32 Feature::*flag,
     if (GetExtensionFeatures<Feature>().*flag) {
         AddExtensionFeatures<Feature>().*flag = true;
     } else {
-        throw std::runtime_error(std::string("Requested required feature <")
+        throw std::runtime_error(std::string("Requested required feature ")
                                  + featureName + "::" + flagName
-                                 + "> is not supported");
+                                 + " is not supported");
     }
 }
 

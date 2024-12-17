@@ -1,9 +1,9 @@
 #include "CommandManager.h"
 
-#include "Context.h"
 #include "Core/Utilities/VulkanUtilities.h"
 #include "Core/Vulkan/Native/Commands.h"
 #include "Core/Vulkan/Native/SyncStructures.h"
+#include "VulkanContext.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -11,7 +11,7 @@ void QueueSubmitRequest::Wait_CPUBlocking() {
     while (*pTimelineValue < mFenceValue) {}
 }
 
-CommandManager::CommandManager(VulkanContext* ctx) : pContex(ctx) {}
+CommandManager::CommandManager(VulkanContext& ctx) : mContex(ctx) {}
 
 QueueSubmitRequest CommandManager::Submit(
     vk::CommandBuffer cmd, vk::Queue queue,
@@ -36,7 +36,7 @@ QueueSubmitRequest CommandManager::Submit(
 
     queue.submit2(submit, fence);
 
-    auto& timelineSem = pContex->GetTimelineSemphore();
+    auto& timelineSem = mContex.GetTimelineSemphore();
     auto timelineValue = timelineSem.GetValue();
     if (signalValue - timelineValue > 0) {
         timelineSem.IncreaseValue(signalValue - timelineValue);

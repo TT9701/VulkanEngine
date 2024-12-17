@@ -2,7 +2,7 @@
 
 #include "Core/Application/Application.h"
 #include "Core/Utilities/VulkanUtilities.h"
-#include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

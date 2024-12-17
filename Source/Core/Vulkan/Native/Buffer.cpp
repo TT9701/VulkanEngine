@@ -1,15 +1,15 @@
 #include "Buffer.h"
 
 #include "Core/Utilities/VulkanUtilities.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 #include "Device.h"
 #include "MemoryAllocator.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Buffer::Buffer(Device* device, MemoryAllocator& allocator, size_t size,
-               vk::BufferUsageFlags usage, MemoryType memType, size_t texelSize)
-    : pDevice(device),
-      mAllocator(allocator),
+Buffer::Buffer(VulkanContext& context, size_t size, vk::BufferUsageFlags usage,
+               MemoryType memType, size_t texelSize)
+    : mContext(context),
       mUsageFlags(usage),
       mMemoryType(memType),
       mSize(size),
@@ -27,7 +27,7 @@ vk::Buffer Buffer::GetHandle() const {
 vk::DeviceAddress Buffer::GetDeviceAddress() const {
     if (bDeviceAddressEnabled) {
         vk::BufferDeviceAddressInfo info {mHandle};
-        return pDevice->GetHandle().getBufferAddress(info);
+        return mContext.GetDevice()->getBufferAddress(info);
     }
     return 0;
 }
@@ -44,9 +44,9 @@ void* Buffer::GetMapPtr() const {
 }
 
 void Buffer::SetName(const char* name) const {
-    pDevice->SetObjectName(mHandle, name);
-    pDevice->SetObjectName(vk::DeviceMemory(mAllocationInfo.deviceMemory),
-                           name);
+    mContext.GetDevice().SetObjectName(mHandle, name);
+    mContext.GetDevice().SetObjectName(
+        vk::DeviceMemory(mAllocationInfo.deviceMemory), name);
 }
 
 void Buffer::Resize(size_t newSize) {
@@ -91,7 +91,7 @@ vk::Buffer Buffer::CreateBufferResource() {
 
     VkBuffer buffer {};
     VK_CHECK((vk::Result)vmaCreateBuffer(
-        mAllocator.GetHandle(),
+        mContext.GetVmaAllocator().GetHandle(),
         reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo), &vmaAllocInfo,
         &buffer, &mAllocation, &mAllocationInfo));
 
@@ -99,7 +99,8 @@ vk::Buffer Buffer::CreateBufferResource() {
 }
 
 void Buffer::Destroy() {
-    vmaDestroyBuffer(mAllocator.GetHandle(), mHandle, mAllocation);
+    vmaDestroyBuffer(mContext.GetVmaAllocator().GetHandle(), mHandle,
+                     mAllocation);
 }
 
 vk::BufferUsageFlags Buffer::GetUsageFlags() const {

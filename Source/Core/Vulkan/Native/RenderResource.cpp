@@ -1,31 +1,30 @@
 #include "RenderResource.h"
 
-#include "Device.h"
-
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderResource::RenderResource(Device* device, MemoryAllocator& allocator,
+RenderResource::RenderResource(VulkanContext& context,
                                Type type, size_t size,
                                vk::BufferUsageFlags usage,
                                Buffer::MemoryType memType, size_t texelSize)
-    : mResource(std::in_place_type<Buffer>, device, allocator, size, usage,
+    : mResource(std::in_place_type<Buffer>, context, size, usage,
                 memType, texelSize),
       mType(type) {}
 
-RenderResource::RenderResource(Device* device, MemoryAllocator& allocator,
+RenderResource::RenderResource(VulkanContext& context,
                                Type type, vk::Format format,
                                vk::Extent3D extent, vk::ImageUsageFlags usage,
                                uint32_t mipLevels, uint32_t arraySize,
                                uint32_t sampleCount)
-    : mResource(std::in_place_type<Texture>, device, &allocator,
+    : mResource(std::in_place_type<Texture>, context,
                 static_cast<Texture::Type>(type), format, extent, usage,
                 mipLevels, arraySize, sampleCount),
       mType(type) {}
 
-RenderResource::RenderResource(Device* device, vk::Image handle, Type type,
+RenderResource::RenderResource(VulkanContext& context, vk::Image handle,
+                               Type type,
                                vk::Format format, vk::Extent3D extent,
                                uint32_t arraySize, uint32_t sampleCount)
-    : mResource(std::in_place_type<Texture>, device, handle,
+    : mResource(std::in_place_type<Texture>, context, handle,
                 static_cast<Texture::Type>(type), format, extent, arraySize,
                 sampleCount),
       mType(type) {}

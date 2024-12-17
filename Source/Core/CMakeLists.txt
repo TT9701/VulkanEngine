@@ -66,8 +66,10 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/DrawCallMetaData.h
     Vulkan/Native/DrawCallMetaData.cpp
     
-    Vulkan/Manager/Context.h
-    Vulkan/Manager/Context.cpp
+    Vulkan/Manager/VulkanContext.h
+    Vulkan/Manager/VulkanContext.cpp
+    Vulkan/Manager/RenderContext.h
+    Vulkan/Manager/RenderContext.cpp
     Vulkan/Manager/CommandManager.cpp
     Vulkan/Manager/CommandManager.h
     Vulkan/Manager/RenderResourceManager.h

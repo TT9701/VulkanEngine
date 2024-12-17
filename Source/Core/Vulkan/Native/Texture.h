@@ -7,8 +7,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Device;
-class MemoryAllocator;
+class VulkanContext;
 class Sampler;
 class DescriptorManager;
 class ImageView;
@@ -26,13 +25,14 @@ public:
     };
 
     // No data source
-    Texture(Device* device, MemoryAllocator* allocator, Type type,
-            vk::Format format, vk::Extent3D extent, vk::ImageUsageFlags usage,
-            uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount);
+    Texture(VulkanContext& context, Type type, vk::Format format,
+            vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
+            uint32_t arraySize, uint32_t sampleCount);
 
     // from swapchain
-    Texture(Device* device, vk::Image handle, Type type, vk::Format format,
-            vk::Extent3D extent, uint32_t arraySize, uint32_t sampleCount);
+    Texture(VulkanContext& context, vk::Image handle, Type type,
+            vk::Format format, vk::Extent3D extent, uint32_t arraySize,
+            uint32_t sampleCount);
 
     ~Texture();
 
@@ -66,8 +66,7 @@ private:
     void Destroy();
 
 private:
-    Device* pDevice;
-    MemoryAllocator* pAllocator;
+    VulkanContext& mContext;
 
     bool bOwnsImage;
     Type mType;
@@ -90,7 +89,7 @@ private:
 
 class ImageView {
 public:
-    ImageView(Device* device, vk::ImageSubresourceRange range,
+    ImageView(VulkanContext& context, vk::ImageSubresourceRange range,
               vk::Image imageHandle, vk::Format format, vk::ImageViewType type);
 
     ~ImageView();
@@ -105,7 +104,7 @@ private:
     vk::ImageView CreateImageView() const;
 
 private:
-    Device* pDevice;
+    VulkanContext& mContext;
     vk::ImageSubresourceRange mRange;
     vk::Image mImageHandle;
     vk::Format mFormat;

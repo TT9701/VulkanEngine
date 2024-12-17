@@ -94,7 +94,8 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_PSO(VulkanContext* context, RenderResourceManager* resMgr,
+    RenderPassBindingInfo_PSO(VulkanContext* context,
+                              RenderResourceManager* resMgr,
                               PipelineManager* pipelineMgr,
                               DescriptorSetPool* descPool,
                               Swapchain* sc = nullptr);

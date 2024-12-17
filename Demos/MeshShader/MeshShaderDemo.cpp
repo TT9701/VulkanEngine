@@ -6,33 +6,26 @@ using namespace IDNS_VC;
 
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
-      mDescSetPool(CreateDescSetPool(mContext.get())),
-      mPrepassCopy(&mRenderResMgr),
-      mBackgroundPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                           &mDescSetPool},
-      mBackgroundPass_Barrier(mContext.get(), &mRenderResMgr),
-      mMeshDrawPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                         &mDescSetPool},
-      mMeshDrawPass_Barrier(mContext.get(), &mRenderResMgr),
-      mMeshShaderPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                           &mDescSetPool},
-      mMeshShaderPass_Barrier_Pre(mContext.get(), &mRenderResMgr),
-      mMeshShaderPass_Barrier_Post(mContext.get(), &mRenderResMgr),
-      mQuadDrawPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                         &mDescSetPool, mSwapchain.get()},
-      mQuadDrawPass_Barrier_Pre(mContext.get(), &mRenderResMgr,
-                                mSwapchain.get()),
-      mQuadDrawPass_Barrier_Post(mContext.get(), &mRenderResMgr,
-                                 mSwapchain.get()),
-      mShadowPass_PSO {mContext.get(), &mRenderResMgr, &mPipelineMgr,
-                       &mDescSetPool},
-      mShadowPass_Barrier(mContext.get(), &mRenderResMgr),
-      mRuntimeCopy {&mRenderResMgr},
-      mRuntimeCopy_Barrier_Pre(mContext.get(), &mRenderResMgr),
-      mRuntimeCopy_Barrier_Post(mContext.get(), &mRenderResMgr),
-      mCopySem(mContext.get()),
-      mCmpSem(mContext.get()),
-      mGui(mContext.get(), mSwapchain.get(), mWindow.get()) {}
+      mDescSetPool(CreateDescSetPool(GetVulkanContext())),
+      mPrepassCopy(CreateBindingInfo_Copy()),
+      mBackgroundPass_PSO {CreateBindingInfo_PSO()},
+      mBackgroundPass_Barrier(CreateBindingInfo_Barrier()),
+      mMeshDrawPass_PSO {CreateBindingInfo_PSO()},
+      mMeshDrawPass_Barrier(CreateBindingInfo_Barrier()),
+      mMeshShaderPass_PSO {CreateBindingInfo_PSO()},
+      mMeshShaderPass_Barrier_Pre(CreateBindingInfo_Barrier()),
+      mMeshShaderPass_Barrier_Post(CreateBindingInfo_Barrier()),
+      mQuadDrawPass_PSO {CreateBindingInfo_PSO(true)},
+      mQuadDrawPass_Barrier_Pre(CreateBindingInfo_Barrier(true)),
+      mQuadDrawPass_Barrier_Post(CreateBindingInfo_Barrier(true)),
+      mShadowPass_PSO {CreateBindingInfo_PSO()},
+      mShadowPass_Barrier(CreateBindingInfo_Barrier()),
+      mRuntimeCopy {&GetRenderResMgr()},
+      mRuntimeCopy_Barrier_Pre(CreateBindingInfo_Barrier()),
+      mRuntimeCopy_Barrier_Post(CreateBindingInfo_Barrier()),
+      mCopySem(GetVulkanContext()),
+      mCmpSem(GetVulkanContext()),
+      mGui(GetVulkanContext(), GetSwapchain(), GetSDLWindow()) {}
 
 MeshShaderDemo::~MeshShaderDemo() = default;
 
@@ -44,25 +37,27 @@ void MeshShaderDemo::CreatePipelines() {
 }
 
 void MeshShaderDemo::LoadShaders() {
-    mShaderMgr.CreateShaderFromGLSL("computeDraw",
-                                    SHADER_PATH_CSTR("BackGround.comp"),
-                                    vk::ShaderStageFlagBits::eCompute);
+    auto& shaderMgr = GetShaderMgr();
 
-    mShaderMgr.CreateShaderFromGLSL("vertex", SHADER_PATH_CSTR("Triangle.vert"),
-                                    vk::ShaderStageFlagBits::eVertex, true);
+    shaderMgr.CreateShaderFromGLSL("computeDraw",
+                                   SHADER_PATH_CSTR("BackGround.comp"),
+                                   vk::ShaderStageFlagBits::eCompute);
 
-    mShaderMgr.CreateShaderFromGLSL("fragment",
-                                    SHADER_PATH_CSTR("Triangle.frag"),
-                                    vk::ShaderStageFlagBits::eFragment, true);
+    shaderMgr.CreateShaderFromGLSL("vertex", SHADER_PATH_CSTR("Triangle.vert"),
+                                   vk::ShaderStageFlagBits::eVertex, true);
 
-    mShaderMgr.CreateShaderFromGLSL("Mesh shader fragment",
-                                    SHADER_PATH_CSTR("MeshShader.frag"),
-                                    vk::ShaderStageFlagBits::eFragment, true);
+    shaderMgr.CreateShaderFromGLSL("fragment",
+                                   SHADER_PATH_CSTR("Triangle.frag"),
+                                   vk::ShaderStageFlagBits::eFragment, true);
+
+    shaderMgr.CreateShaderFromGLSL("Mesh shader fragment",
+                                   SHADER_PATH_CSTR("MeshShader.frag"),
+                                   vk::ShaderStageFlagBits::eFragment, true);
 
     Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
                    std::to_string(TASK_SHADER_INVOCATION_COUNT));
-    mShaderMgr.CreateShaderFromGLSL(
+    shaderMgr.CreateShaderFromGLSL(
         "Mesh shader task", SHADER_PATH_CSTR("MeshShader.task"),
         vk::ShaderStageFlagBits::eTaskEXT, false, macros);
 
@@ -73,17 +68,16 @@ void MeshShaderDemo::LoadShaders() {
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES));
     macros.emplace("MAX_PRIMITIVES",
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
-    mShaderMgr.CreateShaderFromGLSL(
+    shaderMgr.CreateShaderFromGLSL(
         "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
         vk::ShaderStageFlagBits::eMeshEXT, true, macros);
 
-    mShaderMgr.CreateShaderFromGLSL("Quad vertex",
-                                    SHADER_PATH_CSTR("Quad.vert"),
-                                    vk::ShaderStageFlagBits::eVertex);
+    shaderMgr.CreateShaderFromGLSL("Quad vertex", SHADER_PATH_CSTR("Quad.vert"),
+                                   vk::ShaderStageFlagBits::eVertex);
 
-    mShaderMgr.CreateShaderFromGLSL("Quad fragment",
-                                    SHADER_PATH_CSTR("Quad.frag"),
-                                    vk::ShaderStageFlagBits::eFragment);
+    shaderMgr.CreateShaderFromGLSL("Quad fragment",
+                                   SHADER_PATH_CSTR("Quad.frag"),
+                                   vk::ShaderStageFlagBits::eFragment);
 }
 
 void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
@@ -96,12 +90,15 @@ void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
 void MeshShaderDemo::Update_OnResize() {
     Application::Update_OnResize();
 
-    vk::Extent2D extent = {static_cast<uint32_t>(mWindow->GetWidth()),
-                           static_cast<uint32_t>(mWindow->GetHeight())};
+    auto& window = GetSDLWindow();
+    auto& renderResMgr = GetRenderResMgr();
 
-    mRenderResMgr.ResizeResources_ScreenSizeRelated(extent);
+    vk::Extent2D extent = {static_cast<uint32_t>(window.GetWidth()),
+                           static_cast<uint32_t>(window.GetHeight())};
 
-    auto resNames = mRenderResMgr.GetResourceNames_SrcreenSizeRelated();
+    renderResMgr.ResizeResources_ScreenSizeRelated(extent);
+
+    auto resNames = renderResMgr.GetResourceNames_SrcreenSizeRelated();
 
     mBackgroundPass_PSO.Update(resNames);
     mBackgroundPass_Barrier.Update(resNames);
@@ -120,12 +117,14 @@ void MeshShaderDemo::Update_OnResize() {
 void MeshShaderDemo::UpdateScene() {
     Application::UpdateScene();
 
+    auto& window = GetSDLWindow();
+
     auto view = mMainCamera.GetViewMatrix();
 
     glm::mat4 proj =
         glm::perspective(glm::radians(45.0f),
-                         static_cast<float>(mWindow->GetWidth())
-                             / static_cast<float>(mWindow->GetHeight()),
+                         static_cast<float>(window.GetWidth())
+                             / static_cast<float>(window.GetHeight()),
                          500.0f, 0.01f);
 
     proj[1][1] *= -1;
@@ -140,7 +139,9 @@ void MeshShaderDemo::UpdateScene() {
 void MeshShaderDemo::Prepare() {
     Application::Prepare();
 
-    for (auto& frame : mFrames) {
+    auto& window = GetSDLWindow();
+
+    for (auto& frame : GetFrames()) {
         frame.PrepareBindlessDescPool({&mMeshShaderPass_PSO});
     }
 
@@ -154,15 +155,16 @@ void MeshShaderDemo::Prepare() {
     LoadShaders();
     CreatePipelines();
 
-    mRenderResMgr.CreateBuffer(
+    auto& renderResMgr = GetRenderResMgr();
+
+    renderResMgr.CreateBuffer(
         "SceneUniformBuffer", sizeof(SceneData),
         vk::BufferUsageFlagBits::eUniformBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
         Buffer::MemoryType::Staging);
 
-    mRenderResMgr.CreateBuffer_ScreenSizeRelated(
-        "RWBuffer",
-        sizeof(glm::vec4) * mWindow->GetWidth() * mWindow->GetHeight(),
+    renderResMgr.CreateBuffer_ScreenSizeRelated(
+        "RWBuffer", sizeof(glm::vec4) * window.GetWidth() * window.GetHeight(),
         vk::BufferUsageFlagBits::eStorageBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
         Buffer::MemoryType::DeviceLocal, sizeof(glm::vec4));
@@ -177,8 +179,8 @@ void MeshShaderDemo::Prepare() {
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
-        // mFactoryModel->GenerateBuffers(mContext.get(), this);
-        mFactoryModel->GenerateMeshletBuffers(mContext.get(), this);
+        // mFactoryModel->GenerateBuffers(&GetVulkanContext(), this);
+        mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext(), this);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model.c_str(),
@@ -202,7 +204,7 @@ void MeshShaderDemo::Prepare() {
     //             (MODEL_PATH(name) + CISDI_3DModel_Subfix_Str).c_str());
     //
     //         mModels[i] = MakeShared<Geometry>(::std::move(cisdiModel));
-    //         mModels[i]->GenerateMeshletBuffers(mContext.get(), this);
+    //         mModels[i]->GenerateMeshletBuffers(&GetVulkanContext(), this);
     //     }
     //
     //     auto duration_LoadModel = timer.End();
@@ -225,7 +227,9 @@ void MeshShaderDemo::BeginFrame(IDNS_VC::RenderFrame& frame) {
 }
 
 void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
-    auto& timelineSem = mContext->GetTimelineSemphore();
+    auto& vkCtx = GetVulkanContext();
+    auto& timelineSem = vkCtx.GetTimelineSemphore();
+    auto& cmdMgr = GetCmdMgr();
 
     const uint64_t graphicsFinished = timelineSem.GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
@@ -235,7 +239,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
 
     // Compute Draw
     {
-        auto cmd = frame.GetCmpCmdBuf();
+        auto cmd = frame.GetComputeCmdBuf();
 
         mBackgroundPass_Barrier.RecordCmd(cmd.GetHandle());
         mBackgroundPass_PSO.RecordCmd(cmd.GetHandle());
@@ -251,66 +255,65 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
             {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
              computeFinished}};
 
-        mCmdMgr.Submit(
-            cmd.GetHandle(),
-            mContext->GetQueue(QueueUsage::Compute_Runtime).GetHandle(), waits,
-            signals, frame.GetFencePool().RequestFence());
+        cmdMgr.Submit(cmd.GetHandle(),
+                      vkCtx.GetQueue(QueueUsage::Compute_Runtime).GetHandle(),
+                      waits, signals, frame.GetFencePool().RequestFence());
     }
 
     // Runtime Copy
     {
-        auto cmd = frame.GetTsfCmdBuf();
-    
+        auto cmd = frame.GetTransferCmdBuf();
+
         mRuntimeCopy_Barrier_Pre.RecordCmd(cmd.GetHandle());
         mRuntimeCopy.RecordCmd(cmd.GetHandle());
         mRuntimeCopy_Barrier_Post.RecordCmd(cmd.GetHandle());
-    
+
         cmd.End();
-    
+
         Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eBottomOfPipe,
              frame.GetReady4RenderSemaphore().GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
              graphicsFinished}};
-    
+
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllCommands, mCopySem.GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
              copyFinished}};
-    
-        mCmdMgr.Submit(
+
+        cmdMgr.Submit(
             cmd.GetHandle(),
-            mContext->GetQueue(QueueUsage::Transfer_Runtime_Upload).GetHandle(),
+            vkCtx.GetQueue(QueueUsage::Transfer_Runtime_Upload).GetHandle(),
             waits, signals, frame.GetFencePool().RequestFence());
     }
 
     // Shadow Draw
     {
-        auto cmd = frame.GetGfxCmdBuf();
-    
+        auto cmd = frame.GetGraphicsCmdBuf();
+
         mShadowPass_Barrier.RecordCmd(cmd.GetHandle());
         for (uint32_t i = 0; i < 12; ++i) {
             mShadowPass_PSO.RecordCmd(cmd.GetHandle());
         }
-    
+
         cmd.End();
-    
+
         Type_STLVector<SemSubmitInfo> waits = {
             {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
              graphicsFinished}};
-    
+
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
              shadowFinished}};
-    
-        mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetQueue(QueueUsage::Graphics).GetHandle(),
-                       waits, signals, frame.GetFencePool().RequestFence());
+
+        cmdMgr.Submit(cmd.GetHandle(),
+                      vkCtx.GetQueue(QueueUsage::Graphics).GetHandle(), waits,
+                      signals, frame.GetFencePool().RequestFence());
     }
 
     // Graphics Draw
     {
-        auto cmd = frame.GetGfxCmdBuf();
+        auto cmd = frame.GetGraphicsCmdBuf();
 
         // mMeshDrawPass_Barrier.RecordCmd(cmd.GetHandle());
         // mMeshDrawPass_PSO.RecordCmd(cmd.GetHandle());
@@ -343,9 +346,9 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
             {vk::PipelineStageFlagBits2::eAllGraphics,
              frame.GetReady4PresentSemaphore().GetHandle()}};
 
-        mCmdMgr.Submit(cmd.GetHandle(),
-                       mContext->GetQueue(QueueUsage::Graphics).GetHandle(),
-                       waits, signals, frame.GetFencePool().RequestFence());
+        cmdMgr.Submit(cmd.GetHandle(),
+                      vkCtx.GetQueue(QueueUsage::Graphics).GetHandle(), waits,
+                      signals, frame.GetFencePool().RequestFence());
     }
 }
 
@@ -354,9 +357,10 @@ void MeshShaderDemo::EndFrame(IDNS_VC::RenderFrame& frame) {
 }
 
 void MeshShaderDemo::CreateDrawImage() {
-    vk::Extent3D drawImageExtent {static_cast<uint32_t>(mWindow->GetWidth()),
-                                  static_cast<uint32_t>(mWindow->GetHeight()),
-                                  1};
+    auto& window = GetSDLWindow();
+
+    vk::Extent3D drawImageExtent {static_cast<uint32_t>(window.GetWidth()),
+                                  static_cast<uint32_t>(window.GetHeight()), 1};
 
     vk::ImageUsageFlags drawImageUsage {};
     drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
@@ -365,31 +369,34 @@ void MeshShaderDemo::CreateDrawImage() {
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
-    auto ptr = mRenderResMgr.CreateTexture_ScreenSizeRelated(
+    auto& ref = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
         "DrawImage", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
-    ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+    ref.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 }
 
 void MeshShaderDemo::CreateDepthImage() {
-    vk::Extent3D depthImageExtent {static_cast<uint32_t>(mWindow->GetWidth()),
-                                   static_cast<uint32_t>(mWindow->GetHeight()),
+    auto& window = GetSDLWindow();
+
+    vk::Extent3D depthImageExtent {static_cast<uint32_t>(window.GetWidth()),
+                                   static_cast<uint32_t>(window.GetHeight()),
                                    1};
 
     vk::ImageUsageFlags depthImageUsage {};
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-    auto ptr = mRenderResMgr.CreateTexture_ScreenSizeRelated(
+    auto& ref = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
         "DepthImage", RenderResource::Type::Texture2D,
         vk::Format::eD24UnormS8Uint, depthImageExtent, depthImageUsage);
-    ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
-                                          | vk::ImageAspectFlagBits::eStencil);
+    ref.CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
+                                         | vk::ImageAspectFlagBits::eStencil);
 
+    auto& vkCtx = GetVulkanContext();
     {
-        auto cmd = mContext->CreateCmdBufToBegin(
-            mContext->GetQueue(QueueUsage::Graphics));
+        auto cmd =
+            vkCtx.CreateCmdBufToBegin(vkCtx.GetQueue(QueueUsage::Graphics));
         Utils::TransitionImageLayout(
-            cmd.mHandle, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
+            cmd.mHandle, ref.GetTexHandle(), vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthStencilAttachmentOptimal);
     }
 }
@@ -400,7 +407,9 @@ void MeshShaderDemo::CreateRandomTexture() {
 
     constexpr size_t dataSize = extent.width * extent.height * 4;
 
-    auto uploadBuffer = mRenderResMgr.CreateBuffer(
+    auto& renderResMgr = GetRenderResMgr();
+
+    auto& uploadBuffer = renderResMgr.CreateBuffer(
         "staging", dataSize * randomImageCount,
         vk::BufferUsageFlagBits::eTransferSrc, Buffer::MemoryType::Staging);
 
@@ -420,29 +429,31 @@ void MeshShaderDemo::CreateRandomTexture() {
         }
 
         auto name = baseName + ::std::to_string(i);
-        auto ptr = mRenderResMgr.CreateTexture(
+        auto& ref = renderResMgr.CreateTexture(
             name.c_str(), RenderResource::Type::Texture2D,
             vk::Format::eR8G8B8A8Unorm, extent,
             vk::ImageUsageFlagBits::eSampled
                 | vk::ImageUsageFlagBits::eTransferDst);
-        ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+        ref.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 
-        memcpy((char*)uploadBuffer->GetBufferMappedPtr() + dataSize * i,
+        memcpy((char*)uploadBuffer.GetBufferMappedPtr() + dataSize * i,
                pixels.data(), dataSize);
     }
 
-    auto gfxQueueIdx =
-        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
-    auto tsfQueueIdx =
-        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
+    auto& vkCtx = GetVulkanContext();
+    auto& device = vkCtx.GetDevice();
+
+    auto gfxQueueIdx = device.GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
+    auto tsfQueueIdx = device.GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
 
     {
-        auto cmd = mContext->CreateCmdBufToBegin(
-            mContext->GetQueue(QueueUsage::Graphics));
+        auto cmd =
+            vkCtx.CreateCmdBufToBegin(vkCtx.GetQueue(QueueUsage::Graphics));
+
         for (uint32_t i = 0; i < randomImageCount; ++i) {
             auto name = baseName + ::std::to_string(i);
             Utils::TransitionImageLayout(
-                cmd.mHandle, mRenderResMgr[name.c_str()]->GetTexHandle(),
+                cmd.mHandle, renderResMgr[name.c_str()].GetTexHandle(),
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eTransferDstOptimal);
 
@@ -462,7 +473,7 @@ void MeshShaderDemo::CreateRandomTexture() {
             auto name = baseName + ::std::to_string(i);
 
             Utils::TransitionImageLayout(
-                cmd.mHandle, mRenderResMgr[name.c_str()]->GetTexHandle(),
+                cmd.mHandle, renderResMgr[name.c_str()].GetTexHandle(),
                 vk::ImageLayout::eTransferDstOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
         }
@@ -470,7 +481,7 @@ void MeshShaderDemo::CreateRandomTexture() {
         for (uint32_t i = 0; i < 16; ++i) {
             auto name = baseName + ::std::to_string(i);
             vk::ImageMemoryBarrier2 barrier2 {};
-            barrier2.setImage(mRenderResMgr[name.c_str()]->GetTexHandle())
+            barrier2.setImage(renderResMgr[name.c_str()].GetTexHandle())
                 .setSrcQueueFamilyIndex(gfxQueueIdx)
                 .setDstQueueFamilyIndex(tsfQueueIdx)
                 .setSubresourceRange(Utils::GetWholeImageSubresource(
@@ -485,7 +496,7 @@ void MeshShaderDemo::CreateRandomTexture() {
     for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
         for (uint32_t j = 0; j < randomImageCount / 2; ++j) {
             auto name = baseName + ::std::to_string(j);
-            auto texture = mRenderResMgr[name.c_str()]->GetTexPtr();
+            auto texture = renderResMgr[name.c_str()].GetTexPtr();
 
             GetCurFrame().GetBindlessDescPool().Add(texture);
         }
@@ -495,6 +506,8 @@ void MeshShaderDemo::CreateRandomTexture() {
 void MeshShaderDemo::CreateShadowImages() {
     vk::Extent3D extent {1024, 1024, 1};
 
+    auto& renderResMgr = GetRenderResMgr();
+
     vk::ImageUsageFlags drawImageUsage {};
     drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
     drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
@@ -502,35 +515,40 @@ void MeshShaderDemo::CreateShadowImages() {
     drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
     drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
 
-    auto ptr = mRenderResMgr.CreateTexture_ScreenSizeRelated(
+    auto& shadowColor = renderResMgr.CreateTexture_ScreenSizeRelated(
         "ShadowColor", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, extent, drawImageUsage);
-    ptr->CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+    shadowColor.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 
     vk::ImageUsageFlags depthImageUsage {};
     depthImageUsage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-    ptr = mRenderResMgr.CreateTexture_ScreenSizeRelated(
+    auto& shadowDepth = renderResMgr.CreateTexture_ScreenSizeRelated(
         "ShadowDepth", RenderResource::Type::Texture2D,
         vk::Format::eD24UnormS8Uint, extent, depthImageUsage);
-    ptr->CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
-                                          | vk::ImageAspectFlagBits::eStencil);
+    shadowDepth.CreateTexView(
+        "Depth-Whole",
+        vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil);
 
+    auto& vkCtx = GetVulkanContext();
     {
-        auto cmd = mContext->CreateCmdBufToBegin(
-            mContext->GetQueue(QueueUsage::Graphics));
+        auto cmd =
+            vkCtx.CreateCmdBufToBegin(vkCtx.GetQueue(QueueUsage::Graphics));
         Utils::TransitionImageLayout(
-            cmd.mHandle, ptr->GetTexHandle(), vk::ImageLayout::eUndefined,
+            cmd.mHandle, shadowDepth.GetTexHandle(),
+            vk::ImageLayout::eUndefined,
             vk::ImageLayout::eDepthStencilAttachmentOptimal);
     }
 }
 
 void MeshShaderDemo::CreateBackgroundComputePipeline() {
-    auto compute =
-        mShaderMgr.GetShader("computeDraw", vk::ShaderStageFlagBits::eCompute);
-    auto program = mShaderMgr.CreateProgram("background", compute);
+    auto& shaderMgr = GetShaderMgr();
 
-    auto builder = mPipelineMgr.GetComputePipelineBuilder();
+    auto compute =
+        shaderMgr.GetShader("computeDraw", vk::ShaderStageFlagBits::eCompute);
+    auto program = shaderMgr.CreateProgram("background", compute);
+
+    auto builder = GetPipelineMgr().GetBuilder_Compute();
 
     auto backgroundComputePipeline =
         builder.SetShaderProgram(program)
@@ -541,13 +559,15 @@ void MeshShaderDemo::CreateBackgroundComputePipeline() {
 }
 
 void MeshShaderDemo::CreateMeshPipeline() {
-    auto vert =
-        mShaderMgr.GetShader("vertex", vk::ShaderStageFlagBits::eVertex);
-    auto frag =
-        mShaderMgr.GetShader("fragment", vk::ShaderStageFlagBits::eFragment);
-    auto program = mShaderMgr.CreateProgram("mesh draw", vert, frag);
+    auto& renderResMgr = GetRenderResMgr();
+    auto& shaderMgr = GetShaderMgr();
 
-    auto builder = mPipelineMgr.GetGraphicsPipelineBuilder();
+    auto vert = shaderMgr.GetShader("vertex", vk::ShaderStageFlagBits::eVertex);
+    auto frag =
+        shaderMgr.GetShader("fragment", vk::ShaderStageFlagBits::eFragment);
+    auto program = shaderMgr.CreateProgram("mesh draw", vert, frag);
+
+    auto builder = GetPipelineMgr().GetBuilder_Graphics();
     builder.SetShaderProgram(program)
         .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
         .SetPolygonMode(vk::PolygonMode::eFill)
@@ -556,8 +576,8 @@ void MeshShaderDemo::CreateMeshPipeline() {
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
         .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
-        .SetColorAttachmentFormat(mRenderResMgr["DrawImage"]->GetTexFormat())
-        .SetDepthStencilFormat(mRenderResMgr["DepthImage"]->GetTexFormat())
+        .SetColorAttachmentFormat(renderResMgr["DrawImage"].GetTexFormat())
+        .SetDepthStencilFormat(renderResMgr["DepthImage"].GetTexFormat())
         .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .Build("TriangleDraw");
 
@@ -565,12 +585,15 @@ void MeshShaderDemo::CreateMeshPipeline() {
 }
 
 void MeshShaderDemo::CreateMeshShaderPipeline() {
+    auto& renderResMgr = GetRenderResMgr();
+    auto& shaderMgr = GetShaderMgr();
+
     Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
                    std::to_string(TASK_SHADER_INVOCATION_COUNT));
 
-    auto task = mShaderMgr.GetShader("Mesh shader task",
-                                     vk::ShaderStageFlagBits::eTaskEXT, macros);
+    auto task = shaderMgr.GetShader("Mesh shader task",
+                                    vk::ShaderStageFlagBits::eTaskEXT, macros);
 
     macros.clear();
     macros.emplace("MESH_INVOCATION_COUNT",
@@ -580,15 +603,15 @@ void MeshShaderDemo::CreateMeshShaderPipeline() {
     macros.emplace("MAX_PRIMITIVES",
                    std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
 
-    auto mesh = mShaderMgr.GetShader("Mesh shader mesh",
-                                     vk::ShaderStageFlagBits::eMeshEXT, macros);
+    auto mesh = shaderMgr.GetShader("Mesh shader mesh",
+                                    vk::ShaderStageFlagBits::eMeshEXT, macros);
 
-    auto frag = mShaderMgr.GetShader("Mesh shader fragment",
-                                     vk::ShaderStageFlagBits::eFragment);
+    auto frag = shaderMgr.GetShader("Mesh shader fragment",
+                                    vk::ShaderStageFlagBits::eFragment);
 
-    auto program = mShaderMgr.CreateProgram("meshlet draw", task, mesh, frag);
+    auto program = shaderMgr.CreateProgram("meshlet draw", task, mesh, frag);
 
-    auto builder = mPipelineMgr.GetGraphicsPipelineBuilder();
+    auto builder = GetPipelineMgr().GetBuilder_Graphics();
     builder.SetShaderProgram(program)
         .SetPolygonMode(vk::PolygonMode::eFill)
         .SetCullMode(vk::CullModeFlagBits::eNone,
@@ -596,8 +619,8 @@ void MeshShaderDemo::CreateMeshShaderPipeline() {
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
         .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
-        .SetColorAttachmentFormat(mRenderResMgr["DrawImage"]->GetTexFormat())
-        .SetDepthStencilFormat(mRenderResMgr["DepthImage"]->GetTexFormat())
+        .SetColorAttachmentFormat(renderResMgr["DrawImage"].GetTexFormat())
+        .SetDepthStencilFormat(renderResMgr["DepthImage"].GetTexFormat())
         .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .Build("MeshShaderDraw");
 
@@ -605,14 +628,16 @@ void MeshShaderDemo::CreateMeshShaderPipeline() {
 }
 
 void MeshShaderDemo::CreateDrawQuadPipeline() {
+    auto& shaderMgr = GetShaderMgr();
+
     auto vert =
-        mShaderMgr.GetShader("Quad vertex", vk::ShaderStageFlagBits::eVertex);
-    auto frag = mShaderMgr.GetShader("Quad fragment",
-                                     vk::ShaderStageFlagBits::eFragment);
+        shaderMgr.GetShader("Quad vertex", vk::ShaderStageFlagBits::eVertex);
+    auto frag = shaderMgr.GetShader("Quad fragment",
+                                    vk::ShaderStageFlagBits::eFragment);
 
-    auto program = mShaderMgr.CreateProgram("QuadDraw", vert, frag);
+    auto program = shaderMgr.CreateProgram("QuadDraw", vert, frag);
 
-    auto builder = mPipelineMgr.GetGraphicsPipelineBuilder();
+    auto builder = GetPipelineMgr().GetBuilder_Graphics();
     builder.SetShaderProgram(program)
         .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
         .SetPolygonMode(vk::PolygonMode::eFill)
@@ -621,7 +646,7 @@ void MeshShaderDemo::CreateDrawQuadPipeline() {
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)
         .SetDepth(vk::False, vk::False)
-        .SetColorAttachmentFormat(mSwapchain->GetFormat())
+        .SetColorAttachmentFormat(GetSwapchain().GetFormat())
         .SetDepthStencilFormat(vk::Format::eUndefined)
         .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
         .Build("QuadDraw");
@@ -630,8 +655,9 @@ void MeshShaderDemo::CreateDrawQuadPipeline() {
 }
 
 void MeshShaderDemo::RecordDrawBackgroundCmds() {
-    auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
-    auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
+    auto& drawImage = GetRenderResMgr()["DrawImage"];
+    uint32_t width = drawImage.GetTexWidth();
+    uint32_t height = drawImage.GetTexHeight();
 
     // barrier
     {
@@ -680,8 +706,9 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
 }
 
 void MeshShaderDemo::RecordDrawMeshCmds() {
-    auto width = mRenderResMgr["DrawImage"]->GetTexWidth();
-    auto height = mRenderResMgr["DrawImage"]->GetTexHeight();
+    auto& drawImage = GetRenderResMgr()["DrawImage"];
+    uint32_t width = drawImage.GetTexWidth();
+    uint32_t height = drawImage.GetTexHeight();
 
     auto pPushConstants = mFactoryModel->GetIndexDrawPushConstantsPtr();
     pPushConstants->mModelMatrix =
@@ -737,8 +764,7 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
 }
 
 void MeshShaderDemo::RecordDrawQuadCmds() {
-    auto width = mSwapchain->GetExtent2D().width;
-    auto height = mSwapchain->GetExtent2D().height;
+    auto extent = GetSwapchain().GetExtent2D();
 
     // barriers
     {
@@ -785,24 +811,27 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
         mQuadDrawPass_PSO["outFragColor"] = {"_Swapchain_", ""};
 
         mQuadDrawPass_PSO[RenderPassBinding::Type::RenderInfo] =
-            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+            RenderPassBinding::RenderInfo {
+                {{0, 0}, {extent.width, extent.height}}, 1, 0};
 
         mQuadDrawPass_PSO.GenerateMetaData();
     }
     auto& dcMgr = mQuadDrawPass_PSO.GetDrawCallManager();
 
-    vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
+    vk::Viewport viewport {
+        0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});
 
-    vk::Rect2D scissor {{0, 0}, {width, height}};
+    vk::Rect2D scissor {{0, 0}, {extent.width, extent.height}};
     dcMgr.AddArgument_Scissor(0, {scissor});
 
     dcMgr.AddArgument_Draw(3, 1, 0, 0);
 }
 
 void MeshShaderDemo::RecordMeshShaderDrawCmds() {
-    uint32_t width = mRenderResMgr["DrawImage"]->GetTexWidth();
-    uint32_t height = mRenderResMgr["DrawImage"]->GetTexHeight();
+    auto& drawImage = GetRenderResMgr()["DrawImage"];
+    uint32_t width = drawImage.GetTexWidth();
+    uint32_t height = drawImage.GetTexHeight();
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     // meshPushContants->mModelMatrix =
@@ -813,10 +842,12 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
 
     uint32_t copyCount = 16;
     ::std::string baseName {"RandomImage"};
-    auto gfxQueueIdx =
-        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
-    auto tsfQueueIdx =
-        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
+
+    auto& device = GetVulkanContext().GetDevice();
+
+    auto gfxQueueIdx = device.GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
+    auto tsfQueueIdx = device.GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
+
     // barrier
     {
         for (uint32_t i = 0; i < copyCount; ++i) {
@@ -913,8 +944,9 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
 }
 
 void MeshShaderDemo::RecordShadowDrawCmds() {
-    uint32_t width = mRenderResMgr["ShadowColor"]->GetTexWidth();
-    uint32_t height = mRenderResMgr["ShadowColor"]->GetTexHeight();
+    auto& shadowColor = GetRenderResMgr()["ShadowColor"];
+    uint32_t width = shadowColor.GetTexWidth();
+    uint32_t height = shadowColor.GetTexHeight();
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     // meshPushContants->mModelMatrix =
@@ -982,10 +1014,10 @@ void MeshShaderDemo::RecordRuntimeCopyCmds() {
     constexpr size_t dataSize = extent.width * extent.height * 4;
     ::std::string baseName {"RandomImage"};
 
-    auto gfxQueueIdx =
-        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
-    auto tsfQueueIdx =
-        mContext->GetDevice().GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
+    auto& device = GetVulkanContext().GetDevice();
+
+    auto gfxQueueIdx = device.GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
+    auto tsfQueueIdx = device.GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
 
     for (uint32_t i = 0; i < copyCount; ++i) {
         auto name = baseName + ::std::to_string(i);
@@ -1034,13 +1066,15 @@ void MeshShaderDemo::RecordRuntimeCopyCmds() {
 }
 
 void MeshShaderDemo::UpdateSceneUBO() {
-    auto data = mRenderResMgr["SceneUniformBuffer"]->GetBufferMappedPtr();
+    auto& renderResMgr = GetRenderResMgr();
+    auto data = renderResMgr["SceneUniformBuffer"].GetBufferMappedPtr();
     memcpy(data, &mSceneData, sizeof(mSceneData));
 }
 
 void MeshShaderDemo::PrepareUIContext() {
     mImageName0 = "RandomImage";
     mImageName1 = "RandomImage";
+    auto& renderResMgr = GetRenderResMgr();
     mGui.AddContext([&]() {
         if (ImGui::Begin("SceneStats")) {
             ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
@@ -1057,7 +1091,7 @@ void MeshShaderDemo::PrepareUIContext() {
             ImGui::InputText("##", mImageName0.data(), 32);
             ImGui::SameLine();
             if (ImGui::Button("Add")) {
-                auto tex = mRenderResMgr[mImageName0.c_str()]->GetTexPtr();
+                auto tex = renderResMgr[mImageName0.c_str()].GetTexPtr();
                 auto idx = GetCurFrame().GetBindlessDescPool().Add(tex);
 
                 DBG_LOG_INFO("Add Button pressed, add texture at idx %d", idx);
@@ -1066,7 +1100,7 @@ void MeshShaderDemo::PrepareUIContext() {
             ImGui::InputText("###", mImageName1.data(), 32);
             ImGui::SameLine();
             if (ImGui::Button("Delete")) {
-                auto tex = mRenderResMgr[mImageName1.c_str()]->GetTexPtr();
+                auto tex = renderResMgr[mImageName1.c_str()].GetTexPtr();
                 auto idx = GetCurFrame().GetBindlessDescPool().Delete(tex);
                 DBG_LOG_INFO("Delete Button pressed, delete texture at idx %d",
                              idx);
@@ -1074,4 +1108,25 @@ void MeshShaderDemo::PrepareUIContext() {
         }
         ImGui::End();
     });
+}
+
+IDNS_VC::RenderPassBindingInfo_PSO MeshShaderDemo::CreateBindingInfo_PSO(
+    bool swapchain) {
+    Swapchain* p = nullptr;
+    if (swapchain)
+        p = &GetSwapchain();
+    return {&GetVulkanContext(), &GetRenderResMgr(), &GetPipelineMgr(),
+            &mDescSetPool, p};
+}
+
+IDNS_VC::RenderPassBindingInfo_Barrier
+MeshShaderDemo::CreateBindingInfo_Barrier(bool swapchain) {
+    Swapchain* p = nullptr;
+    if (swapchain)
+        p = &GetSwapchain();
+    return {&GetVulkanContext(), &GetRenderResMgr(), p};
+}
+
+IDNS_VC::RenderPassBindingInfo_Copy MeshShaderDemo::CreateBindingInfo_Copy() {
+    return {&GetRenderResMgr()};
 }

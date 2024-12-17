@@ -17,7 +17,7 @@ class ShaderManager {
     using Type_Programs = Type_STLUnorderedMap_String<SharedPtr<ShaderProgram>>;
 
 public:
-    ShaderManager(VulkanContext* context);
+    ShaderManager(VulkanContext& context);
 
     // persist shader module from spir-v binary code
     SharedPtr<Shader> CreateShaderFromSPIRV(const char* name,
@@ -53,7 +53,7 @@ public:
     ShaderProgram* GetProgram(const char* name) const;
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
 
     Type_Shaders mShaders {};
     Type_Programs mPrograms {};

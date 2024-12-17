@@ -42,7 +42,6 @@ uint32_t Device::GetFamilyIndex(vk::QueueFlagBits queueFlag) const {
                 && !(queueFamilyPropertieses[i].queueFlags
                      & vk::QueueFlagBits::eGraphics)) {
                 return i;
-                break;
             }
         }
     }
@@ -56,7 +55,6 @@ uint32_t Device::GetFamilyIndex(vk::QueueFlagBits queueFlag) const {
                 && !(queueFamilyPropertieses[i].queueFlags
                      & vk::QueueFlagBits::eCompute)) {
                 return i;
-                break;
             }
         }
     }
@@ -65,7 +63,6 @@ uint32_t Device::GetFamilyIndex(vk::QueueFlagBits queueFlag) const {
          i < static_cast<uint32_t>(queueFamilyPropertieses.size()); i++) {
         if (queueFamilyPropertieses[i].queueFlags & queueFlag) {
             return i;
-            break;
         }
     }
 
@@ -205,8 +202,8 @@ vk::Device Device::CreateDevice(std::span<Type_STLString> requestedExtensions) {
         for (auto& extension : unsupportedExtensions) {
             // auto extension_is_optional = requestedExtensions[extension];
             // if (extension_is_optional) {
-            //     LOGW(
-            //         "Optional device extension {} not available, some features "
+            //     DBG_LOG_INFO(
+            //         "Optional device extension %s not available, some features "
             //         "may be disabled",
             //         extension);
             // } else {
@@ -234,7 +231,6 @@ vk::Device Device::CreateDevice(std::span<Type_STLString> requestedExtensions) {
         {}, queueCreateInfos, {}, extsCStr,
         &mPhysicalDevice.GetMutableRequestedFeatures());
 
-    // Latest requested feature will have the pNext's all set up for device creation.
     createInfo.pNext = mPhysicalDevice.GetExtensionFeatureChain();
 
     return mPhysicalDevice->createDevice(createInfo);
@@ -245,7 +241,7 @@ void Device::CreateQueues(Surface& surface) {
 
     mQueues.resize(queueFamilyProperties.size());
 
-    for (uint32_t queueFamilyIndex = 0U;
+    for (uint32_t queueFamilyIndex = 0;
          queueFamilyIndex < queueFamilyProperties.size(); ++queueFamilyIndex) {
         vk::QueueFamilyProperties const& queueFamilyProperty =
             queueFamilyProperties[queueFamilyIndex];
@@ -253,7 +249,7 @@ void Device::CreateQueues(Surface& surface) {
         vk::Bool32 presentSupported = mPhysicalDevice->getSurfaceSupportKHR(
             queueFamilyIndex, surface.GetHandle());
 
-        for (uint32_t queueIndex = 0U;
+        for (uint32_t queueIndex = 0;
              queueIndex < queueFamilyProperty.queueCount; ++queueIndex) {
             mQueues[queueFamilyIndex].emplace_back(
                 *this, queueFamilyIndex, queueFamilyProperty, presentSupported,

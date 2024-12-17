@@ -9,6 +9,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class Sampler;
 class DescriptorManager;
+class VulkanContext;
 
 class RenderResource {
 public:
@@ -22,18 +23,18 @@ public:
     };
 
     // buffer
-    RenderResource(Device* device, MemoryAllocator& allocator, Type type,
+    RenderResource(VulkanContext& context, Type type,
                    size_t size, vk::BufferUsageFlags usage,
                    Buffer::MemoryType memType, size_t texelSize = 1);
 
     // texture
-    RenderResource(Device* device, MemoryAllocator& allocator, Type type,
+    RenderResource(VulkanContext& context, Type type,
                    vk::Format format, vk::Extent3D extent,
                    vk::ImageUsageFlags usage, uint32_t mipLevels,
                    uint32_t arraySize, uint32_t sampleCount);
 
     // texture for existing vk::image (swapchain images)
-    RenderResource(Device* device, vk::Image handle, Type type,
+    RenderResource(VulkanContext& context, vk::Image handle, Type type,
                    vk::Format format, vk::Extent3D extent, uint32_t arraySize,
                    uint32_t sampleCount);
 

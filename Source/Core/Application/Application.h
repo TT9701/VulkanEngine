@@ -10,11 +10,11 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Utilities/Timer.h"
 #include "Core/Vulkan/Manager/CommandManager.h"
-#include "Core/Vulkan/Manager/Context.h"
 #include "Core/Vulkan/Manager/PipelineManager.h"
 #include "Core/Vulkan/Manager/RenderFrame.h"
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
 #include "Core/Vulkan/Manager/ShaderManager.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 #include "Core/Vulkan/Native/Swapchain.h"
 #include "Core/Vulkan/RenderGraph/RenderPassBindingInfo.h"
 
@@ -61,16 +61,6 @@ public:
     void Run();
 
 protected:
-    UniquePtr<SDLWindow> CreateSDLWindow(const char* name, uint32_t width,
-                                         uint32_t height);
-    UniquePtr<VulkanContext> CreateContext();
-    UniquePtr<Swapchain> CreateSwapchain();
-
-    RenderResourceManager CreateRenderResourceManager();
-    CommandManager CreateCommandManager();
-    PipelineManager CreatePipelineManager();
-    ShaderManager CreateShaderManager();
-
     virtual void CreatePipelines();
     virtual void LoadShaders();
     virtual void PollEvents(SDL_Event* e, float deltaTime);
@@ -82,7 +72,22 @@ protected:
     virtual void RenderFrame(Core::RenderFrame& frame);
     virtual void EndFrame(Core::RenderFrame& frame);
 
+    SDLWindow& GetSDLWindow() const;
+    VulkanContext& GetVulkanContext() const;
+    Swapchain& GetSwapchain() const;
+    RenderResourceManager& GetRenderResMgr() const;
+    CommandManager& GetCmdMgr() const;
+    PipelineManager& GetPipelineMgr() const;
+    ShaderManager& GetShaderMgr() const;
+
     Core::RenderFrame& GetCurFrame();
+    Type_STLVector<Core::RenderFrame> const& GetFrames() const;
+    Type_STLVector<Core::RenderFrame>& GetFrames();
+
+    
+    bool mStopRendering {false};
+    uint32_t mFrameNum {0};
+    IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage();
@@ -90,25 +95,7 @@ protected:
     void CreateExternalTriangleData();
     void CreateCUDASyncStructures();
     void SetCudaInterop();
-#endif
 
-protected:
-    bool mStopRendering {false};
-    uint32_t mFrameNum {0};
-
-    UniquePtr<SDLWindow> mWindow;
-    UniquePtr<VulkanContext> mContext;
-    UniquePtr<Swapchain> mSwapchain;
-
-    RenderResourceManager mRenderResMgr;
-    CommandManager mCmdMgr;
-    PipelineManager mPipelineMgr;
-    ShaderManager mShaderMgr;
-
-    IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
-    Type_STLVector<Core::RenderFrame> mFrames;
-
-#ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> mCUDAExternalImage;
 
     ExternalGPUMeshBuffers mTriangleExternalMesh {};
@@ -118,6 +105,27 @@ protected:
 
     CUDA::CUDAStream mCUDAStream {};
 #endif
+
+private:
+    UniquePtr<SDLWindow> CreateSDLWindow(const char* name, uint32_t width,
+                                         uint32_t height);
+    UniquePtr<VulkanContext> CreateContext();
+    UniquePtr<Swapchain> CreateSwapchain();
+
+    UniquePtr<RenderResourceManager> CreateRenderResourceManager();
+    UniquePtr<CommandManager> CreateCommandManager();
+    UniquePtr<PipelineManager> CreatePipelineManager();
+    UniquePtr<ShaderManager> CreateShaderManager();
+
+    UniquePtr<SDLWindow> mWindow;
+    UniquePtr<VulkanContext> mVulkanContext;
+    UniquePtr<Swapchain> mSwapchain;
+    UniquePtr<RenderResourceManager> mRenderResMgr;
+    UniquePtr<CommandManager> mCmdMgr;
+    UniquePtr<PipelineManager> mPipelineMgr;
+    UniquePtr<ShaderManager> mShaderMgr;
+
+    Type_STLVector<Core::RenderFrame> mFrames;
 };
 
 // To be defined in CLIENT

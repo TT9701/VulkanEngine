@@ -1,14 +1,15 @@
 #include "Swapchain.h"
 
 #include "Core/Utilities/VulkanUtilities.h"
-#include "Core/Vulkan/Manager/Context.h"
 #include "Core/Vulkan/Manager/RenderFrame.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 #include "RenderResource.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Swapchain::Swapchain(VulkanContext* ctx, vk::Format format, vk::Extent2D extent2D)
-    : pContex(ctx), mFormat(format), mSwapchain(RecreateSwapchain(extent2D)) {
+Swapchain::Swapchain(VulkanContext& ctx, vk::Format format,
+                     vk::Extent2D extent2D)
+    : mContex(ctx), mFormat(format), mSwapchain(RecreateSwapchain(extent2D)) {
     SetSwapchainImages();
 
     DBG_LOG_INFO(
@@ -18,13 +19,13 @@ Swapchain::Swapchain(VulkanContext* ctx, vk::Format format, vk::Extent2D extent2
 }
 
 Swapchain::~Swapchain() {
-    pContex->GetDevice()->destroy(mSwapchain);
+    mContex.GetDevice()->destroy(mSwapchain);
 }
 
 uint32_t Swapchain::AcquireNextImageIndex(RenderFrame& frame) {
     frame.Reset();
 
-    VK_CHECK(pContex->GetDevice()->acquireNextImageKHR(
+    VK_CHECK(mContex.GetDevice()->acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT,
         frame.GetReady4RenderSemaphore().GetHandle(), VK_NULL_HANDLE,
         &mCurrentImageIndex));
@@ -46,7 +47,7 @@ void Swapchain::Present(RenderFrame& frame, vk::Queue queue) {
 vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::Extent2D extent,
                                               vk::SwapchainKHR old) {
     mExtent2D = extent;
-    mCreateInfo.setSurface(pContex->GetSurface().GetHandle())
+    mCreateInfo.setSurface(mContex.GetSurface().GetHandle())
         .setMinImageCount(3u)
         .setImageFormat(mFormat)
         .setImageExtent(mExtent2D)
@@ -57,8 +58,8 @@ vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::Extent2D extent,
         .setClipped(vk::True)
         .setOldSwapchain(old);
 
-    auto handle = pContex->GetDevice()->createSwapchainKHR(mCreateInfo);
-    pContex->SetName(handle, "Default Swapchain");
+    auto handle = mContex.GetDevice()->createSwapchainKHR(mCreateInfo);
+    mContex.SetName(handle, "Default Swapchain");
     return handle;
 }
 
@@ -110,23 +111,23 @@ RenderResource const& Swapchain::GetCurrentImage() const {
 }
 
 void Swapchain::Resize(vk::Extent2D extent) {
-    pContex->GetDevice()->waitIdle();
+    mContex.GetDevice()->waitIdle();
     auto newSP = RecreateSwapchain(extent, mSwapchain);
-    pContex->GetDevice()->destroy(mSwapchain);
+    mContex.GetDevice()->destroy(mSwapchain);
     mSwapchain = newSP;
     SetSwapchainImages();
 }
 
 void Swapchain::SetSwapchainImages() {
     mImages.clear();
-    auto images = pContex->GetDevice()->getSwapchainImagesKHR(mSwapchain);
+    auto images = mContex.GetDevice()->getSwapchainImagesKHR(mSwapchain);
     mImages.reserve(images.size());
     for (auto& img : images) {
         mImages.emplace_back(
-            &pContex->GetDevice(), img, RenderResource::Type::Texture2D, mFormat,
+            mContex, img, RenderResource::Type::Texture2D, mFormat,
             vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
 
-        pContex->SetName(mImages.back().GetTexHandle(), "Swapchain Images");
+        mContex.SetName(mImages.back().GetTexHandle(), "Swapchain Images");
 
         mImages.back().CreateTexView("Color-Whole",
                                      vk::ImageAspectFlagBits::eColor);

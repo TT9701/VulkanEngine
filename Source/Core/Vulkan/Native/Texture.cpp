@@ -1,9 +1,7 @@
 #include "Texture.h"
 
 #include "Core/Utilities/VulkanUtilities.h"
-#include "Device.h"
-#include "MemoryAllocator.h"
-#include "Sampler.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 
 //
 // void Texture::CopyToImage(vk::CommandBuffer cmd, vk::Image dstImage,
@@ -35,12 +33,10 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Texture::Texture(Device* device, MemoryAllocator* allocator, Type type,
-                 vk::Format format, vk::Extent3D extent,
-                 vk::ImageUsageFlags usage, uint32_t mipLevels,
-                 uint32_t arraySize, uint32_t sampleCount)
-    : pDevice(device),
-      pAllocator(allocator),
+Texture::Texture(VulkanContext& context, Type type, vk::Format format,
+                 vk::Extent3D extent, vk::ImageUsageFlags usage,
+                 uint32_t mipLevels, uint32_t arraySize, uint32_t sampleCount)
+    : mContext(context),
       bOwnsImage(true),
       mType(type),
       mFormat(format),
@@ -51,10 +47,10 @@ Texture::Texture(Device* device, MemoryAllocator* allocator, Type type,
       mSampleCount(sampleCount),
       mHandle(CreateImage()) {}
 
-Texture::Texture(Device* device, vk::Image handle, Type type, vk::Format format,
-                 vk::Extent3D extent, uint32_t arraySize, uint32_t sampleCount)
-    : pDevice(device),
-      pAllocator(nullptr),
+Texture::Texture(VulkanContext& context, vk::Image handle, Type type,
+                 vk::Format format, vk::Extent3D extent, uint32_t arraySize,
+                 uint32_t sampleCount)
+    : mContext(context),
       bOwnsImage(false),
       mType(type),
       mFormat(format),
@@ -106,10 +102,10 @@ void Texture::CreateImageView(const char* name, vk::ImageAspectFlags aspect,
         default: throw ::std::runtime_error("ERROR: Invalid Texture Type.");
     }
 
-    auto view = MakeShared<ImageView>(pDevice, range, mHandle, mFormat, type);
+    auto view = MakeShared<ImageView>(mContext, range, mHandle, mFormat, type);
 
-    pDevice->SetObjectName(view->mHandle,
-                           static_cast<Type_STLString>(name).c_str());
+    mContext.GetDevice().SetObjectName(
+        view->mHandle, static_cast<Type_STLString>(name).c_str());
 
     view->mName = name;
 
@@ -170,9 +166,9 @@ vk::ImageView Texture::GetViewHandle(const char* name) const {
 }
 
 void Texture::SetName(const char* name) const {
-    pDevice->SetObjectName(mHandle, name);
-    pDevice->SetObjectName(vk::DeviceMemory(mAllocationInfo.deviceMemory),
-                           name);
+    mContext.GetDevice().SetObjectName(mHandle, name);
+    mContext.GetDevice().SetObjectName(
+        vk::DeviceMemory(mAllocationInfo.deviceMemory), name);
 }
 
 void Texture::Resize(vk::Extent2D extent) {
@@ -187,7 +183,8 @@ void Texture::Resize(vk::Extent2D extent) {
         view->mImageHandle = mHandle;
         view->Destroy();
         view->mHandle = view->CreateImageView();
-        pDevice->SetObjectName(view->GetHandle(), view->mName.c_str());
+        mContext.GetDevice().SetObjectName(view->GetHandle(),
+                                           view->mName.c_str());
     }
 }
 
@@ -235,7 +232,7 @@ vk::Image Texture::CreateImage() {
     allocCreateInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
     VK_CHECK((vk::Result)vmaCreateImage(
-        pAllocator->GetHandle(),
+        mContext.GetVmaAllocator().GetHandle(),
         reinterpret_cast<VkImageCreateInfo*>(&imageCreateInfo),
         &allocCreateInfo, &image, &mAllocation, &mAllocationInfo));
 
@@ -244,13 +241,14 @@ vk::Image Texture::CreateImage() {
 
 void Texture::Destroy() {
     if (bOwnsImage)
-        vmaDestroyImage(pAllocator->GetHandle(), mHandle, mAllocation);
+        vmaDestroyImage(mContext.GetVmaAllocator().GetHandle(), mHandle,
+                        mAllocation);
 }
 
-ImageView::ImageView(Device* device, vk::ImageSubresourceRange range,
+ImageView::ImageView(VulkanContext& context, vk::ImageSubresourceRange range,
                      vk::Image imageHandle, vk::Format format,
                      vk::ImageViewType type)
-    : pDevice(device),
+    : mContext(context),
       mRange(range),
       mImageHandle(imageHandle),
       mFormat(format),
@@ -266,7 +264,7 @@ vk::ImageView ImageView::GetHandle() const {
 }
 
 void ImageView::Destroy() {
-    pDevice->GetHandle().destroy(mHandle);
+    mContext.GetDevice()->destroy(mHandle);
 }
 
 vk::ImageView ImageView::CreateImageView() const {
@@ -276,7 +274,7 @@ vk::ImageView ImageView::CreateImageView() const {
         .setSubresourceRange(mRange)
         .setViewType(mType);
 
-    return pDevice->GetHandle().createImageView(info);
+    return mContext.GetDevice()->createImageView(info);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

@@ -1,13 +1,13 @@
 #include "GUI.h"
 
 #include "Core/Platform/Window.h"
-#include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 #include "Core/Vulkan/Native/Swapchain.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-GUI::GUI(VulkanContext* context, Swapchain* swapchain, SDLWindow* window)
-    : pContext(context), pSwapchain(swapchain), pWindow(window) {
+GUI::GUI(VulkanContext& context, Swapchain& swapchain, SDLWindow& window)
+    : mContext(context), mSwapchain(swapchain), mWindow(window) {
     CreateDescPool();
     PrepareContext();
 }
@@ -16,7 +16,7 @@ GUI::~GUI() {
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-    pContext->GetDevice()->destroy(mDescPool);
+    mContext.GetDevice()->destroy(mDescPool);
 }
 
 void GUI::PollEvent(const SDL_Event* event) {
@@ -41,12 +41,12 @@ void GUI::Draw(vk::CommandBuffer cmd) {
     attachmentInfo.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
         .setLoadOp(vk::AttachmentLoadOp::eLoad)
         .setStoreOp(vk::AttachmentStoreOp::eStore)
-        .setImageView(pSwapchain->GetCurrentImage().GetTexViewHandle());
+        .setImageView(mSwapchain.GetCurrentImage().GetTexViewHandle());
 
     vk::RenderingInfo renderingInfo {};
     renderingInfo.setColorAttachments(attachmentInfo)
         .setLayerCount(1)
-        .setRenderArea(vk::Rect2D {{0, 0}, pSwapchain->GetExtent2D()});
+        .setRenderArea(vk::Rect2D {{0, 0}, mSwapchain.GetExtent2D()});
 
     cmd.beginRendering(renderingInfo);
 
@@ -61,18 +61,18 @@ void GUI::AddContext(std::function<void()>&& ctx) {
 
 void GUI::PrepareContext() {
     ImGui::CreateContext();
-    ImGui_ImplSDL2_InitForVulkan(pWindow->GetPtr());
+    ImGui_ImplSDL2_InitForVulkan(mWindow.GetPtr());
 
-    auto swapchainImageFormat = pSwapchain->GetFormat();
+    auto swapchainImageFormat = mSwapchain.GetFormat();
 
     ImGui_ImplVulkan_InitInfo info {};
-    info.Instance = pContext->GetInstance().GetHandle();
-    info.PhysicalDevice = pContext->GetPhysicalDevice().GetHandle();
-    info.Device = pContext->GetDevice().GetHandle();
-    info.Queue = pContext->GetQueue(QueueUsage::Graphics).GetHandle();
+    info.Instance = mContext.GetInstance().GetHandle();
+    info.PhysicalDevice = mContext.GetPhysicalDevice().GetHandle();
+    info.Device = mContext.GetDevice().GetHandle();
+    info.Queue = mContext.GetQueue(QueueUsage::Graphics).GetHandle();
     info.DescriptorPool = mDescPool;
     info.MinImageCount = 2;
-    info.ImageCount = pSwapchain->GetImageCount();
+    info.ImageCount = mSwapchain.GetImageCount();
     info.UseDynamicRendering = true;
     info.PipelineRenderingCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
@@ -108,7 +108,7 @@ void GUI::CreateDescPool() {
         .setMaxSets(100)
         .setPoolSizes(mPoolSizes);
 
-    mDescPool = pContext->GetDevice()->createDescriptorPool(dpInfo);
+    mDescPool = mContext.GetDevice()->createDescriptorPool(dpInfo);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

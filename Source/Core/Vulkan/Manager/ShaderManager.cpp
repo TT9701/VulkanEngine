@@ -1,18 +1,18 @@
 #include "ShaderManager.h"
 
-#include "Context.h"
+#include "VulkanContext.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-ShaderManager::ShaderManager(VulkanContext* context) : pContext(context) {}
+ShaderManager::ShaderManager(VulkanContext& context) : mContext(context) {}
 
 SharedPtr<Shader> ShaderManager::CreateShaderFromSPIRV(
     const char* name, const char* spirvPath, vk::ShaderStageFlagBits stage,
     const char* entry, void* pNext) {
     auto shaderName = ParseShaderName(name, stage, {}, entry);
-    auto ptr = MakeShared<Shader>(pContext, shaderName.c_str(), spirvPath,
+    auto ptr = MakeShared<Shader>(mContext, shaderName.c_str(), spirvPath,
                                   stage, entry, pNext);
-    pContext->SetName(ptr->GetHandle(), shaderName.c_str());
+    mContext.SetName(ptr->GetHandle(), shaderName.c_str());
 
     ::std::unique_lock<::std::mutex> lock {mMutex};
     mShaders.emplace(shaderName, ptr);
@@ -24,9 +24,9 @@ SharedPtr<Shader> ShaderManager::CreateShaderFromGLSL(
     bool hasIncludes, Type_ShaderMacros const& defines, const char* entry,
     void* pNext) {
     auto shaderName = ParseShaderName(name, stage, defines, entry);
-    auto ptr = MakeShared<Shader>(pContext, shaderName.c_str(), sourcePath,
+    auto ptr = MakeShared<Shader>(mContext, shaderName.c_str(), sourcePath,
                                   stage, hasIncludes, defines, entry, pNext);
-    pContext->SetName(ptr->GetHandle(), shaderName.c_str());
+    mContext.SetName(ptr->GetHandle(), shaderName.c_str());
 
     ::std::unique_lock<::std::mutex> lock {mMutex};
     mShaders.emplace(shaderName, ptr);

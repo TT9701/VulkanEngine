@@ -5,17 +5,15 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Device;
-class MemoryAllocator;
+class VulkanContext;
 class DescriptorManager;
 
 class Buffer {
 public:
     enum class MemoryType { DeviceLocal, Staging, ReadBack };
 
-    Buffer(Device* device, MemoryAllocator& allocator, size_t size,
-           vk::BufferUsageFlags usage, MemoryType memType,
-           size_t texelSize = 1);
+    Buffer(VulkanContext& context, size_t size, vk::BufferUsageFlags usage,
+           MemoryType memType, size_t texelSize = 1);
 
     ~Buffer();
 
@@ -47,8 +45,7 @@ private:
     void Destroy();
 
 private:
-    Device* pDevice;
-    MemoryAllocator& mAllocator;
+    VulkanContext& mContext;
 
     vk::BufferUsageFlags mUsageFlags;
     MemoryType mMemoryType;

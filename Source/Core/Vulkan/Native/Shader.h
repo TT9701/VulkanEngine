@@ -48,12 +48,12 @@ public:
     friend class ShaderProgram;
 
     // from spirv
-    Shader(VulkanContext* context, const char* name, const char* spirvPath,
+    Shader(VulkanContext& context, const char* name, const char* spirvPath,
            vk::ShaderStageFlagBits stage, const char* entry = "main",
            void* pNext = nullptr);
 
     // from glsl source code
-    Shader(VulkanContext* context, const char* name, const char* sourcePath,
+    Shader(VulkanContext& context, const char* name, const char* sourcePath,
            vk::ShaderStageFlagBits stage, bool hasIncludes,
            Type_ShaderMacros const& defines, const char* entry = "main",
            void* pNext = nullptr);
@@ -91,7 +91,7 @@ private:
     void GLSLReflect_OutVarName(Type_STLVector<Type_STLString> const& layouts);
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
     Type_STLString mName;
 
     Type_STLString mEntry;
@@ -153,7 +153,7 @@ private:
         void* pNext);
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
     Type_ShaderArray pShaders {nullptr};
 
     Type_CombinedPushContant mCombinedPushContants {};

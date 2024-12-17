@@ -1,7 +1,7 @@
 #include "Shader.h"
 
 #include "Core/Utilities/Defines.h"
-#include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>
@@ -171,19 +171,19 @@ Type_STLVector<uint32_t> CompileGLSLSource(
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Shader::Shader(VulkanContext* context, const char* name, const char* path,
+Shader::Shader(VulkanContext& context, const char* name, const char* path,
                vk::ShaderStageFlagBits stage, const char* entry, void* pNext)
-    : pContext(context), mName(name), mEntry(entry), mStage(stage) {
+    : mContext(context), mName(name), mEntry(entry), mStage(stage) {
     mSPIRVBinaryCode = LoadSPIRVCode(path);
     mShader = CreateShader(pNext);
     SPIRVReflect_DescSetLayouts();
     SPIRVReflect_PushContants();
 }
 
-Shader::Shader(VulkanContext* context, const char* name, const char* sourcePath,
+Shader::Shader(VulkanContext& context, const char* name, const char* sourcePath,
                vk::ShaderStageFlagBits stage, bool hasIncludes,
                Type_ShaderMacros const& defines, const char* entry, void* pNext)
-    : pContext(context), mName(name), mEntry(entry), mStage(stage) {
+    : mContext(context), mName(name), mEntry(entry), mStage(stage) {
     auto source = LoadShaderSource(sourcePath);
     GLSLReflect(source);
     mSPIRVBinaryCode = CompileGLSLSource("", source, stage, hasIncludes,
@@ -194,7 +194,7 @@ Shader::Shader(VulkanContext* context, const char* name, const char* sourcePath,
 }
 
 Shader::~Shader() {
-    pContext->GetDevice()->destroy(mShader);
+    mContext.GetDevice()->destroy(mShader);
 }
 
 vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
@@ -232,7 +232,7 @@ vk::ShaderModule Shader::CreateShader(void* pNext) const {
     vk::ShaderModuleCreateInfo createInfo {};
     createInfo.setCode(mSPIRVBinaryCode).setPNext(pNext);
 
-    return pContext->GetDevice()->createShaderModule(createInfo);
+    return mContext.GetDevice()->createShaderModule(createInfo);
 }
 
 void Shader::GLSLReflect(Type_STLString const& source) {
@@ -320,13 +320,13 @@ void Shader::GLSLReflect_OutVarName(
 }
 
 ShaderProgram::ShaderProgram(Shader* comp, void* layoutPNext)
-    : pContext(comp->pContext) {
+    : mContext(comp->mContext) {
     SetShader(ShaderStage::Compute, comp);
     GenerateProgram(layoutPNext);
 }
 
 ShaderProgram::ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext)
-    : pContext(vert->pContext) {
+    : mContext(vert->mContext) {
     SetShader(ShaderStage::Vertex, vert);
     SetShader(ShaderStage::Fragment, frag);
     GenerateProgram(layoutPNext);
@@ -334,7 +334,7 @@ ShaderProgram::ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext)
 
 ShaderProgram::ShaderProgram(Shader* task, Shader* mesh, Shader* frag,
                              void* layoutPNext)
-    : pContext(mesh->pContext) {
+    : mContext(mesh->mContext) {
     if (task)
         SetShader(ShaderStage::Task, task);
     SetShader(ShaderStage::Mesh, mesh);
@@ -507,7 +507,7 @@ void ShaderProgram::MergePushContantDatas() {
 void ShaderProgram::CreateDescLayouts(
     Type_STLVector<Shader::DescriptorSetLayoutData> const& datas, void* pNext) {
     auto descBufProps =
-        pContext->GetPhysicalDevice()
+        mContext.GetPhysicalDevice()
             .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
 
     auto CreateDescLayout =
@@ -515,10 +515,10 @@ void ShaderProgram::CreateDescLayouts(
             Type_STLVector<Type_STLString> const& bindingNames,
             Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings) {
             auto ptr = MakeShared<DescriptorSetLayout>(
-                pContext, bindingNames, bindings, descBufProps,
+                mContext, bindingNames, bindings, descBufProps,
                 pNext);
 
-            pContext->SetName(ptr->GetHandle(), name);
+            mContext.SetName(ptr->GetHandle(), name);
 
             mDescLayouts.push_back(ptr);
         };
@@ -579,7 +579,7 @@ Shader::SPIRVReflect_DescSetLayouts() {
                 descCount = 128;
                 // descCount = ::std::min(
                 //     MAX_BINDLESS_DESCRIPTOR_COUNT,
-                //     pContext->GetDescIndexingProps()
+                //     mContext->GetDescIndexingProps()
                 //         .maxDescriptorSetUpdateAfterBindSampledImages);
             }
         }

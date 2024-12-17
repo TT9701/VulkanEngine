@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -53,23 +53,24 @@ using DescriptorSetPool =
 /*
  * descriptor set pool min size : 16MB
  */
-DescriptorSetPool CreateDescSetPool(VulkanContext* context,
+DescriptorSetPool CreateDescSetPool(VulkanContext& context,
                                     size_t minPoolSize = 1ui64 << 24);
 
-SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(VulkanContext* context,
+SharedPtr<DescriptorSetPool> MakeDescSetPoolPtr(VulkanContext& context,
                                                 size_t minPoolSize = 1ui64
                                                                   << 24);
 
 class DescriptorSetAllocator {
 public:
-    DescriptorSetAllocator(VulkanContext* context, DescriptorSetPool* pool);
+    DescriptorSetAllocator(VulkanContext& context,
+                           size_t minPoolSize = 1ui64 << 24);
 
     PoolResource Allocate(size_t size);
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& pContext;
 
-    DescriptorSetPool* mPool;
+    SharedPtr<DescriptorSetPool> mPool;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

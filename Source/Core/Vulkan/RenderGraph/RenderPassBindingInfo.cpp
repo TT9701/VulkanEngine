@@ -172,7 +172,7 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
                 viewName = colorImage[1].c_str();
             }
             color.setImageView(
-                (*pResMgr)[imageName]->GetTexViewHandle(viewName));
+                (*pResMgr)[imageName].GetTexViewHandle(viewName));
         }
 
         colors.emplace_back(imageName, viewName, color);
@@ -199,8 +199,8 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
                     depthStencil.viewName = depthImage[1];
                 }
                 depthStencil.info.setImageView(
-                    (*pResMgr)[depthStencil.imageName.c_str()]
-                        ->GetTexViewHandle(depthStencil.viewName.c_str()));
+                    (*pResMgr)[depthStencil.imageName.c_str()].GetTexViewHandle(
+                        depthStencil.viewName.c_str()));
                 break;
             }
             case RenderPassBinding::Type::RenderInfo: {
@@ -268,7 +268,7 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
 
 void RenderPassBindingInfo_PSO::Update(
     const char* name, RenderPassBinding::BindlessDescBufInfo info) {
-    for (auto& [n,_] : mBindlessDescInfos) {
+    for (auto& [n, _] : mBindlessDescInfos) {
         if (isPrefix(name, n)) {
             ::std::get<RenderPassBinding::BindlessDescBufInfo>(
                 mBindlessDescInfos.at(n).value) = info;
@@ -317,17 +317,19 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
     ::std::string_view name) {
     Type_STLString pipelineName {name};
     if (!pipelineName.empty()) {
-        if (pPipelineMgr->GetComputePipelines().contains(pipelineName)) {
-            mBindPoint = vk::PipelineBindPoint::eCompute;
+        if (pPipelineMgr->GetPipelines().contains(pipelineName)) {
+            auto& pipeline = pPipelineMgr->GetPipeline(pipelineName.c_str());
+            if (pipeline.GetType() == PipelineType::Compute) {
+                mBindPoint = vk::PipelineBindPoint::eCompute;
+            } else if (pipeline.GetType() == PipelineType::Graphics) {
+                mBindPoint = vk::PipelineBindPoint::eGraphics;
+            }
             mDrawCallMgr.AddArgument_Pipeline(
                 mBindPoint,
-                pPipelineMgr->GetComputePipelineHandle(pipelineName.c_str()));
-        } else if (pPipelineMgr->GetGraphicsPipelines().contains(
-                       pipelineName)) {
-            mBindPoint = vk::PipelineBindPoint::eGraphics;
-            mDrawCallMgr.AddArgument_Pipeline(
-                mBindPoint,
-                pPipelineMgr->GetGraphicsPipelineHandle(pipelineName.c_str()));
+                pPipelineMgr->GetPipelineHandle(pipelineName.c_str()));
+        } else {
+            throw ::std::runtime_error(
+                (pipelineName + "Pipeline is not created!").c_str());
         }
     } else {
         throw ::std::runtime_error("pipeline name is empty!");
@@ -399,7 +401,7 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
     for (auto const& descLayout : descLayouts) {
         if (descLayout->GetData().bindings[0].descriptorCount > 1)
             continue;
-        auto ptr = MakeShared<DescriptorSet>(pContext, descLayout);
+        auto ptr = MakeShared<DescriptorSet>(*pContext, *descLayout);
         auto requestHandle = pDescSetPool->RequestUnit(descLayout->GetSize());
         ptr->SetRequestedHandle(std::move(requestHandle));
         mDescSets.push_back(ptr);
@@ -477,14 +479,14 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
                 + set->GetBingdingOffset(binding) + idxInBinding * size);
     };
 
-    auto resource = (*pResMgr)[resName];
-    auto resType = resource->GetType();
+    auto& resource = (*pResMgr)[resName];
+    auto resType = resource.GetType();
 
     if (resType == RenderResource::Type::Buffer) {
         // buffer
         vk::DescriptorAddressInfoEXT bufferInfo {};
-        bufferInfo.setAddress(resource->GetBufferDeviceAddress())
-            .setRange(resource->GetBufferSize());
+        bufferInfo.setAddress(resource.GetBufferDeviceAddress())
+            .setRange(resource.GetBufferSize());
         getDescriptor(set, descSize, binding, idxInBinding, descriptorType,
                       &bufferInfo, pNext);
     } else {
@@ -502,12 +504,13 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
         }
 
         vk::DescriptorImageInfo imageInfo {};
-        imageInfo.setImageView(resource->GetTexViewHandle())
+        imageInfo.setImageView(resource.GetTexViewHandle())
             .setImageLayout(imageLayout);
 
         // TODO: sampler setting
         if (sampled) {
-            imageInfo.setSampler(pContext->GetDefaultLinearSampler().GetHandle());
+            imageInfo.setSampler(
+                pContext->GetDefaultLinearSampler().GetHandle());
         }
 
         getDescriptor(set, descSize, binding, idxInBinding, descriptorType,
@@ -574,7 +577,7 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
                 barrierInfo.setImage(
                     pSwapchain->GetCurrentImage().GetTexHandle());
             } else {
-                barrierInfo.setImage((*pResMgr)[name.c_str()]->GetTexHandle());
+                barrierInfo.setImage((*pResMgr)[name.c_str()].GetTexHandle());
             }
 
             bNames.push_back(name);

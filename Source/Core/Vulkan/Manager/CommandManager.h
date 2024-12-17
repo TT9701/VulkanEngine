@@ -32,7 +32,7 @@ private:
 
 class CommandManager {
 public:
-    CommandManager(VulkanContext* ctx);
+    CommandManager(VulkanContext& ctx);
 
     ~CommandManager() = default;
 
@@ -41,11 +41,11 @@ public:
 public:
     QueueSubmitRequest Submit(vk::CommandBuffer cmd, vk::Queue queue,
                               ::std::span<SemSubmitInfo> waitInfos = {},
-                              ::std::span<SemSubmitInfo> signalInfos = {}, 
+                              ::std::span<SemSubmitInfo> signalInfos = {},
                               vk::Fence fence = VK_NULL_HANDLE);
 
 private:
-    VulkanContext* pContex;
+    VulkanContext& mContex;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

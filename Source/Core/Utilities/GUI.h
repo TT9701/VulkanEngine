@@ -6,8 +6,8 @@
 #include "imgui.h"
 
 #include <array>
-#include <vector>
 #include <functional>
+#include <vector>
 
 class SDLWindow;
 
@@ -18,7 +18,7 @@ class Swapchain;
 
 class GUI {
 public:
-    GUI(VulkanContext* context, Swapchain* swapchain, SDLWindow* window);
+    GUI(VulkanContext& context, Swapchain& swapchain, SDLWindow& window);
     ~GUI();
 
 public:
@@ -33,9 +33,9 @@ private:
     void CreateDescPool();
 
 private:
-    VulkanContext* pContext;
-    Swapchain* pSwapchain;
-    SDLWindow* pWindow;
+    VulkanContext& mContext;
+    Swapchain& mSwapchain;
+    SDLWindow& mWindow;
 
     ::std::array<vk::DescriptorPoolSize, 11> mPoolSizes;
     vk::DescriptorPool mDescPool;

@@ -8,7 +8,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 Application::Application(ApplicationSpecification const& spec)
     : mWindow(CreateSDLWindow(spec.Name.c_str(), spec.width, spec.height)),
-      mContext(CreateContext()),
+      mVulkanContext(CreateContext()),
       mSwapchain(CreateSwapchain()),
       mRenderResMgr(CreateRenderResourceManager()),
       mCmdMgr(CreateCommandManager()),
@@ -27,7 +27,7 @@ Application::Application(ApplicationSpecification const& spec)
 }
 
 Application::~Application() {
-    mContext->GetDevice()->waitIdle();
+    mVulkanContext->GetDevice()->waitIdle();
 }
 
 void Application::Run() {
@@ -53,7 +53,7 @@ void Application::Run() {
             EndFrame(frame);
         }
     }
-    mContext->GetDevice()->waitIdle();
+    mVulkanContext->GetDevice()->waitIdle();
 }
 
 void Application::RenderFrame(Core::RenderFrame& frame) {}
@@ -92,6 +92,8 @@ UniquePtr<VulkanContext> Application::CreateContext() {
     enabledDeivceExtensions.emplace_back(vk::EXTMemoryBudgetExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTMemoryPriorityExtensionName);
     enabledDeivceExtensions.emplace_back(vk::KHRBindMemory2ExtensionName);
+    // enabledDeivceExtensions.emplace_back(
+    //     vk::EXTDeviceGeneratedCommandsExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(
@@ -107,25 +109,25 @@ UniquePtr<VulkanContext> Application::CreateContext() {
 
 UniquePtr<Swapchain> Application::CreateSwapchain() {
     return MakeUnique<Swapchain>(
-        mContext.get(), vk::Format::eR8G8B8A8Unorm,
+        *mVulkanContext, vk::Format::eR8G8B8A8Unorm,
         vk::Extent2D {static_cast<uint32_t>(mWindow->GetWidth()),
                       static_cast<uint32_t>(mWindow->GetHeight())});
 }
 
-RenderResourceManager Application::CreateRenderResourceManager() {
-    return {&mContext->GetDevice(), mContext->GetVmaAllocator()};
+UniquePtr<RenderResourceManager> Application::CreateRenderResourceManager() {
+    return MakeUnique<RenderResourceManager>(*mVulkanContext);
 }
 
-CommandManager Application::CreateCommandManager() {
-    return {mContext.get()};
+UniquePtr<CommandManager> Application::CreateCommandManager() {
+    return MakeUnique<CommandManager>(*mVulkanContext);
 }
 
-PipelineManager Application::CreatePipelineManager() {
-    return {mContext.get()};
+UniquePtr<PipelineManager> Application::CreatePipelineManager() {
+    return MakeUnique<PipelineManager>(*mVulkanContext);
 }
 
-ShaderManager Application::CreateShaderManager() {
-    return {mContext.get()};
+UniquePtr<ShaderManager> Application::CreateShaderManager() {
+    return MakeUnique<ShaderManager>(*mVulkanContext);
 }
 
 void Application::CreatePipelines() {}
@@ -136,7 +138,7 @@ void Application::UpdateScene() {}
 
 void Application::Prepare() {
     for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
-        mFrames.emplace_back(mContext.get());
+        mFrames.emplace_back(*mVulkanContext);
     }
 }
 
@@ -145,13 +147,49 @@ void Application::BeginFrame(Core::RenderFrame& frame) {
 }
 
 void Application::EndFrame(Core::RenderFrame& frame) {
-    mSwapchain->Present(frame,
-                        mContext->GetQueue(QueueUsage::Present).GetHandle());
+    mSwapchain->Present(
+        frame, mVulkanContext->GetQueue(QueueUsage::Present).GetHandle());
     ++mFrameNum;
+}
+
+SDLWindow& Application::GetSDLWindow() const {
+    return *mWindow;
+}
+
+VulkanContext& Application::GetVulkanContext() const {
+    return *mVulkanContext;
+}
+
+Swapchain& Application::GetSwapchain() const {
+    return *mSwapchain;
+}
+
+RenderResourceManager& Application::GetRenderResMgr() const {
+    return *mRenderResMgr;
+}
+
+CommandManager& Application::GetCmdMgr() const {
+    return *mCmdMgr;
+}
+
+PipelineManager& Application::GetPipelineMgr() const {
+    return *mPipelineMgr;
+}
+
+ShaderManager& Application::GetShaderMgr() const {
+    return *mShaderMgr;
 }
 
 RenderFrame& Application::GetCurFrame() {
     return mFrames[mFrameNum % FRAME_OVERLAP];
+}
+
+Type_STLVector<Core::RenderFrame> const& Application::GetFrames() const {
+    return mFrames;
+}
+
+Type_STLVector<Core::RenderFrame>& Application::GetFrames() {
+    return mFrames;
 }
 
 void Application::PollEvents(SDL_Event* e, float deltaTime) {}

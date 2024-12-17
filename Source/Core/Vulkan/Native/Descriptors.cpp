@@ -1,21 +1,22 @@
 #include "Descriptors.h"
 
 #include "Core/Utilities/Defines.h"
-#include "Core/Vulkan/Manager/Context.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 #include "Core/Vulkan/RenderGraph/RenderPassBindingInfo.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-DescriptorSet::DescriptorSet(VulkanContext* context, DescriptorSetLayout* setLayout)
-    : pSetLayout(setLayout) {
-    const auto& bindings = setLayout->GetBindings();
+DescriptorSet::DescriptorSet(VulkanContext& context,
+                             DescriptorSetLayout& setLayout)
+    : mSetLayout(setLayout) {
+    const auto& bindings = setLayout.GetBindings();
     auto bindingCount = bindings.size();
 
     mBindingOffsets.resize(bindingCount);
     for (uint32_t i = 0; i < bindingCount; ++i) {
         mBindingOffsets[i] =
-            context->GetDevice()->getDescriptorSetLayoutBindingOffsetEXT(
-                setLayout->GetHandle(), i);
+            context.GetDevice()->getDescriptorSetLayoutBindingOffsetEXT(
+                setLayout.GetHandle(), i);
     }
 }
 
@@ -37,26 +38,26 @@ PoolResource DescriptorSet::GetPoolResource() const {
 }
 
 DescriptorSetLayout::DescriptorSetLayout(
-    VulkanContext* context, Type_STLVector<Type_STLString> const& bindingNames,
+    VulkanContext& context, Type_STLVector<Type_STLString> const& bindingNames,
     Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
     vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
     const void* pNext)
-    : pContext(context), mData {bindingNames, bindings, 0} {
+    : mContext(context), mData {bindingNames, bindings, 0} {
     vk::DescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo
         .setFlags(vk::DescriptorSetLayoutCreateFlagBits::eDescriptorBufferEXT)
         .setBindings(bindings)
         .setPNext(pNext);
 
-    mHandle = pContext->GetDevice()->createDescriptorSetLayout(layoutInfo);
+    mHandle = mContext.GetDevice()->createDescriptorSetLayout(layoutInfo);
 
     mData.size = Utils::AlignedSize(
-        pContext->GetDevice()->getDescriptorSetLayoutSizeEXT(mHandle),
+        mContext.GetDevice()->getDescriptorSetLayoutSizeEXT(mHandle),
         props.descriptorBufferOffsetAlignment);
 }
 
 DescriptorSetLayout::~DescriptorSetLayout() {
-    pContext->GetDevice()->destroy(mHandle);
+    mContext.GetDevice()->destroy(mHandle);
 }
 
 vk::DescriptorSetLayout DescriptorSetLayout::GetHandle() const {
@@ -78,10 +79,10 @@ DescriptorSetLayout::Data const& DescriptorSetLayout::GetData() const {
 
 size_t DescriptorSetLayout::GetDescriptorSize(vk::DescriptorType type) const {
     auto prop =
-        pContext->GetPhysicalDevice()
+        mContext.GetPhysicalDevice()
             .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
 
-    // pContext->GetPhysicalDevice().GetHandle().getProperties2(&deviceProp);
+    // mContext->GetPhysicalDevice().GetHandle().getProperties2(&deviceProp);
     size_t descSize {0};
     switch (type) {
         case vk::DescriptorType::eSampler:
@@ -133,15 +134,16 @@ size_t DescriptorSetLayout::GetDescriptorSize(vk::DescriptorType type) const {
 }
 
 BindlessDescPool::BindlessDescPool(
-    VulkanContext* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+    VulkanContext& context,
+    Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
     vk::DescriptorType type)
-    : pContext(context), mPSOs(pso), mDescType(type) {
+    : mContext(context), mPSOs(pso), mDescType(type) {
     auto descBufProps =
-        pContext->GetPhysicalDevice()
+        mContext.GetPhysicalDevice()
             .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
 
     auto descIndexingProps =
-        pContext->GetPhysicalDevice()
+        mContext.GetPhysicalDevice()
             .GetProperties<vk::PhysicalDeviceDescriptorIndexingProperties>();
 
     mDescCount = ::std::min(
@@ -149,7 +151,7 @@ BindlessDescPool::BindlessDescPool(
         descIndexingProps.maxPerStageDescriptorUpdateAfterBindSampledImages);
 
     mLayout = MakeShared<DescriptorSetLayout>(
-        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
+        mContext, Type_STLVector<Type_STLString> {"sceneTexs"},
         Type_STLVector<vk::DescriptorSetLayoutBinding> {
             vk::DescriptorSetLayoutBinding {
                 0,
@@ -160,9 +162,9 @@ BindlessDescPool::BindlessDescPool(
         descBufProps, nullptr);
 
     mDescSize = mLayout->GetDescriptorSize(mDescType);
-    mDescSetPool = MakeDescSetPoolPtr(pContext, mDescSize * mDescCount);
+    mDescSetPool = MakeDescSetPoolPtr(mContext, mDescSize * mDescCount);
 
-    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
+    mSet = MakeShared<DescriptorSet>(mContext, *mLayout);
     auto requestHandle = mDescSetPool->RequestUnit(mLayout->GetSize());
     mSet->SetRequestedHandle(std::move(requestHandle));
 }
@@ -190,13 +192,13 @@ uint32_t BindlessDescPool::Add(Texture const* texture) {
 
     vk::DescriptorImageInfo imageInfo {};
     imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-        .setSampler(pContext->GetDefaultNearestSampler().GetHandle());
+        .setSampler(mContext.GetDefaultNearestSampler().GetHandle());
 
     imageInfo.setImageView(texture->GetViewHandle());
     vk::DescriptorGetInfoEXT descInfo {};
     descInfo.setType(mDescType).setData(&imageInfo).setPNext(nullptr);
 
-    pContext->GetDevice()->getDescriptorEXT(
+    mContext.GetDevice()->getDescriptorEXT(
         descInfo, mDescSize,
         (char*)resource.hostAddr + resource.offset + mSet->GetBingdingOffset(0)
             + idx * mDescSize);
@@ -231,12 +233,12 @@ void BindlessDescPool::ExpandSet() {
     auto origSize = mLayout->GetSize();
 
     auto descBufProps =
-        pContext->GetPhysicalDevice()
+        mContext.GetPhysicalDevice()
             .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
 
     mLayout.reset();
     mLayout = MakeShared<DescriptorSetLayout>(
-        pContext, Type_STLVector<Type_STLString> {"sceneTexs"},
+        mContext, Type_STLVector<Type_STLString> {"sceneTexs"},
         Type_STLVector<vk::DescriptorSetLayoutBinding> {
             vk::DescriptorSetLayoutBinding {
                 0,
@@ -251,7 +253,7 @@ void BindlessDescPool::ExpandSet() {
     memcpy(resource.hostAddr, mSet->GetPoolResource().hostAddr, origSize);
 
     mSet.reset();
-    mSet = MakeShared<DescriptorSet>(pContext, mLayout.get());
+    mSet = MakeShared<DescriptorSet>(mContext, *mLayout);
     mSet->SetRequestedHandle(std::move(requestHandle));
 
     for (auto& pso : mPSOs) {

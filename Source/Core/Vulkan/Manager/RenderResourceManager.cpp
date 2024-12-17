@@ -1,6 +1,6 @@
 #include "RenderResourceManager.h"
 
-#include "Core/Vulkan/Native/Device.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -9,61 +9,59 @@ RenderResourceManager::Fn_SizeRelation RenderResourceManager::sFullSize {
         return extent;
     }};
 
-RenderResourceManager::RenderResourceManager(Device* device,
-                                             MemoryAllocator& allocator)
-    : pDevice(device), mAllocator(allocator) {}
+RenderResourceManager::RenderResourceManager(VulkanContext& context)
+    : mContext(context) {}
 
-RenderResource* RenderResourceManager::CreateBuffer(const char* name,
+RenderResource& RenderResourceManager::CreateBuffer(const char* name,
                                                     size_t size,
                                                     vk::BufferUsageFlags usage,
                                                     Buffer::MemoryType memType,
                                                     size_t texelSize) {
-    auto ptr = MakeShared<RenderResource>(pDevice, mAllocator,
-                                          RenderResource::Type::Buffer, size,
-                                          usage, memType, texelSize);
+    auto ptr =
+        MakeShared<RenderResource>(mContext, RenderResource::Type::Buffer, size,
+                                   usage, memType, texelSize);
 
     ptr->SetName(name);
 
     mResources.emplace(name, ptr);
 
-    return ptr.get();
+    return *ptr;
 }
 
-RenderResource* RenderResourceManager::CreateTexture(
+RenderResource& RenderResourceManager::CreateTexture(
     const char* name, RenderResource::Type type, vk::Format format,
     vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
     uint32_t arraySize, uint32_t sampleCount) {
-    auto ptr =
-        MakeShared<RenderResource>(pDevice, mAllocator, type, format, extent,
-                                   usage, mipLevels, arraySize, sampleCount);
+    auto ptr = MakeShared<RenderResource>(mContext, type, format, extent, usage,
+                                          mipLevels, arraySize, sampleCount);
 
     ptr->SetName(name);
 
     mResources.emplace(name, ptr);
 
-    return ptr.get();
+    return *ptr;
 }
 
-RenderResource* RenderResourceManager::CreateBuffer_ScreenSizeRelated(
+RenderResource& RenderResourceManager::CreateBuffer_ScreenSizeRelated(
     const char* name, size_t size, vk::BufferUsageFlags usage,
     Buffer::MemoryType memType, size_t texelSize, Fn_SizeRelation fn) {
-    auto ptr = CreateBuffer(name, size, usage, memType, texelSize);
+    auto& ref = CreateBuffer(name, size, usage, memType, texelSize);
     mScreenSizeRalatedResources.emplace(name, fn);
-    return ptr;
+    return ref;
 }
 
-RenderResource* RenderResourceManager::CreateTexture_ScreenSizeRelated(
+RenderResource& RenderResourceManager::CreateTexture_ScreenSizeRelated(
     const char* name, RenderResource::Type type, vk::Format format,
     vk::Extent3D extent, vk::ImageUsageFlags usage, uint32_t mipLevels,
     uint32_t arraySize, uint32_t sampleCount, Fn_SizeRelation fn) {
-    auto ptr = CreateTexture(name, type, format, extent, usage, mipLevels,
+    auto& ref = CreateTexture(name, type, format, extent, usage, mipLevels,
                              arraySize, sampleCount);
     mScreenSizeRalatedResources.emplace(name, fn);
-    return ptr;
+    return ref;
 }
 
-RenderResource* RenderResourceManager::operator[](const char* name) const {
-    return mResources.at(name).get();
+RenderResource const& RenderResourceManager::operator[](const char* name) const {
+    return *mResources.at(name);
 }
 
 void RenderResourceManager::ResizeResources_ScreenSizeRelated(

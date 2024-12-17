@@ -1,4 +1,4 @@
-#include "Context.h"
+#include "VulkanContext.h"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAVulkan.h"
@@ -52,33 +52,33 @@ SharedPtr<Texture> VulkanContext::CreateTexture2D(
     const char* name, vk::Extent3D extent, vk::Format format,
     vk::ImageUsageFlags usage, uint32_t mipLevels, uint32_t arraySize,
     uint32_t sampleCount) {
-    auto ptr = MakeShared<Texture>(mDevice.get(), mAllocator.get(),
-                                   Texture::Type::Texture2D, format, extent,
-                                   usage, mipLevels, arraySize, sampleCount);
+    auto ptr =
+        MakeShared<Texture>(*this, Texture::Type::Texture2D, format, extent,
+                            usage, mipLevels, arraySize, sampleCount);
     ptr->SetName(name);
     return ptr;
 }
 
 SharedPtr<RenderResource> VulkanContext::CreateDeviceLocalBufferResource(
     const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
-    auto ptr = MakeShared<RenderResource>(
-        mDevice.get(), *mAllocator, RenderResource::Type::Buffer, allocByteSize,
-        usage, Buffer::MemoryType::DeviceLocal);
+    auto ptr = MakeShared<RenderResource>(*this, RenderResource::Type::Buffer,
+                                          allocByteSize, usage,
+                                          Buffer::MemoryType::DeviceLocal);
     ptr->SetName(name);
     return ptr;
 }
 
 SharedPtr<Buffer> VulkanContext::CreateDeviceLocalBuffer(
     const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
-    auto ptr = MakeShared<Buffer>(mDevice.get(), *mAllocator, allocByteSize,
-                                  usage, Buffer::MemoryType::DeviceLocal);
+    auto ptr = MakeShared<Buffer>(*this, allocByteSize, usage,
+                                  Buffer::MemoryType::DeviceLocal);
     ptr->SetName(name);
     return ptr;
 }
 
 SharedPtr<Buffer> VulkanContext::CreateStagingBuffer(
     const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
-    auto ptr = MakeShared<Buffer>(mDevice.get(), *mAllocator, allocByteSize,
+    auto ptr = MakeShared<Buffer>(*this, allocByteSize,
                                   usage | vk::BufferUsageFlagBits::eTransferSrc,
                                   Buffer::MemoryType::Staging);
     ptr->SetName(name);
@@ -183,7 +183,8 @@ Sampler& VulkanContext::GetDefaultLinearSampler() const {
     return *mDefaultSamplerLinear;
 }
 
-Queue const& VulkanContext::GetQueue(QueueUsage usage, bool highPriority) const {
+Queue const& VulkanContext::GetQueue(QueueUsage usage,
+                                     bool highPriority) const {
     switch (usage) {
         case QueueUsage::Compute_Runtime:
             return mDevice->GetQueue(
@@ -256,7 +257,7 @@ UniquePtr<MemoryAllocator> VulkanContext::CreateVmaAllocator() {
 }
 
 UniquePtr<TimelineSemaphore> VulkanContext::CreateTimelineSem() {
-    return MakeUnique<TimelineSemaphore>(this);
+    return MakeUnique<TimelineSemaphore>(*this);
 }
 
 #ifdef CUDA_VULKAN_INTEROP
@@ -359,6 +360,10 @@ void VulkanContext::EnableFeatures() {
     REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
                              vk::PhysicalDevice8BitStorageFeatures,
                              storageBuffer8BitAccess);
+
+    // REQUEST_REQUIRED_FEATURE(
+    //     mPhysicalDevice, vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT,
+    //     deviceGeneratedCommands);
 }
 
 VulkanContext::CmdToBegin VulkanContext::CreateCmdBufToBegin(

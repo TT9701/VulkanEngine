@@ -19,7 +19,7 @@ class DescriptorSet {
             PoolResource_DescriptorSet>::HandleRequest;
 
 public:
-    DescriptorSet(VulkanContext* context, DescriptorSetLayout* setLayout);
+    DescriptorSet(VulkanContext& context, DescriptorSetLayout& setLayout);
 
     uint32_t GetBindingCount() const;
     vk::DeviceSize GetBingdingOffset(uint32_t binding) const;
@@ -28,7 +28,7 @@ public:
     PoolResource GetPoolResource() const;
 
 private:
-    DescriptorSetLayout* pSetLayout;
+    DescriptorSetLayout& mSetLayout;
 
     Type_STLVector<vk::DeviceSize> mBindingOffsets {};
 
@@ -44,7 +44,8 @@ public:
     };
 
     DescriptorSetLayout(
-        VulkanContext* context, Type_STLVector<Type_STLString> const& bindingNames,
+        VulkanContext& context,
+        Type_STLVector<Type_STLString> const& bindingNames,
         Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings,
         vk::PhysicalDeviceDescriptorBufferPropertiesEXT const& props,
         const void* pNext);
@@ -57,7 +58,7 @@ public:
     size_t GetDescriptorSize(vk::DescriptorType type) const;
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
 
     Data mData;
 
@@ -69,7 +70,8 @@ class RenderPassBindingInfo_PSO;
 class BindlessDescPool {
 public:
     BindlessDescPool(
-        VulkanContext* context, Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
+        VulkanContext& context,
+        Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
         vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
 
     PoolResource GetPoolResource() const;
@@ -84,7 +86,7 @@ private:
     void ExpandSet();
 
 private:
-    VulkanContext* pContext;
+    VulkanContext& mContext;
     Type_STLVector<RenderPassBindingInfo_PSO*> mPSOs;
 
     vk::DescriptorType mDescType;
