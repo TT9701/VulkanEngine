@@ -31,12 +31,11 @@ namespace IntelliDesign_NS::Vulkan::Core {
 enum class QueueUsage {
     Present,
     Graphics,
-    Compute_Prepare,
-    Compute_Runtime,
-    Transfer_Prepare,
-    Transfer_Runtime_Upload,
-    Transfer_Runtime_Readback,
-    Transfer_Runtime_DeviceInternal
+    Compute,
+    Async_Compute,
+    Transfer,
+    Async_Transfer_Upload,
+    Async_Transfer_Readback
 };
 
 /**

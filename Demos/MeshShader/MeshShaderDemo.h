@@ -57,7 +57,6 @@ private:
     void RecordDrawQuadCmds();
     void RecordMeshShaderDrawCmds();
 
-    void RecordShadowDrawCmds();
     void RecordRuntimeCopyCmds();
 
     void UpdateSceneUBO();
@@ -65,8 +64,6 @@ private:
     void PrepareUIContext();
 
 private:
-    IDNS_VC::RenderPassBindingInfo_PSO CreateBindingInfo_PSO(
-        bool swapchain = false);
     IDNS_VC::RenderPassBindingInfo_Barrier CreateBindingInfo_Barrier(
         bool swapchain = false);
     IDNS_VC::RenderPassBindingInfo_Copy CreateBindingInfo_Copy();
@@ -74,24 +71,19 @@ private:
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
+    IDNS_VC::RenderGraph mRenderGraph;
+
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mBackgroundPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mBackgroundPass_Barrier;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mMeshDrawPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mMeshDrawPass_Barrier;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mMeshShaderPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier_Pre;
     IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier_Post;
 
-    IDNS_VC::RenderPassBindingInfo_PSO mQuadDrawPass_PSO;
     IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Pre;
     IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Post;
-
-    IDNS_VC::RenderPassBindingInfo_PSO mShadowPass_PSO;
-    IDNS_VC::RenderPassBindingInfo_Barrier mShadowPass_Barrier;
 
     IDNS_VC::RenderPassBindingInfo_Copy mRuntimeCopy;
     IDNS_VC::RenderPassBindingInfo_Barrier mRuntimeCopy_Barrier_Pre;

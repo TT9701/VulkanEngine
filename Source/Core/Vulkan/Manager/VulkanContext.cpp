@@ -186,22 +186,21 @@ Sampler& VulkanContext::GetDefaultLinearSampler() const {
 Queue const& VulkanContext::GetQueue(QueueUsage usage,
                                      bool highPriority) const {
     switch (usage) {
-        case QueueUsage::Compute_Runtime:
+        case QueueUsage::Async_Compute:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eCompute), 0);
-        case QueueUsage::Transfer_Runtime_Upload:
+        case QueueUsage::Async_Transfer_Upload:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer), 0);
-        case QueueUsage::Transfer_Runtime_Readback:
+        case QueueUsage::Async_Transfer_Readback:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer), 1);
-        case QueueUsage::Transfer_Runtime_DeviceInternal:
+        case QueueUsage::Transfer:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics), 2);
         case QueueUsage::Present:
         case QueueUsage::Graphics:
-        case QueueUsage::Compute_Prepare:
-        case QueueUsage::Transfer_Prepare:
+        case QueueUsage::Compute:
         default:
             if (mPhysicalDevice.HasHighPriorityGraphicsQueue()) {
                 if (highPriority) {

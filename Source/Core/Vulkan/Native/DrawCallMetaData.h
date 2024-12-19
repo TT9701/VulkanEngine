@@ -45,7 +45,7 @@ struct RenderingAttachmentInfo {
 class RenderResourceManager;
 
 struct IDrawCallMetaData {
-    virtual void UpdateRenderResource(RenderResourceManager* manager,
+    virtual void UpdateRenderResource(RenderResourceManager& manager,
                                       Type_STLString name) {}
 
     virtual void RecordCmds(vk::CommandBuffer cmd) const = 0;
@@ -62,7 +62,7 @@ struct DrawCallMetaData<DrawCallMetaDataType::ClearColorImage>
     vk::ClearColorValue clearValue;
     Type_STLVector<vk::ImageSubresourceRange> ranges;
 
-    void UpdateRenderResource(RenderResourceManager* manager,
+    void UpdateRenderResource(RenderResourceManager& manager,
                               Type_STLString name) override;
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

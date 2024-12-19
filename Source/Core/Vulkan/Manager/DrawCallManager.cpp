@@ -5,14 +5,17 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-DrawCallManager::DrawCallManager(RenderResourceManager* manager, Swapchain* sc)
-    : pRenderResManager(manager), pSwapchain(sc) {}
+DrawCallManager::DrawCallManager(RenderResourceManager& manager)
+    : mRenderResManager(manager), pSwapchain(nullptr) {}
+
+DrawCallManager::DrawCallManager(RenderResourceManager& manager, Swapchain& sc)
+    : mRenderResManager(manager), pSwapchain(&sc) {}
 
 void DrawCallManager::AddArgument_ClearColorImage(
     const char* imageName, vk::ImageLayout layout,
     vk::ClearColorValue const& clearValue,
     Type_STLVector<vk::ImageSubresourceRange> const& ranges) {
-    auto image = (*pRenderResManager)[imageName].GetTexHandle();
+    auto image = mRenderResManager[imageName].GetTexHandle();
 
     DrawCallMetaData<DrawCallMetaDataType::ClearColorImage> metaData;
     metaData.image = image;
@@ -28,7 +31,7 @@ void DrawCallManager::AddArgument_ClearDepthStencilImage(
     const char* imageName, vk::ImageLayout layout,
     vk::ClearDepthStencilValue const& clearValue,
     Type_STLVector<vk::ImageSubresourceRange> const& ranges) {
-    auto image = (*pRenderResManager)[imageName].GetTexHandle();
+    auto image = mRenderResManager[imageName].GetTexHandle();
 
     DrawCallMetaData<DrawCallMetaDataType::ClearDepthStencilImage> metaData;
     metaData.image = image;
@@ -119,7 +122,7 @@ void DrawCallManager::AddArgument_RenderingInfo(
         colors[count] = attachment.info;
         if (attachment.imageName != Type_STLString {"_Swapchain_"})
             colors[count].imageView =
-                (*pRenderResManager)[attachment.imageName.c_str()]
+                mRenderResManager[attachment.imageName.c_str()]
                     .GetTexViewHandle(attachment.viewName.c_str());
 
         Type_STLString mappingName {attachment.imageName};
@@ -133,7 +136,7 @@ void DrawCallManager::AddArgument_RenderingInfo(
     if (bHasDepth) {
         metaData.depthStencilAttachment = depthStencilAttachment.info;
         metaData.depthStencilAttachment.value().imageView =
-            (*pRenderResManager)[depthStencilAttachment.imageName.c_str()]
+            mRenderResManager[depthStencilAttachment.imageName.c_str()]
                 .GetTexViewHandle(depthStencilAttachment.viewName.c_str());
         Type_STLString mappingName {depthStencilAttachment.imageName};
         mappingName.append("@").append(depthStencilAttachment.viewName);
@@ -338,8 +341,8 @@ void DrawCallManager::AddArgument_CopyBufferToBuffer(
     metaData.info.emplace<vk::CopyBufferInfo2>();
 
     auto& info = ::std::get<vk::CopyBufferInfo2>(metaData.info);
-    info.setSrcBuffer((*pRenderResManager)[src].GetBufferHandle())
-        .setDstBuffer((*pRenderResManager)[dst].GetBufferHandle())
+    info.setSrcBuffer(mRenderResManager[src].GetBufferHandle())
+        .setDstBuffer(mRenderResManager[dst].GetBufferHandle())
         .setRegionCount(1)
         .setPRegions(region);
 }
@@ -352,8 +355,8 @@ void DrawCallManager::AddArgument_CopyBufferToImage(
     metaData.info.emplace<vk::CopyBufferToImageInfo2>();
 
     auto& info = ::std::get<vk::CopyBufferToImageInfo2>(metaData.info);
-    info.setSrcBuffer((*pRenderResManager)[src].GetBufferHandle())
-        .setDstImage((*pRenderResManager)[dst].GetTexHandle())
+    info.setSrcBuffer(mRenderResManager[src].GetBufferHandle())
+        .setDstImage(mRenderResManager[dst].GetTexHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegionCount(1)
         .setPRegions(region);
@@ -367,9 +370,9 @@ void DrawCallManager::AddArgument_CopyImageToBuffer(
     metaData.info.emplace<vk::CopyImageToBufferInfo2>();
 
     auto& info = ::std::get<vk::CopyImageToBufferInfo2>(metaData.info);
-    info.setSrcImage((*pRenderResManager)[src].GetTexHandle())
+    info.setSrcImage(mRenderResManager[src].GetTexHandle())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setDstBuffer((*pRenderResManager)[dst].GetBufferHandle())
+        .setDstBuffer(mRenderResManager[dst].GetBufferHandle())
         .setRegionCount(1)
         .setPRegions(region);
 }
@@ -382,9 +385,9 @@ void DrawCallManager::AddArgument_CopyImageToImage(
     metaData.info.emplace<vk::CopyImageToBufferInfo2>();
 
     auto& info = ::std::get<vk::CopyImageInfo2>(metaData.info);
-    info.setSrcImage((*pRenderResManager)[src].GetTexHandle())
+    info.setSrcImage(mRenderResManager[src].GetTexHandle())
         .setSrcImageLayout(vk::ImageLayout::eTransferSrcOptimal)
-        .setDstImage((*pRenderResManager)[dst].GetTexHandle())
+        .setDstImage(mRenderResManager[dst].GetTexHandle())
         .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
         .setRegionCount(1)
         .setPRegions(region);
@@ -527,7 +530,7 @@ void DrawCallManager::UpdateArgument_Attachments(
         auto index = mRenderingInfo->mapping.at(name);
         if (index == -1) {
             mRenderingInfo->depthStencilAttachment->imageView =
-                (*pRenderResManager)[imageName.c_str()].GetTexViewHandle(
+                mRenderResManager[imageName.c_str()].GetTexViewHandle(
                     viewName.c_str());
         } else {
             if (imageName == "_Swapchain_") {
@@ -536,7 +539,7 @@ void DrawCallManager::UpdateArgument_Attachments(
                         pSwapchain->GetCurrentImageIndex());
             } else {
                 mRenderingInfo->colorAttachments[index].imageView =
-                    (*pRenderResManager)[imageName.c_str()].GetTexViewHandle(
+                    mRenderResManager[imageName.c_str()].GetTexViewHandle(
                         viewName.c_str());
             }
         }
@@ -597,11 +600,11 @@ void DrawCallManager::UpdateArgument_Barriers(
                 (*pib)->setImage(pSwapchain->GetCurrentImage().GetTexHandle());
             } else {
                 (*pib)->setImage(
-                    (*pRenderResManager)[name.c_str()].GetTexHandle());
+                    mRenderResManager[name.c_str()].GetTexHandle());
             }
         } else if (auto pbb = ::std::get_if<vk::BufferMemoryBarrier2*>(&var)) {
             (*pbb)->setBuffer(
-                (*pRenderResManager)[name.c_str()].GetBufferHandle());
+                mRenderResManager[name.c_str()].GetBufferHandle());
         } else {
             throw ::std::runtime_error(
                 "resource is not needed for vk::MemoryBarrier2");
@@ -613,16 +616,16 @@ void DrawCallManager::UpdateArgument_CopySrc(const char* name, uint32_t index) {
     auto metaData = FindMetaDataPtr<DrawCallMetaDataType::Copy>(index);
 
     if (auto b2bInfo = ::std::get_if<vk::CopyBufferInfo2>(&metaData->info)) {
-        b2bInfo->setSrcBuffer((*pRenderResManager)[name].GetBufferHandle());
+        b2bInfo->setSrcBuffer(mRenderResManager[name].GetBufferHandle());
     } else if (auto b2iInfo =
                    ::std::get_if<vk::CopyBufferToImageInfo2>(&metaData->info)) {
-        b2iInfo->setSrcBuffer((*pRenderResManager)[name].GetBufferHandle());
+        b2iInfo->setSrcBuffer(mRenderResManager[name].GetBufferHandle());
     } else if (auto i2iInfo =
                    ::std::get_if<vk::CopyImageInfo2>(&metaData->info)) {
-        i2iInfo->setSrcImage((*pRenderResManager)[name].GetTexHandle());
+        i2iInfo->setSrcImage(mRenderResManager[name].GetTexHandle());
     } else if (auto i2bInfo =
                    ::std::get_if<vk::CopyImageToBufferInfo2>(&metaData->info)) {
-        i2bInfo->setSrcImage((*pRenderResManager)[name].GetTexHandle());
+        i2bInfo->setSrcImage(mRenderResManager[name].GetTexHandle());
     }
 }
 
@@ -630,16 +633,16 @@ void DrawCallManager::UpdateArgument_CopyDst(const char* name, uint32_t index) {
     auto metaData = FindMetaDataPtr<DrawCallMetaDataType::Copy>(index);
 
     if (auto b2bInfo = ::std::get_if<vk::CopyBufferInfo2>(&metaData->info)) {
-        b2bInfo->setDstBuffer((*pRenderResManager)[name].GetBufferHandle());
+        b2bInfo->setDstBuffer(mRenderResManager[name].GetBufferHandle());
     } else if (auto b2iInfo =
                    ::std::get_if<vk::CopyBufferToImageInfo2>(&metaData->info)) {
-        b2iInfo->setDstImage((*pRenderResManager)[name].GetTexHandle());
+        b2iInfo->setDstImage(mRenderResManager[name].GetTexHandle());
     } else if (auto i2iInfo =
                    ::std::get_if<vk::CopyImageInfo2>(&metaData->info)) {
-        i2iInfo->setDstImage((*pRenderResManager)[name].GetTexHandle());
+        i2iInfo->setDstImage(mRenderResManager[name].GetTexHandle());
     } else if (auto i2bInfo =
                    ::std::get_if<vk::CopyImageToBufferInfo2>(&metaData->info)) {
-        i2bInfo->setDstBuffer((*pRenderResManager)[name].GetBufferHandle());
+        i2bInfo->setDstBuffer(mRenderResManager[name].GetBufferHandle());
     }
 }
 
@@ -660,7 +663,7 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
     Type_STLVector<Type_STLString> attachmentResourceNames {};
 
     for (auto const& name :
-         pRenderResManager->GetResourceNames_SrcreenSizeRelated()) {
+         mRenderResManager.GetResourceNames_SrcreenSizeRelated()) {
         if (mBarriers && mBarriers->mapping.contains(name)) {
             beforePassBarrierResourceNames.push_back(name);
         }
@@ -686,7 +689,7 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
         if (mResourceMetaDataMapping.contains(name)) {
             auto& indices = mResourceMetaDataMapping.at(name);
             for (auto index : indices) {
-                mMetaDatas[index]->UpdateRenderResource(pRenderResManager,
+                mMetaDatas[index]->UpdateRenderResource(mRenderResManager,
                                                         name);
             }
         }

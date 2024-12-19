@@ -7,20 +7,16 @@ using namespace IDNS_VC;
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescSetPool(GetVulkanContext())),
+      mRenderGraph(GetVulkanContext(), GetRenderResMgr(), GetPipelineMgr(),
+                   mDescSetPool, GetSwapchain()),
       mPrepassCopy(CreateBindingInfo_Copy()),
-      mBackgroundPass_PSO {CreateBindingInfo_PSO()},
       mBackgroundPass_Barrier(CreateBindingInfo_Barrier()),
-      mMeshDrawPass_PSO {CreateBindingInfo_PSO()},
       mMeshDrawPass_Barrier(CreateBindingInfo_Barrier()),
-      mMeshShaderPass_PSO {CreateBindingInfo_PSO()},
       mMeshShaderPass_Barrier_Pre(CreateBindingInfo_Barrier()),
       mMeshShaderPass_Barrier_Post(CreateBindingInfo_Barrier()),
-      mQuadDrawPass_PSO {CreateBindingInfo_PSO(true)},
       mQuadDrawPass_Barrier_Pre(CreateBindingInfo_Barrier(true)),
       mQuadDrawPass_Barrier_Post(CreateBindingInfo_Barrier(true)),
-      mShadowPass_PSO {CreateBindingInfo_PSO()},
-      mShadowPass_Barrier(CreateBindingInfo_Barrier()),
-      mRuntimeCopy {&GetRenderResMgr()},
+      mRuntimeCopy {CreateBindingInfo_Copy()},
       mRuntimeCopy_Barrier_Pre(CreateBindingInfo_Barrier()),
       mRuntimeCopy_Barrier_Post(CreateBindingInfo_Barrier()),
       mCopySem(GetVulkanContext()),
@@ -100,17 +96,23 @@ void MeshShaderDemo::Update_OnResize() {
 
     auto resNames = renderResMgr.GetResourceNames_SrcreenSizeRelated();
 
-    mBackgroundPass_PSO.Update(resNames);
+    auto& backgroundPass = mRenderGraph.FindRenderPass("Background");
+    backgroundPass.Update(resNames);
+
     mBackgroundPass_Barrier.Update(resNames);
 
-    // mMeshDrawPass_PSO.OnResize(extent);
+    // auto& drawMeshPass = mRenderGraph.FindRenderPass("DrawMesh");
+    // drawMeshPass.OnResize(extent);
+
     // mMeshDrawPass_Barrier.OnResize(extent);
 
-    mMeshShaderPass_PSO.OnResize(extent);
+    auto& meshShaderPass = mRenderGraph.FindRenderPass("MeshShader");
+    meshShaderPass.OnResize(extent);
     mMeshShaderPass_Barrier_Pre.Update(resNames);
 
+    auto& drawQuadPass = mRenderGraph.FindRenderPass("DrawQuad");
+    drawQuadPass.OnResize(extent);
     mQuadDrawPass_Barrier_Pre.Update(resNames);
-    mQuadDrawPass_PSO.OnResize(extent);
     mQuadDrawPass_Barrier_Post.Update(resNames);
 }
 
@@ -141,10 +143,15 @@ void MeshShaderDemo::Prepare() {
 
     auto& window = GetSDLWindow();
 
-    for (auto& frame : GetFrames()) {
-        frame.PrepareBindlessDescPool({&mMeshShaderPass_PSO});
-    }
+    mRenderGraph.AddRenderPass("Background", RenderGraphQueueType::Compute);
+    mRenderGraph.AddRenderPass("DrawMesh", RenderGraphQueueType::Graphics);
+    mRenderGraph.AddRenderPass("MeshShader", RenderGraphQueueType::Graphics);
+    mRenderGraph.AddRenderPass("DrawQuad", RenderGraphQueueType::Graphics);
 
+    for (auto& frame : GetFrames()) {
+        frame.PrepareBindlessDescPool(
+            {&mRenderGraph.FindRenderPass("MeshShader")});
+    }
     CreateRandomTexture();
 
     CreateDrawImage();
@@ -215,7 +222,6 @@ void MeshShaderDemo::Prepare() {
     // RecordDrawMeshCmds();
     RecordMeshShaderDrawCmds();
     RecordDrawQuadCmds();
-    RecordShadowDrawCmds();
     RecordRuntimeCopyCmds();
 
     PrepareUIContext();
@@ -234,15 +240,15 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     const uint64_t graphicsFinished = timelineSem.GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t copyFinished = graphicsFinished + 2;
-    const uint64_t shadowFinished = graphicsFinished + 3;
-    const uint64_t allFinished = graphicsFinished + 4;
+    const uint64_t allFinished = graphicsFinished + 3;
 
     // Compute Draw
     {
         auto cmd = frame.GetComputeCmdBuf();
 
         mBackgroundPass_Barrier.RecordCmd(cmd.GetHandle());
-        mBackgroundPass_PSO.RecordCmd(cmd.GetHandle());
+
+        mRenderGraph.FindRenderPass("Background").RecordCmd(cmd.GetHandle());
 
         cmd.End();
 
@@ -256,7 +262,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
              computeFinished}};
 
         cmdMgr.Submit(cmd.GetHandle(),
-                      vkCtx.GetQueue(QueueUsage::Compute_Runtime).GetHandle(),
+                      vkCtx.GetQueue(QueueUsage::Async_Compute).GetHandle(),
                       waits, signals, frame.GetFencePool().RequestFence());
     }
 
@@ -283,32 +289,8 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
 
         cmdMgr.Submit(
             cmd.GetHandle(),
-            vkCtx.GetQueue(QueueUsage::Transfer_Runtime_Upload).GetHandle(),
+            vkCtx.GetQueue(QueueUsage::Async_Transfer_Upload).GetHandle(),
             waits, signals, frame.GetFencePool().RequestFence());
-    }
-
-    // Shadow Draw
-    {
-        auto cmd = frame.GetGraphicsCmdBuf();
-
-        mShadowPass_Barrier.RecordCmd(cmd.GetHandle());
-        for (uint32_t i = 0; i < 12; ++i) {
-            mShadowPass_PSO.RecordCmd(cmd.GetHandle());
-        }
-
-        cmd.End();
-
-        Type_STLVector<SemSubmitInfo> waits = {
-            {vk::PipelineStageFlagBits2::eBottomOfPipe, timelineSem.GetHandle(),
-             graphicsFinished}};
-
-        Type_STLVector<SemSubmitInfo> signals = {
-            {vk::PipelineStageFlagBits2::eAllCommands, timelineSem.GetHandle(),
-             shadowFinished}};
-
-        cmdMgr.Submit(cmd.GetHandle(),
-                      vkCtx.GetQueue(QueueUsage::Graphics).GetHandle(), waits,
-                      signals, frame.GetFencePool().RequestFence());
     }
 
     // Graphics Draw
@@ -316,19 +298,21 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         auto cmd = frame.GetGraphicsCmdBuf();
 
         // mMeshDrawPass_Barrier.RecordCmd(cmd.GetHandle());
-        // mMeshDrawPass_PSO.RecordCmd(cmd.GetHandle());
+        // mRenderGraph.FindRenderPass("DrawMesh").RecordCmd(cmd.GetHandle());
 
         mMeshShaderPass_Barrier_Pre.RecordCmd(cmd.GetHandle());
-        mMeshShaderPass_PSO.RecordCmd(cmd.GetHandle());
+        mRenderGraph.FindRenderPass("MeshShader").RecordCmd(cmd.GetHandle());
         mMeshShaderPass_Barrier_Post.RecordCmd(cmd.GetHandle());
 
         mQuadDrawPass_Barrier_Pre.Update("_Swapchain_");
-        mQuadDrawPass_PSO.Update("_Swapchain_");
         mQuadDrawPass_Barrier_Post.Update("_Swapchain_");
 
         mQuadDrawPass_Barrier_Pre.RecordCmd(cmd.GetHandle());
-        mQuadDrawPass_PSO.RecordCmd(cmd.GetHandle());
         mQuadDrawPass_Barrier_Post.RecordCmd(cmd.GetHandle());
+
+        auto& drawQuadPass = mRenderGraph.FindRenderPass("DrawQuad");
+        drawQuadPass.Update("_Swapchain_");
+        drawQuadPass.RecordCmd(cmd.GetHandle());
 
         mGui.Draw(cmd.GetHandle());
 
@@ -338,7 +322,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
             {vk::PipelineStageFlagBits2::eAllCommands, mCmpSem.GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eAllCommands, mCopySem.GetHandle(), 0},
             {vk::PipelineStageFlagBits2::eComputeShader,
-             timelineSem.GetHandle(), shadowFinished}};
+             timelineSem.GetHandle(), copyFinished}};
 
         Type_STLVector<SemSubmitInfo> signals = {
             {vk::PipelineStageFlagBits2::eAllGraphics, timelineSem.GetHandle(),
@@ -659,6 +643,8 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
 
+    auto& pso = mRenderGraph.FindRenderPass("Background");
+
     // barrier
     {
         mBackgroundPass_Barrier.AddImageBarrier(
@@ -683,15 +669,15 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
 
     // PSO
     {
-        mBackgroundPass_PSO.SetPipeline("Background");
+        pso.SetPipeline("Background");
 
-        mBackgroundPass_PSO["image"] = "DrawImage";
-        mBackgroundPass_PSO["StorageBuffer"] = "RWBuffer";
+        pso["image"] = "DrawImage";
+        pso["StorageBuffer"] = "RWBuffer";
 
-        mBackgroundPass_PSO.GenerateMetaData();
+        pso.GenerateMetaData();
     }
 
-    auto& dcMgr = mBackgroundPass_PSO.GetDrawCallManager();
+    auto& dcMgr = pso.GetDrawCallManager();
 
     float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
     vk::ClearColorValue clearValue {flash, flash, flash, 1.0f};
@@ -714,6 +700,8 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     pPushConstants->mModelMatrix =
         glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
 
+    auto pso = mRenderGraph.FindRenderPass("DrawMesh");
+
     // barrier
     {
         mMeshDrawPass_Barrier.AddImageBarrier(
@@ -731,26 +719,26 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
 
     // PSO
     {
-        mMeshDrawPass_PSO.SetPipeline("TriangleDraw");
+        using namespace RenderPassBinding;
 
-        mMeshDrawPass_PSO["constants"] = RenderPassBinding::PushContants {
-            sizeof(*pPushConstants), pPushConstants};
+        pso.SetPipeline("TriangleDraw");
 
-        mMeshDrawPass_PSO["SceneDataUBO"] = "SceneUniformBuffer";
-        mMeshDrawPass_PSO["tex"] = "ErrorCheckImage";
+        pso["constants"] =
+            PushContants {sizeof(*pPushConstants), pPushConstants};
 
-        mMeshDrawPass_PSO["outFragColor"] = {"DrawImage", "Color-Whole"};
+        pso["SceneDataUBO"] = "SceneUniformBuffer";
+        pso["tex"] = "ErrorCheckImage";
 
-        mMeshDrawPass_PSO[RenderPassBinding::Type::DSV] = {"DepthImage",
-                                                           "Depth-Whole"};
+        pso["outFragColor"] = {"DrawImage", "Color-Whole"};
 
-        mMeshDrawPass_PSO[RenderPassBinding::Type::RenderInfo] =
-            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+        pso[Type::DSV] = {"DepthImage", "Depth-Whole"};
 
-        mMeshDrawPass_PSO.GenerateMetaData();
+        pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+
+        pso.GenerateMetaData();
     }
 
-    auto& dcMgr = mMeshDrawPass_PSO.GetDrawCallManager();
+    auto& dcMgr = pso.GetDrawCallManager();
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});
@@ -803,20 +791,22 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     }
 
     // PSO
+    auto& pso = mRenderGraph.FindRenderPass("DrawQuad");
     {
-        mQuadDrawPass_PSO.SetPipeline("QuadDraw");
+        using namespace RenderPassBinding;
 
-        mQuadDrawPass_PSO["tex"] = "DrawImage";
+        pso.SetPipeline("QuadDraw");
 
-        mQuadDrawPass_PSO["outFragColor"] = {"_Swapchain_", ""};
+        pso["tex"] = "DrawImage";
 
-        mQuadDrawPass_PSO[RenderPassBinding::Type::RenderInfo] =
-            RenderPassBinding::RenderInfo {
-                {{0, 0}, {extent.width, extent.height}}, 1, 0};
+        pso["outFragColor"] = {"_Swapchain_", ""};
 
-        mQuadDrawPass_PSO.GenerateMetaData();
+        pso[Type::RenderInfo] =
+            RenderInfo {{{0, 0}, {extent.width, extent.height}}, 1, 0};
+
+        pso.GenerateMetaData();
     }
-    auto& dcMgr = mQuadDrawPass_PSO.GetDrawCallManager();
+    auto& dcMgr = pso.GetDrawCallManager();
 
     vk::Viewport viewport {
         0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
@@ -879,31 +869,31 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     }
 
     // PSO
+    auto& pso = mRenderGraph.FindRenderPass("MeshShader");
     {
-        mMeshShaderPass_PSO.SetPipeline("MeshShaderDraw");
+        using namespace RenderPassBinding;
 
-        mMeshShaderPass_PSO["PushConstants"] = RenderPassBinding::PushContants {
-            sizeof(*meshPushContants), meshPushContants};
+        pso.SetPipeline("MeshShaderDraw");
 
-        mMeshShaderPass_PSO["UBO"] = "SceneUniformBuffer";
+        pso["PushConstants"] =
+            PushContants {sizeof(*meshPushContants), meshPushContants};
+
+        pso["UBO"] = "SceneUniformBuffer";
 
         auto bindlessSet =
             GetCurFrame().GetBindlessDescPool().GetPoolResource();
-        mMeshShaderPass_PSO["sceneTexs"] =
-            RenderPassBinding::BindlessDescBufInfo {bindlessSet.deviceAddr,
-                                                    bindlessSet.offset};
+        pso["sceneTexs"] =
+            BindlessDescBufInfo {bindlessSet.deviceAddr, bindlessSet.offset};
 
-        mMeshShaderPass_PSO["outFragColor"] = {"DrawImage", "Color-Whole"};
-        mMeshShaderPass_PSO[RenderPassBinding::Type::DSV] = {"DepthImage",
-                                                             "Depth-Whole"};
+        pso["outFragColor"] = {"DrawImage", "Color-Whole"};
+        pso[Type::DSV] = {"DepthImage", "Depth-Whole"};
 
-        mMeshShaderPass_PSO[RenderPassBinding::Type::RenderInfo] =
-            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+        pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
-        mMeshShaderPass_PSO.GenerateMetaData();
+        pso.GenerateMetaData();
     }
 
-    auto& dcMgr = mMeshShaderPass_PSO.GetDrawCallManager();
+    auto& dcMgr = pso.GetDrawCallManager();
 
     vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
     dcMgr.AddArgument_Viewport(0, {viewport});
@@ -941,71 +931,6 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
 
         mMeshShaderPass_Barrier_Post.GenerateMetaData();
     }
-}
-
-void MeshShaderDemo::RecordShadowDrawCmds() {
-    auto& shadowColor = GetRenderResMgr()["ShadowColor"];
-    uint32_t width = shadowColor.GetTexWidth();
-    uint32_t height = shadowColor.GetTexHeight();
-
-    auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
-    // meshPushContants->mModelMatrix =
-    //     glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
-    meshPushContants->mModelMatrix =
-        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.01f}),
-                    glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
-
-    // barrier
-    {
-        mShadowPass_Barrier.AddImageBarrier(
-            "ShadowColor",
-            {.srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-             .srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
-             .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader
-                           | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-             .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
-             .oldLayout = vk::ImageLayout::eGeneral,
-             .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
-             .aspect = vk::ImageAspectFlagBits::eColor});
-        mShadowPass_Barrier.GenerateMetaData();
-    }
-
-    // PSO
-    {
-        mShadowPass_PSO.SetPipeline("MeshShaderDraw");
-
-        mShadowPass_PSO["PushConstants"] = RenderPassBinding::PushContants {
-            sizeof(*meshPushContants), meshPushContants};
-
-        mShadowPass_PSO["UBO"] = "SceneUniformBuffer";
-
-        auto bindlessSet =
-            GetCurFrame().GetBindlessDescPool().GetPoolResource();
-        mShadowPass_PSO["sceneTexs"] = RenderPassBinding::BindlessDescBufInfo {
-            bindlessSet.deviceAddr, bindlessSet.offset};
-
-        mShadowPass_PSO["outFragColor"] = {"ShadowColor", "Color-Whole"};
-        mShadowPass_PSO[RenderPassBinding::Type::DSV] = {"ShadowDepth",
-                                                         "Depth-Whole"};
-
-        mShadowPass_PSO[RenderPassBinding::Type::RenderInfo] =
-            RenderPassBinding::RenderInfo {{{0, 0}, {width, height}}, 1, 0};
-
-        mShadowPass_PSO.GenerateMetaData();
-    }
-
-    auto& dcMgr = mShadowPass_PSO.GetDrawCallManager();
-
-    vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    dcMgr.AddArgument_Viewport(0, {viewport});
-
-    vk::Rect2D scissor {{0, 0}, {width, height}};
-    dcMgr.AddArgument_Scissor(0, {scissor});
-
-    dcMgr.AddArgument_DrawMeshTasksIndirect(
-        mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
-        mFactoryModel->GetMeshCount(),
-        sizeof(vk::DrawMeshTasksIndirectCommandEXT));
 }
 
 void MeshShaderDemo::RecordRuntimeCopyCmds() {
@@ -1110,23 +1035,14 @@ void MeshShaderDemo::PrepareUIContext() {
     });
 }
 
-IDNS_VC::RenderPassBindingInfo_PSO MeshShaderDemo::CreateBindingInfo_PSO(
-    bool swapchain) {
-    Swapchain* p = nullptr;
-    if (swapchain)
-        p = &GetSwapchain();
-    return {&GetVulkanContext(), &GetRenderResMgr(), &GetPipelineMgr(),
-            &mDescSetPool, p};
-}
-
 IDNS_VC::RenderPassBindingInfo_Barrier
 MeshShaderDemo::CreateBindingInfo_Barrier(bool swapchain) {
-    Swapchain* p = nullptr;
     if (swapchain)
-        p = &GetSwapchain();
-    return {&GetVulkanContext(), &GetRenderResMgr(), p};
+        return {GetVulkanContext(), GetRenderResMgr(), GetSwapchain()};
+    else
+        return {GetVulkanContext(), GetRenderResMgr()};
 }
 
 IDNS_VC::RenderPassBindingInfo_Copy MeshShaderDemo::CreateBindingInfo_Copy() {
-    return {&GetRenderResMgr()};
+    return {GetRenderResMgr()};
 }

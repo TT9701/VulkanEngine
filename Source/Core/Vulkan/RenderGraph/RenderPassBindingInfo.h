@@ -6,6 +6,7 @@
 #include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 #include "Core/Vulkan/Native/Descriptors.h"
+#include "RenderGraph.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -94,11 +95,9 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_PSO(VulkanContext* context,
-                              RenderResourceManager* resMgr,
-                              PipelineManager* pipelineMgr,
-                              DescriptorSetPool* descPool,
-                              Swapchain* sc = nullptr);
+    RenderPassBindingInfo_PSO(RenderGraph& rg, uint32_t index,
+                              RenderGraphQueueType type);
+
     virtual ~RenderPassBindingInfo_PSO() override = default;
 
     void SetName(const char* name);
@@ -141,12 +140,9 @@ private:
                               Type_STLVector<uint32_t>& indices);
 
 private:
-    VulkanContext* pContext;
-    RenderResourceManager* pResMgr;
-    PipelineManager* pPipelineMgr;
-    DescriptorSetPool* pDescSetPool;
-
-    Swapchain* pSwapchain;
+    RenderGraph& mRenderGraph;
+    uint32_t mIndex;
+    RenderGraphQueueType mType;
 
     DrawCallManager mDrawCallMgr;
 
@@ -201,9 +197,12 @@ public:
     struct MemoryBarrier {};
 
 public:
-    RenderPassBindingInfo_Barrier(VulkanContext* context,
-                                  RenderResourceManager* resMgr,
-                                  Swapchain* sc = nullptr);
+    RenderPassBindingInfo_Barrier(VulkanContext& context,
+                                  RenderResourceManager& resMgr);
+
+    RenderPassBindingInfo_Barrier(VulkanContext& context,
+                                  RenderResourceManager& resMgr, Swapchain& sc);
+
     virtual ~RenderPassBindingInfo_Barrier() override = default;
 
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
@@ -220,8 +219,8 @@ private:
         ::std::variant<ImageBarrier, BufferBarrier, MemoryBarrier>;
 
 private:
-    VulkanContext* pContext;
-    RenderResourceManager* pResMgr;
+    VulkanContext& mContext;
+    RenderResourceManager& mResMgr;
     Swapchain* pSwapchain;
 
     Type_STLVector<::std::pair<Type_STLString, Type_Barrier>> mBarriers;
@@ -243,7 +242,7 @@ class RenderPassBindingInfo_Copy : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_Copy(RenderResourceManager* resMgr);
+    RenderPassBindingInfo_Copy(RenderResourceManager& resMgr);
 
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
     virtual void GenerateMetaData(void* p = nullptr) override;
@@ -259,7 +258,7 @@ public:
                            vk::BufferImageCopy2 const& region);
 
 private:
-    RenderResourceManager* pResMgr;
+    RenderResourceManager& mResMgr;
 
     DrawCallManager mDrawCallMgr;
 

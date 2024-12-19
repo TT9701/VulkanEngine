@@ -34,15 +34,13 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_BindlessDescInfo const& info)
     : value(info) {}
 
-RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(
-    VulkanContext* context, RenderResourceManager* resMgr,
-    PipelineManager* pipelineMgr, DescriptorSetPool* descPool, Swapchain* sc)
-    : pContext(context),
-      pResMgr(resMgr),
-      pPipelineMgr(pipelineMgr),
-      pDescSetPool(descPool),
-      pSwapchain(sc),
-      mDrawCallMgr {resMgr, sc} {
+RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderGraph& rg,
+                                                     uint32_t index,
+                                                     RenderGraphQueueType type)
+    : mRenderGraph(rg),
+      mIndex(index),
+      mType(type),
+      mDrawCallMgr(rg.mResMgr, rg.mSwapchain) {
     InitBuiltInInfos();
 }
 
@@ -164,15 +162,15 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
         const char* viewName = nullptr;
 
         if (colorImage[0] == Type_STLString {"_Swapchain_"}) {
-            auto idx = pSwapchain->GetCurrentImageIndex();
+            auto idx = mRenderGraph.mSwapchain.GetCurrentImageIndex();
             viewName = "";
-            color.setImageView(pSwapchain->GetImageViewHandle(idx));
+            color.setImageView(mRenderGraph.mSwapchain.GetImageViewHandle(idx));
         } else {
             if (!colorImage[1].empty()) {
                 viewName = colorImage[1].c_str();
             }
             color.setImageView(
-                (*pResMgr)[imageName].GetTexViewHandle(viewName));
+                mRenderGraph.mResMgr[imageName].GetTexViewHandle(viewName));
         }
 
         colors.emplace_back(imageName, viewName, color);
@@ -199,8 +197,8 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
                     depthStencil.viewName = depthImage[1];
                 }
                 depthStencil.info.setImageView(
-                    (*pResMgr)[depthStencil.imageName.c_str()].GetTexViewHandle(
-                        depthStencil.viewName.c_str()));
+                    mRenderGraph.mResMgr[depthStencil.imageName.c_str()]
+                        .GetTexViewHandle(depthStencil.viewName.c_str()));
                 break;
             }
             case RenderPassBinding::Type::RenderInfo: {
@@ -227,7 +225,8 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
         if (::std::get<Type_STLString>(descInfo.second.value) == resName) {
             auto param = descInfo.first;
             auto const& descLayouts =
-                pPipelineMgr->GetLayout(mPipelineLayoutName.c_str())
+                mRenderGraph.mPipelineMgr
+                    .GetLayout(mPipelineLayoutName.c_str())
                     ->GetDescSetLayoutDatas();
 
             uint32_t set = -1;
@@ -291,8 +290,9 @@ void RenderPassBindingInfo_PSO::Update(
 
             mDrawCallMgr.UpdateArgument_DescriptorSet(
                 mBindPoint,
-                pPipelineMgr->GetLayoutHandle(mPipelineLayoutName.c_str()), 0,
-                bufIndices, offsets);
+                mRenderGraph.mPipelineMgr.GetLayoutHandle(
+                    mPipelineLayoutName.c_str()),
+                0, bufIndices, offsets);
             break;
         }
     }
@@ -317,16 +317,17 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
     ::std::string_view name) {
     Type_STLString pipelineName {name};
     if (!pipelineName.empty()) {
-        if (pPipelineMgr->GetPipelines().contains(pipelineName)) {
-            auto& pipeline = pPipelineMgr->GetPipeline(pipelineName.c_str());
+        if (mRenderGraph.mPipelineMgr.GetPipelines().contains(pipelineName)) {
+            auto& pipeline =
+                mRenderGraph.mPipelineMgr.GetPipeline(pipelineName.c_str());
             if (pipeline.GetType() == PipelineType::Compute) {
                 mBindPoint = vk::PipelineBindPoint::eCompute;
             } else if (pipeline.GetType() == PipelineType::Graphics) {
                 mBindPoint = vk::PipelineBindPoint::eGraphics;
             }
             mDrawCallMgr.AddArgument_Pipeline(
-                mBindPoint,
-                pPipelineMgr->GetPipelineHandle(pipelineName.c_str()));
+                mBindPoint, mRenderGraph.mPipelineMgr.GetPipelineHandle(
+                                pipelineName.c_str()));
         } else {
             throw ::std::runtime_error(
                 (pipelineName + "Pipeline is not created!").c_str());
@@ -335,7 +336,8 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
         throw ::std::runtime_error("pipeline name is empty!");
     }
 
-    auto layout = pPipelineMgr->GetLayout(mPipelineLayoutName.c_str());
+    auto layout =
+        mRenderGraph.mPipelineMgr.GetLayout(mPipelineLayoutName.c_str());
     const auto& layoutDatas = layout->GetDescSetLayoutDatas();
 
     for (auto const& layoutData : layoutDatas) {
@@ -371,11 +373,13 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
 void RenderPassBindingInfo_PSO::GeneratePushContantMetaData(
     Type_STLVector<RenderPassBinding::PushContants> const& data) {
     auto const& ranges =
-        pPipelineMgr->GetLayout(mPipelineName.c_str())->GetPCRanges();
+        mRenderGraph.mPipelineMgr.GetLayout(mPipelineName.c_str())
+            ->GetPCRanges();
     uint32_t count = ranges.size();
     assert(count == data.size());
 
-    auto layout = pPipelineMgr->GetLayoutHandle(mPipelineName.c_str());
+    auto layout =
+        mRenderGraph.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str());
 
     for (uint32_t i = 0; i < count; ++i) {
         auto layoutRangeSize = ranges[i].size;
@@ -394,15 +398,18 @@ void RenderPassBindingInfo_PSO::GenerateRTVMetaData(
 void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
     mDescSets.clear();
 
-    auto pipelineLayout = pPipelineMgr->GetLayout(mPipelineLayoutName.c_str());
+    auto pipelineLayout =
+        mRenderGraph.mPipelineMgr.GetLayout(mPipelineLayoutName.c_str());
     const auto& descLayouts = pipelineLayout->GetDescSetLayoutDatas();
 
     // Create descriptor sets
     for (auto const& descLayout : descLayouts) {
         if (descLayout->GetData().bindings[0].descriptorCount > 1)
             continue;
-        auto ptr = MakeShared<DescriptorSet>(*pContext, *descLayout);
-        auto requestHandle = pDescSetPool->RequestUnit(descLayout->GetSize());
+        auto ptr =
+            MakeShared<DescriptorSet>(mRenderGraph.mContext, *descLayout);
+        auto requestHandle =
+            mRenderGraph.mDescPool.RequestUnit(descLayout->GetSize());
         ptr->SetRequestedHandle(std::move(requestHandle));
         mDescSets.push_back(ptr);
     }
@@ -455,7 +462,8 @@ void RenderPassBindingInfo_PSO::BindDescriptorSets() {
     mDrawCallMgr.AddArgument_DescriptorBuffer(bufAddrs);
 
     mDrawCallMgr.AddArgument_DescriptorSet(
-        mBindPoint, pPipelineMgr->GetLayoutHandle(mPipelineLayoutName.c_str()),
+        mBindPoint,
+        mRenderGraph.mPipelineMgr.GetLayoutHandle(mPipelineLayoutName.c_str()),
         0, bufIndices, offsets);
 }
 
@@ -473,13 +481,13 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
         auto resource = set->GetPoolResource();
 
         // location = bufferAddr + setOffset + descriptorOffset + (arrayElement * descSize)
-        pContext->GetDevice()->getDescriptorEXT(
+        mRenderGraph.mContext.GetDevice()->getDescriptorEXT(
             descInfo, size,
             (char*)resource.hostAddr + resource.offset
                 + set->GetBingdingOffset(binding) + idxInBinding * size);
     };
 
-    auto& resource = (*pResMgr)[resName];
+    auto& resource = mRenderGraph.mResMgr[resName];
     auto resType = resource.GetType();
 
     if (resType == RenderResource::Type::Buffer) {
@@ -510,7 +518,7 @@ void RenderPassBindingInfo_PSO::AllocateDescriptor(
         // TODO: sampler setting
         if (sampled) {
             imageInfo.setSampler(
-                pContext->GetDefaultLinearSampler().GetHandle());
+                mRenderGraph.mContext.GetDefaultLinearSampler().GetHandle());
         }
 
         getDescriptor(set, descSize, binding, idxInBinding, descriptorType,
@@ -544,10 +552,14 @@ void RenderPassBindingInfo_PSO::GenerateDescBufInfos(
 }
 
 RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(
-    VulkanContext* context, RenderResourceManager* resMgr, Swapchain* sc)
-    : pContext(context),
-      pResMgr(resMgr),
-      pSwapchain(sc),
+    VulkanContext& context, RenderResourceManager& resMgr)
+    : mContext(context), mResMgr(resMgr), mDrawCallMgr {resMgr} {}
+
+RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(
+    VulkanContext& context, RenderResourceManager& resMgr, Swapchain& sc)
+    : mContext(context),
+      mResMgr(resMgr),
+      pSwapchain(&sc),
       mDrawCallMgr {resMgr, sc} {}
 
 void RenderPassBindingInfo_Barrier::RecordCmd(vk::CommandBuffer cmd) {
@@ -577,7 +589,7 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
                 barrierInfo.setImage(
                     pSwapchain->GetCurrentImage().GetTexHandle());
             } else {
-                barrierInfo.setImage((*pResMgr)[name.c_str()].GetTexHandle());
+                barrierInfo.setImage(mResMgr[name.c_str()].GetTexHandle());
             }
 
             bNames.push_back(name);
@@ -634,8 +646,8 @@ void RenderPassBindingInfo_Barrier::Update(
 }
 
 RenderPassBindingInfo_Copy::RenderPassBindingInfo_Copy(
-    RenderResourceManager* resMgr)
-    : pResMgr(resMgr), mDrawCallMgr(resMgr) {}
+    RenderResourceManager& resMgr)
+    : mResMgr(resMgr), mDrawCallMgr(resMgr) {}
 
 void RenderPassBindingInfo_Copy::RecordCmd(vk::CommandBuffer cmd) {
     mDrawCallMgr.RecordCmd(cmd);
