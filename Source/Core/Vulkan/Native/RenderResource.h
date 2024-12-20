@@ -75,6 +75,7 @@ public:
     uint32_t GetTexMipCount() const;
     uint32_t GetTexSampleCount() const;
     uint32_t GetTexArraySize() const;
+    vk::ImageUsageFlags GetTexUsage() const;
     vk::Format GetTexFormat() const;
 
     void Resize(vk::Extent2D extent);

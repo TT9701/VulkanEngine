@@ -6,7 +6,7 @@
 #include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 #include "Core/Vulkan/Native/Descriptors.h"
-#include "RenderGraph.h"
+#include "RenderSequence.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
@@ -95,7 +95,7 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_PSO(RenderGraph& rg, uint32_t index,
+    RenderPassBindingInfo_PSO(RenderSequence& rg, uint32_t index,
                               RenderGraphQueueType type);
 
     virtual ~RenderPassBindingInfo_PSO() override = default;
@@ -139,8 +139,13 @@ private:
                               Type_STLVector<vk::DeviceSize>& offsets,
                               Type_STLVector<uint32_t>& indices);
 
+    void AddFlushBarrier(RenderSequence::Barrier const& b);
+    void AddInvalidateBarrier(RenderSequence::Barrier const& b);
+    RenderSequence::Barrier AddBarrier(uint32_t idx, vk::DescriptorType type,
+                                       vk::ShaderStageFlags shaderStage);
+
 private:
-    RenderGraph& mRenderGraph;
+    RenderSequence& mRenderGraph;
     uint32_t mIndex;
     RenderGraphQueueType mType;
 
@@ -185,13 +190,21 @@ public:
         vk::AccessFlags2 dstAccessMask {};
         vk::ImageLayout oldLayout {vk::ImageLayout::eUndefined};
         vk::ImageLayout newLayout {vk::ImageLayout::eUndefined};
-        uint32_t srcQueueFamilyIndex = {};
-        uint32_t dstQueueFamilyIndex = {};
-        vk::ImageAspectFlags aspect = {};
+        uint32_t srcQueueFamilyIndex {};
+        uint32_t dstQueueFamilyIndex {};
+        vk::ImageAspectFlags aspect {};
     };
 
-    // TODO: buffer barrier
-    struct BufferBarrier {};
+    struct BufferBarrier {
+        vk::PipelineStageFlags2 srcStageMask {};
+        vk::AccessFlags2 srcAccessMask {};
+        vk::PipelineStageFlags2 dstStageMask {};
+        vk::AccessFlags2 dstAccessMask {};
+        uint32_t srcQueueFamilyIndex {};
+        uint32_t dstQueueFamilyIndex {};
+        vk::DeviceSize offset {0};
+        vk::DeviceSize size {VK_WHOLE_SIZE};
+    };
 
     // memory barrier is barely used.
     struct MemoryBarrier {};

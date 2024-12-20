@@ -130,6 +130,10 @@ uint32_t RenderResource::GetTexArraySize() const {
     return ::std::get<Texture>(mResource).GetArraySize();
 }
 
+vk::ImageUsageFlags RenderResource::GetTexUsage() const {
+    return ::std::get<Texture>(mResource).GetUsage();
+}
+
 vk::Format RenderResource::GetTexFormat() const {
     return ::std::get<Texture>(mResource).GetFormat();
 }

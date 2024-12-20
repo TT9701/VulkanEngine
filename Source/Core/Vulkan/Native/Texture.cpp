@@ -142,6 +142,10 @@ uint32_t Texture::GetArraySize() const {
     return mArraySize;
 }
 
+vk::ImageUsageFlags Texture::GetUsage() const {
+    return mUsageFlags;
+}
+
 vk::Format Texture::GetFormat() const {
     return mFormat;
 }

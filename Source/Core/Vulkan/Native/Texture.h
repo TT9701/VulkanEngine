@@ -50,6 +50,7 @@ public:
     uint32_t GetMipCount() const;
     uint32_t GetSampleCount() const;
     uint32_t GetArraySize() const;
+    vk::ImageUsageFlags GetUsage() const;
     vk::Format GetFormat() const;
     vk::Image GetHandle() const;
     Type GetType() const;

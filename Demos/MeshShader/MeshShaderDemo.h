@@ -71,7 +71,7 @@ private:
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
-    IDNS_VC::RenderGraph mRenderGraph;
+    IDNS_VC::RenderSequence mRenderSequence;
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 

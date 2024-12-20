@@ -34,7 +34,7 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_BindlessDescInfo const& info)
     : value(info) {}
 
-RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderGraph& rg,
+RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderSequence& rg,
                                                      uint32_t index,
                                                      RenderGraphQueueType type)
     : mRenderGraph(rg),
@@ -161,7 +161,7 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
         const char* imageName = colorImage[0].c_str();
         const char* viewName = nullptr;
 
-        if (colorImage[0] == Type_STLString {"_Swapchain_"}) {
+        if (colorImage[0] == "_Swapchain_") {
             auto idx = mRenderGraph.mSwapchain.GetCurrentImageIndex();
             viewName = "";
             color.setImageView(mRenderGraph.mSwapchain.GetImageViewHandle(idx));
@@ -172,6 +172,10 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
             color.setImageView(
                 mRenderGraph.mResMgr[imageName].GetTexViewHandle(viewName));
         }
+        auto idx = mRenderGraph.AddRenderResource(colorImage[0].c_str());
+        AddFlushBarrier({idx, vk::ImageLayout::eColorAttachmentOptimal,
+                         vk::AccessFlagBits2::eColorAttachmentWrite,
+                         vk::PipelineStageFlagBits2::eColorAttachmentOutput});
 
         colors.emplace_back(imageName, viewName, color);
     }
@@ -199,6 +203,14 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
                 depthStencil.info.setImageView(
                     mRenderGraph.mResMgr[depthStencil.imageName.c_str()]
                         .GetTexViewHandle(depthStencil.viewName.c_str()));
+
+                auto idx =
+                    mRenderGraph.AddRenderResource(depthImage[0].c_str());
+                AddFlushBarrier(
+                    {idx, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                     vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+                     vk::PipelineStageFlagBits2::eLateFragmentTests
+                         | vk::PipelineStageFlagBits2::eEarlyFragmentTests});
                 break;
             }
             case RenderPassBinding::Type::RenderInfo: {
@@ -423,10 +435,9 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
         for (uint32_t binding = 0; binding < descLayout->GetBindings().size();
              ++binding) {
             auto param = descLayout->GetData().bindingNames[binding];
-            auto descCount =
-                descLayout->GetData().bindings[binding].descriptorCount;
-            auto descType =
-                descLayout->GetData().bindings[binding].descriptorType;
+            auto bindingInfo = descLayout->GetData().bindings[binding];
+            auto descCount = bindingInfo.descriptorCount;
+            auto descType = bindingInfo.descriptorType;
             auto descSize = descLayout->GetDescriptorSize(descType);
 
             if (descCount == 1) {
@@ -434,6 +445,10 @@ void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
                     ::std::get<Type_STLString>(mDescInfos.at(param).value);
                 if (argument.empty())
                     continue;
+
+                auto idx = mRenderGraph.AddRenderResource(argument.c_str());
+                auto barrier =
+                    AddBarrier(idx, descType, bindingInfo.stageFlags);
 
                 AllocateDescriptor(argument.c_str(), descSet, descSize,
                                    descType, binding, 0, descriptorPNext);
@@ -549,6 +564,72 @@ void RenderPassBindingInfo_PSO::GenerateDescBufInfos(
         offsets.push_back(resource.offset);
         indices.push_back(bufIdxMap.at(resource.deviceAddr));
     }
+}
+
+void RenderPassBindingInfo_PSO::AddFlushBarrier(RenderSequence::Barrier const& b) {
+    VE_ASSERT(mIndex < mRenderGraph.mPassBarrierInfos.size(), "");
+
+    mRenderGraph.mPassBarrierInfos[mIndex].flush.push_back(b);
+}
+
+void RenderPassBindingInfo_PSO::AddInvalidateBarrier(
+    RenderSequence::Barrier const& b) {
+    VE_ASSERT(mIndex < mRenderGraph.mPassBarrierInfos.size(), "");
+
+    mRenderGraph.mPassBarrierInfos[mIndex].invalidate.push_back(b);
+}
+
+RenderSequence::Barrier RenderPassBindingInfo_PSO::AddBarrier(
+    uint32_t idx, vk::DescriptorType type, vk::ShaderStageFlags shaderStage) {
+    RenderSequence::Barrier b {.resourceIndex = idx};
+
+    if (shaderStage & vk::ShaderStageFlagBits::eVertex)
+        b.stages |= vk::PipelineStageFlagBits2::eVertexShader;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eTessellationControl)
+        b.stages |= vk::PipelineStageFlagBits2::eTessellationControlShader;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eTessellationEvaluation)
+        b.stages |= vk::PipelineStageFlagBits2::eTessellationEvaluationShader;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eGeometry)
+        b.stages |= vk::PipelineStageFlagBits2::eGeometryShader;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eFragment)
+        b.stages |= vk::PipelineStageFlagBits2::eFragmentShader;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eCompute)
+        b.stages |= vk::PipelineStageFlagBits2::eComputeShader;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eTaskEXT)
+        b.stages |= vk::PipelineStageFlagBits2::eTaskShaderEXT;
+
+    if (shaderStage & vk::ShaderStageFlagBits::eMeshEXT)
+        b.stages |= vk::PipelineStageFlagBits2::eMeshShaderEXT;
+
+    switch (type) {
+        case vk::DescriptorType::eCombinedImageSampler:
+        case vk::DescriptorType::eSampledImage:
+            b.layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            b.access = vk::AccessFlagBits2::eShaderSampledRead;
+            AddInvalidateBarrier(b);
+            break;
+        case vk::DescriptorType::eUniformBuffer:
+            b.access = vk::AccessFlagBits2::eUniformRead;
+            AddInvalidateBarrier(b);
+            break;
+        case vk::DescriptorType::eStorageImage:
+            b.layout = vk::ImageLayout::eGeneral;
+            [[fallthrough]];
+        case vk::DescriptorType::eStorageBuffer:
+            b.access = vk::AccessFlagBits2::eShaderStorageWrite;
+            AddFlushBarrier(b);
+            AddInvalidateBarrier(b);
+            break;
+        default: throw ::std::runtime_error("not implemented!");
+    }
+
+    return b;
 }
 
 RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(

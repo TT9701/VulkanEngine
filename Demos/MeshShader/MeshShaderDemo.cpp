@@ -7,8 +7,8 @@ using namespace IDNS_VC;
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescSetPool(GetVulkanContext())),
-      mRenderGraph(GetVulkanContext(), GetRenderResMgr(), GetPipelineMgr(),
-                   mDescSetPool, GetSwapchain()),
+      mRenderSequence(GetVulkanContext(), GetRenderResMgr(), GetPipelineMgr(),
+                      mDescSetPool, GetSwapchain()),
       mPrepassCopy(CreateBindingInfo_Copy()),
       mBackgroundPass_Barrier(CreateBindingInfo_Barrier()),
       mMeshDrawPass_Barrier(CreateBindingInfo_Barrier()),
@@ -96,21 +96,21 @@ void MeshShaderDemo::Update_OnResize() {
 
     auto resNames = renderResMgr.GetResourceNames_SrcreenSizeRelated();
 
-    auto& backgroundPass = mRenderGraph.FindRenderPass("Background");
+    auto& backgroundPass = mRenderSequence.FindRenderPass("Background");
     backgroundPass.Update(resNames);
 
     mBackgroundPass_Barrier.Update(resNames);
 
-    // auto& drawMeshPass = mRenderGraph.FindRenderPass("DrawMesh");
+    // auto& drawMeshPass = mRenderSequence.FindRenderPass("DrawMesh");
     // drawMeshPass.OnResize(extent);
 
     // mMeshDrawPass_Barrier.OnResize(extent);
 
-    auto& meshShaderPass = mRenderGraph.FindRenderPass("MeshShader");
+    auto& meshShaderPass = mRenderSequence.FindRenderPass("MeshShader");
     meshShaderPass.OnResize(extent);
     mMeshShaderPass_Barrier_Pre.Update(resNames);
 
-    auto& drawQuadPass = mRenderGraph.FindRenderPass("DrawQuad");
+    auto& drawQuadPass = mRenderSequence.FindRenderPass("DrawQuad");
     drawQuadPass.OnResize(extent);
     mQuadDrawPass_Barrier_Pre.Update(resNames);
     mQuadDrawPass_Barrier_Post.Update(resNames);
@@ -143,14 +143,14 @@ void MeshShaderDemo::Prepare() {
 
     auto& window = GetSDLWindow();
 
-    mRenderGraph.AddRenderPass("Background", RenderGraphQueueType::Compute);
-    mRenderGraph.AddRenderPass("DrawMesh", RenderGraphQueueType::Graphics);
-    mRenderGraph.AddRenderPass("MeshShader", RenderGraphQueueType::Graphics);
-    mRenderGraph.AddRenderPass("DrawQuad", RenderGraphQueueType::Graphics);
+    mRenderSequence.AddRenderPass("Background", RenderGraphQueueType::Compute);
+    // mRenderSequence.AddRenderPass("DrawMesh", RenderGraphQueueType::Graphics);
+    mRenderSequence.AddRenderPass("MeshShader", RenderGraphQueueType::Graphics);
+    mRenderSequence.AddRenderPass("DrawQuad", RenderGraphQueueType::Graphics);
 
     for (auto& frame : GetFrames()) {
         frame.PrepareBindlessDescPool(
-            {&mRenderGraph.FindRenderPass("MeshShader")});
+            {&mRenderSequence.FindRenderPass("MeshShader")});
     }
     CreateRandomTexture();
 
@@ -224,6 +224,8 @@ void MeshShaderDemo::Prepare() {
     RecordDrawQuadCmds();
     RecordRuntimeCopyCmds();
 
+    mRenderSequence.GenerateBarriers();
+
     PrepareUIContext();
 }
 
@@ -248,7 +250,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
 
         mBackgroundPass_Barrier.RecordCmd(cmd.GetHandle());
 
-        mRenderGraph.FindRenderPass("Background").RecordCmd(cmd.GetHandle());
+        mRenderSequence.FindRenderPass("Background").RecordCmd(cmd.GetHandle());
 
         cmd.End();
 
@@ -298,10 +300,10 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         auto cmd = frame.GetGraphicsCmdBuf();
 
         // mMeshDrawPass_Barrier.RecordCmd(cmd.GetHandle());
-        // mRenderGraph.FindRenderPass("DrawMesh").RecordCmd(cmd.GetHandle());
+        // mRenderSequence.FindRenderPass("DrawMesh").RecordCmd(cmd.GetHandle());
 
         mMeshShaderPass_Barrier_Pre.RecordCmd(cmd.GetHandle());
-        mRenderGraph.FindRenderPass("MeshShader").RecordCmd(cmd.GetHandle());
+        mRenderSequence.FindRenderPass("MeshShader").RecordCmd(cmd.GetHandle());
         mMeshShaderPass_Barrier_Post.RecordCmd(cmd.GetHandle());
 
         mQuadDrawPass_Barrier_Pre.Update("_Swapchain_");
@@ -310,7 +312,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         mQuadDrawPass_Barrier_Pre.RecordCmd(cmd.GetHandle());
         mQuadDrawPass_Barrier_Post.RecordCmd(cmd.GetHandle());
 
-        auto& drawQuadPass = mRenderGraph.FindRenderPass("DrawQuad");
+        auto& drawQuadPass = mRenderSequence.FindRenderPass("DrawQuad");
         drawQuadPass.Update("_Swapchain_");
         drawQuadPass.RecordCmd(cmd.GetHandle());
 
@@ -643,7 +645,7 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
 
-    auto& pso = mRenderGraph.FindRenderPass("Background");
+    auto& pso = mRenderSequence.FindRenderPass("Background");
 
     // barrier
     {
@@ -700,7 +702,7 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     pPushConstants->mModelMatrix =
         glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
 
-    auto pso = mRenderGraph.FindRenderPass("DrawMesh");
+    auto pso = mRenderSequence.FindRenderPass("DrawMesh");
 
     // barrier
     {
@@ -791,7 +793,7 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     }
 
     // PSO
-    auto& pso = mRenderGraph.FindRenderPass("DrawQuad");
+    auto& pso = mRenderSequence.FindRenderPass("DrawQuad");
     {
         using namespace RenderPassBinding;
 
@@ -869,7 +871,7 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
     }
 
     // PSO
-    auto& pso = mRenderGraph.FindRenderPass("MeshShader");
+    auto& pso = mRenderSequence.FindRenderPass("MeshShader");
     {
         using namespace RenderPassBinding;
 
