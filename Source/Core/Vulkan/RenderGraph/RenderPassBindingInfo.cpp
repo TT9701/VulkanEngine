@@ -34,13 +34,10 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_BindlessDescInfo const& info)
     : value(info) {}
 
-RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderSequence& rg,
+RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderSequence& rs,
                                                      uint32_t index,
-                                                     RenderGraphQueueType type)
-    : mRenderGraph(rg),
-      mIndex(index),
-      mType(type),
-      mDrawCallMgr(rg.mResMgr, rg.mSwapchain) {
+                                                     RenderQueueType type)
+    : mRenderGraph(rs), mIndex(index), mType(type), mDrawCallMgr(rs.mResMgr) {
     InitBuiltInInfos();
 }
 
@@ -55,7 +52,6 @@ void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
         mPipelineLayoutName = pipelineLayoutName;
     else
         mPipelineLayoutName = pipelineName;
-
     GeneratePipelineMetaData(mPipelineName);
 }
 
@@ -131,6 +127,7 @@ void RenderPassBindingInfo_PSO::RecordCmd(vk::CommandBuffer cmd) {
 }
 
 void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
+
     // descriptor sets
     CreateDescriptorSets(descriptorPNext);
     BindDescriptorSets();
@@ -153,6 +150,9 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
         auto colorImage =
             ::std::get<Type_STLVector<Type_STLString>>(info.value);
 
+        if (colorImage[0] == "_Swapchain_")
+            break;
+
         vk::RenderingAttachmentInfo color {};
         color.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
             .setLoadOp(vk::AttachmentLoadOp::eDontCare)
@@ -161,21 +161,20 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
         const char* imageName = colorImage[0].c_str();
         const char* viewName = nullptr;
 
-        if (colorImage[0] == "_Swapchain_") {
-            auto idx = mRenderGraph.mSwapchain.GetCurrentImageIndex();
-            viewName = "";
-            color.setImageView(mRenderGraph.mSwapchain.GetImageViewHandle(idx));
-        } else {
-            if (!colorImage[1].empty()) {
-                viewName = colorImage[1].c_str();
-            }
-            color.setImageView(
-                mRenderGraph.mResMgr[imageName].GetTexViewHandle(viewName));
+        auto idx = mRenderGraph.AddRenderResource(imageName);
+
+        if (!colorImage[1].empty()) {
+            viewName = colorImage[1].c_str();
         }
-        auto idx = mRenderGraph.AddRenderResource(colorImage[0].c_str());
-        AddFlushBarrier({idx, vk::ImageLayout::eColorAttachmentOptimal,
-                         vk::AccessFlagBits2::eColorAttachmentWrite,
-                         vk::PipelineStageFlagBits2::eColorAttachmentOutput});
+        color.setImageView(
+            mRenderGraph.mResMgr[imageName].GetTexViewHandle(viewName));
+
+        // if (color.loadOp != vk::AttachmentLoadOp::eClear) {
+        AddBarrier({idx, vk::ImageLayout::eColorAttachmentOptimal,
+                    vk::AccessFlagBits2::eColorAttachmentRead
+                        | vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::PipelineStageFlagBits2::eColorAttachmentOutput});
+        // }
 
         colors.emplace_back(imageName, viewName, color);
     }
@@ -206,11 +205,15 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
 
                 auto idx =
                     mRenderGraph.AddRenderResource(depthImage[0].c_str());
-                AddFlushBarrier(
+
+                // if (depthStencil.info.loadOp != vk::AttachmentLoadOp::eClear) {
+                AddBarrier(
                     {idx, vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                     vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+                     vk::AccessFlagBits2::eDepthStencilAttachmentRead
+                         | vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
                      vk::PipelineStageFlagBits2::eLateFragmentTests
                          | vk::PipelineStageFlagBits2::eEarlyFragmentTests});
+                // }
                 break;
             }
             case RenderPassBinding::Type::RenderInfo: {
@@ -260,9 +263,9 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
                 descLayouts[set]->GetDescriptorSize(binding.descriptorType);
 
             // TODO: index descriptor that is element array
-            AllocateDescriptor(resName, mDescSets[set].get(), descSize,
-                               binding.descriptorType, binding.binding, 0,
-                               nullptr);
+            return AllocateDescriptor(resName, mDescSets[set].get(), descSize,
+                                      binding.descriptorType, binding.binding,
+                                      0, nullptr);
         }
     }
 
@@ -271,10 +274,13 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
     for (auto const& rtv : mRTVInfos) {
         auto nameVec =
             ::std::get<Type_STLVector<Type_STLString>>(rtv.second.value);
-        auto combinedName = nameVec[0] + "@" + nameVec[1];
-        rtvCombinedNames.push_back(combinedName);
+        if (nameVec[0] == resName) {
+            auto combinedName = nameVec[0] + "@" + nameVec[1];
+            rtvCombinedNames.push_back(combinedName);
+            mDrawCallMgr.UpdateArgument_Attachments(rtvCombinedNames);
+            return;
+        }
     }
-    mDrawCallMgr.UpdateArgument_Attachments(rtvCombinedNames);
 }
 
 void RenderPassBindingInfo_PSO::Update(
@@ -566,17 +572,10 @@ void RenderPassBindingInfo_PSO::GenerateDescBufInfos(
     }
 }
 
-void RenderPassBindingInfo_PSO::AddFlushBarrier(RenderSequence::Barrier const& b) {
+void RenderPassBindingInfo_PSO::AddBarrier(RenderSequence::Barrier const& b) {
     VE_ASSERT(mIndex < mRenderGraph.mPassBarrierInfos.size(), "");
 
-    mRenderGraph.mPassBarrierInfos[mIndex].flush.push_back(b);
-}
-
-void RenderPassBindingInfo_PSO::AddInvalidateBarrier(
-    RenderSequence::Barrier const& b) {
-    VE_ASSERT(mIndex < mRenderGraph.mPassBarrierInfos.size(), "");
-
-    mRenderGraph.mPassBarrierInfos[mIndex].invalidate.push_back(b);
+    mRenderGraph.mPassBarrierInfos[mIndex].push_back(b);
 }
 
 RenderSequence::Barrier RenderPassBindingInfo_PSO::AddBarrier(
@@ -612,19 +611,18 @@ RenderSequence::Barrier RenderPassBindingInfo_PSO::AddBarrier(
         case vk::DescriptorType::eSampledImage:
             b.layout = vk::ImageLayout::eShaderReadOnlyOptimal;
             b.access = vk::AccessFlagBits2::eShaderSampledRead;
-            AddInvalidateBarrier(b);
+            AddBarrier(b);
             break;
         case vk::DescriptorType::eUniformBuffer:
             b.access = vk::AccessFlagBits2::eUniformRead;
-            AddInvalidateBarrier(b);
+            AddBarrier(b);
             break;
         case vk::DescriptorType::eStorageImage:
             b.layout = vk::ImageLayout::eGeneral;
             [[fallthrough]];
         case vk::DescriptorType::eStorageBuffer:
             b.access = vk::AccessFlagBits2::eShaderStorageWrite;
-            AddFlushBarrier(b);
-            AddInvalidateBarrier(b);
+            AddBarrier(b);
             break;
         default: throw ::std::runtime_error("not implemented!");
     }
@@ -638,10 +636,7 @@ RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(
 
 RenderPassBindingInfo_Barrier::RenderPassBindingInfo_Barrier(
     VulkanContext& context, RenderResourceManager& resMgr, Swapchain& sc)
-    : mContext(context),
-      mResMgr(resMgr),
-      pSwapchain(&sc),
-      mDrawCallMgr {resMgr, sc} {}
+    : mContext(context), mResMgr(resMgr), mDrawCallMgr {resMgr} {}
 
 void RenderPassBindingInfo_Barrier::RecordCmd(vk::CommandBuffer cmd) {
     mDrawCallMgr.RecordCmd(cmd);
@@ -666,12 +661,7 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
                 .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
                 .setSubresourceRange(
                     Utils::GetWholeImageSubresource(barrier->aspect));
-            if (name == "_Swapchain_") {
-                barrierInfo.setImage(
-                    pSwapchain->GetCurrentImage().GetTexHandle());
-            } else {
-                barrierInfo.setImage(mResMgr[name.c_str()].GetTexHandle());
-            }
+            barrierInfo.setImage(mResMgr[name.c_str()].GetTexHandle());
 
             bNames.push_back(name);
             imgBarriers.push_back(barrierInfo);
@@ -724,6 +714,11 @@ void RenderPassBindingInfo_Barrier::Update(
     for (auto const& name : names) {
         Update(name.c_str());
     }
+}
+
+void RenderPassBindingInfo_Barrier::OnResize(vk::Extent2D) {
+    auto resNames = mResMgr.GetResourceNames_SrcreenSizeRelated();
+    Update(resNames);
 }
 
 RenderPassBindingInfo_Copy::RenderPassBindingInfo_Copy(

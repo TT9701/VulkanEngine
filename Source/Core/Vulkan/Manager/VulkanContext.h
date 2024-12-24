@@ -28,7 +28,7 @@ class VulkanExternalBuffer;
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-enum class QueueUsage {
+enum class QueueType {
     Present,
     Graphics,
     Compute,
@@ -212,12 +212,12 @@ public:
 
     /**
      * @brief 获取特定用法的 queue
-     * @param usage queue 的用法
+     * @param type queue 的类型
      * @param highPriority 是否需要高优先级 queue，仅对 Present、Graphics、
      *        Compute_Prepare、Transfer_Prepare 用法生效
      * @return 特定用法的 queue 的常量引用
      */
-    Queue const& GetQueue(QueueUsage usage = QueueUsage::Graphics,
+    Queue const& GetQueue(QueueType type = QueueType::Graphics,
                           bool highPriority = true) const;
 
     /**

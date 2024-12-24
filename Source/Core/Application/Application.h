@@ -7,6 +7,7 @@
 #include "Core/Platform/Window.h"
 #include "Core/Utilities/Camera.h"
 #include "Core/Utilities/Defines.h"
+#include "Core/Utilities/GUI.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Utilities/Timer.h"
 #include "Core/Vulkan/Manager/CommandManager.h"
@@ -72,6 +73,8 @@ protected:
     virtual void RenderFrame(Core::RenderFrame& frame);
     virtual void EndFrame(Core::RenderFrame& frame);
 
+    virtual void RenderToSwapchainBindings(vk::CommandBuffer cmd) = 0;
+
     SDLWindow& GetSDLWindow() const;
     VulkanContext& GetVulkanContext() const;
     Swapchain& GetSwapchain() const;
@@ -79,6 +82,7 @@ protected:
     CommandManager& GetCmdMgr() const;
     PipelineManager& GetPipelineMgr() const;
     ShaderManager& GetShaderMgr() const;
+    GUI& GetUILayer();
 
     Core::RenderFrame& GetCurFrame();
     Type_STLVector<Core::RenderFrame> const& GetFrames() const;
@@ -124,6 +128,8 @@ private:
     UniquePtr<CommandManager> mCmdMgr;
     UniquePtr<PipelineManager> mPipelineMgr;
     UniquePtr<ShaderManager> mShaderMgr;
+
+    GUI mGui;
 
     Type_STLVector<Core::RenderFrame> mFrames;
 };

@@ -45,8 +45,9 @@ void* Buffer::GetMapPtr() const {
 
 void Buffer::SetName(const char* name) const {
     mContext.GetDevice().SetObjectName(mHandle, name);
-    mContext.GetDevice().SetObjectName(
-        vk::DeviceMemory(mAllocationInfo.deviceMemory), name);
+    if (mAllocationInfo.deviceMemory != VK_NULL_HANDLE)
+        mContext.GetDevice().SetObjectName(
+            vk::DeviceMemory(mAllocationInfo.deviceMemory), name);
 }
 
 void Buffer::Resize(size_t newSize) {

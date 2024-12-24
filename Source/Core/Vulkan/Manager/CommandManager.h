@@ -15,7 +15,7 @@ class CommandPool;
 struct SemSubmitInfo {
     vk::PipelineStageFlagBits2 stage;
     vk::Semaphore sem;
-    uint64_t value {0};
+    uint64_t value {~0ui64};
 };
 
 struct QueueSubmitRequest {

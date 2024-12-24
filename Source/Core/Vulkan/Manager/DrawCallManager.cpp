@@ -6,10 +6,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 DrawCallManager::DrawCallManager(RenderResourceManager& manager)
-    : mRenderResManager(manager), pSwapchain(nullptr) {}
-
-DrawCallManager::DrawCallManager(RenderResourceManager& manager, Swapchain& sc)
-    : mRenderResManager(manager), pSwapchain(&sc) {}
+    : mRenderResManager(manager) {}
 
 void DrawCallManager::AddArgument_ClearColorImage(
     const char* imageName, vk::ImageLayout layout,
@@ -533,15 +530,9 @@ void DrawCallManager::UpdateArgument_Attachments(
                 mRenderResManager[imageName.c_str()].GetTexViewHandle(
                     viewName.c_str());
         } else {
-            if (imageName == "_Swapchain_") {
-                mRenderingInfo->colorAttachments[index].imageView =
-                    pSwapchain->GetImageViewHandle(
-                        pSwapchain->GetCurrentImageIndex());
-            } else {
-                mRenderingInfo->colorAttachments[index].imageView =
-                    mRenderResManager[imageName.c_str()].GetTexViewHandle(
-                        viewName.c_str());
-            }
+            mRenderingInfo->colorAttachments[index].imageView =
+                mRenderResManager[imageName.c_str()].GetTexViewHandle(
+                    viewName.c_str());
         }
     }
 }
@@ -596,12 +587,7 @@ void DrawCallManager::UpdateArgument_Barriers(
     for (auto const& name : names) {
         auto var = mBarriers->mapping.at(name);
         if (auto pib = ::std::get_if<vk::ImageMemoryBarrier2*>(&var)) {
-            if (name == "_Swapchain_") {
-                (*pib)->setImage(pSwapchain->GetCurrentImage().GetTexHandle());
-            } else {
-                (*pib)->setImage(
-                    mRenderResManager[name.c_str()].GetTexHandle());
-            }
+            (*pib)->setImage(mRenderResManager[name.c_str()].GetTexHandle());
         } else if (auto pbb = ::std::get_if<vk::BufferMemoryBarrier2*>(&var)) {
             (*pbb)->setBuffer(
                 mRenderResManager[name.c_str()].GetBufferHandle());

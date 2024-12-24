@@ -80,8 +80,8 @@ private:
     uint32_t mArraySize;
     uint32_t mSampleCount;
 
-    VmaAllocation mAllocation;
-    VmaAllocationInfo mAllocationInfo;
+    VmaAllocation mAllocation {};
+    VmaAllocationInfo mAllocationInfo {};
 
     vk::Image mHandle;
 

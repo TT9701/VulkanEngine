@@ -13,7 +13,8 @@ Application::Application(ApplicationSpecification const& spec)
       mRenderResMgr(CreateRenderResourceManager()),
       mCmdMgr(CreateCommandManager()),
       mPipelineMgr(CreatePipelineManager()),
-      mShaderMgr(CreateShaderManager())
+      mShaderMgr(CreateShaderManager()),
+      mGui(GetVulkanContext(), GetSwapchain(), GetSDLWindow())
 #ifdef CUDA_VULKAN_INTEROP
       ,
       mCUDAExternalImage(CreateExternalImage())
@@ -147,8 +148,92 @@ void Application::BeginFrame(Core::RenderFrame& frame) {
 }
 
 void Application::EndFrame(Core::RenderFrame& frame) {
+    auto& swapchain = GetSwapchain();
+    auto extent = swapchain.GetExtent2D();
+    // submit to swapchain
+    {
+        auto cmd = frame.GetGraphicsCmdBuf();
+        auto scImgIdx = swapchain.GetCurrentImageIndex();
+        auto imageHandle = swapchain.GetImageHandle(scImgIdx);
+        auto viewHandle = swapchain.GetImageViewHandle(scImgIdx);
+        vk::ImageMemoryBarrier2 preBarrier {};
+        preBarrier.setSrcStageMask(vk::PipelineStageFlagBits2::eBottomOfPipe)
+            .setSrcAccessMask(vk::AccessFlagBits2::eNone)
+            .setDstStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+            .setDstAccessMask(vk::AccessFlagBits2::eColorAttachmentWrite)
+            .setNewLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            .setSubresourceRange(Utils::GetWholeImageSubresource(
+                vk::ImageAspectFlagBits::eColor))
+            .setImage(imageHandle);
+
+        vk::DependencyInfo preDep {};
+        preDep.setImageMemoryBarriers(preBarrier);
+
+        cmd.GetHandle().pipelineBarrier2(preDep);
+
+        RenderToSwapchainBindings(cmd.GetHandle());
+
+        vk::RenderingAttachmentInfo attachment {};
+        attachment.setLoadOp(vk::AttachmentLoadOp::eDontCare)
+            .setStoreOp(vk::AttachmentStoreOp::eStore)
+            .setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            .setImageView(viewHandle);
+
+        vk::RenderingInfo renderingInfo {};
+        renderingInfo.setLayerCount(1)
+            .setColorAttachments(attachment)
+            .setRenderArea({{}, extent});
+
+        cmd.GetHandle().beginRendering(renderingInfo);
+
+        vk::Viewport viewport {
+            0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f};
+        cmd.GetHandle().setViewport(0, viewport);
+
+        vk::Rect2D scissor {{0, 0}, {extent.width, extent.height}};
+        cmd.GetHandle().setScissor(0, scissor);
+
+        cmd.GetHandle().draw(3, 1, 0, 0);
+
+        cmd.GetHandle().endRendering();
+
+        vk::ImageMemoryBarrier2 postBarrier {};
+        postBarrier
+            .setSrcStageMask(vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+            .setSrcAccessMask(vk::AccessFlagBits2::eColorAttachmentWrite)
+            .setDstStageMask(vk::PipelineStageFlagBits2::eBottomOfPipe)
+            .setDstAccessMask(vk::AccessFlagBits2::eNone)
+            .setOldLayout(vk::ImageLayout::eColorAttachmentOptimal)
+            .setNewLayout(vk::ImageLayout::ePresentSrcKHR)
+            .setSubresourceRange(Utils::GetWholeImageSubresource(
+                vk::ImageAspectFlagBits::eColor))
+            .setImage(imageHandle);
+
+        vk::DependencyInfo postDep {};
+        postDep.setImageMemoryBarriers(postBarrier);
+
+        cmd.GetHandle().pipelineBarrier2(postDep);
+
+        mGui.Draw(cmd.GetHandle());
+
+        cmd.End();
+
+        Type_STLVector<SemSubmitInfo> waits = {
+            {vk::PipelineStageFlagBits2::eAllGraphics,
+             frame.GetRenderFinishedSemaphore().GetHandle()}};
+
+        Type_STLVector<SemSubmitInfo> signals = {
+            {vk::PipelineStageFlagBits2::eAllGraphics,
+             frame.GetSwapchainPresentSemaphore().GetHandle()}};
+
+        GetCmdMgr().Submit(
+            cmd.GetHandle(),
+            GetVulkanContext().GetQueue(QueueType::Graphics).GetHandle(), waits,
+            signals, frame.GetFencePool().RequestFence());
+    }
+
     mSwapchain->Present(
-        frame, mVulkanContext->GetQueue(QueueUsage::Present).GetHandle());
+        frame, mVulkanContext->GetQueue(QueueType::Present).GetHandle());
     ++mFrameNum;
 }
 
@@ -178,6 +263,10 @@ PipelineManager& Application::GetPipelineMgr() const {
 
 ShaderManager& Application::GetShaderMgr() const {
     return *mShaderMgr;
+}
+
+GUI& Application::GetUILayer() {
+    return mGui;
 }
 
 RenderFrame& Application::GetCurFrame() {

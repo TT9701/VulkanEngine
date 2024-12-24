@@ -171,8 +171,9 @@ vk::ImageView Texture::GetViewHandle(const char* name) const {
 
 void Texture::SetName(const char* name) const {
     mContext.GetDevice().SetObjectName(mHandle, name);
-    mContext.GetDevice().SetObjectName(
-        vk::DeviceMemory(mAllocationInfo.deviceMemory), name);
+    if (mAllocationInfo.deviceMemory != VK_NULL_HANDLE)
+        mContext.GetDevice().SetObjectName(
+            vk::DeviceMemory(mAllocationInfo.deviceMemory), name);
 }
 
 void Texture::Resize(vk::Extent2D extent) {

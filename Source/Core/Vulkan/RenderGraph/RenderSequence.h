@@ -5,8 +5,13 @@
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
+class IRenderPassBindingInfo;
 
-enum class RenderGraphQueueType { Graphics, Compute, AsyncCompute };
+enum class RenderQueueType { Graphics, Compute, AsyncCompute };
+
+class RenderSequenceConfig {
+public:
+};
 
 class VulkanContext;
 class RenderResourceManager;
@@ -15,27 +20,34 @@ class Swapchain;
 class RenderPassBindingInfo_PSO;
 class RenderPassBindingInfo_Barrier;
 
-class RenderSequenceConfig {
-public:
-
-
-};
-
 class RenderSequence {
+    struct RenderPassBindingInfo {
+        RenderSequence& sequence;
+        UniquePtr<RenderPassBindingInfo_PSO> pso;
+        UniquePtr<RenderPassBindingInfo_Barrier> preBarrieres {nullptr};
+        UniquePtr<RenderPassBindingInfo_Barrier> postBarrieres {nullptr};
+
+        void RecordCmd(vk::CommandBuffer cmd);
+        void Update(Type_STLVector<Type_STLString> const& resNames);
+        void OnResize(vk::Extent2D extent);
+    };
 
 public:
     RenderSequence(VulkanContext& context, RenderResourceManager& resMgr,
-                   PipelineManager& pipelineMgr, DescriptorSetPool& descPool,
-                   Swapchain& sc);
+                   PipelineManager& pipelineMgr, DescriptorSetPool& descPool);
 
     ~RenderSequence() = default;
 
     CLASS_NO_COPY_MOVE(RenderSequence);
 
-    RenderPassBindingInfo_PSO& AddRenderPass(const char* name,
-                                             RenderGraphQueueType type);
+    RenderPassBindingInfo& AddRenderPass(const char* name,
+                                         RenderQueueType type);
 
-    RenderPassBindingInfo_PSO& FindRenderPass(const char* name);
+    RenderPassBindingInfo& FindRenderPass(const char* name);
+
+    RenderPassBindingInfo& GetRenderToSwapchainPass();
+
+    void RecordPass(const char* name, vk::CommandBuffer cmd);
 
     void GenerateBarriers();
 
@@ -48,15 +60,9 @@ private:
     RenderResourceManager& mResMgr;
     PipelineManager& mPipelineMgr;
     DescriptorSetPool& mDescPool;
-    Swapchain& mSwapchain;
-
-    struct RenderPassBindindInfo {
-        UniquePtr<RenderPassBindingInfo_PSO> pso;
-        UniquePtr<RenderPassBindingInfo_Barrier> barrier {nullptr};
-    };
 
     Type_STLUnorderedMap_String<uint32_t> mPassNameToIndex;
-    Type_STLVector<RenderPassBindindInfo> mPasses;
+    Type_STLVector<RenderPassBindingInfo> mPasses;
 
     Type_STLUnorderedMap_String<uint32_t> mResNameToIndex;
     Type_STLVector<RenderResource const*> mRenderResources;
@@ -68,12 +74,7 @@ private:
         vk::PipelineStageFlags2 stages;
     };
 
-    struct Barriers {
-        Type_STLVector<Barrier> invalidate;
-        Type_STLVector<Barrier> flush;
-    };
-
-    Type_STLVector<Barriers> mPassBarrierInfos;
+    Type_STLVector<Type_STLVector<Barrier>> mPassBarrierInfos;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

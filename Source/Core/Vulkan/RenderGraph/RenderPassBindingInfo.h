@@ -95,8 +95,8 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_PSO(RenderSequence& rg, uint32_t index,
-                              RenderGraphQueueType type);
+    RenderPassBindingInfo_PSO(RenderSequence& rs, uint32_t index,
+                              RenderQueueType type);
 
     virtual ~RenderPassBindingInfo_PSO() override = default;
 
@@ -139,15 +139,15 @@ private:
                               Type_STLVector<vk::DeviceSize>& offsets,
                               Type_STLVector<uint32_t>& indices);
 
-    void AddFlushBarrier(RenderSequence::Barrier const& b);
-    void AddInvalidateBarrier(RenderSequence::Barrier const& b);
+    void AddBarrier(RenderSequence::Barrier const& b);
+
     RenderSequence::Barrier AddBarrier(uint32_t idx, vk::DescriptorType type,
                                        vk::ShaderStageFlags shaderStage);
 
 private:
     RenderSequence& mRenderGraph;
     uint32_t mIndex;
-    RenderGraphQueueType mType;
+    RenderQueueType mType;
 
     DrawCallManager mDrawCallMgr;
 
@@ -222,6 +222,7 @@ public:
     virtual void GenerateMetaData(void* p = nullptr) override;
     virtual void Update(const char* resName) override;
     void Update(Type_STLVector<Type_STLString> const& names);
+    void OnResize(vk::Extent2D extent);
 
     void AddImageBarrier(const char* name, ImageBarrier const& image);
     void AddBufferBarrier(const char* name, BufferBarrier const& buffer);
@@ -234,7 +235,6 @@ private:
 private:
     VulkanContext& mContext;
     RenderResourceManager& mResMgr;
-    Swapchain* pSwapchain;
 
     Type_STLVector<::std::pair<Type_STLString, Type_Barrier>> mBarriers;
 

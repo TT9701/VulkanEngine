@@ -25,9 +25,9 @@ public:
 
     void ReleaseOwnedSemaphore(vk::Semaphore semaphore);
 
-
-    Semaphore const& GetReady4RenderSemaphore() const;
-    Semaphore const& GetReady4PresentSemaphore() const;
+    Semaphore const& GetPresentFinishedSemaphore() const;
+    Semaphore const& GetRenderFinishedSemaphore() const;
+    Semaphore const& GetSwapchainPresentSemaphore() const;
 
     CmdBufferToBegin GetGraphicsCmdBuf() const;
     CmdBufferToBegin GetComputeCmdBuf() const;
@@ -45,8 +45,10 @@ private:
     UniquePtr<FencePool> mFencePool;
     UniquePtr<SemaphorePool> mSemaphorePool;
 
-    UniquePtr<Semaphore> mReady4Render;
-    UniquePtr<Semaphore> mReady4Present;
+    UniquePtr<Semaphore> mPresentFinished;
+    UniquePtr<Semaphore> mRenderFinished;
+
+    UniquePtr<Semaphore> mSwapchainPresent;
 
     SharedPtr<BindlessDescPool> mBindlessDescPool;
 };

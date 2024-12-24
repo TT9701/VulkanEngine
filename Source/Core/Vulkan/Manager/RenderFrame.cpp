@@ -6,8 +6,9 @@ RenderFrame::RenderFrame(VulkanContext& context)
     : mContext(context),
       mFencePool(MakeUnique<FencePool>(context)),
       mSemaphorePool(MakeUnique<SemaphorePool>(context)),
-      mReady4Render(MakeUnique<Semaphore>(context)),
-      mReady4Present(MakeUnique<Semaphore>(context)) {
+      mPresentFinished(MakeUnique<Semaphore>(context)),
+      mRenderFinished(MakeUnique<Semaphore>(context)),
+      mSwapchainPresent(MakeUnique<Semaphore>(context)) {
     auto indexMap = mContext.GetDevice().GetQueueFamilyIndices();
 
     for (auto const& [type, index] : indexMap) {
@@ -45,12 +46,16 @@ vk::Fence RenderFrame::RequestFence(vk::FenceCreateFlags flags) {
     return mFencePool->RequestFence(flags);
 }
 
-Semaphore const& RenderFrame::GetReady4RenderSemaphore() const {
-    return *mReady4Render;
+Semaphore const& RenderFrame::GetPresentFinishedSemaphore() const {
+    return *mPresentFinished;
 }
 
-Semaphore const& RenderFrame::GetReady4PresentSemaphore() const {
-    return *mReady4Present;
+Semaphore const& RenderFrame::GetRenderFinishedSemaphore() const {
+    return *mRenderFinished;
+}
+
+Semaphore const& RenderFrame::GetSwapchainPresentSemaphore() const {
+    return *mSwapchainPresent;
 }
 
 CmdBufferToBegin RenderFrame::GetGraphicsCmdBuf() const {

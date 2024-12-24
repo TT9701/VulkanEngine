@@ -45,7 +45,7 @@ VulkanContext::VulkanContext(
 
     mFencePool = MakeUnique<FencePool>(*this);
     mCommandPool = MakeUnique<CommandPool>(
-        *this, GetQueue(QueueUsage::Graphics).GetFamilyIndex());
+        *this, GetQueue(QueueType::Graphics).GetFamilyIndex());
 }
 
 SharedPtr<Texture> VulkanContext::CreateTexture2D(
@@ -183,24 +183,23 @@ Sampler& VulkanContext::GetDefaultLinearSampler() const {
     return *mDefaultSamplerLinear;
 }
 
-Queue const& VulkanContext::GetQueue(QueueUsage usage,
-                                     bool highPriority) const {
-    switch (usage) {
-        case QueueUsage::Async_Compute:
+Queue const& VulkanContext::GetQueue(QueueType type, bool highPriority) const {
+    switch (type) {
+        case QueueType::Async_Compute:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eCompute), 0);
-        case QueueUsage::Async_Transfer_Upload:
+        case QueueType::Async_Transfer_Upload:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer), 0);
-        case QueueUsage::Async_Transfer_Readback:
+        case QueueType::Async_Transfer_Readback:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer), 1);
-        case QueueUsage::Transfer:
+        case QueueType::Transfer:
             return mDevice->GetQueue(
                 mDevice->GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics), 2);
-        case QueueUsage::Present:
-        case QueueUsage::Graphics:
-        case QueueUsage::Compute:
+        case QueueType::Present:
+        case QueueType::Graphics:
+        case QueueType::Compute:
         default:
             if (mPhysicalDevice.HasHighPriorityGraphicsQueue()) {
                 if (highPriority) {

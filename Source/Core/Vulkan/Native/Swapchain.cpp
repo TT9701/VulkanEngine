@@ -27,14 +27,14 @@ uint32_t Swapchain::AcquireNextImageIndex(RenderFrame& frame) {
 
     VK_CHECK(mContex.GetDevice()->acquireNextImageKHR(
         mSwapchain, WAIT_NEXT_IMAGE_TIME_OUT,
-        frame.GetReady4RenderSemaphore().GetHandle(), VK_NULL_HANDLE,
+        frame.GetPresentFinishedSemaphore().GetHandle(), VK_NULL_HANDLE,
         &mCurrentImageIndex));
 
     return mCurrentImageIndex;
 }
 
 void Swapchain::Present(RenderFrame& frame, vk::Queue queue) {
-    auto sem = frame.GetReady4PresentSemaphore().GetHandle();
+    auto sem = frame.GetSwapchainPresentSemaphore().GetHandle();
 
     vk::PresentInfoKHR presentInfo {};
     presentInfo.setSwapchains(mSwapchain)
@@ -110,6 +110,14 @@ RenderResource const& Swapchain::GetCurrentImage() const {
     return mImages[mCurrentImageIndex];
 }
 
+RenderResource const& Swapchain::GetImage(uint32_t index) const {
+    return mImages[index];
+}
+
+Type_STLVector<RenderResource> const& Swapchain::GetImages() const {
+    return mImages;
+}
+
 void Swapchain::Resize(vk::Extent2D extent) {
     mContex.GetDevice()->waitIdle();
     auto newSP = RecreateSwapchain(extent, mSwapchain);
@@ -122,15 +130,18 @@ void Swapchain::SetSwapchainImages() {
     mImages.clear();
     auto images = mContex.GetDevice()->getSwapchainImagesKHR(mSwapchain);
     mImages.reserve(images.size());
-    for (auto& img : images) {
-        mImages.emplace_back(
-            mContex, img, RenderResource::Type::Texture2D, mFormat,
+
+    ::std::string nameBase {"_Swapchain_"};
+    for (uint32_t i = 0; i < images.size(); ++i) {
+        auto& image = mImages.emplace_back(
+            mContex, images[i], RenderResource::Type::Texture2D, mFormat,
             vk::Extent3D {mExtent2D.width, mExtent2D.height, 1}, 1, 1);
 
-        mContex.SetName(mImages.back().GetTexHandle(), "Swapchain Images");
+        mContex.SetName(image.GetTexHandle(), "Swapchain Images");
 
-        mImages.back().CreateTexView("Color-Whole",
-                                     vk::ImageAspectFlagBits::eColor);
+        image.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+
+        image.SetName((nameBase + ::std::to_string(i)).c_str());
     }
 }
 

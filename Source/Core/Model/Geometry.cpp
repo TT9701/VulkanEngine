@@ -108,7 +108,7 @@ void Geometry::GenerateBuffers(VulkanContext* context, Application* engine) {
 
         {
             auto cmd = context->CreateCmdBufToBegin(
-                context->GetQueue(QueueUsage::Transfer));
+                context->GetQueue(QueueType::Transfer));
             vk::BufferCopy vertexCopy {};
             vertexCopy.setSize(vpBufSize);
             cmd->copyBuffer(staging->GetHandle(),
@@ -156,7 +156,7 @@ void Geometry::GenerateBuffers(VulkanContext* context, Application* engine) {
 
         {
             auto cmd = context->CreateCmdBufToBegin(
-                context->GetQueue(QueueUsage::Transfer));
+                context->GetQueue(QueueType::Transfer));
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
             cmd->copyBuffer(staging->GetHandle(),
@@ -327,7 +327,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext* context,
 
         {
             auto cmd = context->CreateCmdBufToBegin(
-                context->GetQueue(QueueUsage::Transfer));
+                context->GetQueue(QueueType::Transfer));
             vk::BufferCopy vertexCopy {};
             vertexCopy.setSize(vpBufSize);
             cmd->copyBuffer(staging->GetHandle(),
@@ -404,7 +404,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext* context,
 
         {
             auto cmd = context->CreateCmdBufToBegin(
-                context->GetQueue(QueueUsage::Transfer));
+                context->GetQueue(QueueType::Transfer));
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(bufSize);
             cmd->copyBuffer(staging->GetHandle(),

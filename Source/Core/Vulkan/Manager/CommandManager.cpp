@@ -29,6 +29,8 @@ QueueSubmitRequest CommandManager::Submit(
     Type_STLVector<vk::SemaphoreSubmitInfo> signals {};
     for (auto& info : signalInfos) {
         signals.emplace_back(info.sem, info.value, info.stage);
+        if (info.value == ~0ui64)
+            continue;
         signalValue = signalValue > info.value ? signalValue : info.value;
     }
 
@@ -38,10 +40,11 @@ QueueSubmitRequest CommandManager::Submit(
 
     auto& timelineSem = mContex.GetTimelineSemphore();
     auto timelineValue = timelineSem.GetValue();
-    if (signalValue - timelineValue > 0) {
+    if (signalValue > timelineValue) {
         timelineSem.IncreaseValue(signalValue - timelineValue);
     } else {
-        throw ::std::runtime_error("");
+        if (signalValue != 0)
+            throw ::std::runtime_error("");
     }
 
     return {signalValue, timelineSem.GetValueAddress()};

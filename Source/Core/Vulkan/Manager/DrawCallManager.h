@@ -10,7 +10,6 @@ class Swapchain;
 class DrawCallManager {
 public:
     DrawCallManager(RenderResourceManager& manager);
-    DrawCallManager(RenderResourceManager& manager, Swapchain& sc);
 
     /*
      *   Add Argument methods
@@ -191,7 +190,6 @@ private:
 
 private:
     RenderResourceManager& mRenderResManager;
-    Swapchain* pSwapchain;
 
     ::std::optional<DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>>
         mBarriers;

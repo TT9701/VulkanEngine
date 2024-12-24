@@ -5,8 +5,6 @@
 
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
-#include "Core/Utilities/GUI.h"
-
 namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
 namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
@@ -41,11 +39,12 @@ private:
     virtual void RenderFrame(IDNS_VC::RenderFrame& frame) override;
     virtual void EndFrame(IDNS_VC::RenderFrame& frame) override;
 
+    virtual void RenderToSwapchainBindings(vk::CommandBuffer cmd) override;
+
 private:
     void CreateDrawImage();
     void CreateDepthImage();
     void CreateRandomTexture();
-    void CreateShadowImages();
 
     void CreateBackgroundComputePipeline();
     void CreateMeshPipeline();
@@ -56,8 +55,6 @@ private:
     void RecordDrawMeshCmds();
     void RecordDrawQuadCmds();
     void RecordMeshShaderDrawCmds();
-
-    void RecordRuntimeCopyCmds();
 
     void UpdateSceneUBO();
 
@@ -75,24 +72,8 @@ private:
 
     IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
 
-    IDNS_VC::RenderPassBindingInfo_Barrier mBackgroundPass_Barrier;
-
-    IDNS_VC::RenderPassBindingInfo_Barrier mMeshDrawPass_Barrier;
-
-    IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier_Pre;
-    IDNS_VC::RenderPassBindingInfo_Barrier mMeshShaderPass_Barrier_Post;
-
-    IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Pre;
-    IDNS_VC::RenderPassBindingInfo_Barrier mQuadDrawPass_Barrier_Post;
-
-    IDNS_VC::RenderPassBindingInfo_Copy mRuntimeCopy;
-    IDNS_VC::RenderPassBindingInfo_Barrier mRuntimeCopy_Barrier_Pre;
-    IDNS_VC::RenderPassBindingInfo_Barrier mRuntimeCopy_Barrier_Post;
-
     IDNS_VC::Semaphore mCopySem;
     IDNS_VC::Semaphore mCmpSem;
-
-    IDNS_VC::GUI mGui;
 
     Camera mMainCamera {};
     SceneData mSceneData {};

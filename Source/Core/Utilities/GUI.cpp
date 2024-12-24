@@ -69,7 +69,7 @@ void GUI::PrepareContext() {
     info.Instance = mContext.GetInstance().GetHandle();
     info.PhysicalDevice = mContext.GetPhysicalDevice().GetHandle();
     info.Device = mContext.GetDevice().GetHandle();
-    info.Queue = mContext.GetQueue(QueueUsage::Graphics).GetHandle();
+    info.Queue = mContext.GetQueue(QueueType::Graphics).GetHandle();
     info.DescriptorPool = mDescPool;
     info.MinImageCount = 2;
     info.ImageCount = mSwapchain.GetImageCount();

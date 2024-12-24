@@ -41,6 +41,8 @@ public:
     uint32_t GetCurrentImageIndex() const;
     uint32_t GetPrevImageIndex() const;
     RenderResource const& GetCurrentImage() const;
+    RenderResource const& GetImage(uint32_t index) const;
+    Type_STLVector<RenderResource> const& GetImages() const;
 
 private:
     void SetSwapchainImages();
