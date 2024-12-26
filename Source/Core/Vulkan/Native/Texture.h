@@ -54,7 +54,7 @@ public:
     vk::Format GetFormat() const;
     vk::Image GetHandle() const;
     Type GetType() const;
-    ImageView* GetView(const char* name) const;
+    ImageView* GetView(const char* name = nullptr) const;
     vk::ImageView GetViewHandle(const char* name = nullptr) const;
 
     void SetName(const char* name) const;
@@ -96,6 +96,7 @@ public:
     ~ImageView();
 
     vk::ImageView GetHandle() const;
+    Type_STLString const& GetName() const;
 
     void Destroy();
 

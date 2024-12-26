@@ -1,10 +1,10 @@
 #include "RenderSequence.h"
 
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
-#include "Core/Vulkan/Native/Swapchain.h"
 #include "RenderPassBindingInfo.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
+
 
 RenderSequence::RenderSequence(VulkanContext& context,
                                RenderResourceManager& resMgr,
@@ -102,10 +102,6 @@ void RenderSequence::GenerateBarriers() {
     for (uint32_t i = 0; i < passCount; ++i) {
         for (auto const& invalidate : mPassBarrierInfos[i]) {
             uint32_t invalidateResIdx = invalidate.resourceIndex;
-            if (mRenderResources[invalidateResIdx]->GetName().find(
-                    "_Swapchain_")
-                != ::std::string::npos)
-                continue;
 
             bool foundFlush {false};
             Barrier flushBarrier {};

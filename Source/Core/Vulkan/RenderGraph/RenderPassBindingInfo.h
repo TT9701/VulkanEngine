@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include "ArgumentTypes.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
@@ -10,7 +11,6 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class Swapchain;
 class PipelineManager;
 class DescriptorManager;
 class RenderResourceManager;
@@ -18,22 +18,6 @@ class RenderResourceManager;
 namespace RenderPassBinding {
 
 enum class Type { DSV, RenderInfo, Count };
-
-struct PushContants {
-    uint32_t size;
-    void* pData;
-};
-
-struct RenderInfo {
-    vk::Rect2D renderArea;
-    uint32_t layerCount;
-    uint32_t viewMask;
-};
-
-struct BindlessDescBufInfo {
-    vk::DeviceAddress deviceAddress;
-    vk::DeviceSize offset;
-};
 
 template <Type Type>
 struct TypeTraits;
@@ -145,7 +129,7 @@ private:
                                        vk::ShaderStageFlags shaderStage);
 
 private:
-    RenderSequence& mRenderGraph;
+    RenderSequence& mRenderSequence;
     uint32_t mIndex;
     RenderQueueType mType;
 
@@ -255,7 +239,7 @@ class RenderPassBindingInfo_Copy : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_Copy(RenderResourceManager& resMgr);
+    RenderPassBindingInfo_Copy(RenderSequence& rs);
 
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
     virtual void GenerateMetaData(void* p = nullptr) override;
@@ -271,7 +255,11 @@ public:
                            vk::BufferImageCopy2 const& region);
 
 private:
-    RenderResourceManager& mResMgr;
+    void AddBarrier(RenderSequence::Barrier const& b);
+
+private:
+    RenderSequence& mRenderSequence;
+    uint32_t mIndex;
 
     DrawCallManager mDrawCallMgr;
 

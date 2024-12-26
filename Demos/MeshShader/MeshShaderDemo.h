@@ -60,17 +60,14 @@ private:
 
     void PrepareUIContext();
 
-private:
-    IDNS_VC::RenderPassBindingInfo_Barrier CreateBindingInfo_Barrier(
-        bool swapchain = false);
-    IDNS_VC::RenderPassBindingInfo_Copy CreateBindingInfo_Copy();
+    void RecordPasses();
 
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
     IDNS_VC::RenderSequence mRenderSequence;
 
-    IDNS_VC::RenderPassBindingInfo_Copy mPrepassCopy;
+    IDNS_VC::RenderSequenceConfig mRSCfg;
 
     IDNS_VC::Semaphore mCopySem;
     IDNS_VC::Semaphore mCmpSem;

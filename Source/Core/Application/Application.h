@@ -18,6 +18,7 @@
 #include "Core/Vulkan/Manager/VulkanContext.h"
 #include "Core/Vulkan/Native/Swapchain.h"
 #include "Core/Vulkan/RenderGraph/RenderPassBindingInfo.h"
+#include "Core/Vulkan/RenderGraph/RenderSequenceConfig.h"
 
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAStream.h"

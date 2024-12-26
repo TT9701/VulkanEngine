@@ -1,6 +1,5 @@
 #include "DrawCallManager.h"
 
-#include "Core/Vulkan/Native/Swapchain.h"
 #include "RenderResourceManager.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {

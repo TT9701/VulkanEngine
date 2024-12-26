@@ -8,6 +8,7 @@
 
 #include <regex>
 #include <stdexcept>
+#include <sstream>
 
 namespace {
 

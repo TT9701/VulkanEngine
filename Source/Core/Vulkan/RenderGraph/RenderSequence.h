@@ -1,24 +1,26 @@
 ﻿#pragma once
 
+#include "ArgumentTypes.h"
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
+#include <optional>
+
 namespace IntelliDesign_NS::Vulkan::Core {
-class IRenderPassBindingInfo;
 
-enum class RenderQueueType { Graphics, Compute, AsyncCompute };
+enum class RenderQueueType { Graphics, Compute, AsyncCompute, AsyncTransfer };
 
-class RenderSequenceConfig {
-public:
-};
+class RenderPassConfig;
+class RenderSequenceConfig;
 
 class VulkanContext;
 class RenderResourceManager;
 class PipelineManager;
-class Swapchain;
+
 class RenderPassBindingInfo_PSO;
 class RenderPassBindingInfo_Barrier;
+class RenderPassBindingInfo_Copy;
 
 class RenderSequence {
     struct RenderPassBindingInfo {
@@ -52,6 +54,9 @@ public:
     void GenerateBarriers();
 
     friend RenderPassBindingInfo_PSO;
+    friend RenderPassBindingInfo_Copy;
+    friend RenderPassConfig;
+    friend RenderSequenceConfig;
 
 private:
     uint32_t AddRenderResource(const char* name);

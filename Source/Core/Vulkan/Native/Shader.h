@@ -8,6 +8,8 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/Descriptors.h"
 
+#include <optional>
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;

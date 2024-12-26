@@ -268,6 +268,10 @@ vk::ImageView ImageView::GetHandle() const {
     return mHandle;
 }
 
+Type_STLString const& ImageView::GetName() const {
+    return mName;
+}
+
 void ImageView::Destroy() {
     mContext.GetDevice()->destroy(mHandle);
 }

@@ -87,6 +87,8 @@ set (VULKAN_CORE_SRC
     Vulkan/RenderGraph/RenderPassBindingInfo.cpp
     Vulkan/RenderGraph/RenderSequence.h
     Vulkan/RenderGraph/RenderSequence.cpp
+    Vulkan/RenderGraph/RenderSequenceConfig.h
+    Vulkan/RenderGraph/RenderSequenceConfig.cpp
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 

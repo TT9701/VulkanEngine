@@ -5,6 +5,8 @@
 #include "Core/System/CommonBasedVariant.hpp"
 #include "Core/Utilities/MemoryPool.h"
 
+#include <optional>
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 enum class DrawCallMetaDataType {

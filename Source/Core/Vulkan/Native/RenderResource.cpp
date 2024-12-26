@@ -102,6 +102,10 @@ vk::Image RenderResource::GetTexHandle() const {
     return ::std::get<Texture>(mResource).GetHandle();
 }
 
+ImageView* RenderResource::GetTexView(const char* name) const {
+    return ::std::get<Texture>(mResource).GetView(name);
+}
+
 vk::ImageView RenderResource::GetTexViewHandle(const char* name) const {
     return ::std::get<Texture>(mResource).GetViewHandle(name);
 }

@@ -9,7 +9,6 @@ MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
       mDescSetPool(CreateDescSetPool(GetVulkanContext())),
       mRenderSequence(GetVulkanContext(), GetRenderResMgr(), GetPipelineMgr(),
                       mDescSetPool),
-      mPrepassCopy(CreateBindingInfo_Copy()),
       mCopySem(GetVulkanContext()),
       mCmpSem(GetVulkanContext()) {}
 
@@ -89,19 +88,11 @@ void MeshShaderDemo::Update_OnResize() {
     auto& backgroundPass = mRenderSequence.FindRenderPass("DrawBackground");
     backgroundPass.Update(resNames);
 
-    // auto& drawMeshPass = mRenderSequence.FindRenderPass("DrawMesh");
-    // drawMeshPass.OnResize(extent);
-
-    // mMeshDrawPass_Barrier.OnResize(extent);
-
     auto& meshShaderPass = mRenderSequence.FindRenderPass("DrawMeshShader");
     meshShaderPass.OnResize(extent);
-    // mMeshShaderPass_Barrier_Pre.Update(resNames);
 
     auto& drawQuadPass = mRenderSequence.FindRenderPass("DrawQuad");
     drawQuadPass.OnResize(extent);
-    // mQuadDrawPass_Barrier_Pre.Update(resNames);
-    // mQuadDrawPass_Barrier_Post.Update(resNames);
 }
 
 void MeshShaderDemo::UpdateScene() {
@@ -340,8 +331,8 @@ void MeshShaderDemo::CreateDepthImage() {
 }
 
 void MeshShaderDemo::CreateRandomTexture() {
-    constexpr auto extent = vk::Extent3D {512, 512, 1};
-    constexpr uint32_t randomImageCount = 64;
+    constexpr auto extent = vk::Extent3D {4, 4, 1};
+    constexpr uint32_t randomImageCount = 16;
 
     constexpr size_t dataSize = extent.width * extent.height * 4;
 
@@ -395,15 +386,13 @@ void MeshShaderDemo::CreateRandomTexture() {
                 .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
                 .setImageExtent(extent);
 
-            mPrepassCopy.CopyBufferToImage("staging", name.c_str(), copyRegion);
-        }
+            vk::CopyBufferToImageInfo2 info {};
+            info.setSrcBuffer(GetRenderResMgr()["staging"].GetBufferHandle())
+                .setDstImage(GetRenderResMgr()[name.c_str()].GetTexHandle())
+                .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
+                .setRegions(copyRegion);
 
-        mPrepassCopy.GenerateMetaData();
-
-        mPrepassCopy.RecordCmd(cmd.mHandle);
-
-        for (uint32_t i = 0; i < randomImageCount; ++i) {
-            auto name = baseName + ::std::to_string(i);
+            cmd->copyBufferToImage2(info);
 
             Utils::TransitionImageLayout(
                 cmd.mHandle, renderResMgr[name.c_str()].GetTexHandle(),
@@ -586,9 +575,9 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
         pso["SceneDataUBO"] = "SceneUniformBuffer";
         pso["tex"] = "ErrorCheckImage";
 
-        pso["outFragColor"] = {"DrawImage", "Color-Whole"};
+        pso["outFragColor"] = {"DrawImage"};
 
-        pso[Type::DSV] = {"DepthImage", "Depth-Whole"};
+        pso[Type::DSV] = {"DepthImage"};
 
         pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
@@ -613,7 +602,7 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     {
         pso.SetPipeline("QuadDraw");
         pso["tex"] = "DrawImage";
-        pso["outFragColor"] = {"_Swapchain_", ""};
+        pso["outFragColor"] = {"_Swapchain_"};
         pso.GenerateMetaData();
     }
 }
@@ -647,8 +636,8 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
         pso["sceneTexs"] =
             BindlessDescBufInfo {bindlessSet.deviceAddr, bindlessSet.offset};
 
-        pso["outFragColor"] = {"DrawImage", "Color-Whole"};
-        pso[Type::DSV] = {"DepthImage", "Depth-Whole"};
+        pso["outFragColor"] = {"DrawImage"};
+        pso[Type::DSV] = {"DepthImage"};
 
         pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
 
@@ -720,14 +709,28 @@ void MeshShaderDemo::PrepareUIContext() {
     });
 }
 
-IDNS_VC::RenderPassBindingInfo_Barrier
-MeshShaderDemo::CreateBindingInfo_Barrier(bool swapchain) {
-    if (swapchain)
-        return {GetVulkanContext(), GetRenderResMgr(), GetSwapchain()};
-    else
-        return {GetVulkanContext(), GetRenderResMgr()};
-}
+void MeshShaderDemo::RecordPasses() {
+    mRSCfg.AddRenderPass("DrawBackground", "Background")
+        .SetBinding("image", "DrawImage")
+        .SetBinding("StorageBuffer", "RWBuffer");
 
-IDNS_VC::RenderPassBindingInfo_Copy MeshShaderDemo::CreateBindingInfo_Copy() {
-    return {GetRenderResMgr()};
+    auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
+    // meshPushContants->mModelMatrix =
+    //     glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
+    meshPushContants->mModelMatrix =
+        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.01f}),
+                    glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
+
+    auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
+
+    mRSCfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
+        .SetBinding(meshPushContants)
+        .SetBinding("UBO", "SceneUniformBuffer")
+        .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
+        .SetBinding("outFragColor", "DrawImage")
+        .SetBinding("_Depth_", "DepthImage");
+
+    mRSCfg.AddRenderPass("DrawQuad", "QuadDraw")
+        .SetBinding("tex", "DrawImage")
+        .SetBinding("outFragColor", "_Swapchain_");
 }

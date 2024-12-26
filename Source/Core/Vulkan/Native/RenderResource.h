@@ -68,6 +68,7 @@ public:
 
     Texture const* GetTexPtr() const;
     vk::Image GetTexHandle() const;
+    ImageView* GetTexView(const char* name = nullptr) const;
     vk::ImageView GetTexViewHandle(const char* name = nullptr) const;
     uint32_t GetTexWidth(uint32_t mipLevel = 0) const;
     uint32_t GetTexHeight(uint32_t mipLevel = 0) const;
