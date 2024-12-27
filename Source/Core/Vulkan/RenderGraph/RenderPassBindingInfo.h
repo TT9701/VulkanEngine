@@ -17,7 +17,7 @@ class RenderResourceManager;
 
 namespace RenderPassBinding {
 
-enum class Type { DSV, RenderInfo, Count };
+enum class Type { DSV, ArgumentBuffer, RenderInfo, Count };
 
 template <Type Type>
 struct TypeTraits;
@@ -25,6 +25,11 @@ struct TypeTraits;
 template <>
 struct TypeTraits<Type::DSV> {
     using value = Type_STLVector<Type_STLString>;
+};
+
+template <>
+struct TypeTraits<Type::ArgumentBuffer> {
+    using value = ArgumentBufferInfo;
 };
 
 template <>
@@ -38,7 +43,7 @@ using TypeTraits_t = typename TypeTraits<Type>::value;
 }  // namespace RenderPassBinding
 
 class IRenderPassBindingInfo {
-protected:
+public:
     IRenderPassBindingInfo() = default;
     virtual ~IRenderPassBindingInfo() = default;
 
@@ -46,6 +51,8 @@ protected:
     virtual void GenerateMetaData(void* descriptorPNext = nullptr) = 0;
 
     virtual void Update(const char* resName) = 0;
+    virtual void Update(Type_STLVector<Type_STLString> const& resNames) = 0;
+    virtual void OnResize(vk::Extent2D extent) = 0;
 };
 
 class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
@@ -53,10 +60,11 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
         using Type_PC = RenderPassBinding::PushContants;
         using Type_RenderInfo = RenderPassBinding::RenderInfo;
         using Type_BindlessDescInfo = RenderPassBinding::BindlessDescBufInfo;
+        using Type_ArgumentBuf = RenderPassBinding::ArgumentBufferInfo;
         using Type_Value =
             ::std::variant<Type_STLString, Type_PC,
                            Type_STLVector<Type_STLString>, Type_RenderInfo,
-                           Type_BindlessDescInfo>;
+                           Type_BindlessDescInfo, Type_ArgumentBuf>;
 
     public:
         Type_BindingValue(const char* str);
@@ -74,6 +82,9 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
 
         // bindless descriptro infos
         Type_BindingValue(Type_BindlessDescInfo const& info);
+
+        // argument buffer
+        Type_BindingValue(Type_ArgumentBuf const& info);
 
         Type_Value value;
     };
@@ -205,8 +216,8 @@ public:
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
     virtual void GenerateMetaData(void* p = nullptr) override;
     virtual void Update(const char* resName) override;
-    void Update(Type_STLVector<Type_STLString> const& names);
-    void OnResize(vk::Extent2D extent);
+    virtual void Update(Type_STLVector<Type_STLString> const& names) override;
+    virtual void OnResize(vk::Extent2D extent) override;
 
     void AddImageBarrier(const char* name, ImageBarrier const& image);
     void AddBufferBarrier(const char* name, BufferBarrier const& buffer);
@@ -239,11 +250,14 @@ class RenderPassBindingInfo_Copy : public IRenderPassBindingInfo {
     };
 
 public:
-    RenderPassBindingInfo_Copy(RenderSequence& rs);
+    RenderPassBindingInfo_Copy(RenderSequence& rs, uint32_t index);
 
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
     virtual void GenerateMetaData(void* p = nullptr) override;
     virtual void Update(const char* resName) override;
+    virtual void Update(
+        Type_STLVector<Type_STLString> const& resNames) override;
+    virtual void OnResize(vk::Extent2D extent) override;
 
     void CopyBufferToBuffer(const char* src, const char* dst,
                             vk::BufferCopy2 const& region);

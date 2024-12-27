@@ -107,22 +107,27 @@ public:
                                        uint32_t sampleCount = 1);
 
     SharedPtr<RenderResource> CreateDeviceLocalBufferResource(
-        const char* name, size_t allocByteSize, vk::BufferUsageFlags usage);
+        const char* name, size_t allocByteSize, vk::BufferUsageFlags usage,
+        size_t stride = 1);
 
     SharedPtr<Buffer> CreateDeviceLocalBuffer(const char* name,
                                               size_t allocByteSize,
-                                              vk::BufferUsageFlags usage);
+                                              vk::BufferUsageFlags usage,
+                                              size_t stride = 1);
 
     SharedPtr<Buffer> CreateStagingBuffer(
         const char* name, size_t allocByteSize,
-        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
+        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0,
+        size_t stride = 1);
 
     SharedPtr<Buffer> CreateStorageBuffer(
         const char* name, size_t allocByteSize,
-        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0);
+        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0,
+        size_t stride = 1);
 
-    SharedPtr<Buffer> CreateIndirectCmdBuffer(const char* name,
-                                              size_t allocByteSize);
+    template <class T>
+    SharedPtr<StructuredBuffer<T>> CreateIndirectCmdBuffer(const char* name,
+                                                           uint32_t count);
 
 #ifdef CUDA_VULKAN_INTEROP
     SharedPtr<CUDA::VulkanExternalImage> CreateExternalImage2D(
@@ -301,6 +306,19 @@ private:
 }  // namespace IntelliDesign_NS::Vulkan::Core
 
 namespace IntelliDesign_NS::Vulkan::Core {
+
+template <class T>
+SharedPtr<StructuredBuffer<T>> VulkanContext::CreateIndirectCmdBuffer(
+    const char* name, uint32_t count) {
+    auto ptr = MakeShared<StructuredBuffer<T>>(
+        *this, count,
+        vk::BufferUsageFlagBits::eIndirectBuffer
+            | vk::BufferUsageFlagBits::eTransferDst,
+        Buffer::MemoryType::DeviceLocal);
+
+    ptr->SetName(name);
+    return ptr;
+}
 
 template <class VkCppHandle>
 void VulkanContext::SetName(VkCppHandle handle, const char* name) {

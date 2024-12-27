@@ -85,13 +85,13 @@ void MeshShaderDemo::Update_OnResize() {
 
     auto resNames = renderResMgr.GetResourceNames_SrcreenSizeRelated();
 
-    auto& backgroundPass = mRenderSequence.FindRenderPass("DrawBackground");
+    auto& backgroundPass = mRenderSequence.FindPass("DrawBackground");
     backgroundPass.Update(resNames);
 
-    auto& meshShaderPass = mRenderSequence.FindRenderPass("DrawMeshShader");
+    auto& meshShaderPass = mRenderSequence.FindPass("DrawMeshShader");
     meshShaderPass.OnResize(extent);
 
-    auto& drawQuadPass = mRenderSequence.FindRenderPass("DrawQuad");
+    auto& drawQuadPass = mRenderSequence.FindPass("DrawQuad");
     drawQuadPass.OnResize(extent);
 }
 
@@ -128,8 +128,8 @@ void MeshShaderDemo::Prepare() {
     mRenderSequence.AddRenderPass("DrawQuad", RenderQueueType::Graphics);
 
     for (auto& frame : GetFrames()) {
-        frame.PrepareBindlessDescPool(
-            {mRenderSequence.FindRenderPass("DrawMeshShader").pso.get()});
+        frame.PrepareBindlessDescPool({dynamic_cast<RenderPassBindingInfo_PSO*>(
+            mRenderSequence.FindPass("DrawMeshShader").binding.get())});
     }
     CreateRandomTexture();
 
@@ -144,14 +144,43 @@ void MeshShaderDemo::Prepare() {
     renderResMgr.CreateBuffer(
         "SceneUniformBuffer", sizeof(SceneData),
         vk::BufferUsageFlagBits::eUniformBuffer
-            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress
+            | vk::BufferUsageFlagBits::eTransferSrc,
         Buffer::MemoryType::Staging);
 
     renderResMgr.CreateBuffer_ScreenSizeRelated(
         "RWBuffer", sizeof(glm::vec4) * window.GetWidth() * window.GetHeight(),
         vk::BufferUsageFlagBits::eStorageBuffer
-            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress
+            | vk::BufferUsageFlagBits::eTransferDst,
         Buffer::MemoryType::DeviceLocal, sizeof(glm::vec4));
+
+    {
+        vk::DispatchIndirectCommand cmdBuffer {
+            (uint32_t)::std::ceil(window.GetWidth() / 16.0),
+            (uint32_t)::std::ceil(window.GetHeight() / 16.0), 1};
+
+        mDispatchIndirectCmdBuffer =
+            GetVulkanContext()
+                .CreateIndirectCmdBuffer<vk::DispatchIndirectCommand>(
+                    "dispatch command buffer", 1);
+        auto bufSize = mDispatchIndirectCmdBuffer->GetSize();
+
+        auto staging = GetVulkanContext().CreateStagingBuffer("", bufSize);
+
+        void* data = staging->GetMapPtr();
+        memcpy(data, &cmdBuffer, bufSize);
+
+        {
+            auto cmd = GetVulkanContext().CreateCmdBufToBegin(
+                GetVulkanContext().GetQueue(QueueType::Transfer));
+            vk::BufferCopy cmdBufCopy {};
+            cmdBufCopy.setSize(bufSize);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mDispatchIndirectCmdBuffer->GetHandle(),
+                            cmdBufCopy);
+        }
+    }
 
     mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
 
@@ -163,8 +192,8 @@ void MeshShaderDemo::Prepare() {
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
-        // mFactoryModel->GenerateBuffers(&GetVulkanContext(), this);
-        mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext(), this);
+        // mFactoryModel->GenerateBuffers(&GetVulkanContext());
+        mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext());
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model.c_str(),
@@ -195,14 +224,16 @@ void MeshShaderDemo::Prepare() {
     //     printf("Time consumed: %f s. \n", duration_LoadModel);
     // }
 
-    RecordDrawBackgroundCmds();
-    // RecordDrawMeshCmds();
-    RecordMeshShaderDrawCmds();
-    RecordDrawQuadCmds();
-
-    mRenderSequence.GenerateBarriers();
+    // RecordDrawBackgroundCmds(mRenderSequence);
+    // // RecordDrawMeshCmds();
+    // RecordMeshShaderDrawCmds(mRenderSequence);
+    // RecordDrawQuadCmds(mRenderSequence);
+    //
+    // mRenderSequence.GenerateBarriers();
 
     PrepareUIContext();
+
+    RecordPasses(mRenderSequence);
 }
 
 void MeshShaderDemo::BeginFrame(IDNS_VC::RenderFrame& frame) {
@@ -218,6 +249,8 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     const uint64_t graphicsFinished = timelineSem.GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
+
+    // RecordPasses(mRenderSequence);
 
     // Compute Draw
     {
@@ -248,6 +281,8 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
         auto cmd = frame.GetGraphicsCmdBuf();
 
         mRenderSequence.RecordPass("DrawMeshShader", cmd.GetHandle());
+
+        mRenderSequence.RecordPass("Copytest", cmd.GetHandle());
 
         cmd.End();
 
@@ -524,12 +559,13 @@ void MeshShaderDemo::CreateDrawQuadPipeline() {
     DBG_LOG_INFO("Vulkan Quad Graphics Pipeline Created");
 }
 
-void MeshShaderDemo::RecordDrawBackgroundCmds() {
+void MeshShaderDemo::RecordDrawBackgroundCmds(RenderSequence& sequence) {
     auto& drawImage = GetRenderResMgr()["DrawImage"];
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
 
-    auto& pso = *mRenderSequence.FindRenderPass("DrawBackground").pso;
+    auto& pso =
+        sequence.AddRenderPass("DrawBackground", RenderQueueType::Compute);
     {
         pso.SetPipeline("Background");
 
@@ -553,7 +589,7 @@ void MeshShaderDemo::RecordDrawBackgroundCmds() {
                                ::std::ceil(height / 16.0), 1);
 }
 
-void MeshShaderDemo::RecordDrawMeshCmds() {
+void MeshShaderDemo::RecordDrawMeshCmds(RenderSequence& sequence) {
     auto& drawImage = GetRenderResMgr()["DrawImage"];
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
@@ -562,7 +598,7 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     pPushConstants->mModelMatrix =
         glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
 
-    auto& pso = *mRenderSequence.FindRenderPass("DrawMesh").pso;
+    auto& pso = sequence.AddRenderPass("DrawMesh", RenderQueueType::Graphics);
 
     {
         using namespace RenderPassBinding;
@@ -592,13 +628,13 @@ void MeshShaderDemo::RecordDrawMeshCmds() {
     vk::Rect2D scissor {{0, 0}, {width, height}};
     dcMgr.AddArgument_Scissor(0, {scissor});
 
-    dcMgr.AddArgument_DrawIndiret(
+    dcMgr.AddArgument_DrawIndirect(
         mFactoryModel->GetIndirectCmdBuffer()->GetHandle(), 0,
         mFactoryModel->GetMeshCount(), sizeof(vk::DrawIndirectCommand));
 }
 
-void MeshShaderDemo::RecordDrawQuadCmds() {
-    auto& pso = *mRenderSequence.FindRenderPass("DrawQuad").pso;
+void MeshShaderDemo::RecordDrawQuadCmds(RenderSequence& sequence) {
+    auto& pso = sequence.AddRenderPass("DrawQuad", RenderQueueType::Graphics);
     {
         pso.SetPipeline("QuadDraw");
         pso["tex"] = "DrawImage";
@@ -607,7 +643,7 @@ void MeshShaderDemo::RecordDrawQuadCmds() {
     }
 }
 
-void MeshShaderDemo::RecordMeshShaderDrawCmds() {
+void MeshShaderDemo::RecordMeshShaderDrawCmds(RenderSequence& sequence) {
     auto& drawImage = GetRenderResMgr()["DrawImage"];
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
@@ -620,7 +656,8 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
                     glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
 
     // PSO
-    auto& pso = *mRenderSequence.FindRenderPass("DrawMeshShader").pso;
+    auto& pso =
+        sequence.AddRenderPass("DrawMeshShader", RenderQueueType::Graphics);
     {
         using namespace RenderPassBinding;
 
@@ -640,6 +677,10 @@ void MeshShaderDemo::RecordMeshShaderDrawCmds() {
         pso[Type::DSV] = {"DepthImage"};
 
         pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
+
+        pso[Type::ArgumentBuffer] = ArgumentBufferInfo {
+            mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
+            mFactoryModel->GetMeshletCount()};
 
         pso.GenerateMetaData();
     }
@@ -709,10 +750,20 @@ void MeshShaderDemo::PrepareUIContext() {
     });
 }
 
-void MeshShaderDemo::RecordPasses() {
-    mRSCfg.AddRenderPass("DrawBackground", "Background")
+void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
+    sequence.Clear();
+
+    auto& drawImage = GetRenderResMgr()["DrawImage"];
+    uint32_t width = drawImage.GetTexWidth();
+    uint32_t height = drawImage.GetTexHeight();
+
+    RenderSequenceConfig cfg;
+
+    cfg.AddRenderPass("DrawBackground", "Background")
         .SetBinding("image", "DrawImage")
-        .SetBinding("StorageBuffer", "RWBuffer");
+        .SetBinding("StorageBuffer", "RWBuffer")
+        .SetBinding(mDispatchIndirectCmdBuffer.get())
+        .SetExecuteInfo(RenderPassConfig::ExecuteType::Dispatch);
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     // meshPushContants->mModelMatrix =
@@ -723,14 +774,25 @@ void MeshShaderDemo::RecordPasses() {
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 
-    mRSCfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
-        .SetBinding(meshPushContants)
+    cfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
+        .SetBinding("PushConstants", meshPushContants)
         .SetBinding("UBO", "SceneUniformBuffer")
         .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
-        .SetBinding("_Depth_", "DepthImage");
+        .SetBinding("_Depth_", "DepthImage")
+        .SetBinding(mFactoryModel->GetMeshTaskIndirectCmdBuffer())
+        .SetViewport({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f})
+        .SetScissor({{0, 0}, {width, height}})
+        .SetRenderArea({{0, 0}, {width, height}})
+        .SetExecuteInfo(RenderPassConfig::ExecuteType::DrawMeshTask);
 
-    mRSCfg.AddRenderPass("DrawQuad", "QuadDraw")
+    cfg.AddCopyPass("Copytest")
+        .SetBinding(
+            {"SceneUniformBuffer", "RWBuffer", vk::BufferCopy2 {0, 0, 16}});
+
+    cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")
         .SetBinding("outFragColor", "_Swapchain_");
+
+    cfg.Compile(sequence);
 }

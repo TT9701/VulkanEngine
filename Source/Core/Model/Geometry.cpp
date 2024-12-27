@@ -16,7 +16,7 @@ Geometry::Geometry(const char* path, bool flipYZ, const char* output,
     GenerateStats();
 }
 
-void Geometry::GenerateBuffers(VulkanContext* context, Application* engine) {
+void Geometry::GenerateBuffers(VulkanContext* context) {
     // Vertex & index buffer
     {
         constexpr size_t vpSize =
@@ -145,9 +145,10 @@ void Geometry::GenerateBuffers(VulkanContext* context, Application* engine) {
 
     // indirect command buffer
     {
-        auto bufSize = sizeof(vk::DrawIndirectCommand) * mIndirectCmds.size();
-        mIndirectCmdBuffer = context->CreateIndirectCmdBuffer(
-            (mName + " Indirect Command").c_str(), bufSize);
+        mIndirectCmdBuffer =
+            context->CreateIndirectCmdBuffer<vk::DrawIndirectCommand>(
+                (mName + " Indirect Command").c_str(), mIndirectCmds.size());
+        auto bufSize = mIndirectCmdBuffer->GetSize();
 
         auto staging = context->CreateStagingBuffer("", bufSize);
 
@@ -165,8 +166,7 @@ void Geometry::GenerateBuffers(VulkanContext* context, Application* engine) {
     }
 }
 
-void Geometry::GenerateMeshletBuffers(VulkanContext* context,
-                                      Application* engine) {
+void Geometry::GenerateMeshletBuffers(VulkanContext* context) {
     constexpr size_t vpSize =
         sizeof(mModelData.meshes[0].vertices.positions[0]);
     constexpr size_t vnSize = sizeof(mModelData.meshes[0].vertices.normals[0]);
@@ -392,10 +392,12 @@ void Geometry::GenerateMeshletBuffers(VulkanContext* context,
 
     // indirect mesh task command buffer
     {
-        auto bufSize = sizeof(vk::DrawMeshTasksIndirectCommandEXT)
-                     * mMeshTaskIndirectCmds.size();
-        mMeshTaskIndirectCmdBuffer = context->CreateIndirectCmdBuffer(
-            (mName + " Mesh Task Indirect Command").c_str(), bufSize);
+        mMeshTaskIndirectCmdBuffer =
+            context
+                ->CreateIndirectCmdBuffer<vk::DrawMeshTasksIndirectCommandEXT>(
+                    (mName + " Mesh Task Indirect Command").c_str(),
+                    mMeshTaskIndirectCmds.size());
+        auto bufSize = mMeshTaskIndirectCmdBuffer->GetSize();
 
         auto staging = context->CreateStagingBuffer("", bufSize);
 

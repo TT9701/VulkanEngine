@@ -13,7 +13,7 @@ public:
     enum class MemoryType { DeviceLocal, Staging, ReadBack };
 
     Buffer(VulkanContext& context, size_t size, vk::BufferUsageFlags usage,
-           MemoryType memType, size_t texelSize = 1);
+           MemoryType memType, size_t stride = 1);
 
     ~Buffer();
 
@@ -28,7 +28,9 @@ public:
 
     size_t GetSize() const;
 
-    size_t GetTexelSize() const;
+    size_t GetStride() const;
+
+    virtual uint32_t GetCount() const;
 
     MemoryType GetMemoryType() const;
 
@@ -39,19 +41,19 @@ public:
 
     void Resize(size_t newSize);
 
-private:
+protected:
     vk::Buffer CreateBufferResource();
 
     void Destroy();
 
-private:
+protected:
     VulkanContext& mContext;
 
     vk::BufferUsageFlags mUsageFlags;
     MemoryType mMemoryType;
 
     size_t mSize;
-    size_t mTexelSize;
+    size_t mStride;
 
     bool bMapped {false};
     bool bDeviceAddressEnabled {false};
@@ -60,6 +62,22 @@ private:
     VmaAllocationInfo mAllocationInfo {};
 
     vk::Buffer mHandle;
+};
+
+template <class T>
+class StructuredBuffer : public Buffer {
+public:
+    StructuredBuffer(VulkanContext& context, uint32_t count,
+                     vk::BufferUsageFlags usage, MemoryType memType)
+        : Buffer(context, sizeof(T) * count, usage, memType, sizeof(T)),
+          mCount(count) {}
+
+    uint32_t GetCount() const override { return mCount; }
+
+    using Type = T;
+
+private:
+    uint32_t mCount;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

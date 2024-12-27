@@ -8,12 +8,12 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 Buffer::Buffer(VulkanContext& context, size_t size, vk::BufferUsageFlags usage,
-               MemoryType memType, size_t texelSize)
+               MemoryType memType, size_t stride)
     : mContext(context),
       mUsageFlags(usage),
       mMemoryType(memType),
       mSize(size),
-      mTexelSize(texelSize),
+      mStride(stride),
       mHandle(CreateBufferResource()) {}
 
 Buffer::~Buffer() {
@@ -112,8 +112,12 @@ size_t Buffer::GetSize() const {
     return mSize;
 }
 
-size_t Buffer::GetTexelSize() const {
-    return mTexelSize;
+size_t Buffer::GetStride() const {
+    return mStride;
+}
+
+uint32_t Buffer::GetCount() const {
+    return mSize / mStride;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

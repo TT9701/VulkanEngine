@@ -60,42 +60,42 @@ SharedPtr<Texture> VulkanContext::CreateTexture2D(
 }
 
 SharedPtr<RenderResource> VulkanContext::CreateDeviceLocalBufferResource(
-    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
-    auto ptr = MakeShared<RenderResource>(*this, RenderResource::Type::Buffer,
-                                          allocByteSize, usage,
-                                          Buffer::MemoryType::DeviceLocal);
+    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage,
+    size_t stride) {
+    auto ptr = MakeShared<RenderResource>(
+        *this, RenderResource::Type::Buffer, allocByteSize, usage,
+        Buffer::MemoryType::DeviceLocal, stride);
     ptr->SetName(name);
     return ptr;
 }
 
 SharedPtr<Buffer> VulkanContext::CreateDeviceLocalBuffer(
-    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
+    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage,
+    size_t stride) {
     auto ptr = MakeShared<Buffer>(*this, allocByteSize, usage,
-                                  Buffer::MemoryType::DeviceLocal);
+                                  Buffer::MemoryType::DeviceLocal, stride);
     ptr->SetName(name);
     return ptr;
 }
 
-SharedPtr<Buffer> VulkanContext::CreateStagingBuffer(
-    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
+SharedPtr<Buffer> VulkanContext::CreateStagingBuffer(const char* name,
+                                                     size_t allocByteSize,
+                                                     vk::BufferUsageFlags usage,
+                                                     size_t stride) {
     auto ptr = MakeShared<Buffer>(*this, allocByteSize,
                                   usage | vk::BufferUsageFlagBits::eTransferSrc,
-                                  Buffer::MemoryType::Staging);
+                                  Buffer::MemoryType::Staging, stride);
     ptr->SetName(name);
     return ptr;
 }
 
-SharedPtr<Buffer> VulkanContext::CreateStorageBuffer(
-    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage) {
+SharedPtr<Buffer> VulkanContext::CreateStorageBuffer(const char* name,
+                                                     size_t allocByteSize,
+                                                     vk::BufferUsageFlags usage,
+                                                     size_t stride) {
     return CreateDeviceLocalBuffer(
-        name, allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer);
-}
-
-SharedPtr<Buffer> VulkanContext::CreateIndirectCmdBuffer(const char* name,
-                                                         size_t allocByteSize) {
-    return CreateDeviceLocalBuffer(name, allocByteSize,
-                                   vk::BufferUsageFlagBits::eIndirectBuffer
-                                       | vk::BufferUsageFlagBits::eTransferDst);
+        name, allocByteSize, usage | vk::BufferUsageFlagBits::eStorageBuffer,
+        stride);
 }
 
 #ifdef CUDA_VULKAN_INTEROP

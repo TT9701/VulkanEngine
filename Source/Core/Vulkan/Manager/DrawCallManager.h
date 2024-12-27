@@ -66,11 +66,11 @@ public:
     void AddArgument_IndexBuffer(vk::Buffer buffer, vk::DeviceSize offset,
                                  vk::IndexType type);
 
-    void AddArgument_DrawIndexedIndiret(vk::Buffer buffer,
+    void AddArgument_DrawIndexedIndirect(vk::Buffer buffer,
                                         vk::DeviceSize offset,
                                         uint32_t drawCount, uint32_t stride);
 
-    void AddArgument_DrawIndiret(vk::Buffer buffer, vk::DeviceSize offset,
+    void AddArgument_DrawIndirect(vk::Buffer buffer, vk::DeviceSize offset,
                                  uint32_t drawCount, uint32_t stride);
 
     void AddArgument_Draw(uint32_t vertexCount, uint32_t instanceCount,

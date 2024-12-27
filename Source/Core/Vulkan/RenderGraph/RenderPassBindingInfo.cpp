@@ -34,6 +34,10 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_BindlessDescInfo const& info)
     : value(info) {}
 
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
+    Type_ArgumentBuf const& info)
+    : value(info) {}
+
 RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderSequence& rs,
                                                      uint32_t index,
                                                      RenderQueueType type)
@@ -150,30 +154,47 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
 
     // color attachment
     for (auto const& [_, info] : mRTVInfos) {
-        auto colorImage =
-            ::std::get<Type_STLVector<Type_STLString>>(info.value);
+        const char* imageName;
+        const char* viewName;
 
-        if (colorImage[0] == "_Swapchain_")
-            break;
+        auto result =
+            ::std::get_if<Type_STLVector<Type_STLString>>(&info.value);
+        if (!result) {
+            auto result = ::std::get_if<Type_STLString>(&info.value);
+            if (!result)
+                throw ::std::runtime_error("invalid type");
+            else {
+                imageName = result->c_str();
+                if (Type_STLString {imageName} == "_Swapchain_")
+                    break;
+                viewName = mRenderSequence.mResMgr[imageName]
+                               .GetTexView()
+                               ->GetName()
+                               .c_str();
+            }
+        } else {
+            if (result->empty())
+                break;
+            imageName = result->at(0).c_str();
+            if (Type_STLString {imageName} == "_Swapchain_")
+                break;
+            if (result->size() > 1) {
+                viewName = result->at(1).c_str();
+            } else {
+                viewName = mRenderSequence.mResMgr[imageName]
+                               .GetTexView()
+                               ->GetName()
+                               .c_str();
+            }
+        }
 
         vk::RenderingAttachmentInfo color {};
         color.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
             .setLoadOp(vk::AttachmentLoadOp::eDontCare)
             .setStoreOp(vk::AttachmentStoreOp::eStore);
 
-        const char* imageName = colorImage[0].c_str();
-        const char* viewName = nullptr;
-
         auto idx = mRenderSequence.AddRenderResource(imageName);
 
-        if (colorImage.size() > 1 && !colorImage[1].empty()) {
-            viewName = colorImage[1].c_str();
-        } else {
-            viewName = mRenderSequence.mResMgr[imageName]
-                           .GetTexView()
-                           ->GetName()
-                           .c_str();
-        }
         color.setImageView(
             mRenderSequence.mResMgr[imageName].GetTexViewHandle(viewName));
 
@@ -190,12 +211,37 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
     for (auto& [type, v] : mBuiltInInfos) {
         switch (type) {
             case RenderPassBinding::Type::DSV: {
-                auto const& depthImage =
-                    ::std::get<Type_STLVector<Type_STLString>>(v.value);
-                if (depthImage.empty())
-                    break;
 
-                depthStencil.imageName = depthImage[0];
+                auto result =
+                    ::std::get_if<Type_STLVector<Type_STLString>>(&v.value);
+                if (!result) {
+                    auto result = ::std::get_if<Type_STLString>(&v.value);
+                    if (!result)
+                        throw ::std::runtime_error("invalid type");
+                    else {
+                        if (result->empty())
+                            break;
+                        depthStencil.imageName = *result;
+                        depthStencil.viewName =
+                            mRenderSequence
+                                .mResMgr[depthStencil.imageName.c_str()]
+                                .GetTexView()
+                                ->GetName();
+                    }
+                } else {
+                    if (result->empty())
+                        break;
+                    depthStencil.imageName = result->at(0);
+                    if (result->size() > 1) {
+                        depthStencil.viewName = result->at(1);
+                    } else {
+                        depthStencil.viewName =
+                            mRenderSequence
+                                .mResMgr[depthStencil.imageName.c_str()]
+                                .GetTexView()
+                                ->GetName();
+                    }
+                }
 
                 depthStencil.info
                     .setImageLayout(
@@ -204,21 +250,12 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
                     .setStoreOp(vk::AttachmentStoreOp::eStore)
                     .setClearValue(vk::ClearDepthStencilValue {0.0f});
 
-                if (depthImage.size() > 1 && !depthImage[1].empty()) {
-                    depthStencil.viewName = depthImage[1];
-                } else {
-                    depthStencil.viewName =
-                        mRenderSequence.mResMgr[depthImage[0].c_str()]
-                            .GetTexView()
-                            ->GetName();
-                }
-
                 depthStencil.info.setImageView(
                     mRenderSequence.mResMgr[depthStencil.imageName.c_str()]
                         .GetTexViewHandle(depthStencil.viewName.c_str()));
 
-                auto idx =
-                    mRenderSequence.AddRenderResource(depthImage[0].c_str());
+                auto idx = mRenderSequence.AddRenderResource(
+                    depthStencil.imageName.c_str());
 
                 // if (depthStencil.info.loadOp != vk::AttachmentLoadOp::eClear) {
                 AddBarrier(
@@ -683,8 +720,15 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
 
         } else if (auto barrier = ::std::get_if<BufferBarrier>(&v)) {
             vk::BufferMemoryBarrier2 barrierInfo {};
-
-            // TODO: buffer barrier
+            barrierInfo.setSrcStageMask(barrier->srcStageMask)
+                .setSrcAccessMask(barrier->srcAccessMask)
+                .setDstStageMask(barrier->dstStageMask)
+                .setDstAccessMask(barrier->dstAccessMask)
+                .setSrcQueueFamilyIndex(barrier->srcQueueFamilyIndex)
+                .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
+                .setBuffer(mResMgr[name.c_str()].GetBufferHandle())
+                .setOffset(0)
+                .setSize(VK_WHOLE_SIZE);
 
             bNames.push_back(name);
             bufBarriers.push_back(barrierInfo);
@@ -736,8 +780,9 @@ void RenderPassBindingInfo_Barrier::OnResize(vk::Extent2D) {
     Update(resNames);
 }
 
-RenderPassBindingInfo_Copy::RenderPassBindingInfo_Copy(RenderSequence& rs)
-    : mRenderSequence(rs), mDrawCallMgr(rs.mResMgr) {}
+RenderPassBindingInfo_Copy::RenderPassBindingInfo_Copy(RenderSequence& rs,
+                                                       uint32_t index)
+    : mRenderSequence(rs), mDrawCallMgr(rs.mResMgr), mIndex(index) {}
 
 void RenderPassBindingInfo_Copy::RecordCmd(vk::CommandBuffer cmd) {
     mDrawCallMgr.RecordCmd(cmd);
@@ -809,6 +854,11 @@ void RenderPassBindingInfo_Copy::Update(const char* resName) {
         }
     }
 }
+
+void RenderPassBindingInfo_Copy::Update(
+    Type_STLVector<Type_STLString> const& resNames) {}
+
+void RenderPassBindingInfo_Copy::OnResize(vk::Extent2D extent) {}
 
 void RenderPassBindingInfo_Copy::CopyBufferToBuffer(
     const char* src, const char* dst, vk::BufferCopy2 const& region) {

@@ -21,5 +21,11 @@ struct BindlessDescBufInfo {
     vk::DeviceSize offset;
 };
 
+struct ArgumentBufferInfo {
+    vk::Buffer buffer;
+    uint32_t startIndex;
+    uint32_t count;
+};
+
 }  // namespace RenderPassBinding
 }  // namespace IntelliDesign_NS::Vulkan::Core

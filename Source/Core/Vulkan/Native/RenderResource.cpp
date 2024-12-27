@@ -149,7 +149,7 @@ void RenderResource::Resize(vk::Extent2D extent) {
                       v.SetName(mName.c_str());
                   },
                   [&](Buffer& v) {
-                      v.Resize(extent.width * extent.height * v.GetTexelSize());
+                      v.Resize(extent.width * extent.height * v.GetStride());
                       v.SetName(mName.c_str());
                   }},
         mResource);

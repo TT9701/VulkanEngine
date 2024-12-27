@@ -1,23 +1,23 @@
 ﻿#pragma once
 
-#include "ArgumentTypes.h"
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
-
-#include <optional>
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 enum class RenderQueueType { Graphics, Compute, AsyncCompute, AsyncTransfer };
 
+class IPassConfig;
 class RenderPassConfig;
+class CopyPassConfig;
 class RenderSequenceConfig;
 
 class VulkanContext;
 class RenderResourceManager;
 class PipelineManager;
 
+class IRenderPassBindingInfo;
 class RenderPassBindingInfo_PSO;
 class RenderPassBindingInfo_Barrier;
 class RenderPassBindingInfo_Copy;
@@ -25,7 +25,7 @@ class RenderPassBindingInfo_Copy;
 class RenderSequence {
     struct RenderPassBindingInfo {
         RenderSequence& sequence;
-        UniquePtr<RenderPassBindingInfo_PSO> pso;
+        UniquePtr<IRenderPassBindingInfo> binding;
         UniquePtr<RenderPassBindingInfo_Barrier> preBarrieres {nullptr};
         UniquePtr<RenderPassBindingInfo_Barrier> postBarrieres {nullptr};
 
@@ -42,10 +42,12 @@ public:
 
     CLASS_NO_COPY_MOVE(RenderSequence);
 
-    RenderPassBindingInfo& AddRenderPass(const char* name,
-                                         RenderQueueType type);
+    RenderPassBindingInfo_PSO& AddRenderPass(const char* name,
+                                             RenderQueueType type);
 
-    RenderPassBindingInfo& FindRenderPass(const char* name);
+    RenderPassBindingInfo_Copy& AddCopyPass(const char* name);
+
+    RenderPassBindingInfo& FindPass(const char* name);
 
     RenderPassBindingInfo& GetRenderToSwapchainPass();
 
@@ -53,9 +55,13 @@ public:
 
     void GenerateBarriers();
 
+    void Clear();
+
     friend RenderPassBindingInfo_PSO;
     friend RenderPassBindingInfo_Copy;
+    friend IPassConfig;
     friend RenderPassConfig;
+    friend CopyPassConfig;
     friend RenderSequenceConfig;
 
 private:

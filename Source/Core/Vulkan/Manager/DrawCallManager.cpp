@@ -249,7 +249,7 @@ void DrawCallManager::AddArgument_IndexBuffer(vk::Buffer buffer,
     mMetaDatas.emplace_back(metaData);
 }
 
-void DrawCallManager::AddArgument_DrawIndexedIndiret(vk::Buffer buffer,
+void DrawCallManager::AddArgument_DrawIndexedIndirect(vk::Buffer buffer,
                                                      vk::DeviceSize offset,
                                                      uint32_t drawCount,
                                                      uint32_t stride) {
@@ -262,7 +262,7 @@ void DrawCallManager::AddArgument_DrawIndexedIndiret(vk::Buffer buffer,
     mMetaDatas.emplace_back(metaData);
 }
 
-void DrawCallManager::AddArgument_DrawIndiret(vk::Buffer buffer,
+void DrawCallManager::AddArgument_DrawIndirect(vk::Buffer buffer,
                                               vk::DeviceSize offset,
                                               uint32_t drawCount,
                                               uint32_t stride) {

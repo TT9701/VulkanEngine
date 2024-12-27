@@ -51,26 +51,26 @@ private:
     void CreateMeshShaderPipeline();
     void CreateDrawQuadPipeline();
 
-    void RecordDrawBackgroundCmds();
-    void RecordDrawMeshCmds();
-    void RecordDrawQuadCmds();
-    void RecordMeshShaderDrawCmds();
+    void RecordDrawBackgroundCmds(IDNS_VC::RenderSequence& sequence);
+    void RecordDrawMeshCmds(IDNS_VC::RenderSequence& sequence);
+    void RecordDrawQuadCmds(IDNS_VC::RenderSequence& sequence);
+    void RecordMeshShaderDrawCmds(IDNS_VC::RenderSequence& sequence);
 
     void UpdateSceneUBO();
 
     void PrepareUIContext();
 
-    void RecordPasses();
+    void RecordPasses(IDNS_VC::RenderSequence& sequence);
 
 private:
     IDNS_VC::DescriptorSetPool mDescSetPool;
 
     IDNS_VC::RenderSequence mRenderSequence;
 
-    IDNS_VC::RenderSequenceConfig mRSCfg;
-
     IDNS_VC::Semaphore mCopySem;
     IDNS_VC::Semaphore mCmpSem;
+
+    IDNS_VC::SharedPtr<IDNS_VC::Buffer> mDispatchIndirectCmdBuffer;
 
     Camera mMainCamera {};
     SceneData mSceneData {};

@@ -46,8 +46,8 @@ public:
              bool optimizeMesh = true, bool buildMeshlet = true,
              bool optimizeMeshlet = true);
 
-    void GenerateBuffers(VulkanContext* context, Application* engine);
-    void GenerateMeshletBuffers(VulkanContext* context, Application* engine);
+    void GenerateBuffers(VulkanContext* context);
+    void GenerateMeshletBuffers(VulkanContext* context);
 
     uint32_t GetMeshCount();
     uint32_t GetVertexCount() const;

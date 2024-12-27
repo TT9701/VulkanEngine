@@ -5,7 +5,6 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-
 RenderSequence::RenderSequence(VulkanContext& context,
                                RenderResourceManager& resMgr,
                                PipelineManager& pipelineMgr,
@@ -15,24 +14,46 @@ RenderSequence::RenderSequence(VulkanContext& context,
       mPipelineMgr(pipelineMgr),
       mDescPool(descPool) {}
 
-RenderSequence::RenderPassBindingInfo& RenderSequence::AddRenderPass(
-    const char* name, RenderQueueType type) {
+RenderPassBindingInfo_PSO& RenderSequence::AddRenderPass(const char* name,
+                                                         RenderQueueType type) {
     if (mPassNameToIndex.contains(name)) {
-        return mPasses[mPassNameToIndex.at(name)];
+        return *dynamic_cast<RenderPassBindingInfo_PSO*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
     } else {
         uint32_t index = mPasses.size();
         mPasses.emplace_back(
             *this, MakeUnique<RenderPassBindingInfo_PSO>(*this, index, type));
-        mPasses.back().pso->SetName(name);
         mPassNameToIndex[name] = index;
 
         mPassBarrierInfos.emplace_back();
 
-        return mPasses.back();
+        auto ptr = dynamic_cast<RenderPassBindingInfo_PSO*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+        ptr->SetName(name);
+
+        return *ptr;
     }
 }
 
-RenderSequence::RenderPassBindingInfo& RenderSequence::FindRenderPass(
+RenderPassBindingInfo_Copy& RenderSequence::AddCopyPass(const char* name) {
+    if (mPassNameToIndex.contains(name)) {
+        return *dynamic_cast<RenderPassBindingInfo_Copy*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+    } else {
+        uint32_t index = mPasses.size();
+        mPasses.emplace_back(
+            *this, MakeUnique<RenderPassBindingInfo_Copy>(*this, index));
+        mPassNameToIndex[name] = index;
+        mPassBarrierInfos.emplace_back();
+
+        auto ptr = dynamic_cast<RenderPassBindingInfo_Copy*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+
+        return *ptr;
+    }
+}
+
+RenderSequence::RenderPassBindingInfo& RenderSequence::FindPass(
     const char* name) {
     if (mPassNameToIndex.contains(name)) {
         return mPasses[mPassNameToIndex.at(name)];
@@ -70,7 +91,7 @@ void RenderSequence::RenderPassBindingInfo::RecordCmd(vk::CommandBuffer cmd) {
     if (preBarrieres)
         preBarrieres->RecordCmd(cmd);
 
-    pso->RecordCmd(cmd);
+    binding->RecordCmd(cmd);
 
     if (postBarrieres)
         postBarrieres->RecordCmd(cmd);
@@ -81,7 +102,7 @@ void RenderSequence::RenderPassBindingInfo::Update(
     if (preBarrieres)
         preBarrieres->Update(resNames);
 
-    pso->Update(resNames);
+    binding->Update(resNames);
 
     if (postBarrieres)
         postBarrieres->Update(resNames);
@@ -91,7 +112,7 @@ void RenderSequence::RenderPassBindingInfo::OnResize(vk::Extent2D extent) {
     if (preBarrieres)
         preBarrieres->OnResize(extent);
 
-    pso->OnResize(extent);
+    binding->OnResize(extent);
 
     if (postBarrieres)
         postBarrieres->OnResize(extent);
@@ -163,6 +184,14 @@ void RenderSequence::GenerateBarriers() {
         if (mPasses[i].postBarrieres)
             mPasses[i].postBarrieres->GenerateMetaData();
     }
+}
+
+void RenderSequence::Clear() {
+    mPassNameToIndex.clear();
+    mPasses.clear();
+    mResNameToIndex.clear();
+    mRenderResources.clear();
+    mPassBarrierInfos.clear();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

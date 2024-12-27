@@ -1,41 +1,38 @@
 #include "RenderSequenceConfig.h"
 
 #include "Core/Vulkan/Manager/PipelineManager.h"
+#include "Core/Vulkan/Manager/RenderResourceManager.h"
 #include "RenderPassBindingInfo.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+RenderSequenceConfig::~RenderSequenceConfig() {
+    mPassConfigs.clear();
+}
+
 RenderPassConfig& RenderSequenceConfig::AddRenderPass(
     const char* passName, const char* pipelineName) {
-    mPassConfigs.emplace_back(passName, pipelineName);
-    return mPassConfigs.back();
+    mPassConfigs.emplace_back(
+        MakeUnique<RenderPassConfig>(passName, pipelineName));
+    return *dynamic_cast<RenderPassConfig*>(mPassConfigs.back().get());
+}
+
+CopyPassConfig& RenderSequenceConfig::AddCopyPass(const char* passName) {
+    mPassConfigs.emplace_back(MakeUnique<CopyPassConfig>(passName));
+    return *dynamic_cast<CopyPassConfig*>(mPassConfigs.back().get());
 }
 
 void RenderSequenceConfig::Compile(RenderSequence& result) {
     for (auto& passConfig : mPassConfigs) {
-        auto type =
-            result.mPipelineMgr.GetPipeline(passConfig.mPipelineName.c_str())
-                .GetType();
-        switch (type) {
-            case PipelineType::Graphics: {
-                auto& pass = result.AddRenderPass(passConfig.mPassName.c_str(),
-                                                  RenderQueueType::Graphics);
-                passConfig.Compile(pass);
-                break;
-            }
-            case PipelineType::Compute: {
-                auto& pass = result.AddRenderPass(passConfig.mPassName.c_str(),
-                                                  RenderQueueType::Compute);
-                passConfig.Compile(pass);
-                break;
-            }
-        }
+        passConfig->Compile(result);
     }
+
+    result.GenerateBarriers();
 }
 
 RenderPassConfig::RenderPassConfig(const char* passName,
                                    const char* pipelineName)
-    : mPassName(passName), mPipelineName(pipelineName) {}
+    : IPassConfig {passName}, mPipelineName(pipelineName) {}
 
 RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* param,
                                                      const char* argument) {
@@ -46,6 +43,11 @@ RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* param,
 RenderPassConfig::Self& RenderPassConfig::SetBinding(
     const char* param, RenderPassBinding::BindlessDescBufInfo bindless) {
     mBindlessDesc = {param, bindless};
+    return *this;
+}
+
+RenderPassConfig::Self& RenderPassConfig::SetBinding(Buffer* argumentBuffer) {
+    mArgumentBuffer = argumentBuffer;
     return *this;
 }
 
@@ -67,18 +69,143 @@ RenderPassConfig::Self& RenderPassConfig::SetScissor(
     return *this;
 }
 
-void RenderPassConfig::Compile(RenderSequence::RenderPassBindingInfo& info) {
-    auto& pso = *info.pso;
+void RenderPassConfig::SetExecuteInfo(ExecuteType type,
+                                      std::optional<uint32_t> startIdx,
+                                      std::optional<uint32_t> count) {
+    mExecuteType = type;
+    mStartIdx = startIdx ? *startIdx : 0;
+    mDrawCount = count ? *count
+               : mArgumentBuffer
+                   ? mArgumentBuffer->GetCount() - mStartIdx
+                   : throw ::std::runtime_error("No argument buffer provided");
+}
+
+void RenderPassConfig::Compile(RenderSequence& result) {
+    auto type =
+        result.mPipelineMgr.GetPipeline(mPipelineName.c_str()).GetType();
+
+    switch (type) {
+        case PipelineType::Graphics:
+            result.AddRenderPass(mPassName.c_str(), RenderQueueType::Graphics);
+            break;
+        case PipelineType::Compute:
+            result.AddRenderPass(mPassName.c_str(), RenderQueueType::Compute);
+            break;
+    }
+
+    auto& pso = *dynamic_cast<RenderPassBindingInfo_PSO*>(
+        result.FindPass(mPassName.c_str()).binding.get());
 
     pso.SetPipeline(mPipelineName.c_str());
 
     if (mPushConstants) {
-        pso["constants"] = mPushConstants.value();
+        pso[mPushConstants.value().first.c_str()] =
+            mPushConstants.value().second;
     }
 
     if (mBindlessDesc) {
         pso[mBindlessDesc->first.c_str()] = mBindlessDesc->second;
     }
+
+    for (auto const& [param, argument] : mConfigs) {
+        if (param == "_Depth_") {
+            pso[RenderPassBinding::Type::DSV] = argument;
+            continue;
+        }
+        pso[param.c_str()] = argument;
+    }
+
+    if (mRenderArea) {
+        pso[RenderPassBinding::Type::RenderInfo] =
+            RenderPassBinding::RenderInfo {*mRenderArea, 1, 0};
+    }
+
+    pso.GenerateMetaData();
+
+    auto& dcMgr = pso.GetDrawCallManager();
+
+    if (mViewport) {
+        dcMgr.AddArgument_Viewport(0, {*mViewport});
+    }
+
+    if (mScissor) {
+        dcMgr.AddArgument_Scissor(0, {*mScissor});
+    }
+
+    switch (mExecuteType) {
+        case ExecuteType::Dispatch: {
+            dcMgr.AddArgument_DispatchIndirect(
+                mArgumentBuffer->GetHandle(),
+                mStartIdx * mArgumentBuffer->GetStride());
+            break;
+            case ExecuteType::Draw: {
+                dcMgr.AddArgument_DrawIndirect(
+                    mArgumentBuffer->GetHandle(),
+                    mStartIdx * mArgumentBuffer->GetStride(), mDrawCount,
+                    mArgumentBuffer->GetStride());
+                break;
+            }
+            case ExecuteType::DrawIndexed: {
+                dcMgr.AddArgument_DrawIndexedIndirect(
+                    mArgumentBuffer->GetHandle(),
+                    mStartIdx * mArgumentBuffer->GetStride(), mDrawCount,
+                    mArgumentBuffer->GetStride());
+                break;
+            }
+            case ExecuteType::DrawMeshTask: {
+                dcMgr.AddArgument_DrawMeshTasksIndirect(
+                    mArgumentBuffer->GetHandle(),
+                    mStartIdx * mArgumentBuffer->GetStride(), mDrawCount,
+                    mArgumentBuffer->GetStride());
+                break;
+            }
+        }
+    }
+}
+
+CopyPassConfig::CopyPassConfig(const char* passName) : IPassConfig(passName) {}
+
+CopyPassConfig::Self& CopyPassConfig::SetBinding(CopyInfo const& info) {
+    mConfigs.push_back(info);
+    return *this;
+}
+
+CopyPassConfig::Self& CopyPassConfig::SetAsync(bool isAsync) {
+    mIsAync = isAsync;
+    return *this;
+}
+
+void CopyPassConfig::Compile(RenderSequence& result) {
+    auto& copyPass = result.AddCopyPass(mPassName.c_str());
+
+    auto getResType = [&result](const char* name) {
+        return result.mResMgr[name].GetType();
+    };
+
+    for (auto const& config : mConfigs) {
+        auto srcType = getResType(config.src);
+        auto dstType = getResType(config.dst);
+
+        if (srcType == RenderResource::Type::Buffer) {
+            if (dstType == RenderResource::Type::Buffer) {
+                auto region = ::std::get<vk::BufferCopy2>(config.region);
+                copyPass.CopyBufferToBuffer(config.src, config.dst, region);
+            } else {
+                auto region = ::std::get<vk::BufferImageCopy2>(config.region);
+                copyPass.CopyBufferToImage(config.src, config.dst, region);
+            }
+        } else {
+            if (dstType == RenderResource::Type::Buffer) {
+                auto region = ::std::get<vk::BufferImageCopy2>(config.region);
+                copyPass.CopyImageToBuffer(config.src, config.dst, region);
+            } else {
+                auto region = ::std::get<vk::ImageCopy2>(config.region);
+                copyPass.CopyImageToImage(config.src, config.dst, region);
+            }
+        }
+    }
+
+    copyPass.GenerateMetaData();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
