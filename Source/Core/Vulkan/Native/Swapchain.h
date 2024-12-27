@@ -60,4 +60,78 @@ private:
     uint32_t mCurrentImageIndex {0};
 };
 
+struct HPPSwapchainProperties {
+    vk::SwapchainKHR oldSwapchain;
+    uint32_t imageCount {3};
+    vk::Extent2D extent;
+    vk::SurfaceFormatKHR surfaceFormat;
+    uint32_t arrayLayers;
+    vk::ImageUsageFlags imageUsage;
+    vk::SurfaceTransformFlagBitsKHR preTransform;
+    vk::CompositeAlphaFlagBitsKHR compositeAlpha;
+    vk::PresentModeKHR presentMode;
+};
+
+class HPPSwapchain {
+public:
+    HPPSwapchain(HPPSwapchain& old, vk::Extent2D const& extent);
+
+    HPPSwapchain(
+        VulkanContext& context, vk::PresentModeKHR presentMode,
+        std::vector<vk::PresentModeKHR> const& presentModePriorityList =
+            {vk::PresentModeKHR::eFifo, vk::PresentModeKHR::eMailbox},
+        std::vector<vk::SurfaceFormatKHR> const& surfaceFormatPriorityList =
+            {{vk::Format::eR8G8B8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear},
+             {vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear}},
+        vk::Extent2D const& extent = {}, uint32_t imageCount = 3,
+        vk::SurfaceTransformFlagBitsKHR transform =
+            vk::SurfaceTransformFlagBitsKHR::eIdentity,
+        std::set<vk::ImageUsageFlagBits> const& imageUsageFlags =
+            {vk::ImageUsageFlagBits::eColorAttachment,
+             vk::ImageUsageFlagBits::eTransferSrc},
+        vk::SwapchainKHR old = VK_NULL_HANDLE);
+
+    CLASS_NO_COPY(HPPSwapchain);
+
+    HPPSwapchain(HPPSwapchain&& other) noexcept;
+
+    HPPSwapchain& operator=(HPPSwapchain&&) = delete;
+
+    ~HPPSwapchain();
+
+    static constexpr uint64_t WAIT_NEXT_IMAGE_TIME_OUT = 1000000000;
+
+    bool IsValid() const;
+
+    vk::SwapchainKHR GetHandle() const;
+
+    std::pair<vk::Result, uint32_t> AcquireNextImage(
+        vk::Semaphore imageAcquiredSemaphore, vk::Fence fence = nullptr) const;
+
+    vk::Extent2D const& GetExtent() const;
+
+    vk::Format GetFormat() const;
+
+    std::vector<vk::Image> const& GetImages() const;
+
+    vk::ImageUsageFlags GetUsage() const;
+
+    vk::PresentModeKHR GetPresentMode() const;
+
+private:
+    VulkanContext& mContext;
+
+    vk::SwapchainKHR mHandle;
+
+    std::vector<vk::Image> mImages;
+
+    HPPSwapchainProperties mProperties;
+
+    std::vector<vk::PresentModeKHR> mPresentModePriorityList;
+
+    std::vector<vk::SurfaceFormatKHR> mSurfaceFormatPriorityList;
+
+    std::set<vk::ImageUsageFlagBits> mImageUsageFlag;
+};
+
 }  // namespace IntelliDesign_NS::Vulkan::Core
