@@ -21,6 +21,7 @@ class IRenderPassBindingInfo;
 class RenderPassBindingInfo_PSO;
 class RenderPassBindingInfo_Barrier;
 class RenderPassBindingInfo_Copy;
+class RenderPassBindingInfo_Executor;
 
 class RenderSequence {
     struct RenderPassBindingInfo {
@@ -47,6 +48,8 @@ public:
 
     RenderPassBindingInfo_Copy& AddCopyPass(const char* name);
 
+    RenderPassBindingInfo_Executor& AddExecutor(const char* name);
+
     RenderPassBindingInfo& FindPass(const char* name);
 
     RenderPassBindingInfo& GetRenderToSwapchainPass();
@@ -59,6 +62,7 @@ public:
 
     friend RenderPassBindingInfo_PSO;
     friend RenderPassBindingInfo_Copy;
+    friend RenderPassBindingInfo_Executor;
     friend IPassConfig;
     friend RenderPassConfig;
     friend CopyPassConfig;

@@ -886,4 +886,44 @@ void RenderPassBindingInfo_Copy::AddBarrier(RenderSequence::Barrier const& b) {
     mRenderSequence.mPassBarrierInfos[mIndex].push_back(b);
 }
 
+RenderPassBindingInfo_Executor::RenderPassBindingInfo_Executor(
+    RenderSequence& rs, uint32_t index)
+    : mRenderSequence(rs), mIndex(index) {}
+
+void RenderPassBindingInfo_Executor::RecordCmd(vk::CommandBuffer cmd) {
+    for (auto const& infos : mResourceStateInfos) {
+        mExecution(cmd, infos);
+        
+    }
+}
+
+void RenderPassBindingInfo_Executor::GenerateMetaData(void* p) {}
+
+void RenderPassBindingInfo_Executor::Update(const char* resName) {}
+
+void RenderPassBindingInfo_Executor::Update(
+    Type_STLVector<Type_STLString> const& resNames) {}
+
+void RenderPassBindingInfo_Executor::OnResize(vk::Extent2D extent) {}
+
+void RenderPassBindingInfo_Executor::AddExecution(
+    Type_STLVector<ResourceStateInfos> const& resInfos, Type_Func&& func) {
+    for (auto const& resInfo : resInfos) {
+        for (auto const& info : resInfo) {
+            auto idx = mRenderSequence.AddRenderResource(info.name);
+            AddBarrier({idx, info.layout, info.access, info.stages});
+        }
+    }
+
+    mResourceStateInfos = resInfos;
+    mExecution = ::std::move(func);
+}
+
+void RenderPassBindingInfo_Executor::AddBarrier(
+    RenderSequence::Barrier const& b) {
+    VE_ASSERT(mIndex < mRenderSequence.mPassBarrierInfos.size(), "");
+
+    mRenderSequence.mPassBarrierInfos[mIndex].push_back(b);
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

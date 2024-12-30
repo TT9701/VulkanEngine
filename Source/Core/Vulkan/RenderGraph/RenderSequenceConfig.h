@@ -1,7 +1,9 @@
 #pragma once
 
 #include "ArgumentTypes.h"
+#include "Core/Utilities/Functor.hpp"
 #include "Core/Vulkan/Native/Buffer.h"
+#include "RenderPassBindingInfo.h"
 #include "RenderSequence.h"
 
 #include <optional>
@@ -9,6 +11,9 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class IPassConfig;
+class RenderPassConfig;
+class CopyPassConfig;
+class ExecutorConfig;
 
 class RenderSequenceConfig {
 public:
@@ -17,6 +22,8 @@ public:
                                     const char* pipelineName);
 
     CopyPassConfig& AddCopyPass(const char* passName);
+
+    ExecutorConfig& AddExecutor(const char* passName);
 
     void Compile(RenderSequence& result);
 
@@ -120,6 +127,37 @@ private:
     Type_STLVector<CopyInfo> mConfigs;
 
     bool mIsAync {false};
+};
+
+class ExecutorConfig : public IPassConfig {
+    using ResourceStateInfo = RenderPassBindingInfo_Executor::ResourceStateInfo;
+
+public:
+    using ResourceStateInfos =
+        RenderPassBindingInfo_Executor::ResourceStateInfos;
+
+private:
+    using Self = ExecutorConfig;
+
+    // TODO: add frame index param
+    using Type_Func = RenderPassBindingInfo_Executor::Type_Func;
+
+public:
+    ExecutorConfig(const char* passName);
+
+    virtual ~ExecutorConfig() override = default;
+
+    Self& SetBinding(ResourceStateInfos const& binding);
+
+    void SetExecution(Type_Func&& func);
+
+    friend RenderSequenceConfig;
+
+private:
+    void Compile(RenderSequence& result) override;
+
+    Type_STLVector<ResourceStateInfos> mResourceStateInfos;
+    Type_Func mExecution;
 };
 
 template <class T>

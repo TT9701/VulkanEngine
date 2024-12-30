@@ -22,6 +22,11 @@ CopyPassConfig& RenderSequenceConfig::AddCopyPass(const char* passName) {
     return *dynamic_cast<CopyPassConfig*>(mPassConfigs.back().get());
 }
 
+ExecutorConfig& RenderSequenceConfig::AddExecutor(const char* passName) {
+    mPassConfigs.emplace_back(MakeUnique<ExecutorConfig>(passName));
+    return *dynamic_cast<ExecutorConfig*>(mPassConfigs.back().get());
+}
+
 void RenderSequenceConfig::Compile(RenderSequence& result) {
     for (auto& passConfig : mPassConfigs) {
         passConfig->Compile(result);
@@ -206,6 +211,23 @@ void CopyPassConfig::Compile(RenderSequence& result) {
     }
 
     copyPass.GenerateMetaData();
+}
+
+ExecutorConfig::ExecutorConfig(const char* passName) : IPassConfig(passName) {}
+
+ExecutorConfig::Self& ExecutorConfig::SetBinding(
+    ResourceStateInfos const& binding) {
+    mResourceStateInfos.push_back(binding);
+    return *this;
+}
+
+void ExecutorConfig::SetExecution(Type_Func&& func) {
+    mExecution = ::std::move(func);
+}
+
+void ExecutorConfig::Compile(RenderSequence& result) {
+    auto& executor = result.AddExecutor(mPassName.c_str());
+    executor.AddExecution(mResourceStateInfos, ::std::move(mExecution));
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

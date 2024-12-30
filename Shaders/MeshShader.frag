@@ -66,13 +66,8 @@ void main()
 {
     vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
 
-    vec3 albedo = texColor;
-
-    // vec3 result = BlinnPhong(ubo.data.sunLightPos.xyz, ubo.data.cameraPos.xyz, 
-		// InPos.xyz, InNormal.xyz, ubo.data.sunLightColor.xyz, albedo);
-
-	  // outFragColor = vec4(result, 1.0);
-
+    // vec3 albedo = texColor;
+    vec3 albedo = InColor.xyz;
 
     vec3 N = normalize(InNormal.xyz);
     vec3 V = normalize(ubo.data.cameraPos.xyz - InPos.xyz);

@@ -53,6 +53,22 @@ RenderPassBindingInfo_Copy& RenderSequence::AddCopyPass(const char* name) {
     }
 }
 
+RenderPassBindingInfo_Executor& RenderSequence::AddExecutor(const char* name) {
+    if (mPassNameToIndex.contains(name)) {
+        return *dynamic_cast<RenderPassBindingInfo_Executor*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+    } else {
+        uint32_t index = mPasses.size();
+        mPasses.emplace_back(
+            *this, MakeUnique<RenderPassBindingInfo_Executor>(*this, index));
+        mPassNameToIndex[name] = index;
+        mPassBarrierInfos.emplace_back();
+        auto ptr = dynamic_cast<RenderPassBindingInfo_Executor*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+        return *ptr;
+    }
+}
+
 RenderSequence::RenderPassBindingInfo& RenderSequence::FindPass(
     const char* name) {
     if (mPassNameToIndex.contains(name)) {

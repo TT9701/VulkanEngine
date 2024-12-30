@@ -28,4 +28,5 @@ struct ArgumentBufferInfo {
 };
 
 }  // namespace RenderPassBinding
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

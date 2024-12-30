@@ -280,6 +280,42 @@ private:
     Type_STLVector<CopyInfo> mInfos;
 };
 
-class RenderPassBindingInfo_Executor {};
+class RenderPassBindingInfo_Executor : public IRenderPassBindingInfo {
+public:
+    struct ResourceStateInfo {
+        const char* name;
+        vk::ImageLayout layout;
+        vk::AccessFlags2 access;
+        vk::PipelineStageFlags2 stages;
+    };
+
+    using ResourceStateInfos = Type_STLVector<ResourceStateInfo>;
+
+    // TODO: add frame index param
+    using Type_Func =
+        ::std::function<void(vk::CommandBuffer, ResourceStateInfos const&)>;
+
+public:
+    RenderPassBindingInfo_Executor(RenderSequence& rs, uint32_t index);
+
+    virtual void RecordCmd(vk::CommandBuffer cmd) override;
+    virtual void GenerateMetaData(void* p = nullptr) override;
+    virtual void Update(const char* resName) override;
+    virtual void Update(
+        Type_STLVector<Type_STLString> const& resNames) override;
+    virtual void OnResize(vk::Extent2D extent) override;
+
+    void AddExecution(Type_STLVector<ResourceStateInfos> const& resInfos, Type_Func&& func);
+
+private:
+    void AddBarrier(RenderSequence::Barrier const& b);
+
+private:
+    RenderSequence& mRenderSequence;
+    uint32_t mIndex;
+
+    Type_STLVector<ResourceStateInfos> mResourceStateInfos;
+    Type_Func mExecution;
+};
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

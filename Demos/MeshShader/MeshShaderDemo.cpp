@@ -188,7 +188,7 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        Type_STLString model = "sponza/sponza.obj";
+        Type_STLString model = "RM_HP_59930007DR0130HP000.fbx";
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
@@ -282,7 +282,8 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
 
         mRenderSequence.RecordPass("DrawMeshShader", cmd.GetHandle());
 
-        mRenderSequence.RecordPass("Copytest", cmd.GetHandle());
+        // mRenderSequence.RecordPass("Copytest", cmd.GetHandle());
+        mRenderSequence.RecordPass("executortest", cmd.GetHandle());
 
         cmd.End();
 
@@ -441,7 +442,7 @@ void MeshShaderDemo::CreateRandomTexture() {
             auto name = baseName + ::std::to_string(j);
             auto texture = renderResMgr[name.c_str()].GetTexPtr();
 
-            GetCurFrame().GetBindlessDescPool().Add(texture);
+            GetFrames()[i].GetBindlessDescPool().Add(texture);
         }
     }
 }
@@ -766,11 +767,8 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
         .SetExecuteInfo(RenderPassConfig::ExecuteType::Dispatch);
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
-    // meshPushContants->mModelMatrix =
-    //     glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
     meshPushContants->mModelMatrix =
-        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.01f}),
-                    glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
+        glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 
@@ -786,9 +784,28 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
         .SetRenderArea({{0, 0}, {width, height}})
         .SetExecuteInfo(RenderPassConfig::ExecuteType::DrawMeshTask);
 
-    cfg.AddCopyPass("Copytest")
-        .SetBinding(
-            {"SceneUniformBuffer", "RWBuffer", vk::BufferCopy2 {0, 0, 16}});
+    // cfg.AddCopyPass("Copytest")
+    //     .SetBinding(
+    //         {"SceneUniformBuffer", "RWBuffer", vk::BufferCopy2 {0, 0, 16}});
+
+    cfg.AddExecutor("executortest")
+        .SetBinding({{"SceneUniformBuffer", vk::ImageLayout::eUndefined,
+                      vk::AccessFlagBits2::eTransferRead,
+                      vk::PipelineStageFlagBits2::eTransfer},
+                     {"RWBuffer", vk::ImageLayout::eUndefined,
+                      vk::AccessFlagBits2::eTransferWrite,
+                      vk::PipelineStageFlagBits2::eTransfer}})
+        .SetExecution([this](vk::CommandBuffer cmd,
+                             ExecutorConfig::ResourceStateInfos const& infos) {
+            vk::BufferCopy2 copyRegion {};
+            copyRegion.setSize(16);
+
+            vk::CopyBufferInfo2 info {
+                GetRenderResMgr()[infos[0].name].GetBufferHandle(),
+                GetRenderResMgr()[infos[1].name].GetBufferHandle(), copyRegion};
+
+            cmd.copyBuffer2(info);
+        });
 
     cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")
