@@ -59,6 +59,9 @@ struct CISDI_3DModel {
         } header;
 
         struct Vertices {
+            // Vertices(::std::pmr::memory_resource* pMemPool)
+            //     : positions {::std::pmr::polymorphic_allocator {}} {}
+
             Type_STLVector<Float4> positions;
             Type_STLVector<Float2> normals;
             Type_STLVector<Float2> uvs;
@@ -74,8 +77,10 @@ struct CISDI_3DModel {
     Type_STLVector<Mesh> meshes;
 
     static CISDI_3DModel Convert(const char* path, bool flipYZ,
-                        const char* output = nullptr, bool optimizeMesh = true,
-                        bool buildMeshlet = true, bool optimizeMeshlet = true);
+                                 const char* output = nullptr,
+                                 bool optimizeMesh = true,
+                                 bool buildMeshlet = true,
+                                 bool optimizeMeshlet = true);
 
     static CISDI_3DModel Load(const char* path);
 };

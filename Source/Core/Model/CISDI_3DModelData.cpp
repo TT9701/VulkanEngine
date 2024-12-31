@@ -289,9 +289,8 @@ void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
 }
 
 CISDI_3DModel CISDI_3DModel::Convert(const char* path, bool flipYZ,
-                                     const char* output,
-                            bool optimizeMesh, bool buildMeshlet,
-                            bool optimizeMeshlet) {
+                                     const char* output, bool optimizeMesh,
+                                     bool buildMeshlet, bool optimizeMeshlet) {
     auto outputPath = ProcessOutputPath(path, output);
 
     CISDI_3DModel data {};
@@ -299,6 +298,8 @@ CISDI_3DModel CISDI_3DModel::Convert(const char* path, bool flipYZ,
     // process input model file
     {
         Assimp::Importer importer {};
+
+        // importer.SetPropertyInteger(AI_CONFIG_)
 
         const auto scene = importer.ReadFile(
             path, aiProcessPreset_TargetRealtime_Fast | aiProcess_OptimizeMeshes

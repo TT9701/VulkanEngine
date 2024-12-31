@@ -1,6 +1,8 @@
+#include <random>
+
 #include "MeshShaderDemo.h"
 
-#include <random>
+#include "Core/System/GameTimer.h"
 
 using namespace IDNS_VC;
 
@@ -233,7 +235,7 @@ void MeshShaderDemo::Prepare() {
 
     PrepareUIContext();
 
-    RecordPasses(mRenderSequence);
+    // RecordPasses(mRenderSequence);
 }
 
 void MeshShaderDemo::BeginFrame(IDNS_VC::RenderFrame& frame) {
@@ -250,7 +252,12 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
 
-    // RecordPasses(mRenderSequence);
+    GameTimer timer {};
+
+    // INTELLI_DS_MEASURE_DURATION_MS_START(timer) {
+        RecordPasses(mRenderSequence);
+    // }
+    // INTELLI_DS_MEASURE_DURATION_MS_END_PRINT(timer, "RecordPasses");
 
     // Compute Draw
     {
@@ -758,7 +765,7 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
 
-    RenderSequenceConfig cfg;
+    RenderSequenceConfig cfg {};
 
     cfg.AddRenderPass("DrawBackground", "Background")
         .SetBinding("image", "DrawImage")

@@ -66,7 +66,13 @@ public:
     Self& SetViewport(vk::Viewport const& viewport);
     Self& SetScissor(vk::Rect2D const& scissor);
 
-    enum class ExecuteType { Draw, DrawIndexed, DrawMeshTask, Dispatch };
+    enum class ExecuteType {
+        Draw,
+        DrawIndexed,
+        DrawMeshTask,
+        Dispatch,
+        None = -1
+    };
 
     void SetExecuteInfo(ExecuteType type,
                         ::std::optional<uint32_t> startIdx = ::std::nullopt,
@@ -93,9 +99,9 @@ private:
     ::std::optional<vk::Viewport> mViewport;
     ::std::optional<vk::Rect2D> mScissor;
 
-    ExecuteType mExecuteType;
-    uint32_t mStartIdx;
-    uint32_t mDrawCount;
+    ExecuteType mExecuteType {ExecuteType::None};
+    uint32_t mStartIdx {0};
+    uint32_t mDrawCount {0};
 };
 
 class CopyPassConfig : public IPassConfig {

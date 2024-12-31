@@ -111,7 +111,7 @@ vk::BufferUsageFlags Buffer::GetUsageFlags() const {
 size_t Buffer::GetSize() const {
     return mSize;
 }
-
+ 
 size_t Buffer::GetStride() const {
     return mStride;
 }

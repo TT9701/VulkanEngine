@@ -106,7 +106,8 @@ public:
     vk::SwapchainKHR GetHandle() const;
 
     std::pair<vk::Result, uint32_t> AcquireNextImage(
-        vk::Semaphore imageAcquiredSemaphore, vk::Fence fence = nullptr) const;
+        vk::Semaphore imageAcquiredSemaphore,
+        vk::Fence fence = VK_NULL_HANDLE) const;
 
     vk::Extent2D const& GetExtent() const;
 
