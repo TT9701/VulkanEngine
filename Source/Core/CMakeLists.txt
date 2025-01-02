@@ -55,6 +55,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/DescriptorSetAllocator.cpp
     Vulkan/Native/Pipeline.h
     Vulkan/Native/Pipeline.cpp
+    Vulkan/Native/Image.h
+    Vulkan/Native/Image.cpp
     Vulkan/Native/Buffer.h
     Vulkan/Native/Buffer.cpp
     Vulkan/Native/Sampler.h
@@ -63,6 +65,8 @@ set (VULKAN_CORE_SRC
     Vulkan/Native/Shader.cpp
     Vulkan/Native/RenderResource.cpp
     Vulkan/Native/RenderResource.h
+    Vulkan/Native/Resource.cpp
+    Vulkan/Native/Resource.h
     Vulkan/Native/DrawCallMetaData.h
     Vulkan/Native/DrawCallMetaData.cpp
     

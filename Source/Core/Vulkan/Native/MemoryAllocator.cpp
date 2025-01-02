@@ -17,7 +17,14 @@ MemoryAllocator::MemoryAllocator(PhysicalDevice& physicalDevice, Device& device,
 }
 
 MemoryAllocator::~MemoryAllocator() {
-    vmaDestroyAllocator(mHandle);
+    if (mHandle != VK_NULL_HANDLE) {
+        VmaTotalStatistics stats;
+        vmaCalculateStatistics(mHandle, &stats);
+        DBG_LOG_INFO("Total device memory leaked: %d bytes.",
+                     stats.total.statistics.allocationBytes);
+        vmaDestroyAllocator(mHandle);
+        mHandle = VK_NULL_HANDLE;
+    }
 }
 
 VmaAllocator MemoryAllocator::CreateAllocator() {
@@ -122,13 +129,13 @@ VmaAllocator MemoryAllocator::CreateAllocator() {
     return al;
 }
 
-ExternalMemoryPool::ExternalMemoryPool(MemoryAllocator* allocator)
-    : pAllocator(allocator), mPool(CreatePool()) {
+ExternalMemoryPool::ExternalMemoryPool(MemoryAllocator& allocator)
+    : mAllocator(allocator), mPool(CreatePool()) {
     DBG_LOG_INFO("vma External Resource Pool Created");
 }
 
 ExternalMemoryPool::~ExternalMemoryPool() {
-    vmaDestroyPool(pAllocator->GetHandle(), mPool);
+    vmaDestroyPool(mAllocator.GetHandle(), mPool);
 }
 
 VmaPool ExternalMemoryPool::CreatePool() {
@@ -137,9 +144,162 @@ VmaPool ExternalMemoryPool::CreatePool() {
 
     VmaPool pool {};
 
-    vmaCreatePool(pAllocator->GetHandle(), &vmaPoolCreateInfo, &pool);
+    vmaCreatePool(mAllocator.GetHandle(), &vmaPoolCreateInfo, &pool);
 
     return pool;
+}
+
+AllocatedBase::AllocatedBase(MemoryAllocator& allocator,
+                             const VmaAllocationCreateInfo& allocCreateInfo)
+    : mAllocator(&allocator), mAllocCreateInfo(allocCreateInfo) {}
+
+AllocatedBase::AllocatedBase(AllocatedBase&& other) noexcept
+    : mAllocator(other.mAllocator),
+      mAllocCreateInfo(std::exchange(other.mAllocCreateInfo, {})),
+      mAllocation(std::exchange(other.mAllocation, {})),
+      mMappedData(std::exchange(other.mMappedData, {})),
+      mCoherent(std::exchange(other.mCoherent, {})),
+      mPersistent(std::exchange(other.mPersistent, {})) {}
+
+const uint8_t* AllocatedBase::GetData() const {
+    return mMappedData;
+}
+
+VkDeviceMemory AllocatedBase::GetMemory() const {
+    VmaAllocationInfo info;
+    vmaGetAllocationInfo(mAllocator->GetHandle(), mAllocation, &info);
+    return info.deviceMemory;
+}
+
+void AllocatedBase::Flush(VkDeviceSize offset, VkDeviceSize size) {
+    if (!mCoherent) {
+        vmaFlushAllocation(mAllocator->GetHandle(), mAllocation, offset, size);
+    }
+}
+
+uint8_t* AllocatedBase::Map() {
+    if (!mPersistent && !Mapped()) {
+        VK_CHECK(
+            (vk::Result)vmaMapMemory(mAllocator->GetHandle(), mAllocation,
+                                     reinterpret_cast<void**>(&mMappedData)));
+        assert(mMappedData);
+    }
+    return mMappedData;
+}
+
+void AllocatedBase::Unmap() {
+    if (!mPersistent && Mapped()) {
+        vmaUnmapMemory(mAllocator->GetHandle(), mAllocation);
+        mMappedData = nullptr;
+    }
+}
+
+size_t AllocatedBase::Update(const uint8_t* data, size_t size, size_t offset) {
+    if (mPersistent) {
+        std::copy(data, data + size, mMappedData + offset);
+        Flush();
+    } else {
+        Map();
+        std::copy(data, data + size, mMappedData + offset);
+        Flush();
+        Unmap();
+    }
+    return size;
+}
+
+size_t AllocatedBase::Update(void const* data, size_t size, size_t offset) {
+    return Update(static_cast<const uint8_t*>(data), size, offset);
+}
+
+void AllocatedBase::PostCreate(VmaAllocationInfo const& allocationInfo) {
+    VkMemoryPropertyFlags prop;
+    vmaGetAllocationMemoryProperties(mAllocator->GetHandle(), mAllocation,
+                                     &prop);
+    mCoherent = (prop & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+             == VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    mMappedData = static_cast<uint8_t*>(allocationInfo.pMappedData);
+    mPersistent = Mapped();
+}
+
+[[nodiscard]] VkBuffer AllocatedBase::CreateBuffer(
+    VkBufferCreateInfo const& createInfo) {
+    VkBuffer handleResult = VK_NULL_HANDLE;
+    VmaAllocationInfo info {};
+
+    auto result =
+        vmaCreateBuffer(mAllocator->GetHandle(), &createInfo, &mAllocCreateInfo,
+                        &handleResult, &mAllocation, &info);
+
+    if (result != VK_SUCCESS) {
+        throw ::std::runtime_error {vk::to_string((vk::Result)result)
+                                    + "Cannot create Buffer"};
+    }
+    PostCreate(info);
+    return handleResult;
+}
+
+[[nodiscard]] VkImage AllocatedBase::CreateImage(
+    VkImageCreateInfo const& createInfo) {
+    assert(0 < createInfo.mipLevels && "Images should have at least one level");
+    assert(0 < createInfo.arrayLayers
+           && "Images should have at least one layer");
+    assert(0 < createInfo.usage
+           && "Images should have at least one usage type");
+
+    VkImage handleResult = VK_NULL_HANDLE;
+    VmaAllocationInfo info {};
+
+    // If the image is an attachment, prefer dedicated memory
+    constexpr VkImageUsageFlags attachmentOnlyFlags =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+        | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+        | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    if (createInfo.usage & attachmentOnlyFlags) {
+        mAllocCreateInfo.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+    }
+
+    if (createInfo.usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT) {
+        mAllocCreateInfo.preferredFlags |=
+            VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+    }
+
+    auto result =
+        vmaCreateImage(mAllocator->GetHandle(), &createInfo, &mAllocCreateInfo,
+                       &handleResult, &mAllocation, &info);
+
+    if (result != VK_SUCCESS) {
+        throw ::std::runtime_error {vk::to_string((vk::Result)result)
+                                    + "Cannot create Image"};
+    }
+
+    PostCreate(info);
+    return handleResult;
+}
+
+void AllocatedBase::DestroyBuffer(VkBuffer buffer) {
+    if (buffer != VK_NULL_HANDLE && mAllocation != VK_NULL_HANDLE) {
+        Unmap();
+        vmaDestroyBuffer(mAllocator->GetHandle(), buffer, mAllocation);
+        Clear();
+    }
+}
+
+void AllocatedBase::DestroyImage(VkImage image) {
+    if (image != VK_NULL_HANDLE && mAllocation != VK_NULL_HANDLE) {
+        Unmap();
+        vmaDestroyImage(mAllocator->GetHandle(), image, mAllocation);
+        Clear();
+    }
+}
+
+bool AllocatedBase::Mapped() const {
+    return mMappedData != nullptr;
+}
+
+void AllocatedBase::Clear() {
+    mMappedData = nullptr;
+    mPersistent = false;
+    mAllocCreateInfo = {};
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
