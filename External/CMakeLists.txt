@@ -49,3 +49,5 @@ set_target_properties(imgui PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
 # install (DIRECTORY ${SDL2_SOURCE_DIR}/include 
 #     DESTINATION ${INCLUDE_DIR}/SDL)
+
+include (../CMake/FindFBX.cmake)
