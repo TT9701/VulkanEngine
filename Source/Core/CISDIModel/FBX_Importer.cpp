@@ -56,16 +56,12 @@ void InitializeSdkObjects(FbxManager*& pManager, FbxScene*& pScene) {
     }
 }
 
-void DestroySdkObjects(FbxManager* pManager, bool pExitStatus) {
+void DestroySdkObjects(FbxManager* pManager) {
     if (pManager)
         pManager->Destroy();
-    if (pExitStatus)
-        FBXSDK_printf("Program Success!\n");
 }
 
 void ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data) {
-    printf("    Processing Mesh.\n");
-
     CISDI_3DModel::Mesh cisdiMesh {};
 
     int controlPointsCount = pMesh->GetControlPointsCount();
@@ -147,15 +143,6 @@ void ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data) {
         }
     }
 
-    // int numIndices = pMesh->GetPolygonVertexCount();
-    // int* lIndices = pMesh->GetPolygonVertices();
-
-    cisdiMesh.indices.resize(vertCount);
-    // cisdiMesh.indices.assign(lIndices, lIndices + numIndices);
-    for (size_t i = 0; i < vertCount; ++i) {
-        cisdiMesh.indices[i] = i;
-    }
-
     cisdiMesh.header.vertexCount = vertCount;
     cisdiMesh.header.indexCount = vertCount;
 
@@ -164,18 +151,6 @@ void ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data) {
 
 void ProcessNode(FbxNode* pNode, CISDI_3DModel& data) {
     auto name = pNode->GetName();
-    printf("Processing Node: %s\n", name);
-
-    // FbxDouble3 translation = pNode->LclTranslation.Get();
-    // FbxDouble3 rotation = pNode->LclRotation.Get();
-    // FbxDouble3 scaling = pNode->LclScaling.Get();
-    //
-    // printf(
-    //     "    Node transforms: translation: (%f, %f, %f), rotation: (%f, %f, "
-    //     "%f), scaling: (%f, %f, %f).\n",
-    //     translation.mData[0], translation.mData[1], translation.mData[2],
-    //     rotation.mData[0], rotation.mData[1], rotation.mData[2],
-    //     scaling.mData[0], scaling.mData[1], scaling.mData[2]);
 
     if (FbxNodeAttribute* lNodeAttribute = pNode->GetNodeAttribute()) {
         switch (lNodeAttribute->GetAttributeType()) {
@@ -297,7 +272,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
 
     // TODO: process keyframes
 
-    DestroySdkObjects(lSdkManager, true);
+    DestroySdkObjects(lSdkManager);
 
     return data;
 }

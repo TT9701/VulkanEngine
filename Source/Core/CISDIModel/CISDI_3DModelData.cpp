@@ -44,7 +44,7 @@ Type_STLString ProcessOutputPath(const char* input, const char* output) {
     return outputPath.string();
 }
 
-void OptimizeMesh(CISDI_3DModel::Mesh& mesh) {
+void RemapIndex(CISDI_3DModel::Mesh& mesh) {
     size_t vertexCount = mesh.header.vertexCount;
     size_t indexCount = mesh.header.indexCount;
 
@@ -70,15 +70,15 @@ void OptimizeMesh(CISDI_3DModel::Mesh& mesh) {
     Type_STLVector<uint32_t> optimizedIndices(indexCount);
 
     meshopt_remapVertexBuffer(optimizedVertexPositions.data(),
-                              mesh.vertices.positions.data(), vertexCount,
+                              mesh.vertices.positions.data(), indexCount,
                               sizeof(mesh.vertices.positions[0]), remap.data());
 
     meshopt_remapVertexBuffer(optimizedVertexNormals.data(),
-                              mesh.vertices.normals.data(), vertexCount,
+                              mesh.vertices.normals.data(), indexCount,
                               sizeof(mesh.vertices.normals[0]), remap.data());
 
     meshopt_remapVertexBuffer(optimizedVertexUVs.data(),
-                              mesh.vertices.uvs.data(), vertexCount,
+                              mesh.vertices.uvs.data(), indexCount,
                               sizeof(mesh.vertices.uvs[0]), remap.data());
 
     meshopt_remapIndexBuffer(optimizedIndices.data(), mesh.indices.data(),
@@ -86,19 +86,48 @@ void OptimizeMesh(CISDI_3DModel::Mesh& mesh) {
 
     mesh.header.vertexCount = vertexCount;
 
-    meshopt_optimizeVertexCache(optimizedIndices.data(),
-                                optimizedIndices.data(), indexCount,
-                                vertexCount);
-
-    meshopt_optimizeOverdraw(
-        optimizedIndices.data(), optimizedIndices.data(), indexCount,
-        (const float*)optimizedVertexPositions.data(), vertexCount,
-        sizeof(mesh.vertices.positions[0]), 1.05f);
-
     mesh.vertices.positions = std::move(optimizedVertexPositions);
     mesh.vertices.normals = std::move(optimizedVertexNormals);
     mesh.vertices.uvs = std::move(optimizedVertexUVs);
     mesh.indices = std::move(optimizedIndices);
+}
+
+void RemapIndex(CISDI_3DModel& data) {
+    for (auto& mesh : data.meshes) {
+        RemapIndex(mesh);
+    }
+}
+
+void OptimizeMesh(CISDI_3DModel::Mesh& mesh) {
+    auto indexCount = mesh.header.indexCount;
+    auto vertexCount = mesh.header.vertexCount;
+
+    const auto indices = mesh.indices.data();
+
+    meshopt_optimizeVertexCache(indices, indices, indexCount, vertexCount);
+
+    meshopt_optimizeOverdraw(indices, indices, indexCount,
+                             (const float*)mesh.vertices.positions.data(),
+                             vertexCount, sizeof(mesh.vertices.positions[0]),
+                             1.05f);
+
+    Type_STLVector<uint32_t> remap(vertexCount);
+    meshopt_optimizeVertexFetchRemap(remap.data(), indices, indexCount,
+                                     vertexCount);
+
+    meshopt_remapVertexBuffer(mesh.vertices.positions.data(),
+                              mesh.vertices.positions.data(), vertexCount,
+                              sizeof(mesh.vertices.positions[0]), remap.data());
+
+    meshopt_remapVertexBuffer(mesh.vertices.normals.data(),
+                              mesh.vertices.normals.data(), vertexCount,
+                              sizeof(mesh.vertices.normals[0]), remap.data());
+
+    meshopt_remapVertexBuffer(mesh.vertices.uvs.data(),
+                              mesh.vertices.uvs.data(), vertexCount,
+                              sizeof(mesh.vertices.uvs[0]), remap.data());
+
+    meshopt_remapIndexBuffer(indices, indices, indexCount, remap.data());
 }
 
 void OptimizeData(CISDI_3DModel& data) {
@@ -210,8 +239,16 @@ CISDI_3DModel CISDI_3DModel::Convert(const char* path, bool flipYZ,
 
     // process input model file
     {
-        data = IntelliDesign_NS::ModelImporter::FBXSDK::Convert(path, flipYZ);
-        // data = IntelliDesign_NS::ModelImporter::Assimp::Convert(path, flipYZ);
+        if (::std::filesystem::path(path).extension() == ".fbx"
+            || ::std::filesystem::path(path).extension() == ".FBX") {
+            data =
+                IntelliDesign_NS::ModelImporter::FBXSDK::Convert(path, flipYZ);
+            RemapIndex(data);
+        } else {
+            data =
+                IntelliDesign_NS::ModelImporter::Assimp::Convert(path, flipYZ);
+        }
+
         data.header.buildMeshlet = buildMeshlet;
 
         if (optimizeMesh) {

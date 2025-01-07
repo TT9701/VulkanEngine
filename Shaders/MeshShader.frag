@@ -67,8 +67,8 @@ void main()
     vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
 
     // vec3 albedo = texColor;
-    // vec3 albedo = InColor.xyz;
-    vec3 albedo = vec3(0.7);
+    vec3 albedo = InColor.xyz;
+    // vec3 albedo = vec3(0.7);
 
     vec3 N = normalize(InNormal.xyz);
     vec3 V = normalize(ubo.data.cameraPos.xyz - InPos.xyz);

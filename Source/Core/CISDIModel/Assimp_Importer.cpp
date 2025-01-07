@@ -147,7 +147,7 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
 
 void ProcessNode(CISDI_3DModel& data, aiNode* node, const aiScene* scene,
                  bool flipYZ) {
-    ReadNodeProperties(node);
+    // ReadNodeProperties(node);
     for (uint32_t i = 0; i < node->mNumMeshes; ++i) {
         auto mesh = scene->mMeshes[node->mMeshes[i]];
         ProcessMesh(data, mesh, flipYZ);

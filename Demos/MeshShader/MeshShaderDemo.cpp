@@ -190,9 +190,9 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        Type_STLString model = "06c17a29-7462-4716-8c43-5aafdd45dcdc.fbx";
+        Type_STLString model = "RM_HP_59930007DR0130HP000.fbx";
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
 
         // mFactoryModel->GenerateBuffers(&GetVulkanContext());
         mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext());
@@ -775,7 +775,8 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     meshPushContants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
+        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {.001f}),
+                    glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 
