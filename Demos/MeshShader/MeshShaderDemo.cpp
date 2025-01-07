@@ -190,9 +190,9 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        Type_STLString model = "RM_HP_59930007DR0130HP000.fbx";
+        Type_STLString model = "06c17a29-7462-4716-8c43-5aafdd45dcdc.fbx";
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
 
         // mFactoryModel->GenerateBuffers(&GetVulkanContext());
         mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext());
@@ -255,7 +255,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     GameTimer timer {};
 
     // INTELLI_DS_MEASURE_DURATION_MS_START(timer) {
-        RecordPasses(mRenderSequence);
+    RecordPasses(mRenderSequence);
     // }
     // INTELLI_DS_MEASURE_DURATION_MS_END_PRINT(timer, "RecordPasses");
 
@@ -527,7 +527,7 @@ void MeshShaderDemo::CreateMeshShaderPipeline() {
     auto builder = GetPipelineMgr().GetBuilder_Graphics();
     builder.SetShaderProgram(program)
         .SetPolygonMode(vk::PolygonMode::eFill)
-        .SetCullMode(vk::CullModeFlagBits::eNone,
+        .SetCullMode(vk::CullModeFlagBits::eBack,
                      vk::FrontFace::eCounterClockwise)
         .SetMultisampling(vk::SampleCountFlagBits::e1)
         .SetBlending(vk::False)

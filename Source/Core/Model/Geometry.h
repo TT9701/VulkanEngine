@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Mesh.h"
+#include "Core/CISDIModel/CISDI_3DModelData.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

@@ -7,7 +7,6 @@
 #include "CUDA/CUDAVulkan.h"
 #endif
 
-#include "CISDI_3DModelData.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/RenderResource.h"
 

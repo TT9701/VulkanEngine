@@ -1,45 +1,19 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
 #include <meshoptimizer.h>
 
-#define CISDI_3DModel_Subfix_Str ".cisdi"
-#define CISDI_3DModel_Subfix_WStr L".cisdi"
+#include "Common.h"
 
-// #ifdef USING_NVIDIA_GPU
-#define MESHLET_MAX_VERTEX_COUNT 64
-#define MESHLET_MAX_TRIANGLE_COUNT 124
-
-// #endif
+#ifdef CISDI_MODEL_DATA_EXPORTS
+#define CISDI_MODEL_DATA_API __declspec(dllexport)
+#else
+#define CISDI_MODEL_DATA_API __declspec(dllimport)
+#endif
 
 namespace IntelliDesign_NS::ModelData {
 
-template <class T>
-using Type_STLVector = ::std::pmr::vector<T>;
-using Type_STLString = ::std::string;
-
-struct Version {
-    uint32_t major : 8;
-    uint32_t minor : 8;
-    uint32_t patch : 16;
-};
-
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
 constexpr Version CISDI_3DModel_VERSION = {0ui8, 1ui8, 1ui16};
-
-template <class T, uint32_t Dim>
-struct Vec {
-    T elem[Dim];
-
-    T& operator[](uint32_t idx) { return elem[idx]; }
-};
-
-using Float2 = Vec<float, 2>;
-using Float3 = Vec<float, 3>;
-using Float4 = Vec<float, 4>;
 
 struct CISDI_3DModel {
     struct Header {
@@ -48,6 +22,14 @@ struct CISDI_3DModel {
         uint32_t meshCount {0};
         bool buildMeshlet;
     } header;
+
+    struct Mesh;
+    struct Material;
+
+    struct Node {
+        Mesh* mesh;
+        Material* material;
+    };
 
     struct Mesh {
         struct MeshHeader {
@@ -76,13 +58,12 @@ struct CISDI_3DModel {
 
     Type_STLVector<Mesh> meshes;
 
-    static CISDI_3DModel Convert(const char* path, bool flipYZ,
-                                 const char* output = nullptr,
-                                 bool optimizeMesh = true,
-                                 bool buildMeshlet = true,
-                                 bool optimizeMeshlet = true);
+    static CISDI_MODEL_DATA_API CISDI_3DModel
+    Convert(const char* path, bool flipYZ, const char* output = nullptr,
+            bool optimizeMesh = true, bool buildMeshlet = true,
+            bool optimizeMeshlet = true);
 
-    static CISDI_3DModel Load(const char* path);
+    static CISDI_MODEL_DATA_API CISDI_3DModel Load(const char* path);
 };
 
 }  // namespace IntelliDesign_NS::ModelData

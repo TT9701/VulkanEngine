@@ -2,6 +2,8 @@ find_package(Vulkan REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 
+add_subdirectory(CISDIModel)
+
 set (UTILITIES_SRC 
     Utilities/Logger.h
     Utilities/VulkanUtilities.h
@@ -107,8 +109,6 @@ set (MODEL_SRC
     Model/Mesh.cpp
     Model/Geometry.cpp
     Model/Geometry.h
-    Model/CISDI_3DModelData.h
-    Model/CISDI_3DModelData.cpp
 )
 set (MODEL_SRC_GROUP_NAME "Model")
 
@@ -167,10 +167,9 @@ target_include_directories(Core
 target_link_libraries(Core
     PUBLIC 
         SDL2::SDL2
-        assimp::assimp
-        meshoptimizer
         spirv-cross-c
-        imgui)
+        imgui
+        CISDI_ModelData)
 
 # include("../../External/Output/lib/cmake/assimp-5.4/assimpConfig.cmake")
 
