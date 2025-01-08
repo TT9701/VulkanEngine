@@ -7,7 +7,7 @@ enum class CameraMovement : uint32_t { Forward, Backward, Left, Right };
 
 constexpr float CameraYaw = -90.0f;
 constexpr float CameraPitch = 0.0f;
-constexpr float CameraSpeed = 15.f;
+constexpr float CameraSpeed = 300.f;
 constexpr float CameraSensitivity = 0.1f;
 constexpr float CameraZoom = 45.0f;
 

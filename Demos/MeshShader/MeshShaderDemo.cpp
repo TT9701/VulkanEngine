@@ -1,4 +1,4 @@
-#include <random>
+﻿#include <random>
 
 #include "MeshShaderDemo.h"
 
@@ -108,7 +108,7 @@ void MeshShaderDemo::UpdateScene() {
         glm::perspective(glm::radians(45.0f),
                          static_cast<float>(window.GetWidth())
                              / static_cast<float>(window.GetHeight()),
-                         500.0f, 0.01f);
+                         1000.0f, 0.01f);
 
     proj[1][1] *= -1;
 
@@ -190,16 +190,16 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        Type_STLString model = "RM_HP_59930007DR0130HP000.fbx";
+        const char* model = "06c17a29-7462-4716-8c43-5aafdd45dcdc.fbx";
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model));
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
+
+        auto duration_LoadModel = timer.End();
+        printf("Load Geometry: %s, Time consumed: %f s. \n", model,
+               duration_LoadModel);
 
         // mFactoryModel->GenerateBuffers(&GetVulkanContext());
         mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext());
-
-        auto duration_LoadModel = timer.End();
-        printf("Load Geometry: %s, Time consumed: %f s. \n", model.c_str(),
-               duration_LoadModel);
     }
 
     // {
@@ -775,8 +775,10 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     meshPushContants->mModelMatrix =
-        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {.001f}),
-                    glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        glm::scale(glm::mat4 {1.0f}, glm::vec3 {.01f});
+    // meshPushContants->mModelMatrix =
+    //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(-90.0f),
+    //                 glm::vec3(1.0f, 0.0f, 0.0f));
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 

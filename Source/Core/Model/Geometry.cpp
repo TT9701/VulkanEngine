@@ -485,10 +485,9 @@ void Geometry::LoadModel(const char* output, bool optimizeMesh,
     auto modelPath = mPath.string();
     auto cisdiModelPath = modelPath + CISDI_3DModel_Subfix_Str;
     if (::std::filesystem::exists(cisdiModelPath)) {
-        mModelData = IntelliDesign_NS::ModelData::CISDI_3DModel::Load(
-            cisdiModelPath.c_str());
+        mModelData = IntelliDesign_NS::ModelData::Load(cisdiModelPath.c_str());
     } else {
-        mModelData = IntelliDesign_NS::ModelData::CISDI_3DModel::Convert(
+        mModelData = IntelliDesign_NS::ModelData::Convert(
             modelPath.c_str(), mFlipYZ, output, optimizeMesh, buildMeshlet,
             optimizeMeshlet);
     }

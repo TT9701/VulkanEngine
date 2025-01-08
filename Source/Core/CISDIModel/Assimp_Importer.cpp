@@ -5,7 +5,10 @@
 
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+
 #include <assimp/Importer.hpp>
+#include <filesystem>
+#include <map>
 
 #include "CISDI_3DModelData.h"
 #include "Common.h"
@@ -23,6 +26,14 @@ uint32_t CalcMeshCount(aiNode* node) {
         meshCount += CalcMeshCount(node->mChildren[i]);
     }
     return meshCount;
+}
+
+uint32_t CalcNodeCount(aiNode* node) {
+    uint32_t nodeCount {1};
+    for (uint32_t i = 0; i < node->mNumChildren; ++i) {
+        nodeCount += CalcNodeCount(node->mChildren[i]);
+    }
+    return nodeCount;
 }
 
 void ReadNodeProperties(aiNode* node) {
@@ -77,7 +88,9 @@ void ReadNodeProperties(aiNode* node) {
     }
 }
 
-void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
+void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
+                 aiMesh* mesh, bool flipYZ) {
+    uint32_t meshIdx = (uint32_t)data.meshes.size();
     uint32_t vertCount = mesh->mNumVertices;
 
     CISDI_3DModel::Mesh cisdiMesh {};
@@ -87,11 +100,8 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
 
     // position
     for (uint32_t i = 0; i < vertCount; ++i) {
-        Float4 temp {};
-
-        temp[0] = mesh->mVertices[i].x;
-        temp[1] = mesh->mVertices[i].y;
-        temp[2] = mesh->mVertices[i].z;
+        Float4 temp {mesh->mVertices[i].x, mesh->mVertices[i].y,
+                     mesh->mVertices[i].z, 1.0f};
 
         // TODO: temp[3] is empty for now
 
@@ -107,9 +117,7 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
     for (uint32_t i = 0; i < vertCount; ++i) {
         auto f = ::std::sqrt(2 / (1 - mesh->mNormals[i].x));
 
-        Float2 temp {};
-        temp[0] = mesh->mNormals[i].y * f;
-        temp[1] = mesh->mNormals[i].z * f;
+        Float2 temp {mesh->mNormals[i].y * f, mesh->mNormals[i].z * f};
 
         // normal.x is runtime decoded in shader
 
@@ -122,9 +130,8 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
     // texcoords
     if (mesh->HasTextureCoords(0)) {
         for (uint32_t i = 0; i < vertCount; ++i) {
-            Float2 temp {};
-            temp[0] = mesh->mTextureCoords[0][i].x;
-            temp[1] = mesh->mTextureCoords[0][i].y;
+            Float2 temp {mesh->mTextureCoords[0][i].x,
+                         mesh->mTextureCoords[0][i].y};
             cisdiMesh.vertices.uvs[i] = temp;
         }
     }
@@ -143,31 +150,38 @@ void ProcessMesh(CISDI_3DModel& data, aiMesh* mesh, bool flipYZ) {
     cisdiMesh.header.indexCount = indexCount;
 
     data.meshes.emplace_back(cisdiMesh);
+
+    cisdiNode.meshIdx = meshIdx;
+    cisdiNode.materialIdx = mesh->mMaterialIndex;
 }
 
-void ProcessNode(CISDI_3DModel& data, aiNode* node, const aiScene* scene,
-                 bool flipYZ) {
+uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
+                     const aiScene* scene, bool flipYZ) {
     // ReadNodeProperties(node);
-    for (uint32_t i = 0; i < node->mNumMeshes; ++i) {
-        auto mesh = scene->mMeshes[node->mMeshes[i]];
-        ProcessMesh(data, mesh, flipYZ);
-    }
-    for (uint32_t i = 0; i < node->mNumChildren; ++i) {
-        ProcessNode(data, node->mChildren[i], scene, flipYZ);
+
+    uint32_t nodeIdx = data.nodes.size();
+    int childCount = node->mNumChildren;
+
+    CISDI_3DModel::Node cisdiNode {};
+    cisdiNode.name = node->mName.C_Str();
+    cisdiNode.parentIdx = parentNodeIdx;
+    cisdiNode.childCount = childCount;
+    cisdiNode.childrenIdx.reserve(childCount);
+
+    // node contains <= 1 mesh
+    assert(node->mNumMeshes <= 1);
+
+    if (node->mNumMeshes > 0)
+        ProcessMesh(data, cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ);
+
+    auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
+
+    for (uint32_t i = 0; i < childCount; ++i) {
+        ref.childrenIdx.emplace_back(
+            ProcessNode(data, nodeIdx, node->mChildren[i], scene, flipYZ));
     }
 
-    auto material = *scene->mMaterials;
-    aiColor3D color;
-    material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
-    aiString name;
-    material->Get(AI_MATKEY_NAME, name);
-    material->Get(AI_MATKEY_COLOR_AMBIENT, color);
-    material->Get(AI_MATKEY_BASE_COLOR, color);
-
-    for (uint32_t i = 0; i < material->mNumProperties; ++i) {
-        auto& prop = material->mProperties[i];
-        aiString key = prop->mKey;
-    }
+    return nodeIdx;
 }
 
 }  // namespace
@@ -178,8 +192,9 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
     ::Assimp::Importer importer {};
 
     const auto scene = importer.ReadFile(
-        path, aiProcessPreset_TargetRealtime_Fast/* | aiProcess_OptimizeMeshes*/
-                  | aiProcess_FixInfacingNormals);
+        path,
+        aiProcessPreset_TargetRealtime_Fast /* | aiProcess_OptimizeMeshes*/
+            | aiProcess_FixInfacingNormals);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
         || !scene->mRootNode) {
@@ -190,12 +205,41 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
                 .c_str());
     }
 
-    data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
-                   CalcMeshCount(scene->mRootNode), false};
+    data.header = {CISDI_3DModel_HEADER_UINT64,
+                   CISDI_3DModel_VERSION,
+                   CalcNodeCount(scene->mRootNode),
+                   scene->mNumMeshes,
+                   scene->mNumMaterials,
+                   false};
 
     data.meshes.reserve(data.header.meshCount);
 
-    ProcessNode(data, scene->mRootNode, scene, flipYZ);
+    data.name = ::std::filesystem::path(path).stem().string();
+
+    data.nodes.reserve(data.header.nodeCount);
+
+    data.meshes.reserve(data.header.meshCount);
+
+    data.materials.reserve(data.header.materialCount);
+
+    for (uint32_t i = 0; i < data.header.materialCount; ++i) {
+        auto material = scene->mMaterials[i];
+        CISDI_3DModel::Material cisdiMaterial {};
+        material->Get(AI_MATKEY_NAME, cisdiMaterial.name);
+        aiColor3D color;
+        float opacity;
+        material->Get(AI_MATKEY_COLOR_AMBIENT, color);
+        cisdiMaterial.ambient = {color.r, color.g, color.b};
+        material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+        cisdiMaterial.diffuse = {color.r, color.g, color.b};
+        material->Get(AI_MATKEY_COLOR_EMISSIVE, color);
+        cisdiMaterial.emissive = {color.r, color.g, color.b};
+        material->Get(AI_MATKEY_OPACITY, opacity);
+        cisdiMaterial.opacity = opacity;
+        data.materials.emplace_back(cisdiMaterial);
+    }
+
+    ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ);
 
     return data;
 }

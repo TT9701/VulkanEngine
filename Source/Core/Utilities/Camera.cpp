@@ -54,7 +54,7 @@ void Camera::Update() {
 
 void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
     if (e->type == SDL_KEYDOWN) {
-        mMovementSpeed += 0.2f;
+        mMovementSpeed += CameraSpeed / 10;
         float velocity = mMovementSpeed * deltaTime;
         if (e->key.keysym.sym == SDLK_w) {
             mPosition += mFront * velocity;

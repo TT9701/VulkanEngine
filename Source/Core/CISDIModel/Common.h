@@ -20,10 +20,31 @@ using Type_STLVector = ::std::pmr::vector<T>;
 using Type_STLString = ::std::string;
 
 template <class T, uint32_t Dim>
-struct Vec {
-    T elem[Dim];
+struct Vec;
 
-    T& operator[](uint32_t idx) { return elem[idx]; }
+template <class T>
+struct Vec<T, 2> {
+    Vec(T x = (T)0, T y = (T)0) : x(x), y(y) {}
+    T x, y;
+
+    T& operator[](uint32_t idx) { return (&x)[idx]; }
+};
+
+template <class T>
+struct Vec<T, 3> {
+    Vec(T x = (T)0, T y = (T)0, T z = (T)0) : x(x), y(y), z(z) {}
+    T x, y, z;
+
+    T& operator[](uint32_t idx) { return (&x)[idx]; }
+};
+
+template <class T>
+struct Vec<T, 4> {
+    Vec(T x = (T)0, T y = (T)0, T z = (T)0, T w = (T)0)
+        : x(x), y(y), z(z), w(w) {}
+    T x, y, z, w;
+
+    T& operator[](uint32_t idx) { return (&x)[idx]; }
 };
 
 using Float2 = Vec<float, 2>;

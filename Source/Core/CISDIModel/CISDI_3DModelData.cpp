@@ -11,15 +11,6 @@
 
 namespace IntelliDesign_NS::ModelData {
 
-void WriteDataHeader(std::ofstream& ofs, CISDI_3DModel::Header header) {
-    ofs.write((char*)&header, sizeof(header));
-}
-
-void WriteMeshHeader(std::ofstream& ofs,
-                     CISDI_3DModel::Mesh::MeshHeader meshHeader) {
-    ofs.write((char*)&meshHeader, sizeof(meshHeader));
-}
-
 Type_STLString ProcessOutputPath(const char* input, const char* output) {
     auto inPath = ::std::filesystem::path(input);
     ::std::filesystem::path outputPath;
@@ -179,6 +170,85 @@ void BuildMeshletDatas(CISDI_3DModel& data, bool optimize) {
     }
 }
 
+void WriteDataHeader(std::ofstream& ofs, CISDI_3DModel::Header header) {
+    ofs.write((char*)&header, sizeof(header));
+}
+
+void WriteName(std::ofstream& ofs, const char* name) {
+    size_t nameLen = strlen(name);
+    ofs.write((char*)&nameLen, sizeof(nameLen));
+    ofs.write(name, nameLen);
+}
+
+void WriteNodes(std::ofstream& ofs,
+                Type_STLVector<CISDI_3DModel::Node> const& nodes) {
+    for (auto const& node : nodes) {
+        WriteName(ofs, node.name.c_str());
+        auto offset = strlen(node.name.c_str());
+        ofs.write((char*)&node.meshIdx, sizeof(uint32_t) * 4);
+        if (node.childCount > 0)
+            ofs.write((char*)node.childrenIdx.data(),
+                      sizeof(node.childrenIdx[0]) * node.childCount);
+    }
+}
+
+void WriteMeshHeader(std::ofstream& ofs,
+                     CISDI_3DModel::Mesh::MeshHeader const& meshHeader) {
+    ofs.write((char*)&meshHeader, sizeof(meshHeader));
+}
+
+void WriteMeshes(std::ofstream& ofs,
+                 Type_STLVector<CISDI_3DModel::Mesh> const& meshes) {
+    for (auto const& mesh : meshes) {
+        WriteMeshHeader(ofs, mesh.header);
+
+        // positions
+        ofs.write((char*)mesh.vertices.positions.data(),
+                  sizeof(mesh.vertices.positions[0]) * mesh.header.vertexCount);
+
+        // normals
+        ofs.write((char*)mesh.vertices.normals.data(),
+                  sizeof(mesh.vertices.normals[0]) * mesh.header.vertexCount);
+
+        // uvs
+        ofs.write((char*)mesh.vertices.uvs.data(),
+                  sizeof(mesh.vertices.uvs[0]) * mesh.header.vertexCount);
+
+        // TODO: other attributes
+
+        // indices
+        ofs.write((char*)mesh.indices.data(),
+                  sizeof(mesh.indices[0]) * mesh.header.indexCount);
+
+        // meshlet datas
+        if (mesh.header.meshletCount > 0) {
+            ofs.write((char*)mesh.meshlets.data(),
+                      sizeof(mesh.meshlets[0]) * mesh.header.meshletCount);
+        }
+
+        if (mesh.header.meshletVertexCount > 0) {
+            ofs.write((char*)mesh.meshletVertices.data(),
+                      sizeof(mesh.meshletVertices[0])
+                          * mesh.header.meshletVertexCount);
+        }
+
+        if (mesh.header.meshletTriangleCount > 0) {
+            ofs.write((char*)mesh.meshletTriangles.data(),
+                      sizeof(mesh.meshletTriangles[0])
+                          * mesh.header.meshletTriangleCount);
+        }
+    }
+}
+
+void WriteMaterial(std::ofstream& ofs,
+                   Type_STLVector<CISDI_3DModel::Material> const& materials) {
+    for (auto const& material : materials) {
+        WriteName(ofs, material.name.c_str());
+        ofs.write((char*)&material.ambient,
+                  sizeof(material.ambient) * 3 + sizeof(material.opacity));
+    }
+}
+
 void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
     ::std::ofstream out(outputPath, ::std::ios::out | ::std::ios::binary);
 
@@ -188,51 +258,15 @@ void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
     }
 
     WriteDataHeader(out, data.header);
-
-    for (auto const& mesh : data.meshes) {
-        WriteMeshHeader(out, mesh.header);
-
-        // positions
-        out.write((char*)mesh.vertices.positions.data(),
-                  sizeof(mesh.vertices.positions[0]) * mesh.header.vertexCount);
-
-        // normals
-        out.write((char*)mesh.vertices.normals.data(),
-                  sizeof(mesh.vertices.normals[0]) * mesh.header.vertexCount);
-
-        // uvs
-        out.write((char*)mesh.vertices.uvs.data(),
-                  sizeof(mesh.vertices.uvs[0]) * mesh.header.vertexCount);
-
-        // TODO: other attributes
-
-        // indices
-        out.write((char*)mesh.indices.data(),
-                  sizeof(mesh.indices[0]) * mesh.header.indexCount);
-
-        // meshlet datas
-        if (mesh.header.meshletCount > 0) {
-            out.write((char*)mesh.meshlets.data(),
-                      sizeof(mesh.meshlets[0]) * mesh.header.meshletCount);
-        }
-
-        if (mesh.header.meshletVertexCount > 0) {
-            out.write((char*)mesh.meshletVertices.data(),
-                      sizeof(mesh.meshletVertices[0])
-                          * mesh.header.meshletVertexCount);
-        }
-
-        if (mesh.header.meshletTriangleCount > 0) {
-            out.write((char*)mesh.meshletTriangles.data(),
-                      sizeof(mesh.meshletTriangles[0])
-                          * mesh.header.meshletTriangleCount);
-        }
-    }
+    WriteName(out, data.name.c_str());
+    WriteNodes(out, data.nodes);
+    WriteMeshes(out, data.meshes);
+    WriteMaterial(out, data.materials);
 }
 
-CISDI_3DModel CISDI_3DModel::Convert(const char* path, bool flipYZ,
-                                     const char* output, bool optimizeMesh,
-                                     bool buildMeshlet, bool optimizeMeshlet) {
+CISDI_3DModel Convert(const char* path, bool flipYZ, const char* output,
+                      bool optimizeMesh, bool buildMeshlet,
+                      bool optimizeMeshlet) {
     auto outputPath = ProcessOutputPath(path, output);
 
     CISDI_3DModel data {};
@@ -265,7 +299,14 @@ CISDI_3DModel CISDI_3DModel::Convert(const char* path, bool flipYZ,
     return data;
 }
 
-CISDI_3DModel CISDI_3DModel::Load(const char* path) {
+void ReadName(::std::ifstream& in, Type_STLString& str) {
+    size_t nameLen;
+    in.read((char*)&nameLen, sizeof(nameLen));
+    str.resize(nameLen);
+    in.read(str.data(), nameLen);
+}
+
+CISDI_3DModel Load(const char* path) {
     ::std::ifstream in(path, ::std::ios::binary);
     if (!in.is_open()) {
         throw ::std::runtime_error(
@@ -283,9 +324,25 @@ CISDI_3DModel CISDI_3DModel::Load(const char* path) {
 
     // TODO: Version Check
 
+    // read name
+    ReadName(in, data.name);
+
+    // read node
+    data.nodes.resize(data.header.nodeCount);
+    for (auto& node : data.nodes) {
+        ReadName(in, node.name);
+        in.read((char*)&node.meshIdx, sizeof(uint32_t) * 4);
+        if (node.childCount > 0) {
+            node.childrenIdx.resize(node.childCount);
+            in.read((char*)node.childrenIdx.data(),
+                    sizeof(node.childrenIdx[0]) * node.childCount);
+        }
+    }
+
+    // read mesh
     data.meshes.resize(data.header.meshCount);
     for (auto& mesh : data.meshes) {
-        in.read((char*)&mesh.header, sizeof(Mesh::MeshHeader));
+        in.read((char*)&mesh.header, sizeof(mesh.header));
 
         mesh.vertices.positions.resize(mesh.header.vertexCount);
         in.read((char*)mesh.vertices.positions.data(),
@@ -317,6 +374,14 @@ CISDI_3DModel CISDI_3DModel::Load(const char* path) {
         in.read((char*)mesh.meshletTriangles.data(),
                 sizeof(mesh.meshletTriangles[0])
                     * mesh.header.meshletTriangleCount);
+    }
+
+    // read material
+    data.materials.resize(data.header.materialCount);
+    for (auto& mat : data.materials) {
+        ReadName(in, mat.name);
+        in.read((char*)&mat.ambient,
+                sizeof(mat.ambient) * 3 + sizeof(mat.opacity));
     }
 
     return data;
