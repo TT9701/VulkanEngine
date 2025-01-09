@@ -58,6 +58,8 @@ public:
     uint32_t GetMeshletVertexCount() const;
     uint32_t GetMeshletTriangleCount() const;
 
+    ModelData::CISDI_3DModel const& GetCISDIModelData() const;
+
     ::std::span<uint32_t> GetVertexOffsets();
     ::std::span<uint32_t> GetIndexOffsets();
 

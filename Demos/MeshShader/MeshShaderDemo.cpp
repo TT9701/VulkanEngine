@@ -1,4 +1,4 @@
-﻿#include <random>
+#include <random>
 
 #include "MeshShaderDemo.h"
 
@@ -723,39 +723,118 @@ void MeshShaderDemo::PrepareUIContext() {
     mImageName0 = "RandomImage";
     mImageName1 = "RandomImage";
     auto& renderResMgr = GetRenderResMgr();
-    GetUILayer().AddContext([&]() {
-        if (ImGui::Begin("SceneStats")) {
-            ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
-                        mSceneData.cameraPos.x, mSceneData.cameraPos.y,
-                        mSceneData.cameraPos.z);
-            ImGui::SliderFloat3("Sun light position",
-                                (float*)&mSceneData.sunLightPos, -1.0f, 1.0f);
-            ImGui::ColorEdit4("ObjColor", (float*)&mSceneData.objColor);
-            ImGui::SliderFloat2("MetallicRoughness",
-                                (float*)&mSceneData.metallicRoughness, 0.0f,
-                                1.0f);
-            ImGui::InputInt("Texture Index", &mSceneData.texIndex);
+    GetUILayer()
+        .AddContext([&]() {
+            if (ImGui::Begin("SceneStats")) {
+                ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
+                            mSceneData.cameraPos.x, mSceneData.cameraPos.y,
+                            mSceneData.cameraPos.z);
+                ImGui::SliderFloat3("Sun light position",
+                                    (float*)&mSceneData.sunLightPos, -1.0f,
+                                    1.0f);
+                ImGui::ColorEdit4("ObjColor", (float*)&mSceneData.objColor);
+                ImGui::SliderFloat2("MetallicRoughness",
+                                    (float*)&mSceneData.metallicRoughness, 0.0f,
+                                    1.0f);
+                ImGui::InputInt("Texture Index", &mSceneData.texIndex);
 
-            ImGui::InputText("##", mImageName0.data(), 32);
-            ImGui::SameLine();
-            if (ImGui::Button("Add")) {
-                auto tex = renderResMgr[mImageName0.c_str()].GetTexPtr();
-                auto idx = GetCurFrame().GetBindlessDescPool().Add(tex);
+                ImGui::InputText("##1", mImageName0.data(), 32);
+                ImGui::SameLine();
+                if (ImGui::Button("Add")) {
+                    auto tex = renderResMgr[mImageName0.c_str()].GetTexPtr();
+                    auto idx = GetCurFrame().GetBindlessDescPool().Add(tex);
 
-                DBG_LOG_INFO("Add Button pressed, add texture at idx %d", idx);
+                    DBG_LOG_INFO("Add Button pressed, add texture at idx %d",
+                                 idx);
+                }
+
+                ImGui::InputText("##2", mImageName1.data(), 32);
+                ImGui::SameLine();
+                if (ImGui::Button("Delete")) {
+                    auto tex = renderResMgr[mImageName1.c_str()].GetTexPtr();
+                    auto idx = GetCurFrame().GetBindlessDescPool().Delete(tex);
+                    DBG_LOG_INFO(
+                        "Delete Button pressed, delete texture at idx %d", idx);
+                }
             }
+            ImGui::End();
+        })
+        .AddContext([&]() {
+            auto const& model = mFactoryModel->GetCISDIModelData();
 
-            ImGui::InputText("###", mImageName1.data(), 32);
-            ImGui::SameLine();
-            if (ImGui::Button("Delete")) {
-                auto tex = renderResMgr[mImageName1.c_str()].GetTexPtr();
-                auto idx = GetCurFrame().GetBindlessDescPool().Delete(tex);
-                DBG_LOG_INFO("Delete Button pressed, delete texture at idx %d",
-                             idx);
+            auto displayNode =
+                [&,
+                 d = [&](auto&& self,
+                         IntelliDesign_NS::ModelData::CISDI_3DModel::Node const&
+                             node,
+                         uint32_t idx) -> void {
+                     if (ImGui::TreeNode(
+                             (node.name + "##" + ::std::to_string(idx))
+                                 .c_str())) {
+
+                         if (node.meshIdx != -1) {
+                             auto const& mesh = model.meshes[node.meshIdx];
+
+                             // display node
+                             ImGui::Text("vertex count: %d",
+                                         mesh.header.vertexCount);
+                             ImGui::Text("index count: %d",
+                                         mesh.header.indexCount);
+                             ImGui::Text("meshlet count: %d",
+                                         mesh.header.meshletCount);
+                             ImGui::Text("meshlet vertex count: %d",
+                                         mesh.header.meshletVertexCount);
+
+                             ImGui::Text("meshlet triangle count: %d",
+                                         mesh.header.meshletTriangleCount);
+                         }
+
+                         if (node.materialIdx != -1) {
+                             ImGui::Text("material: %s",
+                                         model.materials[node.materialIdx]
+                                             .name.c_str());
+                         }
+
+                         for (auto const& childIdx : node.childrenIdx) {
+                             self(self, model.nodes[childIdx], childIdx);
+                         }
+                         ImGui::TreePop();
+                     }
+                 }](IntelliDesign_NS::ModelData::CISDI_3DModel::Node const&
+                        node,
+                    uint32_t idx) {
+                    d(d, node, idx);
+                };
+
+            if (ImGui::Begin(model.name.c_str())) {
+                if (ImGui::TreeNode("Hierarchy")) {
+                    auto const& node = model.nodes[0];
+                    displayNode(node, 0);
+                    ImGui::TreePop();
+                }
+                if (ImGui::TreeNode("Materials")) {
+                    for (auto const& material : model.materials) {
+                        if (ImGui::TreeNode(material.name.c_str())) {
+                            ImGui::Text("AmbientColor: (%.3f, %.3f, %.3f)",
+                                        material.ambient.x, material.ambient.y,
+                                        material.ambient.z);
+                            ImGui::Text("DiffuseColor: (%.3f, %.3f, %.3f)",
+                                        material.diffuse.x, material.diffuse.y,
+                                        material.diffuse.z);
+                            ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
+                                        material.emissive.x,
+                                        material.emissive.y,
+                                        material.emissive.z);
+                            ImGui::Text("Alpha: %.3f", material.opacity);
+
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
             }
-        }
-        ImGui::End();
-    });
+            ImGui::End();
+        });
 }
 
 void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {

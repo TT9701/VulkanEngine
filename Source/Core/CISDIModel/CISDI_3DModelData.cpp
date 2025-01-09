@@ -174,16 +174,16 @@ void WriteDataHeader(std::ofstream& ofs, CISDI_3DModel::Header header) {
     ofs.write((char*)&header, sizeof(header));
 }
 
-void WriteName(std::ofstream& ofs, const char* name) {
-    size_t nameLen = strlen(name);
+void WriteString(std::ofstream& ofs, const char* str) {
+    size_t nameLen = strlen(str);
     ofs.write((char*)&nameLen, sizeof(nameLen));
-    ofs.write(name, nameLen);
+    ofs.write(str, nameLen);
 }
 
 void WriteNodes(std::ofstream& ofs,
                 Type_STLVector<CISDI_3DModel::Node> const& nodes) {
     for (auto const& node : nodes) {
-        WriteName(ofs, node.name.c_str());
+        WriteString(ofs, node.name.c_str());
         auto offset = strlen(node.name.c_str());
         ofs.write((char*)&node.meshIdx, sizeof(uint32_t) * 4);
         if (node.childCount > 0)
@@ -243,7 +243,7 @@ void WriteMeshes(std::ofstream& ofs,
 void WriteMaterial(std::ofstream& ofs,
                    Type_STLVector<CISDI_3DModel::Material> const& materials) {
     for (auto const& material : materials) {
-        WriteName(ofs, material.name.c_str());
+        WriteString(ofs, material.name.c_str());
         ofs.write((char*)&material.ambient,
                   sizeof(material.ambient) * 3 + sizeof(material.opacity));
     }
@@ -258,7 +258,7 @@ void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
     }
 
     WriteDataHeader(out, data.header);
-    WriteName(out, data.name.c_str());
+    WriteString(out, data.name.c_str());
     WriteNodes(out, data.nodes);
     WriteMeshes(out, data.meshes);
     WriteMaterial(out, data.materials);
@@ -299,7 +299,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ, const char* output,
     return data;
 }
 
-void ReadName(::std::ifstream& in, Type_STLString& str) {
+void ReadString(::std::ifstream& in, Type_STLString& str) {
     size_t nameLen;
     in.read((char*)&nameLen, sizeof(nameLen));
     str.resize(nameLen);
@@ -325,12 +325,12 @@ CISDI_3DModel Load(const char* path) {
     // TODO: Version Check
 
     // read name
-    ReadName(in, data.name);
+    ReadString(in, data.name);
 
     // read node
     data.nodes.resize(data.header.nodeCount);
     for (auto& node : data.nodes) {
-        ReadName(in, node.name);
+        ReadString(in, node.name);
         in.read((char*)&node.meshIdx, sizeof(uint32_t) * 4);
         if (node.childCount > 0) {
             node.childrenIdx.resize(node.childCount);
@@ -379,7 +379,7 @@ CISDI_3DModel Load(const char* path) {
     // read material
     data.materials.resize(data.header.materialCount);
     for (auto& mat : data.materials) {
-        ReadName(in, mat.name);
+        ReadString(in, mat.name);
         in.read((char*)&mat.ambient,
                 sizeof(mat.ambient) * 3 + sizeof(mat.opacity));
     }

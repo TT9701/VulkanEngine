@@ -55,8 +55,9 @@ void GUI::Draw(vk::CommandBuffer cmd) {
     cmd.endRendering();
 }
 
-void GUI::AddContext(std::function<void()>&& ctx) {
+GUI& GUI::AddContext(std::function<void()>&& ctx) {
     mUIContexts.push_back(::std::move(ctx));
+    return *this;
 }
 
 void GUI::PrepareContext() {
@@ -85,8 +86,20 @@ void GUI::PrepareContext() {
 
     float sizePixels = 16.0;
     ImGuiIO& io = ImGui::GetIO();
+
+    // https://github.com/ocornut/imgui/blob/master/docs/FONTS.md
+    ImFontConfig config {};
+    config.MergeMode = true;
+
     io.Fonts->AddFontFromFileTTF("../../Resources/fonts/Roboto-Medium.ttf",
-                                 sizePixels);
+                                 sizePixels, nullptr,
+                                 io.Fonts->GetGlyphRangesDefault());
+
+    io.Fonts->AddFontFromFileTTF("c:/windows/fonts/simhei.ttf", sizePixels,
+                                 &config,
+                                 io.Fonts->GetGlyphRangesChineseFull());
+
+    
 }
 
 void GUI::CreateDescPool() {

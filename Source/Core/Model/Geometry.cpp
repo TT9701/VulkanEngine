@@ -444,6 +444,10 @@ uint32_t Geometry::GetMeshletTriangleCount() const {
     return mMeshletTriangleCount;
 }
 
+ModelData::CISDI_3DModel const& Geometry::GetCISDIModelData() const {
+    return mModelData;
+}
+
 std::span<uint32_t> Geometry::GetVertexOffsets() {
     return mMeshDatas.vertexOffsets;
 }

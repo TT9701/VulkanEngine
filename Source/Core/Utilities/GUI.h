@@ -26,7 +26,7 @@ public:
     void BeginFrame();
     void Draw(vk::CommandBuffer cmd);
 
-    void AddContext(::std::function<void()>&& ctx);
+    GUI& AddContext(::std::function<void()>&& ctx);
 
 private:
     void PrepareContext();

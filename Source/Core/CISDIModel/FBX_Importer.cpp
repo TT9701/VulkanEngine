@@ -369,19 +369,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
 
     FbxNode* lRootNode = lScene->GetRootNode();
     if (lRootNode) {
-        int childCount = lRootNode->GetChildCount();
-        CISDI_3DModel::Node cisdiNode {};
-        cisdiNode.name = lRootNode->GetName();
-        cisdiNode.childCount = childCount;
-        cisdiNode.childrenIdx.reserve(childCount);
-
-        int rootNodeIdx = (int)data.nodes.size();
-        for (int i = 0; i < childCount; i++) {
-            cisdiNode.childrenIdx.emplace_back(
-                ProcessNode(lRootNode->GetChild(i), rootNodeIdx, data, flipYZ));
-        }
-
-        data.nodes.emplace_back(::std::move(cisdiNode));
+        ProcessNode(lRootNode, -1, data, flipYZ);
     }
 
     // TODO: process keyframes
