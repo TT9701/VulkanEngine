@@ -191,10 +191,9 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
 
     ::Assimp::Importer importer {};
 
-    const auto scene = importer.ReadFile(
-        path,
-        aiProcessPreset_TargetRealtime_Fast /* | aiProcess_OptimizeMeshes*/
-            | aiProcess_FixInfacingNormals);
+    const auto scene =
+        importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast
+                                    | aiProcess_FixInfacingNormals);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
         || !scene->mRootNode) {
