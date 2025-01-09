@@ -150,7 +150,6 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
     }
 
     cisdiMesh.header.vertexCount = vertCount;
-    cisdiMesh.header.indexCount = vertCount;
 
     data.meshes.emplace_back(cisdiMesh);
 
@@ -201,7 +200,8 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
 
 }  // namespace
 
-CISDI_3DModel Convert(const char* path, bool flipYZ) {
+CISDI_3DModel Convert(const char* path, bool flipYZ,
+                      Type_STLVector<Type_STLVector<uint32_t>>& outIndices) {
     CISDI_3DModel data {};
 
     FbxManager* lSdkManager;
@@ -284,12 +284,10 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
         FBXSDK_printf("Scene integrity verification failed.\n");
     }
 
-    data.header = {CISDI_3DModel_HEADER_UINT64,
-                   CISDI_3DModel_VERSION,
+    data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
                    (uint32_t)lScene->GetNodeCount(),
                    (uint32_t)lScene->GetGeometryCount(),
-                   (uint32_t)lScene->GetMaterialCount(),
-                   false};
+                   (uint32_t)lScene->GetMaterialCount()};
 
     data.name = ::std::filesystem::path(path).stem().string();
 

@@ -47,14 +47,8 @@ private:
     void CreateRandomTexture();
 
     void CreateBackgroundComputePipeline();
-    void CreateMeshPipeline();
     void CreateMeshShaderPipeline();
     void CreateDrawQuadPipeline();
-
-    void RecordDrawBackgroundCmds(IDNS_VC::RenderSequence& sequence);
-    void RecordDrawMeshCmds(IDNS_VC::RenderSequence& sequence);
-    void RecordDrawQuadCmds(IDNS_VC::RenderSequence& sequence);
-    void RecordMeshShaderDrawCmds(IDNS_VC::RenderSequence& sequence);
 
     void UpdateSceneUBO();
 

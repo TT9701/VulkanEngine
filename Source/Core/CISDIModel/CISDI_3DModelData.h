@@ -15,14 +15,15 @@ namespace IntelliDesign_NS::ModelData {
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
 constexpr Version CISDI_3DModel_VERSION = {0ui8, 1ui8, 1ui16};
 
+// TODO: add pmr mempool param in ctor.
+
 struct CISDI_3DModel {
     struct Header {
-        uint64_t header {};
+        uint64_t header {0};
         Version version {};
         uint32_t nodeCount {0};
         uint32_t meshCount {0};
         uint32_t materialCount {0};
-        bool buildMeshlet {false};
     };
 
     struct Mesh;
@@ -41,16 +42,12 @@ struct CISDI_3DModel {
     struct Mesh {
         struct MeshHeader {
             uint32_t vertexCount {0};
-            uint32_t indexCount {0};
             uint32_t meshletCount {0};
             uint32_t meshletVertexCount {0};
             uint32_t meshletTriangleCount {0};
         };
 
         struct Vertices {
-            // Vertices(::std::pmr::memory_resource* pMemPool)
-            //     : positions {::std::pmr::polymorphic_allocator {}} {}
-
             Type_STLVector<Float4> positions {};
             Type_STLVector<Float2> normals {};
             Type_STLVector<Float2> uvs {};
@@ -58,7 +55,6 @@ struct CISDI_3DModel {
 
         MeshHeader header {};
         Vertices vertices {};
-        Type_STLVector<uint32_t> indices {};
 
         Type_STLVector<meshopt_Meshlet> meshlets {};
         Type_STLVector<uint32_t> meshletVertices {};
@@ -85,10 +81,7 @@ struct CISDI_3DModel {
 };
 
 CISDI_MODEL_DATA_API CISDI_3DModel Convert(const char* path, bool flipYZ,
-                                           const char* output = nullptr,
-                                           bool optimizeMesh = true,
-                                           bool buildMeshlet = true,
-                                           bool optimizeMeshlet = true);
+                                           const char* output = nullptr);
 
 CISDI_MODEL_DATA_API CISDI_3DModel Load(const char* path);
 

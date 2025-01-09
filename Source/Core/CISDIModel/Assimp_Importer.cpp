@@ -89,7 +89,8 @@ void ReadNodeProperties(aiNode* node) {
 }
 
 void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
-                 aiMesh* mesh, bool flipYZ) {
+                 aiMesh* mesh, bool flipYZ,
+                 Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     uint32_t meshIdx = (uint32_t)data.meshes.size();
     uint32_t vertCount = mesh->mNumVertices;
 
@@ -138,25 +139,29 @@ void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
 
     // index
     uint32_t indexCount = mesh->mNumFaces * 3;
-    cisdiMesh.indices.reserve(indexCount);
+
+    Type_STLVector<uint32_t> indices {};
+    indices.reserve(indexCount);
+
     for (uint32_t i = 0; i < mesh->mNumFaces; ++i) {
         auto face = mesh->mFaces[i];
         for (uint32_t j = 0; j < face.mNumIndices; ++j) {
-            cisdiMesh.indices.push_back(*(face.mIndices + j));
+            indices.push_back(*(face.mIndices + j));
         }
     }
 
     cisdiMesh.header.vertexCount = vertCount;
-    cisdiMesh.header.indexCount = indexCount;
 
     data.meshes.emplace_back(cisdiMesh);
+    tmpIndices.emplace_back(::std::move(indices));
 
     cisdiNode.meshIdx = meshIdx;
     cisdiNode.materialIdx = mesh->mMaterialIndex;
 }
 
 uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
-                     const aiScene* scene, bool flipYZ) {
+                     const aiScene* scene, bool flipYZ,
+                     Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     // ReadNodeProperties(node);
 
     uint32_t nodeIdx = data.nodes.size();
@@ -172,13 +177,14 @@ uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
     assert(node->mNumMeshes <= 1);
 
     if (node->mNumMeshes > 0)
-        ProcessMesh(data, cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ);
+        ProcessMesh(data, cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ,
+                    tmpIndices);
 
     auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
 
     for (uint32_t i = 0; i < childCount; ++i) {
-        ref.childrenIdx.emplace_back(
-            ProcessNode(data, nodeIdx, node->mChildren[i], scene, flipYZ));
+        ref.childrenIdx.emplace_back(ProcessNode(
+            data, nodeIdx, node->mChildren[i], scene, flipYZ, tmpIndices));
     }
 
     return nodeIdx;
@@ -186,7 +192,8 @@ uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
 
 }  // namespace
 
-CISDI_3DModel Convert(const char* path, bool flipYZ) {
+CISDI_3DModel Convert(const char* path, bool flipYZ,
+                      Type_STLVector<Type_STLVector<uint32_t>>& outIndices) {
     CISDI_3DModel data {};
 
     ::Assimp::Importer importer {};
@@ -204,12 +211,9 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
                 .c_str());
     }
 
-    data.header = {CISDI_3DModel_HEADER_UINT64,
-                   CISDI_3DModel_VERSION,
-                   CalcNodeCount(scene->mRootNode),
-                   scene->mNumMeshes,
-                   scene->mNumMaterials,
-                   false};
+    data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
+                   CalcNodeCount(scene->mRootNode), scene->mNumMeshes,
+                   scene->mNumMaterials};
 
     data.meshes.reserve(data.header.meshCount);
 
@@ -218,6 +222,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
     data.nodes.reserve(data.header.nodeCount);
 
     data.meshes.reserve(data.header.meshCount);
+    outIndices.reserve(data.header.meshCount);
 
     data.materials.reserve(data.header.materialCount);
 
@@ -238,7 +243,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ) {
         data.materials.emplace_back(cisdiMaterial);
     }
 
-    ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ);
+    ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ, outIndices);
 
     return data;
 }

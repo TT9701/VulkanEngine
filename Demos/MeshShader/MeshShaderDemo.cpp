@@ -18,7 +18,6 @@ MeshShaderDemo::~MeshShaderDemo() = default;
 
 void MeshShaderDemo::CreatePipelines() {
     CreateBackgroundComputePipeline();
-    CreateMeshPipeline();
     CreateDrawQuadPipeline();
     CreateMeshShaderPipeline();
 }
@@ -198,8 +197,7 @@ void MeshShaderDemo::Prepare() {
         printf("Load Geometry: %s, Time consumed: %f s. \n", model,
                duration_LoadModel);
 
-        // mFactoryModel->GenerateBuffers(&GetVulkanContext());
-        mFactoryModel->GenerateMeshletBuffers(&GetVulkanContext());
+        mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
     }
 
     // {
@@ -226,13 +224,6 @@ void MeshShaderDemo::Prepare() {
     //     printf("Time consumed: %f s. \n", duration_LoadModel);
     // }
 
-    // RecordDrawBackgroundCmds(mRenderSequence);
-    // // RecordDrawMeshCmds();
-    // RecordMeshShaderDrawCmds(mRenderSequence);
-    // RecordDrawQuadCmds(mRenderSequence);
-    //
-    // mRenderSequence.GenerateBarriers();
-
     PrepareUIContext();
 
     // RecordPasses(mRenderSequence);
@@ -254,10 +245,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
 
     GameTimer timer {};
 
-    // INTELLI_DS_MEASURE_DURATION_MS_START(timer) {
     RecordPasses(mRenderSequence);
-    // }
-    // INTELLI_DS_MEASURE_DURATION_MS_END_PRINT(timer, "RecordPasses");
 
     // Compute Draw
     {
@@ -471,32 +459,6 @@ void MeshShaderDemo::CreateBackgroundComputePipeline() {
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
 
-void MeshShaderDemo::CreateMeshPipeline() {
-    auto& renderResMgr = GetRenderResMgr();
-    auto& shaderMgr = GetShaderMgr();
-
-    auto vert = shaderMgr.GetShader("vertex", vk::ShaderStageFlagBits::eVertex);
-    auto frag =
-        shaderMgr.GetShader("fragment", vk::ShaderStageFlagBits::eFragment);
-    auto program = shaderMgr.CreateProgram("mesh draw", vert, frag);
-
-    auto builder = GetPipelineMgr().GetBuilder_Graphics();
-    builder.SetShaderProgram(program)
-        .SetInputTopology(vk::PrimitiveTopology::eTriangleList)
-        .SetPolygonMode(vk::PolygonMode::eFill)
-        .SetCullMode(vk::CullModeFlagBits::eFront,
-                     vk::FrontFace::eCounterClockwise)
-        .SetMultisampling(vk::SampleCountFlagBits::e1)
-        .SetBlending(vk::False)
-        .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
-        .SetColorAttachmentFormat(renderResMgr["DrawImage"].GetTexFormat())
-        .SetDepthStencilFormat(renderResMgr["DepthImage"].GetTexFormat())
-        .SetFlags(vk::PipelineCreateFlagBits::eDescriptorBufferEXT)
-        .Build("TriangleDraw");
-
-    DBG_LOG_INFO("Vulkan Triagnle Graphics Pipeline Created");
-}
-
 void MeshShaderDemo::CreateMeshShaderPipeline() {
     auto& renderResMgr = GetRenderResMgr();
     auto& shaderMgr = GetShaderMgr();
@@ -567,152 +529,6 @@ void MeshShaderDemo::CreateDrawQuadPipeline() {
     DBG_LOG_INFO("Vulkan Quad Graphics Pipeline Created");
 }
 
-void MeshShaderDemo::RecordDrawBackgroundCmds(RenderSequence& sequence) {
-    auto& drawImage = GetRenderResMgr()["DrawImage"];
-    uint32_t width = drawImage.GetTexWidth();
-    uint32_t height = drawImage.GetTexHeight();
-
-    auto& pso =
-        sequence.AddRenderPass("DrawBackground", RenderQueueType::Compute);
-    {
-        pso.SetPipeline("Background");
-
-        pso["image"] = "DrawImage";
-        pso["StorageBuffer"] = "RWBuffer";
-
-        pso.GenerateMetaData();
-    }
-
-    auto& dcMgr = pso.GetDrawCallManager();
-
-    float flash = ::std::fabs(::std::sin(mFrameNum / 6000.0f));
-    vk::ClearColorValue clearValue {flash, flash, flash, 1.0f};
-    auto subresource = vk::ImageSubresourceRange {
-        vk::ImageAspectFlagBits::eColor, 0, vk::RemainingMipLevels, 0,
-        vk::RemainingArrayLayers};
-    // dcMgr.AddArgument_ClearColorImage("DrawImage", vk::ImageLayout::eGeneral,
-    //                                   clearValue, {subresource});
-
-    dcMgr.AddArgument_Dispatch(::std::ceil(width / 16.0),
-                               ::std::ceil(height / 16.0), 1);
-}
-
-void MeshShaderDemo::RecordDrawMeshCmds(RenderSequence& sequence) {
-    auto& drawImage = GetRenderResMgr()["DrawImage"];
-    uint32_t width = drawImage.GetTexWidth();
-    uint32_t height = drawImage.GetTexHeight();
-
-    auto pPushConstants = mFactoryModel->GetIndexDrawPushConstantsPtr();
-    pPushConstants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
-
-    auto& pso = sequence.AddRenderPass("DrawMesh", RenderQueueType::Graphics);
-
-    {
-        using namespace RenderPassBinding;
-
-        pso.SetPipeline("TriangleDraw");
-
-        pso["constants"] =
-            PushContants {sizeof(*pPushConstants), pPushConstants};
-
-        pso["SceneDataUBO"] = "SceneUniformBuffer";
-        pso["tex"] = "ErrorCheckImage";
-
-        pso["outFragColor"] = {"DrawImage"};
-
-        pso[Type::DSV] = {"DepthImage"};
-
-        pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
-
-        pso.GenerateMetaData();
-    }
-
-    auto& dcMgr = pso.GetDrawCallManager();
-
-    vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    dcMgr.AddArgument_Viewport(0, {viewport});
-
-    vk::Rect2D scissor {{0, 0}, {width, height}};
-    dcMgr.AddArgument_Scissor(0, {scissor});
-
-    dcMgr.AddArgument_DrawIndirect(
-        mFactoryModel->GetIndirectCmdBuffer()->GetHandle(), 0,
-        mFactoryModel->GetMeshCount(), sizeof(vk::DrawIndirectCommand));
-}
-
-void MeshShaderDemo::RecordDrawQuadCmds(RenderSequence& sequence) {
-    auto& pso = sequence.AddRenderPass("DrawQuad", RenderQueueType::Graphics);
-    {
-        pso.SetPipeline("QuadDraw");
-        pso["tex"] = "DrawImage";
-        pso["outFragColor"] = {"_Swapchain_"};
-        pso.GenerateMetaData();
-    }
-}
-
-void MeshShaderDemo::RecordMeshShaderDrawCmds(RenderSequence& sequence) {
-    auto& drawImage = GetRenderResMgr()["DrawImage"];
-    uint32_t width = drawImage.GetTexWidth();
-    uint32_t height = drawImage.GetTexHeight();
-
-    auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
-    // meshPushContants->mModelMatrix =
-    //     glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.0001f});
-    meshPushContants->mModelMatrix =
-        glm::rotate(glm::scale(glm::mat4 {1.0f}, glm::vec3 {0.01f}),
-                    glm::radians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f));
-
-    // PSO
-    auto& pso =
-        sequence.AddRenderPass("DrawMeshShader", RenderQueueType::Graphics);
-    {
-        using namespace RenderPassBinding;
-
-        pso.SetPipeline("MeshShaderDraw");
-
-        pso["PushConstants"] =
-            PushContants {sizeof(*meshPushContants), meshPushContants};
-
-        pso["UBO"] = "SceneUniformBuffer";
-
-        auto bindlessSet =
-            GetCurFrame().GetBindlessDescPool().GetPoolResource();
-        pso["sceneTexs"] =
-            BindlessDescBufInfo {bindlessSet.deviceAddr, bindlessSet.offset};
-
-        pso["outFragColor"] = {"DrawImage"};
-        pso[Type::DSV] = {"DepthImage"};
-
-        pso[Type::RenderInfo] = RenderInfo {{{0, 0}, {width, height}}, 1, 0};
-
-        pso[Type::ArgumentBuffer] = ArgumentBufferInfo {
-            mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
-            mFactoryModel->GetMeshletCount()};
-
-        pso.GenerateMetaData();
-    }
-
-    auto& dcMgr = pso.GetDrawCallManager();
-
-    vk::Viewport viewport {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-    dcMgr.AddArgument_Viewport(0, {viewport});
-
-    vk::Rect2D scissor {{0, 0}, {width, height}};
-    dcMgr.AddArgument_Scissor(0, {scissor});
-
-    dcMgr.AddArgument_DrawMeshTasksIndirect(
-        mFactoryModel->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
-        mFactoryModel->GetMeshCount(),
-        sizeof(vk::DrawMeshTasksIndirectCommandEXT));
-
-    // for (auto const& model : mModels) {
-    //     dcMgr.AddArgument_DrawMeshTasksIndirect(
-    //         model->GetMeshTaskIndirectCmdBuffer()->GetHandle(), 0,
-    //         model->GetMeshCount(), sizeof(vk::DrawMeshTasksIndirectCommandEXT));
-    // }
-}
-
 void MeshShaderDemo::UpdateSceneUBO() {
     auto& renderResMgr = GetRenderResMgr();
     auto data = renderResMgr["SceneUniformBuffer"].GetBufferMappedPtr();
@@ -778,8 +594,6 @@ void MeshShaderDemo::PrepareUIContext() {
                              // display node
                              ImGui::Text("vertex count: %d",
                                          mesh.header.vertexCount);
-                             ImGui::Text("index count: %d",
-                                         mesh.header.indexCount);
                              ImGui::Text("meshlet count: %d",
                                          mesh.header.meshletCount);
                              ImGui::Text("meshlet vertex count: %d",
