@@ -13,7 +13,6 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 struct GPUMeshBuffers {
-    SharedPtr<RenderResource> mIdxBuf {nullptr};
     SharedPtr<RenderResource> mVPBuf {nullptr};
     SharedPtr<RenderResource> mVNBuf {nullptr};
     SharedPtr<RenderResource> mVTBuf {nullptr};
@@ -21,14 +20,16 @@ struct GPUMeshBuffers {
     SharedPtr<RenderResource> mMeshletVertBuf {nullptr};
     SharedPtr<RenderResource> mMeshletTriBuf {nullptr};
     SharedPtr<RenderResource> mMeshDataBuf {nullptr};
+    SharedPtr<RenderResource> mBoundingBoxBuf {nullptr};
+
     vk::DeviceAddress mVPBufAddr {};
     vk::DeviceAddress mVNBufAddr {};
     vk::DeviceAddress mVTBufAddr {};
-    vk::DeviceAddress mIdxBufAddr {};
     vk::DeviceAddress mMeshletBufAddr {};
     vk::DeviceAddress mMeshletVertBufAddr {};
     vk::DeviceAddress mMeshletTriBufAddr {};
     vk::DeviceAddress mMeshDataBufAddr {};
+    vk::DeviceAddress mBoundingBoxBufAddr {};
 };
 
 #ifdef CUDA_VULKAN_INTEROP

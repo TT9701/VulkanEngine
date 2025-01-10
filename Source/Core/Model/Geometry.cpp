@@ -20,6 +20,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         sizeof(mModelData.meshes[0].vertices.positions[0]);
     constexpr size_t vnSize = sizeof(mModelData.meshes[0].vertices.normals[0]);
     constexpr size_t vtSize = sizeof(mModelData.meshes[0].vertices.uvs[0]);
+    constexpr size_t aabbSize = sizeof(mModelData.boundingBox);
 
     const size_t vpBufSize = mVertexCount * vpSize;
     const size_t vnBufSize = mVertexCount * vnSize;
@@ -88,6 +89,18 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     }
 
     uint32_t meshCount = mModelData.meshes.size();
+
+    // bounding box
+    const size_t aabbBufSize = aabbSize * (meshCount + 1);
+    {
+        mBuffers.mBoundingBoxBuf = context.CreateDeviceLocalBufferResource(
+            (mName + " Bounding Box").c_str(), aabbBufSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+        mBuffers.mBoundingBoxBufAddr =
+            mBuffers.mBoundingBoxBuf->GetBufferDeviceAddress();
+    }
 
     // offsets data buffer *NO index*
     // vertex offsets + meshletoffsets + meshletVertices offsets + meshlettriangles offsets + meshlet counts
@@ -237,6 +250,28 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             mBuffers.mMeshDataBufAddr + meshCountSize * 3;
         mMeshletConstants.mMeshletCountBufAddr =
             mBuffers.mMeshDataBufAddr + meshCountSize * 4;
+    }
+
+    // copy aabb data
+    {
+        auto staging = context.CreateStagingBuffer("", aabbBufSize);
+        auto data = static_cast<char*>(staging->GetMapPtr());
+        memcpy(data, &mModelData.boundingBox, aabbSize);
+        for (uint32_t i = 0; i < meshCount; ++i) {
+            memcpy(data + aabbSize * (i + 1), &mModelData.meshes[i].boundingBox,
+                   aabbSize);
+        }
+
+        {
+            auto cmd = context.CreateCmdBufToBegin(
+                context.GetQueue(QueueType::Transfer));
+            vk::BufferCopy cmdBufCopy {};
+            cmdBufCopy.setSize(aabbBufSize);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mBoundingBoxBuf->GetBufferHandle(),
+                            cmdBufCopy);
+        }
+        mMeshletConstants.mBoundingBoxBufAddr = mBuffers.mBoundingBoxBufAddr;
     }
 
     // indirect mesh task command buffer

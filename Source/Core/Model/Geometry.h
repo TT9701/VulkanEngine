@@ -28,6 +28,8 @@ struct MeshletPushConstants {
     vk::DeviceAddress mMeshletVertOffsetBufAddr {};
     vk::DeviceAddress mMeshletTrioffsetBufAddr {};
     vk::DeviceAddress mMeshletCountBufAddr {};
+
+    vk::DeviceAddress mBoundingBoxBufAddr {};
 };
 
 class Geometry {

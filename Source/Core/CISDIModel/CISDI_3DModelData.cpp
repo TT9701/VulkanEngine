@@ -34,16 +34,15 @@ Type_STLString ProcessOutputPath(const char* input, const char* output) {
     return outputPath.string();
 }
 
-void RemapIndex(CISDI_3DModel::Mesh& mesh,
+void RemapIndex(CISDI_3DModel::Mesh& mesh, Type_STLVector<Float32_3>& tmpPos,
                 Type_STLVector<uint32_t>& tmpIndices) {
-    size_t vertexCount = mesh.header.vertexCount;
+    size_t vertexCount = tmpPos.size();
     size_t indexCount = tmpIndices.empty() ? vertexCount : tmpIndices.size();
 
     // TODO: other attributes
 
     Type_STLVector<meshopt_Stream> streams = {
-        {mesh.vertices.positions.data(), sizeof(mesh.vertices.positions[0]),
-         sizeof(mesh.vertices.positions[0])},
+        {tmpPos.data(), sizeof(tmpPos[0]), sizeof(tmpPos[0])},
         {mesh.vertices.normals.data(), sizeof(mesh.vertices.normals[0]),
          sizeof(mesh.vertices.normals[0])},
         {mesh.vertices.uvs.data(), sizeof(mesh.vertices.uvs[0]),
@@ -54,15 +53,14 @@ void RemapIndex(CISDI_3DModel::Mesh& mesh,
         remap.data(), tmpIndices.empty() ? nullptr : tmpIndices.data(),
         indexCount, vertexCount, streams.data(), streams.size());
 
-    decltype(mesh.vertices.positions) optimizedVertexPositions(vertexCount);
+    Type_STLVector<Float32_3> optimizedVertexPositions(vertexCount);
     decltype(mesh.vertices.normals) optimizedVertexNormals(vertexCount);
     decltype(mesh.vertices.uvs) optimizedVertexUVs(vertexCount);
 
     Type_STLVector<uint32_t> optimizedIndices(indexCount);
 
-    meshopt_remapVertexBuffer(optimizedVertexPositions.data(),
-                              mesh.vertices.positions.data(), indexCount,
-                              sizeof(mesh.vertices.positions[0]), remap.data());
+    meshopt_remapVertexBuffer(optimizedVertexPositions.data(), tmpPos.data(),
+                              indexCount, sizeof(tmpPos[0]), remap.data());
 
     meshopt_remapVertexBuffer(optimizedVertexNormals.data(),
                               mesh.vertices.normals.data(), indexCount,
@@ -77,13 +75,14 @@ void RemapIndex(CISDI_3DModel::Mesh& mesh,
 
     mesh.header.vertexCount = vertexCount;
 
-    mesh.vertices.positions = std::move(optimizedVertexPositions);
+    tmpPos = std::move(optimizedVertexPositions);
     mesh.vertices.normals = std::move(optimizedVertexNormals);
     mesh.vertices.uvs = std::move(optimizedVertexUVs);
     tmpIndices = std::move(optimizedIndices);
 }
 
 void RemapIndex(CISDI_3DModel& data,
+                Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
                 Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     if (tmpIndices.empty()) {
         tmpIndices.resize(data.meshes.size());
@@ -92,31 +91,30 @@ void RemapIndex(CISDI_3DModel& data,
     }
 
     for (uint32_t i = 0; i < data.meshes.size(); ++i) {
-        RemapIndex(data.meshes[i], tmpIndices[i]);
+        RemapIndex(data.meshes[i], tmpPos[i], tmpIndices[i]);
     }
 }
 
-void OptimizeMesh(CISDI_3DModel::Mesh& mesh,
+void OptimizeMesh(CISDI_3DModel::Mesh& mesh, Type_STLVector<Float32_3>& tmpPos,
                   Type_STLVector<uint32_t>& tmpIndices) {
     auto indexCount = tmpIndices.size();
-    auto vertexCount = mesh.header.vertexCount;
+    auto vertexCount = tmpPos.size();
 
     const auto indices = tmpIndices.data();
+    const auto positions = tmpPos.data();
 
     meshopt_optimizeVertexCache(indices, indices, indexCount, vertexCount);
 
     meshopt_optimizeOverdraw(indices, indices, indexCount,
-                             (const float*)mesh.vertices.positions.data(),
-                             vertexCount, sizeof(mesh.vertices.positions[0]),
-                             1.05f);
+                             (const float*)positions, vertexCount,
+                             sizeof(tmpPos[0]), 1.05f);
 
     Type_STLVector<uint32_t> remap(vertexCount);
     meshopt_optimizeVertexFetchRemap(remap.data(), indices, indexCount,
                                      vertexCount);
 
-    meshopt_remapVertexBuffer(mesh.vertices.positions.data(),
-                              mesh.vertices.positions.data(), vertexCount,
-                              sizeof(mesh.vertices.positions[0]), remap.data());
+    meshopt_remapVertexBuffer(positions, positions, vertexCount,
+                              sizeof(tmpPos[0]), remap.data());
 
     meshopt_remapVertexBuffer(mesh.vertices.normals.data(),
                               mesh.vertices.normals.data(), vertexCount,
@@ -130,14 +128,15 @@ void OptimizeMesh(CISDI_3DModel::Mesh& mesh,
 }
 
 void OptimizeData(CISDI_3DModel& data,
+                  Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
                   Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     assert(data.meshes.size() == tmpIndices.size());
     for (uint32_t i = 0; i < data.meshes.size(); ++i) {
-        OptimizeMesh(data.meshes[i], tmpIndices[i]);
+        OptimizeMesh(data.meshes[i], tmpPos[i], tmpIndices[i]);
     }
 }
 
-void BuildMeshlet(CISDI_3DModel::Mesh& mesh,
+void BuildMeshlet(CISDI_3DModel::Mesh& mesh, Type_STLVector<Float32_3>& tmpPos,
                   Type_STLVector<uint32_t>& tmpIndices) {
     size_t maxMeshlets =
         meshopt_buildMeshletsBound(tmpIndices.size(), MESHLET_MAX_VERTEX_COUNT,
@@ -150,9 +149,8 @@ void BuildMeshlet(CISDI_3DModel::Mesh& mesh,
     size_t meshletCount = meshopt_buildMeshlets(
         mesh.meshlets.data(), mesh.meshletVertices.data(),
         mesh.meshletTriangles.data(), tmpIndices.data(), tmpIndices.size(),
-        (const float*)mesh.vertices.positions.data(), mesh.header.vertexCount,
-        sizeof(mesh.vertices.positions[0]), MESHLET_MAX_VERTEX_COUNT,
-        MESHLET_MAX_TRIANGLE_COUNT, 0.0f);
+        (const float*)tmpPos.data(), tmpPos.size(), sizeof(tmpPos[0]),
+        MESHLET_MAX_VERTEX_COUNT, MESHLET_MAX_TRIANGLE_COUNT, 0.0f);
 
     const meshopt_Meshlet& last = mesh.meshlets[meshletCount - 1];
 
@@ -173,9 +171,44 @@ void BuildMeshlet(CISDI_3DModel::Mesh& mesh,
 }
 
 void BuildMeshletDatas(CISDI_3DModel& data,
+                       Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
                        Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     for (uint32_t i = 0; i < data.meshes.size(); ++i) {
-        BuildMeshlet(data.meshes[i], tmpIndices[i]);
+        BuildMeshlet(data.meshes[i], tmpPos[i], tmpIndices[i]);
+    }
+}
+
+void GenerateUInt16VertPositions(
+    CISDI_3DModel& data,
+    Type_STLVector<Type_STLVector<Float32_3>> const& tmpPos) {
+    for (uint32_t i = 0; i < data.header.meshCount; ++i) {
+        auto& mesh = data.meshes[i];
+        auto const& tmpPosVec = tmpPos[i];
+
+        mesh.header.vertexCount = tmpPosVec.size();
+        mesh.vertices.positions.resize(mesh.header.vertexCount);
+
+        for (uint32_t j = 0; j < mesh.header.vertexCount; ++j) {
+            Float32_3 fPos = tmpPosVec[j];
+            Float32_3 bbLength {
+                mesh.boundingBox.max.x - mesh.boundingBox.min.x,
+                mesh.boundingBox.max.y - mesh.boundingBox.min.y,
+                mesh.boundingBox.max.z - mesh.boundingBox.min.z};
+            Float32_3 encodedPos {
+                bbLength.x > 0.0f
+                    ? (fPos.x - mesh.boundingBox.min.x) / bbLength.x
+                    : 0.0f,
+                bbLength.y > 0.0f
+                    ? (fPos.y - mesh.boundingBox.min.y) / bbLength.y
+                    : 0.0f,
+                bbLength.z > 0.0f
+                    ? (fPos.z - mesh.boundingBox.min.z) / bbLength.z
+                    : 0.0f};
+            UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
+                                PackUnorm16(encodedPos.y),
+                                PackUnorm16(encodedPos.z)};
+            mesh.vertices.positions[j] = ui16Pos;
+        }
     }
 }
 
@@ -204,6 +237,10 @@ void WriteNodes(std::ofstream& ofs,
 void WriteMeshHeader(std::ofstream& ofs,
                      CISDI_3DModel::Mesh::MeshHeader const& meshHeader) {
     ofs.write((char*)&meshHeader, sizeof(meshHeader));
+}
+
+void WriteBoundingBox(std::ofstream& ofs, AABoundingBox const& box) {
+    ofs.write((char*)&box, sizeof(box));
 }
 
 void WriteMeshes(std::ofstream& ofs,
@@ -242,6 +279,9 @@ void WriteMeshes(std::ofstream& ofs,
                       sizeof(mesh.meshletTriangles[0])
                           * mesh.header.meshletTriangleCount);
         }
+
+        // bounding box
+        WriteBoundingBox(ofs, mesh.boundingBox);
     }
 }
 
@@ -267,6 +307,7 @@ void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
     WriteNodes(out, data.nodes);
     WriteMeshes(out, data.meshes);
     WriteMaterial(out, data.materials);
+    WriteBoundingBox(out, data.boundingBox);
 }
 
 CISDI_3DModel Convert(const char* path, bool flipYZ, const char* output) {
@@ -276,21 +317,24 @@ CISDI_3DModel Convert(const char* path, bool flipYZ, const char* output) {
 
     // process input model file
     {
+        Type_STLVector<Type_STLVector<Float32_3>> tmpPos {};
         Type_STLVector<Type_STLVector<uint32_t>> tmpIndices {};
 
         if (::std::filesystem::path(path).extension() == ".fbx"
             || ::std::filesystem::path(path).extension() == ".FBX") {
             data = IntelliDesign_NS::ModelImporter::FBXSDK::Convert(
-                path, flipYZ, tmpIndices);
-            RemapIndex(data, tmpIndices);
+                path, flipYZ, tmpPos, tmpIndices);
+            RemapIndex(data, tmpPos, tmpIndices);
         } else {
             data = IntelliDesign_NS::ModelImporter::Assimp::Convert(
-                path, flipYZ, tmpIndices);
+                path, flipYZ, tmpPos, tmpIndices);
         }
 
-        OptimizeData(data, tmpIndices);
+        OptimizeData(data, tmpPos, tmpIndices);
 
-        BuildMeshletDatas(data, tmpIndices);
+        BuildMeshletDatas(data, tmpPos, tmpIndices);
+
+        GenerateUInt16VertPositions(data, tmpPos);
     }
 
     WriteFile(outputPath.c_str(), data);
@@ -370,6 +414,8 @@ CISDI_3DModel Load(const char* path) {
         in.read((char*)mesh.meshletTriangles.data(),
                 sizeof(mesh.meshletTriangles[0])
                     * mesh.header.meshletTriangleCount);
+
+        in.read((char*)&mesh.boundingBox, sizeof(mesh.boundingBox));
     }
 
     // read material
@@ -379,6 +425,8 @@ CISDI_3DModel Load(const char* path) {
         in.read((char*)&mat.ambient,
                 sizeof(mat.ambient) * 3 + sizeof(mat.opacity));
     }
+
+    in.read((char*)&data.boundingBox, sizeof(data.boundingBox));
 
     return data;
 }

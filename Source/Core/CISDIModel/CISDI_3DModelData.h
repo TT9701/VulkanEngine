@@ -48,7 +48,7 @@ struct CISDI_3DModel {
         };
 
         struct Vertices {
-            Type_STLVector<Float32_3> positions {};
+            Type_STLVector<UInt16_3> positions {};
             Type_STLVector<Int16_2> normals {};
             Type_STLVector<UInt16_2> uvs {};
         };
@@ -59,6 +59,8 @@ struct CISDI_3DModel {
         Type_STLVector<meshopt_Meshlet> meshlets {};
         Type_STLVector<uint32_t> meshletVertices {};
         Type_STLVector<uint8_t> meshletTriangles {};
+
+        AABoundingBox boundingBox {};
     };
 
     struct Material {
@@ -78,6 +80,8 @@ struct CISDI_3DModel {
     Type_STLVector<Mesh> meshes {};
 
     Type_STLVector<Material> materials {};
+
+    AABoundingBox boundingBox {};
 };
 
 CISDI_MODEL_DATA_API CISDI_3DModel Convert(const char* path, bool flipYZ,

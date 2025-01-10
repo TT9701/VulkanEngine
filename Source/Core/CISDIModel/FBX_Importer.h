@@ -11,6 +11,8 @@ namespace FBXSDK {
 
 [[nodiscard]] IntelliDesign_NS::ModelData::CISDI_3DModel Convert(
     const char* path, bool flipYZ,
+    ModelData::Type_STLVector<ModelData::Type_STLVector<ModelData::Float32_3>>&
+        tmpPos,
     ModelData::Type_STLVector<ModelData::Type_STLVector<uint32_t>>& outIndices);
 
 }  // namespace FBXSDK

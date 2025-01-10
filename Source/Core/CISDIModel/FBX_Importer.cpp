@@ -72,7 +72,8 @@ FbxTexture::EWrapMode GetTextureWrapMode(FbxProperty& property,
     return FbxTexture::eRepeat;  // Default to repeat if not specified
 }
 
-int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
+int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ,
+                Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
     int meshIdx = (int)data.meshes.size();
     CISDI_3DModel::Mesh cisdiMesh {};
 
@@ -81,9 +82,11 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
     int triangleCount = pMesh->GetPolygonCount();
     int vertCount = triangleCount * 3;
 
-    cisdiMesh.vertices.positions.resize(vertCount);
     cisdiMesh.vertices.normals.resize(vertCount);
     cisdiMesh.vertices.uvs.resize(vertCount);
+
+    auto& tmpPosVec = tmpPos.emplace_back();
+    tmpPosVec.resize(vertCount);
 
     for (int i = 0; i < triangleCount; ++i) {
         int polySize = pMesh->GetPolygonSize(i);
@@ -94,13 +97,15 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
             // positions
             int lControlPointIndex = pMesh->GetPolygonVertex(i, j);
             FbxVector4 lControlPoint = lControlPoints[lControlPointIndex];
-            Float32_3 pos {(float)lControlPoint[0], (float)lControlPoint[1],
-                           (float)lControlPoint[2]};
+            Float32_3 fPos {(float)lControlPoint[0], (float)lControlPoint[1],
+                            (float)lControlPoint[2]};
 
             if (flipYZ)
-                ::std::swap(pos[1], pos[2]);
+                ::std::swap(fPos[1], fPos[2]);
 
-            cisdiMesh.vertices.positions[vertIdx] = pos;
+            UpdateAABB(cisdiMesh.boundingBox, fPos);
+
+            tmpPosVec[vertIdx] = fPos;
 
             // normals
             if (pMesh->GetElementNormalCount() < 1)
@@ -210,8 +215,6 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
         }
     }
 
-    cisdiMesh.header.vertexCount = vertCount;
-
     data.meshes.emplace_back(cisdiMesh);
 
     return meshIdx;
@@ -220,7 +223,8 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
 ::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
 
 int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
-                bool flipYZ) {
+                bool flipYZ,
+                Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
     int nodeIdx = (int)data.nodes.size();
     int childCount = pNode->GetChildCount();
 
@@ -234,7 +238,7 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
         switch (lNodeAttribute->GetAttributeType()) {
             case FbxNodeAttribute::eMesh:
                 if (FbxMesh* mesh = pNode->GetMesh())
-                    cisdiNode.meshIdx = ProcessMesh(mesh, data, flipYZ);
+                    cisdiNode.meshIdx = ProcessMesh(mesh, data, flipYZ, tmpPos);
                 break;
             case FbxNodeAttribute::eSkeleton: break;
             case FbxNodeAttribute::eLight: break;
@@ -253,7 +257,7 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
 
     for (int i = 0; i < childCount; i++) {
         ref.childrenIdx.emplace_back(
-            ProcessNode(pNode->GetChild(i), nodeIdx, data, flipYZ));
+            ProcessNode(pNode->GetChild(i), nodeIdx, data, flipYZ, tmpPos));
     }
 
     return nodeIdx;
@@ -262,6 +266,7 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
 }  // namespace
 
 CISDI_3DModel Convert(const char* path, bool flipYZ,
+                      Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
                       Type_STLVector<Type_STLVector<uint32_t>>& outIndices) {
     CISDI_3DModel data {};
 
@@ -355,6 +360,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
     data.nodes.reserve(data.header.nodeCount);
 
     data.meshes.reserve(data.header.meshCount);
+    tmpPos.reserve(data.header.meshCount);
 
     data.materials.reserve(data.header.materialCount);
 
@@ -428,7 +434,12 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
     FbxNode* lRootNode = lScene->GetRootNode();
     if (lRootNode) {
-        ProcessNode(lRootNode, -1, data, flipYZ);
+        ProcessNode(lRootNode, -1, data, flipYZ, tmpPos);
+    }
+
+    // Generate model bounding box
+    for (auto const& mesh : data.meshes) {
+        UpdateAABB(data.boundingBox, mesh.boundingBox);
     }
 
     // TODO: process keyframes

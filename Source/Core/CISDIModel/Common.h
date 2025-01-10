@@ -66,6 +66,14 @@ struct Version {
     uint32_t patch : 16;
 };
 
+struct AABoundingBox {
+    AABoundingBox()
+        : min(FLT_MAX, FLT_MAX, FLT_MAX), max(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
+
+    Float32_3 min;
+    Float32_3 max;
+};
+
 template <class T>
 constexpr const T& Clamp(const T& v, const T& lo, const T& hi) {
     return (v < lo) ? lo : ((hi < v) ? hi : v);
@@ -149,6 +157,29 @@ inline Float32_2 MirrorTexCoords(Float32_2 texCoords) {
     texCoords.x = Mirror(texCoords.x);
     texCoords.y = Mirror(texCoords.y);
     return texCoords;
+}
+
+inline void UpdateAABB(AABoundingBox& aabb, Float32_3 pos) {
+    aabb.min.x = std::min(aabb.min.x, pos.x);
+    aabb.min.y = std::min(aabb.min.y, pos.y);
+    aabb.min.z = std::min(aabb.min.z, pos.z);
+    aabb.max.x = std::max(aabb.max.x, pos.x);
+    aabb.max.y = std::max(aabb.max.y, pos.y);
+    aabb.max.z = std::max(aabb.max.z, pos.z);
+}
+
+inline void UpdateAABB(AABoundingBox& aabb, AABoundingBox const& other) {
+    aabb.min.x = std::min(aabb.min.x, other.min.x);
+    aabb.min.y = std::min(aabb.min.y, other.min.y);
+    aabb.min.z = std::min(aabb.min.z, other.min.z);
+    aabb.max.x = std::max(aabb.max.x, other.max.x);
+    aabb.max.y = std::max(aabb.max.y, other.max.y);
+    aabb.max.z = std::max(aabb.max.z, other.max.z);
+}
+
+inline Float32_3 GetAABBCenter(AABoundingBox const& aabb) {
+    return {(aabb.min.x + aabb.max.x) * 0.5f, (aabb.min.y + aabb.max.y) * 0.5f,
+            (aabb.min.z + aabb.max.z) * 0.5f};
 }
 
 }  // namespace IntelliDesign_NS::ModelData

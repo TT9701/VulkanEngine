@@ -22,8 +22,8 @@ layout (set = 0, binding = 0) uniform UBO
 layout(local_size_x = MESH_INVOCATION_COUNT) in;
 layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_PRIMITIVES) out;
 
-struct Pos {
-	float x, y, z;
+struct UInt16Pos {
+	uint16_t x, y, z;
 };
 
 struct Norm {
@@ -40,7 +40,7 @@ struct Tex {
 // use struct to bypass this. (page 147)
 layout(buffer_reference, std430) readonly buffer VertexPosBuffer{ 
 	// vec3 position[];
-	Pos position[];
+	UInt16Pos position[];
 };
 
 layout(buffer_reference, std430) readonly buffer VertexNormBuffer{ 
@@ -90,6 +90,20 @@ layout(buffer_reference, std430) readonly buffer MeshletCountBuffer{
 	uint meshletCounts[];
 };
 
+struct Position {
+	float x, y, z;
+};
+
+struct BoundingBox {
+	Position min;
+	Position max;
+};
+
+layout(buffer_reference, std430) readonly buffer BoundingBoxBuffer{ 
+	BoundingBox boundingBoxes[];
+};
+
+
 layout( push_constant ) uniform PushConstants
 {	
 	mat4 modelMatrix;
@@ -106,6 +120,7 @@ layout( push_constant ) uniform PushConstants
 	MeshletVertexOffsetBuffer meshletVertexOffsetBuffer;
 	MeshletTriangleOffsetBuffer meshletTriangleOffsetBuffer;
 	MeshletCountBuffer meshletCountBuffer;
+	BoundingBoxBuffer boundingBoxBuffer;
 } constants;
 
 layout (location = 0) out vec4 OutColor[];
@@ -127,8 +142,6 @@ float rand(vec2 co)
 
 void main()
 {
-	uint16_t index = uint16_t(0);
-
 	uint meshletID = IN.baseID + gl_WorkGroupID.x;
 
 	if (meshletID >= constants.meshletCountBuffer.meshletCounts[IN.drawID]) {
@@ -155,8 +168,15 @@ void main()
 
 		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
 
-		Pos pos = constants.posBuffer.position[meshVertexOffset + verticesID];
-		vec4 wPos = constants.modelMatrix * vec4(pos.x, pos.y, pos.z, 1.0);
+		UInt16Pos encodedPos = constants.posBuffer.position[meshVertexOffset + verticesID];
+
+		BoundingBox box = constants.boundingBoxBuffer.boundingBoxes[IN.drawID + 1];
+		vec3 boxMin = vec3(box.min.x, box.min.y, box.min.z);
+		vec3 boxMax = vec3(box.max.x, box.max.y, box.max.z);
+
+		vec3 pos = vec3(UnpackUnorm16(encodedPos.x), UnpackUnorm16(encodedPos.y), UnpackUnorm16(encodedPos.z)) * (boxMax - boxMin) + boxMin;
+
+		vec4 wPos = constants.modelMatrix * vec4(pos, 1.0);
 
 		vec4 hPos = ubo.data.viewproj *  wPos;
 		gl_MeshVerticesEXT[idx].gl_Position = hPos;
