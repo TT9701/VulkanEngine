@@ -91,7 +91,7 @@ protected:
 
     
     bool mStopRendering {false};
-    uint32_t mFrameNum {0};
+    uint64_t mFrameNum {0};
     IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
 
 #ifdef CUDA_VULKAN_INTEROP

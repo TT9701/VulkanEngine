@@ -54,9 +54,9 @@ void RemapIndex(CISDI_3DModel::Mesh& mesh,
         remap.data(), tmpIndices.empty() ? nullptr : tmpIndices.data(),
         indexCount, vertexCount, streams.data(), streams.size());
 
-    Type_STLVector<Float4> optimizedVertexPositions(vertexCount);
-    Type_STLVector<Float2> optimizedVertexNormals(vertexCount);
-    Type_STLVector<Float2> optimizedVertexUVs(vertexCount);
+    decltype(mesh.vertices.positions) optimizedVertexPositions(vertexCount);
+    decltype(mesh.vertices.normals) optimizedVertexNormals(vertexCount);
+    decltype(mesh.vertices.uvs) optimizedVertexUVs(vertexCount);
 
     Type_STLVector<uint32_t> optimizedIndices(indexCount);
 

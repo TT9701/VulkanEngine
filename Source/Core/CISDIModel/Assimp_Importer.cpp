@@ -20,14 +20,6 @@ namespace Assimp {
 
 namespace {
 
-uint32_t CalcMeshCount(aiNode* node) {
-    uint32_t meshCount {node->mNumMeshes};
-    for (uint32_t i = 0; i < node->mNumChildren; ++i) {
-        meshCount += CalcMeshCount(node->mChildren[i]);
-    }
-    return meshCount;
-}
-
 uint32_t CalcNodeCount(aiNode* node) {
     uint32_t nodeCount {1};
     for (uint32_t i = 0; i < node->mNumChildren; ++i) {
@@ -101,8 +93,8 @@ void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
 
     // position
     for (uint32_t i = 0; i < vertCount; ++i) {
-        Float4 temp {mesh->mVertices[i].x, mesh->mVertices[i].y,
-                     mesh->mVertices[i].z, 1.0f};
+        Float32_3 temp {mesh->mVertices[i].x, mesh->mVertices[i].y,
+                        mesh->mVertices[i].z};
 
         // TODO: temp[3] is empty for now
 
@@ -113,27 +105,33 @@ void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
     }
 
     // normal
-    // pre calculation -> "spheremap transform"
-    // wikipedia: https://en.wikipedia.org/wiki/Lambert_azimuthal_equal-area_projection
     for (uint32_t i = 0; i < vertCount; ++i) {
-        auto f = ::std::sqrt(2 / (1 - mesh->mNormals[i].x));
+        Float32_3 normal = {mesh->mNormals[i].x, mesh->mNormals[i].y,
+                            mesh->mNormals[i].z};
 
-        Float2 temp {mesh->mNormals[i].y * f, mesh->mNormals[i].z * f};
+        if (flipYZ)
+            ::std::swap(normal[1], normal[2]);
+
+        Float32_2 octNorm {UnitVectorToOctahedron(
+            {mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z})};
 
         // normal.x is runtime decoded in shader
 
-        if (flipYZ)
-            ::std::swap(temp[0], temp[1]);
-
-        cisdiMesh.vertices.normals[i] = temp;
+        cisdiMesh.vertices.normals[i] =
+            Int16_2 {PackSnorm16(octNorm.x), PackSnorm16(octNorm.y)};
     }
 
     // texcoords
     if (mesh->HasTextureCoords(0)) {
         for (uint32_t i = 0; i < vertCount; ++i) {
-            Float2 temp {mesh->mTextureCoords[0][i].x,
-                         mesh->mTextureCoords[0][i].y};
-            cisdiMesh.vertices.uvs[i] = temp;
+            Float32_2 temp {mesh->mTextureCoords[0][i].x,
+                            mesh->mTextureCoords[0][i].y};
+
+            // TODO: define uv wrap mode, using repeat for now
+            temp = RepeatTexCoords(temp);
+
+            cisdiMesh.vertices.uvs[i] =
+                UInt16_2 {PackUnorm16(temp.x), PackUnorm16(temp.y)};
         }
     }
 
@@ -215,8 +213,6 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
                    CalcNodeCount(scene->mRootNode), scene->mNumMeshes,
                    scene->mNumMaterials};
 
-    data.meshes.reserve(data.header.meshCount);
-
     data.name = ::std::filesystem::path(path).stem().string();
 
     data.nodes.reserve(data.header.nodeCount);
@@ -244,6 +240,11 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
     }
 
     ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ, outIndices);
+
+    // shrink to fit
+    data.header.nodeCount = data.nodes.size();
+    data.header.meshCount = data.meshes.size();
+    data.header.materialCount = data.materials.size();
 
     return data;
 }

@@ -1,3 +1,4 @@
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 
 struct SceneData
 {
@@ -13,16 +14,32 @@ struct SceneData
 	int texIndex;
 };
 
-// normal
-// pre calculated on convertion of 3d model to cisdi model -> "spheremap transform"
-// wikipedia: https://en.wikipedia.org/wiki/Lambert_azimuthal_equal-area_projection
-vec3 DecodeNormal(vec2 enc) {
-	float f = dot(enc, enc);
-	float g = sqrt(1 - f / 4);
-	vec3 n;
-	n.yz = enc * g;
-	n.x = -1 + f / 2;
-	return n;
+float UnpackUnorm16(uint16_t value)
+{
+	// value / 65535.0
+	return float(value) * 1.5259021896696421759365224689097e-5;
+}
+
+float UnpackSnorm16(int16_t value)
+{
+	// value / 32767.0
+	return clamp(
+	float(value) * 3.0518509475997192297128208258309e-5, -1.0, 1.0);
+}
+
+// https://jcgt.org/published/0003/02/01/
+// https://zhuanlan.zhihu.com/p/33905696
+vec2 UnitVectorToOctahedron(vec3 v)
+{
+	vec2 oct = v.xy / (abs(v.x) + abs(v.y) + abs(v.z));
+	return v.z > 0.0 ? oct : (1.0 - abs(oct.yx)) * sign(v.xy);
+}
+
+vec3 OctahedronToUnitVector(vec2 oct)
+{
+	vec3 n = vec3(oct, 1.0 - abs(oct.x) - abs(oct.y));
+	n.xy = n.z < 0.0 ? (1.0 - abs(n.yx)) * sign(n.xy) : n.xy;
+	return normalize(n);
 }
 
 vec3 BlinnPhong(vec3 lightDir, vec3 cameraPos, vec3 fragPos, vec3 normal, vec3 lightColor, vec3 objectColor) {

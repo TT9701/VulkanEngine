@@ -50,12 +50,12 @@ void main()
 	uint idx = PushConstants.offsetBuffer.offset[gl_DrawID] + PushConstants.idxBuffer.idx[gl_VertexIndex];
 
 	vec4 pos = PushConstants.posBuffer.position[idx];
-	vec2 encodedNorm = PushConstants.normBuffer.normal[idx];
+	vec2 octNorm = PushConstants.normBuffer.normal[idx];
 
 	vec4 worldSpacePosition = PushConstants.modelMatrix * vec4(pos.xyz, 1.0f);
 	outVertPosition = worldSpacePosition.xyz;
 
-	vec3 normal = DecodeNormal(encodedNorm);
+	vec3 normal = OctahedronToUnitVector(octNorm);
 	outVertNormal = mat3(transpose(inverse(PushConstants.modelMatrix))) * normal;
 
 	gl_Position = ubo.data.viewproj * worldSpacePosition;

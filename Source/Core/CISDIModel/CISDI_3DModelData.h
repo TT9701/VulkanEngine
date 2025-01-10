@@ -48,9 +48,9 @@ struct CISDI_3DModel {
         };
 
         struct Vertices {
-            Type_STLVector<Float4> positions {};
-            Type_STLVector<Float2> normals {};
-            Type_STLVector<Float2> uvs {};
+            Type_STLVector<Float32_3> positions {};
+            Type_STLVector<Int16_2> normals {};
+            Type_STLVector<UInt16_2> uvs {};
         };
 
         MeshHeader header {};
@@ -63,9 +63,9 @@ struct CISDI_3DModel {
 
     struct Material {
         Type_STLString name {};
-        Float3 ambient {};
-        Float3 diffuse {};
-        Float3 emissive {};
+        Float32_3 ambient {};
+        Float32_3 diffuse {};
+        Float32_3 emissive {};
         float opacity {};
     };
 

@@ -4,6 +4,8 @@
 
 #include "Core/System/GameTimer.h"
 
+#include <glm/gtc/packing.hpp>
+
 using namespace IDNS_VC;
 
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)

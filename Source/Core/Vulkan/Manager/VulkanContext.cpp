@@ -306,8 +306,9 @@ vk::CommandBuffer const* VulkanContext::CmdToBegin::operator->() const {
 
 void VulkanContext::EnableFeatures() {
     auto& features = mPhysicalDevice.GetMutableRequestedFeatures();
-    features.setMultiDrawIndirect(vk::True).setDrawIndirectFirstInstance(
-        vk::True);
+    features.setMultiDrawIndirect(vk::True)
+        .setDrawIndirectFirstInstance(vk::True)
+        .setShaderInt16(vk::True);
 
     REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
                              vk::PhysicalDeviceShaderDrawParametersFeatures,
@@ -358,6 +359,10 @@ void VulkanContext::EnableFeatures() {
     REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
                              vk::PhysicalDevice8BitStorageFeatures,
                              storageBuffer8BitAccess);
+
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDevice16BitStorageFeatures,
+                             storageBuffer16BitAccess);
 
     // REQUEST_REQUIRED_FEATURE(
     //     mPhysicalDevice, vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT,

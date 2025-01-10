@@ -62,6 +62,16 @@ void DestroySdkObjects(FbxManager* pManager) {
         pManager->Destroy();
 }
 
+FbxTexture::EWrapMode GetTextureWrapMode(FbxProperty& property,
+                                         const char* wrapModeName) {
+    FbxProperty wrapModeProperty = property.Find(wrapModeName);
+    if (wrapModeProperty.IsValid()) {
+        return static_cast<FbxTexture::EWrapMode>(
+            wrapModeProperty.Get<FbxEnum>());
+    }
+    return FbxTexture::eRepeat;  // Default to repeat if not specified
+}
+
 int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
     int meshIdx = (int)data.meshes.size();
     CISDI_3DModel::Mesh cisdiMesh {};
@@ -84,8 +94,8 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
             // positions
             int lControlPointIndex = pMesh->GetPolygonVertex(i, j);
             FbxVector4 lControlPoint = lControlPoints[lControlPointIndex];
-            Float4 pos {(float)lControlPoint[0], (float)lControlPoint[1],
-                        (float)lControlPoint[2], 1.0f};
+            Float32_3 pos {(float)lControlPoint[0], (float)lControlPoint[1],
+                           (float)lControlPoint[2]};
 
             if (flipYZ)
                 ::std::swap(pos[1], pos[2]);
@@ -99,10 +109,16 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
             auto leNormal = pMesh->GetElementNormal();
             auto& norm = cisdiMesh.vertices.normals[vertIdx];
 
-            auto setNorm = [&norm](FbxVector4 const& normal) {
-                auto f = ::std::sqrt(2.0f / (1.0f - (float)normal[0]));
-                norm[0] = (float)normal[1] * f;
-                norm[1] = (float)normal[2] * f;
+            auto setNorm = [&norm, flipYZ](FbxVector4 const& normal) {
+                Float32_3 temp {(float)normal[0], (float)normal[1],
+                                (float)normal[2]};
+
+                if (flipYZ)
+                    ::std::swap(temp[1], temp[2]);
+
+                Float32_2 octNorm = UnitVectorToOctahedron(temp);
+
+                norm = Int16_2 {PackSnorm16(octNorm.x), PackSnorm16(octNorm.y)};
             };
 
             switch (leNormal->GetMappingMode()) {
@@ -144,8 +160,53 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ) {
                 } break;
             }
 
-            if (flipYZ)
-                ::std::swap(norm[0], norm[1]);
+            if (pMesh->GetElementUVCount() < 1)
+                continue;
+            auto leUV = pMesh->GetElementUV();
+
+            auto& uv = cisdiMesh.vertices.uvs[vertIdx];
+
+            auto setUV = [&uv](FbxVector2 const& texcoords) {
+                Float32_2 temp {(float)texcoords[0], (float)texcoords[1]};
+
+                // TODO: define uv wrap mode, using repeat for now
+                temp = RepeatTexCoords(temp);
+
+                uv = UInt16_2 {PackUnorm16(temp.x), PackUnorm16(temp.y)};
+            };
+
+            switch (leUV->GetMappingMode()) {
+                default: break;
+                case FbxGeometryElement::eByControlPoint:
+                    switch (leUV->GetReferenceMode()) {
+                        case FbxGeometryElement::eDirect: {
+                            auto texcoords = leUV->GetDirectArray().GetAt(
+                                lControlPointIndex);
+                            setUV(texcoords);
+                        } break;
+                        case FbxGeometryElement::eIndexToDirect: {
+                            int id =
+                                leUV->GetIndexArray().GetAt(lControlPointIndex);
+                            auto texcoords = leUV->GetDirectArray().GetAt(id);
+                            setUV(texcoords);
+                        } break;
+                        default: break;
+                    }
+                    break;
+
+                case FbxGeometryElement::eByPolygonVertex: {
+                    int lTextureUVIndex = pMesh->GetTextureUVIndex(i, j);
+                    switch (leUV->GetReferenceMode()) {
+                        case FbxGeometryElement::eDirect:
+                        case FbxGeometryElement::eIndexToDirect: {
+                            auto texcoords =
+                                leUV->GetDirectArray().GetAt(lTextureUVIndex);
+                            setUV(texcoords);
+                        } break;
+                        default: break;
+                    }
+                } break;
+            }
         }
     }
 
@@ -307,27 +368,27 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
         if (lMaterial->GetClassId().Is(FbxSurfacePhong::ClassId)) {
 
             auto lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Ambient;
-            Float3 ambient {(float)lKFbxDouble3.Get()[0],
-                            (float)lKFbxDouble3.Get()[1],
-                            (float)lKFbxDouble3.Get()[2]};
+            Float32_3 ambient {(float)lKFbxDouble3.Get()[0],
+                               (float)lKFbxDouble3.Get()[1],
+                               (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.ambient = ambient;
 
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Diffuse;
-            Float3 diffuse {(float)lKFbxDouble3.Get()[0],
-                            (float)lKFbxDouble3.Get()[1],
-                            (float)lKFbxDouble3.Get()[2]};
+            Float32_3 diffuse {(float)lKFbxDouble3.Get()[0],
+                               (float)lKFbxDouble3.Get()[1],
+                               (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.diffuse = diffuse;
 
             // TODO: how to deal with specular?
             // lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Specular;
-            // Float3 specular {(float)lKFbxDouble3.Get()[0],
+            // Float32_3 specular {(float)lKFbxDouble3.Get()[0],
             //                  (float)lKFbxDouble3.Get()[1],
             //                  (float)lKFbxDouble3.Get()[2]};
 
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Emissive;
-            Float3 emissive {(float)lKFbxDouble3.Get()[0],
-                             (float)lKFbxDouble3.Get()[1],
-                             (float)lKFbxDouble3.Get()[2]};
+            Float32_3 emissive {(float)lKFbxDouble3.Get()[0],
+                                (float)lKFbxDouble3.Get()[1],
+                                (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.emissive = emissive;
 
             float opacity = ((FbxSurfacePhong*)lMaterial)->TransparencyFactor;
@@ -342,21 +403,21 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
         } else if (lMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId)) {
             auto lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Ambient;
-            Float3 ambient {(float)lKFbxDouble3.Get()[0],
-                            (float)lKFbxDouble3.Get()[1],
-                            (float)lKFbxDouble3.Get()[2]};
+            Float32_3 ambient {(float)lKFbxDouble3.Get()[0],
+                               (float)lKFbxDouble3.Get()[1],
+                               (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.ambient = ambient;
 
             lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Diffuse;
-            Float3 diffuse {(float)lKFbxDouble3.Get()[0],
-                            (float)lKFbxDouble3.Get()[1],
-                            (float)lKFbxDouble3.Get()[2]};
+            Float32_3 diffuse {(float)lKFbxDouble3.Get()[0],
+                               (float)lKFbxDouble3.Get()[1],
+                               (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.diffuse = diffuse;
 
             lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Emissive;
-            Float3 emissive {(float)lKFbxDouble3.Get()[0],
-                             (float)lKFbxDouble3.Get()[1],
-                             (float)lKFbxDouble3.Get()[2]};
+            Float32_3 emissive {(float)lKFbxDouble3.Get()[0],
+                                (float)lKFbxDouble3.Get()[1],
+                                (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.emissive = emissive;
 
             float opacity = ((FbxSurfaceLambert*)lMaterial)->TransparencyFactor;
