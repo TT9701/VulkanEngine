@@ -5,6 +5,8 @@
 #include <fstream>
 #include <string>
 
+#include <meshoptimizer.h>
+
 #include "Assimp_Importer.h"
 #include "FBX_Importer.h"
 
@@ -147,22 +149,22 @@ void BuildMeshlet(CISDI_3DModel::Mesh& mesh, Type_STLVector<Float32_3>& tmpPos,
     mesh.meshletTriangles.resize(maxMeshlets * MESHLET_MAX_TRIANGLE_COUNT * 3);
 
     size_t meshletCount = meshopt_buildMeshlets(
-        mesh.meshlets.data(), mesh.meshletVertices.data(),
+        (meshopt_Meshlet*)mesh.meshlets.data(), mesh.meshletVertices.data(),
         mesh.meshletTriangles.data(), tmpIndices.data(), tmpIndices.size(),
         (const float*)tmpPos.data(), tmpPos.size(), sizeof(tmpPos[0]),
         MESHLET_MAX_VERTEX_COUNT, MESHLET_MAX_TRIANGLE_COUNT, 0.0f);
 
-    const meshopt_Meshlet& last = mesh.meshlets[meshletCount - 1];
+    const auto& last = mesh.meshlets[meshletCount - 1];
 
-    mesh.meshletVertices.resize(last.vertex_offset + last.vertex_count);
-    mesh.meshletTriangles.resize(last.triangle_offset
-                                 + ((last.triangle_count * 3 + 3) & ~3));
+    mesh.meshletVertices.resize(last.vertexOffset + last.vertexCount);
+    mesh.meshletTriangles.resize(last.triangleOffset
+                                 + ((last.triangleCount * 3 + 3) & ~3));
     mesh.meshlets.resize(meshletCount);
 
     for (auto& meshlet : mesh.meshlets) {
-        meshopt_optimizeMeshlet(&mesh.meshletVertices[meshlet.vertex_offset],
-                                &mesh.meshletTriangles[meshlet.triangle_offset],
-                                meshlet.triangle_count, meshlet.vertex_count);
+        meshopt_optimizeMeshlet(&mesh.meshletVertices[meshlet.vertexOffset],
+                                &mesh.meshletTriangles[meshlet.triangleOffset],
+                                meshlet.triangleCount, meshlet.vertexCount);
     }
 
     mesh.header.meshletCount = mesh.meshlets.size();

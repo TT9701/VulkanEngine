@@ -1,6 +1,5 @@
 #pragma once
 
-#include <meshoptimizer.h>
 
 #include "Common.h"
 
@@ -56,7 +55,7 @@ struct CISDI_3DModel {
         MeshHeader header {};
         Vertices vertices {};
 
-        Type_STLVector<meshopt_Meshlet> meshlets {};
+        Type_STLVector<MeshletInfo> meshlets {};
         Type_STLVector<uint32_t> meshletVertices {};
         Type_STLVector<uint8_t> meshletTriangles {};
 

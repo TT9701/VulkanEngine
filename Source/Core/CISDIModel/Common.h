@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <cassert>
 
 #define CISDI_3DModel_Subfix_Str ".cisdi"
 #define CISDI_3DModel_Subfix_WStr L".cisdi"
@@ -72,6 +73,14 @@ struct AABoundingBox {
 
     Float32_3 min;
     Float32_3 max;
+};
+
+// exactly same as meshoptimizer::meshopt_Meshlet
+struct MeshletInfo {
+    uint32_t vertexOffset;
+    uint32_t triangleOffset;
+    uint32_t vertexCount;
+    uint32_t triangleCount;
 };
 
 template <class T>
