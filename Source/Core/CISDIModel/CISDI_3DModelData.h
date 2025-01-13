@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "Common.h"
 
 #ifdef CISDI_MODEL_DATA_EXPORTS
@@ -52,12 +51,17 @@ struct CISDI_3DModel {
             Type_STLVector<UInt16_2> uvs {};
         };
 
+        struct Meshlets {
+            Type_STLVector<MeshletInfo> infos {};
+            Type_STLVector<uint32_t> vertIndices {};
+            Type_STLVector<uint8_t> triangles {};
+
+            Type_STLVector<AABoundingBox> boundingBoxes {};
+        };
+
         MeshHeader header {};
         Vertices vertices {};
-
-        Type_STLVector<MeshletInfo> meshlets {};
-        Type_STLVector<uint32_t> meshletVertices {};
-        Type_STLVector<uint8_t> meshletTriangles {};
+        Meshlets meshlets {};
 
         AABoundingBox boundingBox {};
     };

@@ -144,32 +144,34 @@ void BuildMeshlet(CISDI_3DModel::Mesh& mesh, Type_STLVector<Float32_3>& tmpPos,
         meshopt_buildMeshletsBound(tmpIndices.size(), MESHLET_MAX_VERTEX_COUNT,
                                    MESHLET_MAX_TRIANGLE_COUNT);
 
-    mesh.meshlets.resize(maxMeshlets);
-    mesh.meshletVertices.resize(maxMeshlets * MESHLET_MAX_VERTEX_COUNT);
-    mesh.meshletTriangles.resize(maxMeshlets * MESHLET_MAX_TRIANGLE_COUNT * 3);
+    auto& meshlets = mesh.meshlets;
+
+    meshlets.infos.resize(maxMeshlets);
+    meshlets.vertIndices.resize(maxMeshlets * MESHLET_MAX_VERTEX_COUNT);
+    meshlets.triangles.resize(maxMeshlets * MESHLET_MAX_TRIANGLE_COUNT * 3);
 
     size_t meshletCount = meshopt_buildMeshlets(
-        (meshopt_Meshlet*)mesh.meshlets.data(), mesh.meshletVertices.data(),
-        mesh.meshletTriangles.data(), tmpIndices.data(), tmpIndices.size(),
+        (meshopt_Meshlet*)meshlets.infos.data(), meshlets.vertIndices.data(),
+        meshlets.triangles.data(), tmpIndices.data(), tmpIndices.size(),
         (const float*)tmpPos.data(), tmpPos.size(), sizeof(tmpPos[0]),
         MESHLET_MAX_VERTEX_COUNT, MESHLET_MAX_TRIANGLE_COUNT, 0.0f);
 
-    const auto& last = mesh.meshlets[meshletCount - 1];
+    const auto& last = meshlets.infos[meshletCount - 1];
 
-    mesh.meshletVertices.resize(last.vertexOffset + last.vertexCount);
-    mesh.meshletTriangles.resize(last.triangleOffset
-                                 + ((last.triangleCount * 3 + 3) & ~3));
-    mesh.meshlets.resize(meshletCount);
+    meshlets.vertIndices.resize(last.vertexOffset + last.vertexCount);
+    meshlets.triangles.resize(last.triangleOffset
+                              + ((last.triangleCount * 3 + 3) & ~3));
+    meshlets.infos.resize(meshletCount);
 
-    for (auto& meshlet : mesh.meshlets) {
-        meshopt_optimizeMeshlet(&mesh.meshletVertices[meshlet.vertexOffset],
-                                &mesh.meshletTriangles[meshlet.triangleOffset],
+    for (auto& meshlet : meshlets.infos) {
+        meshopt_optimizeMeshlet(&meshlets.vertIndices[meshlet.vertexOffset],
+                                &meshlets.triangles[meshlet.triangleOffset],
                                 meshlet.triangleCount, meshlet.vertexCount);
     }
 
-    mesh.header.meshletCount = mesh.meshlets.size();
-    mesh.header.meshletVertexCount = mesh.meshletVertices.size();
-    mesh.header.meshletTriangleCount = mesh.meshletTriangles.size();
+    mesh.header.meshletCount = meshlets.infos.size();
+    mesh.header.meshletVertexCount = meshlets.vertIndices.size();
+    mesh.header.meshletTriangleCount = meshlets.triangles.size();
 }
 
 void BuildMeshletDatas(CISDI_3DModel& data,
@@ -177,6 +179,67 @@ void BuildMeshletDatas(CISDI_3DModel& data,
                        Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     for (uint32_t i = 0; i < data.meshes.size(); ++i) {
         BuildMeshlet(data.meshes[i], tmpPos[i], tmpIndices[i]);
+    }
+}
+
+void GenerateMeshletVertices(
+    CISDI_3DModel& data, Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
+    Type_STLVector<Type_STLVector<Float32_3>> outPos(data.header.meshCount);
+
+    for (uint32_t i = 0; i < data.header.meshCount; ++i) {
+        auto& mesh = data.meshes[i];
+        auto& tmpPosVec = tmpPos[i];
+        auto& outPosVec = outPos[i];
+        auto tmpNorm = mesh.vertices.normals;
+        auto tmpUV = mesh.vertices.uvs;
+
+        mesh.header.vertexCount = mesh.header.meshletVertexCount;
+
+        mesh.vertices.positions.resize(mesh.header.vertexCount);
+        mesh.vertices.normals.resize(mesh.header.vertexCount);
+        mesh.vertices.uvs.resize(mesh.header.vertexCount);
+
+        outPosVec.resize(mesh.header.vertexCount);
+
+        uint32_t index {0};
+        for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
+            auto& info = mesh.meshlets.infos[j];
+            for (uint32_t k = 0; k < info.vertexCount; ++k) {
+                uint32_t vertIdx =
+                    mesh.meshlets.vertIndices[info.vertexOffset + k];
+
+                outPosVec[index] = tmpPosVec[vertIdx];
+                mesh.vertices.normals[index] = tmpNorm[vertIdx];
+                mesh.vertices.uvs[index] = tmpUV[vertIdx];
+
+                mesh.meshlets.vertIndices[info.vertexOffset + k] = index;
+
+                index++;
+            }
+        }
+    }
+
+    tmpPos = std::move(outPos);
+}
+
+void GenerateMeshletBoundingBox(
+    CISDI_3DModel& data, Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
+    for (uint32_t i = 0; i < data.meshes.size(); ++i) {
+        auto& mesh = data.meshes[i];
+        auto& tmpPosVec = tmpPos[i];
+        for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
+            auto& info = mesh.meshlets.infos[j];
+            mesh.meshlets.boundingBoxes.resize(mesh.header.meshletCount);
+
+            AABoundingBox bb {};
+
+            for (uint32_t k = 0; k < info.vertexCount; ++k) {
+                uint32_t vertIdx =
+                    mesh.meshlets.vertIndices[info.vertexOffset + k];
+                UpdateAABB(bb, tmpPosVec[vertIdx]);
+            }
+            mesh.meshlets.boundingBoxes[j] = bb;
+        }
     }
 }
 
@@ -190,26 +253,26 @@ void GenerateUInt16VertPositions(
         mesh.header.vertexCount = tmpPosVec.size();
         mesh.vertices.positions.resize(mesh.header.vertexCount);
 
-        for (uint32_t j = 0; j < mesh.header.vertexCount; ++j) {
-            Float32_3 fPos = tmpPosVec[j];
-            Float32_3 bbLength {
-                mesh.boundingBox.max.x - mesh.boundingBox.min.x,
-                mesh.boundingBox.max.y - mesh.boundingBox.min.y,
-                mesh.boundingBox.max.z - mesh.boundingBox.min.z};
-            Float32_3 encodedPos {
-                bbLength.x > 0.0f
-                    ? (fPos.x - mesh.boundingBox.min.x) / bbLength.x
-                    : 0.0f,
-                bbLength.y > 0.0f
-                    ? (fPos.y - mesh.boundingBox.min.y) / bbLength.y
-                    : 0.0f,
-                bbLength.z > 0.0f
-                    ? (fPos.z - mesh.boundingBox.min.z) / bbLength.z
-                    : 0.0f};
-            UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
-                                PackUnorm16(encodedPos.y),
-                                PackUnorm16(encodedPos.z)};
-            mesh.vertices.positions[j] = ui16Pos;
+        for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
+            auto& info = mesh.meshlets.infos[j];
+            for (uint32_t k = 0; k < info.vertexCount; ++k) {
+                uint32_t vertIdx =
+                    mesh.meshlets.vertIndices[info.vertexOffset + k];
+                auto const& bb = mesh.meshlets.boundingBoxes[j];
+
+                Float32_3 fPos = tmpPosVec[vertIdx];
+                Float32_3 bbLength {bb.max.x - bb.min.x, bb.max.y - bb.min.y,
+                                    bb.max.z - bb.min.z};
+                Float32_3 encodedPos {
+                    bbLength.x > 0.0f ? (fPos.x - bb.min.x) / bbLength.x : 0.0f,
+                    bbLength.y > 0.0f ? (fPos.y - bb.min.y) / bbLength.y : 0.0f,
+                    bbLength.z > 0.0f ? (fPos.z - bb.min.z) / bbLength.z
+                                      : 0.0f};
+                UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
+                                    PackUnorm16(encodedPos.y),
+                                    PackUnorm16(encodedPos.z)};
+                mesh.vertices.positions[vertIdx] = ui16Pos;
+            }
         }
     }
 }
@@ -266,20 +329,27 @@ void WriteMeshes(std::ofstream& ofs,
 
         // meshlet datas
         if (mesh.header.meshletCount > 0) {
-            ofs.write((char*)mesh.meshlets.data(),
-                      sizeof(mesh.meshlets[0]) * mesh.header.meshletCount);
+            ofs.write(
+                (char*)mesh.meshlets.infos.data(),
+                sizeof(mesh.meshlets.infos[0]) * mesh.header.meshletCount);
         }
 
         if (mesh.header.meshletVertexCount > 0) {
-            ofs.write((char*)mesh.meshletVertices.data(),
-                      sizeof(mesh.meshletVertices[0])
+            ofs.write((char*)mesh.meshlets.vertIndices.data(),
+                      sizeof(mesh.meshlets.vertIndices[0])
                           * mesh.header.meshletVertexCount);
         }
 
         if (mesh.header.meshletTriangleCount > 0) {
-            ofs.write((char*)mesh.meshletTriangles.data(),
-                      sizeof(mesh.meshletTriangles[0])
+            ofs.write((char*)mesh.meshlets.triangles.data(),
+                      sizeof(mesh.meshlets.triangles[0])
                           * mesh.header.meshletTriangleCount);
+        }
+
+        if (mesh.header.meshletCount > 0) {
+            ofs.write((char*)mesh.meshlets.boundingBoxes.data(),
+                      sizeof(mesh.meshlets.boundingBoxes[0])
+                          * mesh.header.meshletCount);
         }
 
         // bounding box
@@ -335,6 +405,10 @@ CISDI_3DModel Convert(const char* path, bool flipYZ, const char* output) {
         OptimizeData(data, tmpPos, tmpIndices);
 
         BuildMeshletDatas(data, tmpPos, tmpIndices);
+
+        GenerateMeshletVertices(data, tmpPos);
+
+        GenerateMeshletBoundingBox(data, tmpPos);
 
         GenerateUInt16VertPositions(data, tmpPos);
     }
@@ -403,19 +477,24 @@ CISDI_3DModel Load(const char* path) {
 
         // TODO: other attributes
 
-        mesh.meshlets.resize(mesh.header.meshletCount);
-        in.read((char*)mesh.meshlets.data(),
-                sizeof(mesh.meshlets[0]) * mesh.header.meshletCount);
+        mesh.meshlets.infos.resize(mesh.header.meshletCount);
+        in.read((char*)mesh.meshlets.infos.data(),
+                sizeof(mesh.meshlets.infos[0]) * mesh.header.meshletCount);
 
-        mesh.meshletVertices.resize(mesh.header.meshletVertexCount);
-        in.read(
-            (char*)mesh.meshletVertices.data(),
-            sizeof(mesh.meshletVertices[0]) * mesh.header.meshletVertexCount);
+        mesh.meshlets.vertIndices.resize(mesh.header.meshletVertexCount);
+        in.read((char*)mesh.meshlets.vertIndices.data(),
+                sizeof(mesh.meshlets.vertIndices[0])
+                    * mesh.header.meshletVertexCount);
 
-        mesh.meshletTriangles.resize(mesh.header.meshletTriangleCount);
-        in.read((char*)mesh.meshletTriangles.data(),
-                sizeof(mesh.meshletTriangles[0])
+        mesh.meshlets.triangles.resize(mesh.header.meshletTriangleCount);
+        in.read((char*)mesh.meshlets.triangles.data(),
+                sizeof(mesh.meshlets.triangles[0])
                     * mesh.header.meshletTriangleCount);
+
+        mesh.meshlets.boundingBoxes.resize(mesh.header.meshletCount);
+        in.read(
+            (char*)mesh.meshlets.boundingBoxes.data(),
+            sizeof(mesh.meshlets.boundingBoxes[0]) * mesh.header.meshletCount);
 
         in.read((char*)&mesh.boundingBox, sizeof(mesh.boundingBox));
     }

@@ -51,11 +51,11 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         mBuffers.mVTBufAddr = mBuffers.mVTBuf->GetBufferDeviceAddress();
     }
 
-    constexpr size_t mlSize = sizeof(mModelData.meshes[0].meshlets[0]);
+    constexpr size_t mlSize = sizeof(mModelData.meshes[0].meshlets.infos[0]);
     constexpr size_t mlVertSize =
-        sizeof(mModelData.meshes[0].meshletVertices[0]);
+        sizeof(mModelData.meshes[0].meshlets.vertIndices[0]);
     constexpr size_t mlTriSize =
-        sizeof(mModelData.meshes[0].meshletTriangles[0]);
+        sizeof(mModelData.meshes[0].meshlets.triangles[0]);
     const size_t mlBufSize = mMeshletCount * mlSize;
     const size_t mlVertBufSize = mMeshletVertexCount * mlVertSize;
     const size_t mlTriBufSize = mMeshletTriangleCount * mlTriSize;
@@ -69,7 +69,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
         mBuffers.mMeshletVertBuf = context.CreateDeviceLocalBufferResource(
-            (mName + " Meshlet vertices").c_str(), mlVertBufSize,
+            (mName + " Meshlet vertIndices").c_str(), mlVertBufSize,
             vk::BufferUsageFlagBits::eStorageBuffer
                 | vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
@@ -91,7 +91,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     uint32_t meshCount = mModelData.meshes.size();
 
     // bounding box
-    const size_t aabbBufSize = aabbSize * (meshCount + 1);
+    const size_t aabbBufSize = aabbSize * (meshCount + 1 + mMeshletCount);
     {
         mBuffers.mBoundingBoxBuf = context.CreateDeviceLocalBufferResource(
             (mName + " Bounding Box").c_str(), aabbBufSize,
@@ -147,23 +147,24 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         for (uint32_t i = 0; i < meshCount; ++i) {
             memcpy(data + vpBufSize + vnBufSize + vtBufSize
                        + mMeshDatas.meshletOffsets[i] * mlSize,
-                   mModelData.meshes[i].meshlets.data(),
-                   mModelData.meshes[i].meshlets.size() * mlSize);
+                   mModelData.meshes[i].meshlets.infos.data(),
+                   mModelData.meshes[i].meshlets.infos.size() * mlSize);
         }
-        // meshlet vertices
+        // meshlet vertIndices
         for (uint32_t i = 0; i < meshCount; ++i) {
-            memcpy(data + vpBufSize + vnBufSize + vtBufSize + mlBufSize
-                       + mMeshDatas.meshletVerticesOffsets[i] * mlVertSize,
-                   mModelData.meshes[i].meshletVertices.data(),
-                   mModelData.meshes[i].meshletVertices.size() * mlVertSize);
+            memcpy(
+                data + vpBufSize + vnBufSize + vtBufSize + mlBufSize
+                    + mMeshDatas.meshletVerticesOffsets[i] * mlVertSize,
+                mModelData.meshes[i].meshlets.vertIndices.data(),
+                mModelData.meshes[i].meshlets.vertIndices.size() * mlVertSize);
         }
         //meshlet triangles
         for (uint32_t i = 0; i < meshCount; ++i) {
             memcpy(data + vpBufSize + vnBufSize + vtBufSize + mlBufSize
                        + mlVertBufSize
                        + mMeshDatas.meshletTrianglesOffsets[i] * mlTriSize,
-                   mModelData.meshes[i].meshletTriangles.data(),
-                   mModelData.meshes[i].meshletTriangles.size() * mlTriSize);
+                   mModelData.meshes[i].meshlets.triangles.data(),
+                   mModelData.meshes[i].meshlets.triangles.size() * mlTriSize);
         }
         // offsets
         auto meshCountSize = meshCount * sizeof(meshCount);
@@ -261,6 +262,14 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             memcpy(data + aabbSize * (i + 1), &mModelData.meshes[i].boundingBox,
                    aabbSize);
         }
+        char* ptr = data + aabbSize * (meshCount + 1);
+        for (uint32_t i = 0; i < meshCount; ++i) {
+            uint32_t size =
+                mModelData.meshes[i].meshlets.boundingBoxes.size() * aabbSize;
+            memcpy(ptr, mModelData.meshes[i].meshlets.boundingBoxes.data(),
+                   size);
+            ptr += size;
+        }
 
         {
             auto cmd = context.CreateCmdBufToBegin(
@@ -272,6 +281,8 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
                             cmdBufCopy);
         }
         mMeshletConstants.mBoundingBoxBufAddr = mBuffers.mBoundingBoxBufAddr;
+        mMeshletConstants.mMeshletBoundingBoxBufAddr =
+            mBuffers.mBoundingBoxBufAddr + aabbSize * (meshCount + 1);
     }
 
     // indirect mesh task command buffer
@@ -363,7 +374,7 @@ void Geometry::GenerateStats() {
         vk::DrawMeshTasksIndirectCommandEXT meshTasksIndirectCmd {};
         meshTasksIndirectCmd
             .setGroupCountX(
-                (mesh.meshlets.size() + TASK_SHADER_INVOCATION_COUNT - 1)
+                (mesh.meshlets.infos.size() + TASK_SHADER_INVOCATION_COUNT - 1)
                 / TASK_SHADER_INVOCATION_COUNT)
             .setGroupCountY(1)
             .setGroupCountZ(1);
@@ -373,14 +384,14 @@ void Geometry::GenerateStats() {
         mVertexCount += mesh.vertices.positions.size();
 
         mMeshDatas.meshletOffsets.push_back(mMeshletCount);
-        mMeshletCount += mesh.meshlets.size();
-        mMeshDatas.meshletCounts.push_back(mesh.meshlets.size());
+        mMeshletCount += mesh.meshlets.infos.size();
+        mMeshDatas.meshletCounts.push_back(mesh.meshlets.infos.size());
 
         mMeshDatas.meshletVerticesOffsets.push_back(mMeshletVertexCount);
-        mMeshletVertexCount += mesh.meshletVertices.size();
+        mMeshletVertexCount += mesh.meshlets.vertIndices.size();
 
         mMeshDatas.meshletTrianglesOffsets.push_back(mMeshletTriangleCount);
-        mMeshletTriangleCount += mesh.meshletTriangles.size();
+        mMeshletTriangleCount += mesh.meshlets.triangles.size();
     }
 }
 

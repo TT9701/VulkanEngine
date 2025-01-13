@@ -121,6 +121,7 @@ layout( push_constant ) uniform PushConstants
 	MeshletTriangleOffsetBuffer meshletTriangleOffsetBuffer;
 	MeshletCountBuffer meshletCountBuffer;
 	BoundingBoxBuffer boundingBoxBuffer;
+	BoundingBoxBuffer meshletBoundingBoxBuffer;
 } constants;
 
 layout (location = 0) out vec4 OutColor[];
@@ -170,7 +171,7 @@ void main()
 
 		UInt16Pos encodedPos = constants.posBuffer.position[meshVertexOffset + verticesID];
 
-		BoundingBox box = constants.boundingBoxBuffer.boundingBoxes[IN.drawID + 1];
+		BoundingBox box = constants.meshletBoundingBoxBuffer.boundingBoxes[meshletOffset + meshletID];
 		vec3 boxMin = vec3(box.min.x, box.min.y, box.min.z);
 		vec3 boxMax = vec3(box.max.x, box.max.y, box.max.z);
 

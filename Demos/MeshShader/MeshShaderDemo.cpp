@@ -191,7 +191,7 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        const char* model = "06c17a29-7462-4716-8c43-5aafdd45dcdc.fbx";
+        const char* model = "buddha.obj";
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
 
@@ -670,7 +670,7 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     meshPushContants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {.01f});
+        glm::scale(glm::mat4 {1.0f}, glm::vec3 {1.01f});
     // meshPushContants->mModelMatrix =
     //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(-90.0f),
     //                 glm::vec3(1.0f, 0.0f, 0.0f));

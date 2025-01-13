@@ -62,16 +62,6 @@ void DestroySdkObjects(FbxManager* pManager) {
         pManager->Destroy();
 }
 
-FbxTexture::EWrapMode GetTextureWrapMode(FbxProperty& property,
-                                         const char* wrapModeName) {
-    FbxProperty wrapModeProperty = property.Find(wrapModeName);
-    if (wrapModeProperty.IsValid()) {
-        return static_cast<FbxTexture::EWrapMode>(
-            wrapModeProperty.Get<FbxEnum>());
-    }
-    return FbxTexture::eRepeat;  // Default to repeat if not specified
-}
-
 int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ,
                 Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
     int meshIdx = (int)data.meshes.size();
