@@ -8,7 +8,6 @@
 
 #include <assimp/Importer.hpp>
 #include <filesystem>
-#include <map>
 
 #include "CISDI_3DModelData.h"
 #include "Common.h"
@@ -80,61 +79,43 @@ void ReadNodeProperties(aiNode* node) {
     }
 }
 
-void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
-                 aiMesh* mesh, bool flipYZ,
-                 Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
+void ProcessMesh(CISDI_3DModel::Node& cisdiNode, aiMesh* mesh, bool flipYZ,
+                 Type_STLVector<InternalMeshData>& tmpVertices,
                  Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
-    uint32_t meshIdx = (uint32_t)data.meshes.size();
     uint32_t vertCount = mesh->mNumVertices;
 
-    CISDI_3DModel::Mesh cisdiMesh {};
-    cisdiMesh.vertices.normals.resize(vertCount);
-    cisdiMesh.vertices.uvs.resize(vertCount);
-
-    auto& tmpPosVec = tmpPos.emplace_back();
-    tmpPosVec.resize(vertCount);
+    uint32_t meshIdx = (uint32_t)tmpVertices.size();
+    auto& tmpMeshVertices = tmpVertices.emplace_back();
+    tmpMeshVertices.positions.resize(vertCount);
+    tmpMeshVertices.normals.resize(vertCount);
+    tmpMeshVertices.uvs.resize(vertCount);
 
     // position
     for (uint32_t i = 0; i < vertCount; ++i) {
-        Float32_3 temp {mesh->mVertices[i].x, mesh->mVertices[i].y,
-                        mesh->mVertices[i].z};
+
+        tmpMeshVertices.positions[i] = Float32_3 {
+            mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
 
         if (flipYZ)
-            ::std::swap(temp[1], temp[2]);
-
-        UpdateAABB(cisdiMesh.boundingBox, temp);
-
-        tmpPosVec[i] = temp;
+            ::std::swap(tmpMeshVertices.positions[i][1],
+                        tmpMeshVertices.positions[i][2]);
     }
 
     // normal
     for (uint32_t i = 0; i < vertCount; ++i) {
-        Float32_3 normal = {mesh->mNormals[i].x, mesh->mNormals[i].y,
-                            mesh->mNormals[i].z};
+        tmpMeshVertices.normals[i] = Float32_3 {
+            mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
 
         if (flipYZ)
-            ::std::swap(normal[1], normal[2]);
-
-        Float32_2 octNorm {UnitVectorToOctahedron(
-            {mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z})};
-
-        // normal.x is runtime decoded in shader
-
-        cisdiMesh.vertices.normals[i] =
-            Int16_2 {PackSnorm16(octNorm.x), PackSnorm16(octNorm.y)};
+            ::std::swap(tmpMeshVertices.normals[i][1],
+                        tmpMeshVertices.normals[i][2]);
     }
 
     // texcoords
     if (mesh->HasTextureCoords(0)) {
         for (uint32_t i = 0; i < vertCount; ++i) {
-            Float32_2 temp {mesh->mTextureCoords[0][i].x,
-                            mesh->mTextureCoords[0][i].y};
-
-            // TODO: define uv wrap mode, using repeat for now
-            temp = RepeatTexCoords(temp);
-
-            cisdiMesh.vertices.uvs[i] =
-                UInt16_2 {PackUnorm16(temp.x), PackUnorm16(temp.y)};
+            tmpMeshVertices.uvs[i] = Float32_2 {mesh->mTextureCoords[0][i].x,
+                                                mesh->mTextureCoords[0][i].y};
         }
     }
 
@@ -151,7 +132,6 @@ void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
         }
     }
 
-    data.meshes.emplace_back(cisdiMesh);
     tmpIndices.emplace_back(::std::move(indices));
 
     cisdiNode.meshIdx = meshIdx;
@@ -160,7 +140,7 @@ void ProcessMesh(CISDI_3DModel& data, CISDI_3DModel::Node& cisdiNode,
 
 uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
                      const aiScene* scene, bool flipYZ,
-                     Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
+                     Type_STLVector<InternalMeshData>& tmpVertices,
                      Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
     // ReadNodeProperties(node);
 
@@ -177,15 +157,15 @@ uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
     assert(node->mNumMeshes <= 1);
 
     if (node->mNumMeshes > 0)
-        ProcessMesh(data, cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ,
-                    tmpPos, tmpIndices);
+        ProcessMesh(cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ,
+                    tmpVertices, tmpIndices);
 
     auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
 
     for (uint32_t i = 0; i < childCount; ++i) {
-        ref.childrenIdx.emplace_back(ProcessNode(data, nodeIdx,
-                                                 node->mChildren[i], scene,
-                                                 flipYZ, tmpPos, tmpIndices));
+        ref.childrenIdx.emplace_back(
+            ProcessNode(data, nodeIdx, node->mChildren[i], scene, flipYZ,
+                        tmpVertices, tmpIndices));
     }
 
     return nodeIdx;
@@ -194,7 +174,7 @@ uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
 }  // namespace
 
 CISDI_3DModel Convert(const char* path, bool flipYZ,
-                      Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
+                      Type_STLVector<InternalMeshData>& tmpVertices,
                       Type_STLVector<Type_STLVector<uint32_t>>& outIndices) {
     CISDI_3DModel data {};
 
@@ -221,8 +201,8 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
     data.nodes.reserve(data.header.nodeCount);
 
-    data.meshes.reserve(data.header.meshCount);
-    tmpPos.reserve(data.header.meshCount);
+    data.meshes.resize(data.header.meshCount);
+    tmpVertices.reserve(data.header.meshCount);
     outIndices.reserve(data.header.meshCount);
 
     data.materials.reserve(data.header.materialCount);
@@ -244,7 +224,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
         data.materials.emplace_back(cisdiMaterial);
     }
 
-    ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ, tmpPos,
+    ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ, tmpVertices,
                 outIndices);
 
     for (auto const& mesh : data.meshes) {

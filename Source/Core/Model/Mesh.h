@@ -17,7 +17,7 @@ struct GPUMeshBuffers {
     SharedPtr<RenderResource> mVNBuf {nullptr};
     SharedPtr<RenderResource> mVTBuf {nullptr};
     SharedPtr<RenderResource> mMeshletBuf {nullptr};
-    SharedPtr<RenderResource> mMeshletVertBuf {nullptr};
+    // SharedPtr<RenderResource> mMeshletVertBuf {nullptr};
     SharedPtr<RenderResource> mMeshletTriBuf {nullptr};
     SharedPtr<RenderResource> mMeshDataBuf {nullptr};
     SharedPtr<RenderResource> mBoundingBoxBuf {nullptr};
@@ -26,7 +26,7 @@ struct GPUMeshBuffers {
     vk::DeviceAddress mVNBufAddr {};
     vk::DeviceAddress mVTBufAddr {};
     vk::DeviceAddress mMeshletBufAddr {};
-    vk::DeviceAddress mMeshletVertBufAddr {};
+    // vk::DeviceAddress mMeshletVertBufAddr {};
     vk::DeviceAddress mMeshletTriBufAddr {};
     vk::DeviceAddress mMeshDataBufAddr {};
     vk::DeviceAddress mBoundingBoxBufAddr {};

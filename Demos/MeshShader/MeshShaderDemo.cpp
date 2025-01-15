@@ -126,7 +126,6 @@ void MeshShaderDemo::Prepare() {
     auto& window = GetSDLWindow();
 
     mRenderSequence.AddRenderPass("DrawBackground", RenderQueueType::Compute);
-    // mRenderSequence.AddRenderPass("DrawMesh", RenderQueueType::Graphics);
     mRenderSequence.AddRenderPass("DrawMeshShader", RenderQueueType::Graphics);
     mRenderSequence.AddRenderPass("DrawQuad", RenderQueueType::Graphics);
 
@@ -191,7 +190,7 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        const char* model = "buddha.obj";
+        const char* model = "06c17a29-7462-4716-8c43-5aafdd45dcdc.fbx";
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
 
@@ -201,30 +200,6 @@ void MeshShaderDemo::Prepare() {
 
         mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
     }
-
-    // {
-    //     const uint32_t modelCount = 30;
-    //     mModels.resize(modelCount);
-    //     IntelliDesign_NS::Core::Utils::Timer timer;
-    //
-    //     Type_STLString model = "equipment/Model";
-    //     Type_STLString postfix = ".stl";
-    //
-    //     for (uint32_t i = 0; i < modelCount; ++i) {
-    //         auto name = model + std::to_string(i).c_str() + postfix;
-    //         // IntelliDesign_NS::ModelData::CISDI_3DModel::Convert(
-    //         //     MODEL_PATH_CSTR(name), true);
-    //
-    //         auto cisdiModel = IntelliDesign_NS::ModelData::CISDI_3DModel::Load(
-    //             (MODEL_PATH(name) + CISDI_3DModel_Subfix_Str).c_str());
-    //
-    //         mModels[i] = MakeShared<Geometry>(::std::move(cisdiModel));
-    //         mModels[i]->GenerateMeshletBuffers(&GetVulkanContext(), this);
-    //     }
-    //
-    //     auto duration_LoadModel = timer.End();
-    //     printf("Time consumed: %f s. \n", duration_LoadModel);
-    // }
 
     PrepareUIContext();
 
@@ -598,8 +573,8 @@ void MeshShaderDemo::PrepareUIContext() {
                                          mesh.header.vertexCount);
                              ImGui::Text("meshlet count: %d",
                                          mesh.header.meshletCount);
-                             ImGui::Text("meshlet vertex count: %d",
-                                         mesh.header.meshletVertexCount);
+                             // ImGui::Text("meshlet vertex count: %d",
+                             //             mesh.header.meshletVertexCount);
 
                              ImGui::Text("meshlet triangle count: %d",
                                          mesh.header.meshletTriangleCount);
@@ -631,17 +606,17 @@ void MeshShaderDemo::PrepareUIContext() {
                 if (ImGui::TreeNode("Materials")) {
                     for (auto const& material : model.materials) {
                         if (ImGui::TreeNode(material.name.c_str())) {
-                            ImGui::Text("AmbientColor: (%.3f, %.3f, %.3f)",
+                            ImGui::Text("Ambient: (%.3f, %.3f, %.3f)",
                                         material.ambient.x, material.ambient.y,
                                         material.ambient.z);
-                            ImGui::Text("DiffuseColor: (%.3f, %.3f, %.3f)",
+                            ImGui::Text("Diffuse: (%.3f, %.3f, %.3f)",
                                         material.diffuse.x, material.diffuse.y,
                                         material.diffuse.z);
                             ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
                                         material.emissive.x,
                                         material.emissive.y,
                                         material.emissive.z);
-                            ImGui::Text("Alpha: %.3f", material.opacity);
+                            ImGui::Text("Opacity: %.3f", material.opacity);
 
                             ImGui::TreePop();
                         }
@@ -670,7 +645,7 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
     meshPushContants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {1.01f});
+        glm::scale(glm::mat4 {1.0f}, glm::vec3 {.01f});
     // meshPushContants->mModelMatrix =
     //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(-90.0f),
     //                 glm::vec3(1.0f, 0.0f, 0.0f));

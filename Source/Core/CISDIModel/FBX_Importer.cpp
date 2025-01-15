@@ -5,14 +5,10 @@
 
 #include <fbxsdk.h>
 
-#include <Windows.h>
 #include <codecvt>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
-#include <locale>
 #include <map>
-#include <unordered_set>
 
 using namespace IntelliDesign_NS::ModelData;
 
@@ -62,21 +58,18 @@ void DestroySdkObjects(FbxManager* pManager) {
         pManager->Destroy();
 }
 
-int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ,
-                Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
-    int meshIdx = (int)data.meshes.size();
-    CISDI_3DModel::Mesh cisdiMesh {};
-
+int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
+                Type_STLVector<InternalMeshData>& tmpVertices) {
     FbxVector4* lControlPoints = pMesh->GetControlPoints();
 
     int triangleCount = pMesh->GetPolygonCount();
     int vertCount = triangleCount * 3;
 
-    cisdiMesh.vertices.normals.resize(vertCount);
-    cisdiMesh.vertices.uvs.resize(vertCount);
-
-    auto& tmpPosVec = tmpPos.emplace_back();
-    tmpPosVec.resize(vertCount);
+    int meshIdx = (int)tmpVertices.size();
+    auto& tmpMeshVertices = tmpVertices.emplace_back();
+    tmpMeshVertices.positions.resize(vertCount);
+    tmpMeshVertices.normals.resize(vertCount);
+    tmpMeshVertices.uvs.resize(vertCount);
 
     for (int i = 0; i < triangleCount; ++i) {
         int polySize = pMesh->GetPolygonSize(i);
@@ -93,27 +86,20 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ,
             if (flipYZ)
                 ::std::swap(fPos[1], fPos[2]);
 
-            UpdateAABB(cisdiMesh.boundingBox, fPos);
-
-            tmpPosVec[vertIdx] = fPos;
+            tmpMeshVertices.positions[vertIdx] = fPos;
 
             // normals
             if (pMesh->GetElementNormalCount() < 1)
                 continue;
 
             auto leNormal = pMesh->GetElementNormal();
-            auto& norm = cisdiMesh.vertices.normals[vertIdx];
+            auto& norm = tmpMeshVertices.normals[vertIdx];
 
             auto setNorm = [&norm, flipYZ](FbxVector4 const& normal) {
-                Float32_3 temp {(float)normal[0], (float)normal[1],
-                                (float)normal[2]};
-
+                norm = Float32_3 {(float)normal[0], (float)normal[1],
+                                  (float)normal[2]};
                 if (flipYZ)
-                    ::std::swap(temp[1], temp[2]);
-
-                Float32_2 octNorm = UnitVectorToOctahedron(temp);
-
-                norm = Int16_2 {PackSnorm16(octNorm.x), PackSnorm16(octNorm.y)};
+                    ::std::swap(norm[1], norm[2]);
             };
 
             switch (leNormal->GetMappingMode()) {
@@ -159,15 +145,10 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ,
                 continue;
             auto leUV = pMesh->GetElementUV();
 
-            auto& uv = cisdiMesh.vertices.uvs[vertIdx];
+            auto& uv = tmpMeshVertices.uvs[vertIdx];
 
             auto setUV = [&uv](FbxVector2 const& texcoords) {
-                Float32_2 temp {(float)texcoords[0], (float)texcoords[1]};
-
-                // TODO: define uv wrap mode, using repeat for now
-                temp = RepeatTexCoords(temp);
-
-                uv = UInt16_2 {PackUnorm16(temp.x), PackUnorm16(temp.y)};
+                uv = Float32_2 {(float)texcoords[0], (float)texcoords[1]};
             };
 
             switch (leUV->GetMappingMode()) {
@@ -205,16 +186,13 @@ int ProcessMesh(FbxMesh* pMesh, CISDI_3DModel& data, bool flipYZ,
         }
     }
 
-    data.meshes.emplace_back(cisdiMesh);
-
     return meshIdx;
 }
 
 ::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
 
 int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
-                bool flipYZ,
-                Type_STLVector<Type_STLVector<Float32_3>>& tmpPos) {
+                bool flipYZ, Type_STLVector<InternalMeshData>& tmpVertices) {
     int nodeIdx = (int)data.nodes.size();
     int childCount = pNode->GetChildCount();
 
@@ -228,7 +206,7 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
         switch (lNodeAttribute->GetAttributeType()) {
             case FbxNodeAttribute::eMesh:
                 if (FbxMesh* mesh = pNode->GetMesh())
-                    cisdiNode.meshIdx = ProcessMesh(mesh, data, flipYZ, tmpPos);
+                    cisdiNode.meshIdx = ProcessMesh(mesh, flipYZ, tmpVertices);
                 break;
             case FbxNodeAttribute::eSkeleton: break;
             case FbxNodeAttribute::eLight: break;
@@ -246,8 +224,8 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
     auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
 
     for (int i = 0; i < childCount; i++) {
-        ref.childrenIdx.emplace_back(
-            ProcessNode(pNode->GetChild(i), nodeIdx, data, flipYZ, tmpPos));
+        ref.childrenIdx.emplace_back(ProcessNode(pNode->GetChild(i), nodeIdx,
+                                                 data, flipYZ, tmpVertices));
     }
 
     return nodeIdx;
@@ -256,7 +234,7 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
 }  // namespace
 
 CISDI_3DModel Convert(const char* path, bool flipYZ,
-                      Type_STLVector<Type_STLVector<Float32_3>>& tmpPos,
+                      Type_STLVector<InternalMeshData>& tmpVertices,
                       Type_STLVector<Type_STLVector<uint32_t>>& outIndices) {
     CISDI_3DModel data {};
 
@@ -349,8 +327,8 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
     data.nodes.reserve(data.header.nodeCount);
 
-    data.meshes.reserve(data.header.meshCount);
-    tmpPos.reserve(data.header.meshCount);
+    data.meshes.resize(data.header.meshCount);
+    tmpVertices.reserve(data.header.meshCount);
 
     data.materials.reserve(data.header.materialCount);
 
@@ -369,17 +347,24 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
                                (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.ambient = ambient;
 
+            float ambientFactor = ((FbxSurfacePhong*)lMaterial)->AmbientFactor;
+
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Diffuse;
             Float32_3 diffuse {(float)lKFbxDouble3.Get()[0],
                                (float)lKFbxDouble3.Get()[1],
                                (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.diffuse = diffuse;
 
+            float diffuseFactor = ((FbxSurfacePhong*)lMaterial)->DiffuseFactor;
+
             // TODO: how to deal with specular?
-            // lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Specular;
-            // Float32_3 specular {(float)lKFbxDouble3.Get()[0],
-            //                  (float)lKFbxDouble3.Get()[1],
-            //                  (float)lKFbxDouble3.Get()[2]};
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Specular;
+            Float32_3 specular {(float)lKFbxDouble3.Get()[0],
+                                (float)lKFbxDouble3.Get()[1],
+                                (float)lKFbxDouble3.Get()[2]};
+
+            float specularFactor =
+                ((FbxSurfacePhong*)lMaterial)->SpecularFactor;
 
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Emissive;
             Float32_3 emissive {(float)lKFbxDouble3.Get()[0],
@@ -387,15 +372,23 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
                                 (float)lKFbxDouble3.Get()[2]};
             cisdiMaterial.emissive = emissive;
 
+            float emissiveFactor =
+                ((FbxSurfacePhong*)lMaterial)->EmissiveFactor;
+
             float opacity = ((FbxSurfacePhong*)lMaterial)->TransparencyFactor;
             cisdiMaterial.opacity = opacity;
 
             // TODO: how to deal with Shininess?
-            // float shininess = ((FbxSurfacePhong*)lMaterial)->Shininess;
+            float shininess = ((FbxSurfacePhong*)lMaterial)->Shininess;
 
             // TODO: how to deal with Reflectivity?
-            // float reflectivity =
-            //     ((FbxSurfacePhong*)lMaterial)->ReflectionFactor;
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Reflection;
+            Float32_3 reflectiveColor {(float)lKFbxDouble3.Get()[0],
+                                       (float)lKFbxDouble3.Get()[1],
+                                       (float)lKFbxDouble3.Get()[2]};
+
+            float reflectivity =
+                ((FbxSurfacePhong*)lMaterial)->ReflectionFactor;
 
         } else if (lMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId)) {
             auto lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Ambient;
@@ -424,7 +417,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
     FbxNode* lRootNode = lScene->GetRootNode();
     if (lRootNode) {
-        ProcessNode(lRootNode, -1, data, flipYZ, tmpPos);
+        ProcessNode(lRootNode, -1, data, flipYZ, tmpVertices);
     }
 
     // Generate model bounding box

@@ -62,10 +62,6 @@ layout(buffer_reference, std430) readonly buffer MeshletBuffer{
 	Meshlet meshlets[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshletVertexBuffer{ 
-	uint meshletVertices[];
-};
-
 layout(buffer_reference, std430) readonly buffer MeshletTriangleBuffer{ 
 	uint8_t meshletTriangles[];
 };
@@ -76,10 +72,6 @@ layout(buffer_reference, std430) readonly buffer MeshOffsetBuffer{
 
 layout(buffer_reference, std430) readonly buffer MeshletOffsetBuffer{ 
 	uint meshletOffsets[];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshletVertexOffsetBuffer{ 
-	uint meshletVertexOffsets[];
 };
 
 layout(buffer_reference, std430) readonly buffer MeshletTriangleOffsetBuffer{ 
@@ -113,11 +105,9 @@ layout( push_constant ) uniform PushConstants
 	VertexTexBuffer texBuffer;
 
 	MeshletBuffer meshletBuffer;
-	MeshletVertexBuffer meshletVertexBuffer;
 	MeshletTriangleBuffer meshletTriangleBuffer;
 	MeshOffsetBuffer meshOffsetBuffer;
 	MeshletOffsetBuffer meshletOffsetBuffer;
-	MeshletVertexOffsetBuffer meshletVertexOffsetBuffer;
 	MeshletTriangleOffsetBuffer meshletTriangleOffsetBuffer;
 	MeshletCountBuffer meshletCountBuffer;
 	BoundingBoxBuffer boundingBoxBuffer;
@@ -152,7 +142,6 @@ void main()
 
 	uint meshVertexOffset = constants.meshOffsetBuffer.meshOffsets[IN.drawID];
 	uint meshletOffset = constants.meshletOffsetBuffer.meshletOffsets[IN.drawID];
-	uint meshletVertexOffset = constants.meshletVertexOffsetBuffer.meshletVertexOffsets[IN.drawID];
 	uint meshletTriangleOffset = constants.meshletTriangleOffsetBuffer.meshletTriangleOffsets[IN.drawID];
 	
 	Meshlet meshlet = constants.meshletBuffer.meshlets[meshletOffset + meshletID];
@@ -167,7 +156,7 @@ void main()
 	for (uint i = 0; i < MESHLET_VERTEX_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
 
-		uint verticesID = constants.meshletVertexBuffer.meshletVertices[meshletVertexOffset + meshlet.vertexOffset + idx];
+		uint verticesID =  meshlet.vertexOffset + idx;
 
 		UInt16Pos encodedPos = constants.posBuffer.position[meshVertexOffset + verticesID];
 

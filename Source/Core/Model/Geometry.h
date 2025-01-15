@@ -21,11 +21,9 @@ struct MeshletPushConstants {
     vk::DeviceAddress mVTBufAddr {};
 
     vk::DeviceAddress mMeshletBufAddr {};
-    vk::DeviceAddress mMeshletVertBufAddr {};
     vk::DeviceAddress mMeshletTriBufAddr {};
     vk::DeviceAddress mVertOffsetBufAddr {};
     vk::DeviceAddress mMeshletOffsetBufAddr {};
-    vk::DeviceAddress mMeshletVertOffsetBufAddr {};
     vk::DeviceAddress mMeshletTrioffsetBufAddr {};
     vk::DeviceAddress mMeshletCountBufAddr {};
 
@@ -43,7 +41,6 @@ public:
     uint32_t GetMeshCount();
     uint32_t GetVertexCount() const;
     uint32_t GetMeshletCount() const;
-    uint32_t GetMeshletVertexCount() const;
     uint32_t GetMeshletTriangleCount() const;
 
     ModelData::CISDI_3DModel const& GetCISDIModelData() const;
@@ -71,7 +68,6 @@ private:
 
     uint32_t mVertexCount {0};
     uint32_t mMeshletCount {0};
-    uint32_t mMeshletVertexCount {0};
     uint32_t mMeshletTriangleCount {0};
 
     ModelData::CISDI_3DModel mModelData;
@@ -83,7 +79,6 @@ private:
     struct MeshDatas {
         Type_STLVector<uint32_t> vertexOffsets;
         Type_STLVector<uint32_t> meshletOffsets;
-        Type_STLVector<uint32_t> meshletVerticesOffsets;
         Type_STLVector<uint32_t> meshletTrianglesOffsets;
         Type_STLVector<uint32_t> meshletCounts;
     };

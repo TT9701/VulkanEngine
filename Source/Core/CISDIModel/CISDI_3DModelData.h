@@ -11,7 +11,8 @@
 namespace IntelliDesign_NS::ModelData {
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
-constexpr Version CISDI_3DModel_VERSION = {0ui8, 1ui8, 1ui16};
+
+constexpr Version CISDI_3DModel_VERSION = {0ui8, 3ui8, 1ui16};
 
 // TODO: add pmr mempool param in ctor.
 
@@ -41,7 +42,6 @@ struct CISDI_3DModel {
         struct MeshHeader {
             uint32_t vertexCount {0};
             uint32_t meshletCount {0};
-            uint32_t meshletVertexCount {0};
             uint32_t meshletTriangleCount {0};
         };
 
@@ -53,14 +53,15 @@ struct CISDI_3DModel {
 
         struct Meshlets {
             Type_STLVector<MeshletInfo> infos {};
-            Type_STLVector<uint32_t> vertIndices {};
             Type_STLVector<uint8_t> triangles {};
+
+            Type_STLVector<Vertices> vertices {};
 
             Type_STLVector<AABoundingBox> boundingBoxes {};
         };
 
         MeshHeader header {};
-        Vertices vertices {};
+
         Meshlets meshlets {};
 
         AABoundingBox boundingBox {};

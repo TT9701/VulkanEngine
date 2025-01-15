@@ -191,4 +191,18 @@ inline Float32_3 GetAABBCenter(AABoundingBox const& aabb) {
             (aabb.min.z + aabb.max.z) * 0.5f};
 }
 
+// for internal use.
+struct InternalMeshData {
+    Type_STLVector<Float32_3> positions;
+    Type_STLVector<Float32_3> normals;
+    Type_STLVector<Float32_2> uvs;
+};
+
+// for internal use.
+struct InternalMeshlet {
+    Type_STLVector<MeshletInfo> infos {};
+    Type_STLVector<uint32_t> vertIndices {};
+    Type_STLVector<uint8_t> triangles {};
+};
+
 }  // namespace IntelliDesign_NS::ModelData
