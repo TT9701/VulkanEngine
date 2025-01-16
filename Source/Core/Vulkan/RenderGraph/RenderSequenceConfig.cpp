@@ -103,9 +103,10 @@ void RenderPassConfig::Compile(RenderSequence& result) {
 
     pso.SetPipeline(mPipelineName.c_str());
 
-    if (mPushConstants) {
-        pso[mPushConstants.value().first.c_str()] =
-            mPushConstants.value().second;
+    if (!mPushConstants.empty()) {
+        for (auto const& pc : mPushConstants) {
+            pso[pc.first.c_str()] = pc.second;
+        }
     }
 
     if (mBindlessDesc) {

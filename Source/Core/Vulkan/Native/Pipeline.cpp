@@ -135,6 +135,17 @@ PipelineBuilder<PipelineType::Graphics>::SetBlending(vk::Bool32 enable) {
             vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
             | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA)
         .setBlendEnable(enable);
+
+    if (enable) {
+        mColorBlendAttachment
+            .setSrcColorBlendFactor(vk::BlendFactor::eOneMinusSrcAlpha)
+            .setDstColorBlendFactor(vk::BlendFactor::eSrcAlpha)
+            .setColorBlendOp(vk::BlendOp::eAdd)
+            .setSrcAlphaBlendFactor(vk::BlendFactor::eOne)
+            .setDstAlphaBlendFactor(vk::BlendFactor::eZero)
+            .setAlphaBlendOp(vk::BlendOp::eAdd);
+    }
+
     return *this;
 }
 

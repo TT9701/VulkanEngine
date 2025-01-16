@@ -9,8 +9,8 @@ namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
 namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
 
 struct SceneData {
-    glm::vec4 sunLightPos {-0.4f, 0.6f, 0.2f, 1.0f};
-    glm::vec4 sunLightColor {5.0f, 5.0f, 5.0f, 1.0f};
+    glm::vec4 sunLightPos {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
     glm::vec4 cameraPos {};
     glm::mat4 view {};
     glm::mat4 proj {};

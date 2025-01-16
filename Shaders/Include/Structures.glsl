@@ -14,6 +14,21 @@ struct SceneData
 	int texIndex;
 };
 
+const uint ShadingModel_Lambert = 0;
+const uint ShadingModel_Phong = 1;
+
+struct Material {
+	uint shadingModel;
+	float shininess;
+	vec2 padding;
+	vec4 ambient;
+	vec4 diffuse;
+	vec4 specular;
+	vec4 emissive;
+	vec4 reflection;
+	vec4 transparent;
+};
+
 float UnpackUnorm16(uint16_t value)
 {
 	// value / 65535.0
@@ -57,3 +72,57 @@ vec3 BlinnPhong(vec3 lightDir, vec3 cameraPos, vec3 fragPos, vec3 normal, vec3 l
 
 	return (vec3(ambientStrength) + (diffuse + specular) * lightColor) * objectColor;
 }
+
+vec4 CalculateLight(Material mat, vec3 lightDir, vec3 cameraPos, vec3 fragPos, vec3 normal, vec3 lightColor) {
+	lightDir = normalize(lightDir);
+	normal = normalize(normal);
+	
+	vec3 ambient = mat.ambient.rgb * mat.ambient.w;
+	vec3 diffuse = mat.diffuse.rgb * max(dot(normal, lightDir), 0.0) * mat.diffuse.w;
+	vec3 specular = mat.shadingModel == ShadingModel_Lambert ? vec3(0.0) : mat.specular.rgb * pow(max(dot(reflect(lightDir, normal), normalize(cameraPos - fragPos)), 0.0), int(mat.shininess)) * mat.specular.w;
+
+	return vec4((ambient + diffuse + specular) * lightColor + mat.emissive.rgb * mat.emissive.w, mat.transparent.a);
+}
+
+const float PI = 3.14159265359;
+// ----------------------------------------------------------------------------
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness*roughness;
+    float a2 = a*a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / denom;
+}
+// ----------------------------------------------------------------------------
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+// ----------------------------------------------------------------------------
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+// ----------------------------------------------------------------------------
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+// ----------------------------------------------------------------------------

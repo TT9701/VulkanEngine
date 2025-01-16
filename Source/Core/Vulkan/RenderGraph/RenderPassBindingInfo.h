@@ -118,8 +118,7 @@ private:
     void InitBuiltInInfos();
 
     void GeneratePipelineMetaData(::std::string_view name);
-    void GeneratePushContantMetaData(
-        Type_STLVector<RenderPassBinding::PushContants> const& data);
+    void GeneratePushContantMetaData();
     void GenerateRTVMetaData(
         Type_STLVector<::std::array<Type_STLString, 2>> const& data);
 
@@ -305,7 +304,8 @@ public:
         Type_STLVector<Type_STLString> const& resNames) override;
     virtual void OnResize(vk::Extent2D extent) override;
 
-    void AddExecution(Type_STLVector<ResourceStateInfos> const& resInfos, Type_Func&& func);
+    void AddExecution(Type_STLVector<ResourceStateInfos> const& resInfos,
+                      Type_Func&& func);
 
 private:
     void AddBarrier(RenderSequence::Barrier const& b);

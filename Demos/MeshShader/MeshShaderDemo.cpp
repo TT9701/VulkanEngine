@@ -466,10 +466,10 @@ void MeshShaderDemo::CreateMeshShaderPipeline() {
     auto builder = GetPipelineMgr().GetBuilder_Graphics();
     builder.SetShaderProgram(program)
         .SetPolygonMode(vk::PolygonMode::eFill)
-        .SetCullMode(vk::CullModeFlagBits::eBack,
+        .SetCullMode(vk::CullModeFlagBits::eNone,
                      vk::FrontFace::eCounterClockwise)
         .SetMultisampling(vk::SampleCountFlagBits::e1)
-        .SetBlending(vk::False)
+        .SetBlending(vk::True)
         .SetDepth(vk::True, vk::True, vk::CompareOp::eGreaterOrEqual)
         .SetColorAttachmentFormat(renderResMgr["DrawImage"].GetTexFormat())
         .SetDepthStencilFormat(renderResMgr["DepthImage"].GetTexFormat())
@@ -607,16 +607,37 @@ void MeshShaderDemo::PrepareUIContext() {
                     for (auto const& material : model.materials) {
                         if (ImGui::TreeNode(material.name.c_str())) {
                             ImGui::Text("Ambient: (%.3f, %.3f, %.3f)",
-                                        material.ambient.x, material.ambient.y,
-                                        material.ambient.z);
+                                        material.data.ambient.x,
+                                        material.data.ambient.y,
+                                        material.data.ambient.z);
+                            ImGui::Text("AmbientFactor: %.3f",
+                                        material.data.ambient.w);
                             ImGui::Text("Diffuse: (%.3f, %.3f, %.3f)",
-                                        material.diffuse.x, material.diffuse.y,
-                                        material.diffuse.z);
+                                        material.data.diffuse.x,
+                                        material.data.diffuse.y,
+                                        material.data.diffuse.z);
+                            ImGui::Text("DiffuseFactor: %.3f",
+                                        material.data.diffuse.w);
                             ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
-                                        material.emissive.x,
-                                        material.emissive.y,
-                                        material.emissive.z);
-                            ImGui::Text("Opacity: %.3f", material.opacity);
+                                        material.data.emissive.x,
+                                        material.data.emissive.y,
+                                        material.data.emissive.z);
+                            ImGui::Text("EmissiveFactor: %.3f",
+                                        material.data.emissive.w);
+                            ImGui::Text("Reflection: (%.3f, %.3f, %.3f)",
+                                        material.data.reflection.x,
+                                        material.data.reflection.y,
+                                        material.data.reflection.z);
+                            ImGui::Text("ReflectionFactor: %.3f",
+                                        material.data.reflection.w);
+                            ImGui::Text("Transparency: (%.3f, %.3f, %.3f)",
+                                        material.data.transparency.x,
+                                        material.data.transparency.y,
+                                        material.data.transparency.z);
+                            ImGui::Text("TransparencyFactor: %.3f",
+                                        material.data.transparency.w);
+                            ImGui::Text("Shininess: %.3f",
+                                        material.data.shininess);
 
                             ImGui::TreePop();
                         }
@@ -647,13 +668,15 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
     meshPushContants->mModelMatrix =
         glm::scale(glm::mat4 {1.0f}, glm::vec3 {.01f});
     // meshPushContants->mModelMatrix =
-    //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(-90.0f),
-    //                 glm::vec3(1.0f, 0.0f, 0.0f));
+    //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(90.0f),
+    //                 glm::vec3(-1.0f, 0.0f, 0.0f));
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 
     cfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
         .SetBinding("PushConstants", meshPushContants)
+        .SetBinding("PushConstantsFrag",
+                    mFactoryModel->GetFragmentPushConstantsPtr())
         .SetBinding("UBO", "SceneUniformBuffer")
         .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")

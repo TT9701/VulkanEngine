@@ -139,13 +139,7 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
     CreateDescriptorSets(descriptorPNext);
     BindDescriptorSets();
 
-    // push constant infos
-    Type_STLVector<RenderPassBinding::PushContants> pcData;
-    for (auto const& pcInfo : mPCInfos) {
-        pcData.push_back(
-            ::std::get<RenderPassBinding::PushContants>(pcInfo.second.value));
-    }
-    GeneratePushContantMetaData(pcData);
+    GeneratePushContantMetaData();
 
     // render infos
     Type_STLVector<RenderingAttachmentInfo> colors {};
@@ -440,26 +434,40 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
     }
 }
 
-void RenderPassBindingInfo_PSO::GeneratePushContantMetaData(
-    Type_STLVector<RenderPassBinding::PushContants> const& data) {
+void RenderPassBindingInfo_PSO::GeneratePushContantMetaData() {
     auto const& ranges =
         mRenderSequence.mPipelineMgr.GetLayout(mPipelineName.c_str())
-            ->GetPCRanges();
-    uint32_t count = ranges.size();
-    assert(count == data.size());
+            ->GetCombinedPushContant();
 
-    auto layout =
-        mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str());
+    for (auto const& [pcName, range] : ranges) {
+        auto pcData = ::std::get<RenderPassBinding::PushContants>(
+            mPCInfos.at(pcName).value);
 
-    for (uint32_t i = 0; i < count; ++i) {
-        auto layoutRangeSize = ranges[i].size;
-        auto dataRangeSize = data[i].size;
-        assert(layoutRangeSize == dataRangeSize);
+        assert(pcData.size == range.size);
 
-        mDrawCallMgr.AddArgument_PushConstant(layout, ranges[i].stageFlags,
-                                              ranges[i].offset, layoutRangeSize,
-                                              data[i].pData);
+        mDrawCallMgr.AddArgument_PushConstant(
+            mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str()),
+            range.stageFlags, range.offset, range.size, pcData.pData);
     }
+    //
+    // auto const& ranges =
+    //     mRenderSequence.mPipelineMgr.GetLayout(mPipelineName.c_str())
+    //         ->GetPCRanges();
+    // uint32_t count = ranges.size();
+    // assert(count == data.size());
+    //
+    // auto layout =
+    //     mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str());
+    //
+    // for (uint32_t i = 0; i < count; ++i) {
+    //     auto layoutRangeSize = ranges[i].size;
+    //     auto dataRangeSize = data[i].size;
+    //     assert(layoutRangeSize == dataRangeSize);
+    //
+    //     mDrawCallMgr.AddArgument_PushConstant(layout, ranges[i].stageFlags,
+    //                                           ranges[i].offset, layoutRangeSize,
+    //                                           data[i].pData);
+    // }
 }
 
 void RenderPassBindingInfo_PSO::GenerateRTVMetaData(
@@ -893,7 +901,6 @@ RenderPassBindingInfo_Executor::RenderPassBindingInfo_Executor(
 void RenderPassBindingInfo_Executor::RecordCmd(vk::CommandBuffer cmd) {
     for (auto const& infos : mResourceStateInfos) {
         mExecution(cmd, infos);
-        
     }
 }
 

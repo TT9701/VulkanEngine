@@ -340,77 +340,78 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
         cisdiMaterial.name = lMaterial->GetName();
 
         if (lMaterial->GetClassId().Is(FbxSurfacePhong::ClassId)) {
+            cisdiMaterial.data.shadingModel =
+                CISDI_3DModel::Material::ShadingModel::Phong;
 
             auto lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Ambient;
-            Float32_3 ambient {(float)lKFbxDouble3.Get()[0],
-                               (float)lKFbxDouble3.Get()[1],
-                               (float)lKFbxDouble3.Get()[2]};
-            cisdiMaterial.ambient = ambient;
-
-            float ambientFactor = ((FbxSurfacePhong*)lMaterial)->AmbientFactor;
+            cisdiMaterial.data.ambient = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->AmbientFactor};
 
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Diffuse;
-            Float32_3 diffuse {(float)lKFbxDouble3.Get()[0],
-                               (float)lKFbxDouble3.Get()[1],
-                               (float)lKFbxDouble3.Get()[2]};
-            cisdiMaterial.diffuse = diffuse;
-
-            float diffuseFactor = ((FbxSurfacePhong*)lMaterial)->DiffuseFactor;
+            cisdiMaterial.data.diffuse = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->DiffuseFactor};
 
             // TODO: how to deal with specular?
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Specular;
-            Float32_3 specular {(float)lKFbxDouble3.Get()[0],
-                                (float)lKFbxDouble3.Get()[1],
-                                (float)lKFbxDouble3.Get()[2]};
-
-            float specularFactor =
-                ((FbxSurfacePhong*)lMaterial)->SpecularFactor;
+            cisdiMaterial.data.specular = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->SpecularFactor};
 
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Emissive;
-            Float32_3 emissive {(float)lKFbxDouble3.Get()[0],
-                                (float)lKFbxDouble3.Get()[1],
-                                (float)lKFbxDouble3.Get()[2]};
-            cisdiMaterial.emissive = emissive;
+            cisdiMaterial.data.emissive = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->EmissiveFactor};
 
-            float emissiveFactor =
-                ((FbxSurfacePhong*)lMaterial)->EmissiveFactor;
-
-            float opacity = ((FbxSurfacePhong*)lMaterial)->TransparencyFactor;
-            cisdiMaterial.opacity = opacity;
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->TransparentColor;
+            cisdiMaterial.data.transparency = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->TransparencyFactor};
 
             // TODO: how to deal with Shininess?
             float shininess = ((FbxSurfacePhong*)lMaterial)->Shininess;
+            cisdiMaterial.data.shininess = shininess;
 
             // TODO: how to deal with Reflectivity?
             lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Reflection;
-            Float32_3 reflectiveColor {(float)lKFbxDouble3.Get()[0],
-                                       (float)lKFbxDouble3.Get()[1],
-                                       (float)lKFbxDouble3.Get()[2]};
-
-            float reflectivity =
-                ((FbxSurfacePhong*)lMaterial)->ReflectionFactor;
+            cisdiMaterial.data.reflection = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->ReflectionFactor};
 
         } else if (lMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId)) {
+            cisdiMaterial.data.shadingModel =
+                CISDI_3DModel::Material::ShadingModel::Lambert;
+
             auto lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Ambient;
-            Float32_3 ambient {(float)lKFbxDouble3.Get()[0],
-                               (float)lKFbxDouble3.Get()[1],
-                               (float)lKFbxDouble3.Get()[2]};
-            cisdiMaterial.ambient = ambient;
+            cisdiMaterial.data.ambient = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->AmbientFactor};
 
             lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Diffuse;
-            Float32_3 diffuse {(float)lKFbxDouble3.Get()[0],
-                               (float)lKFbxDouble3.Get()[1],
-                               (float)lKFbxDouble3.Get()[2]};
-            cisdiMaterial.diffuse = diffuse;
+            cisdiMaterial.data.diffuse = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->DiffuseFactor};
 
             lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Emissive;
-            Float32_3 emissive {(float)lKFbxDouble3.Get()[0],
-                                (float)lKFbxDouble3.Get()[1],
-                                (float)lKFbxDouble3.Get()[2]};
-            cisdiMaterial.emissive = emissive;
+            cisdiMaterial.data.emissive = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->EmissiveFactor};
 
-            float opacity = ((FbxSurfaceLambert*)lMaterial)->TransparencyFactor;
-            cisdiMaterial.opacity = opacity;
+            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->TransparentColor;
+            cisdiMaterial.data.transparency = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfaceLambert*)lMaterial)->TransparencyFactor};
         }
         data.materials.emplace_back(::std::move(cisdiMaterial));
     }

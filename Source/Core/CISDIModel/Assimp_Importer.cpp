@@ -214,13 +214,13 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
         aiColor3D color;
         float opacity;
         material->Get(AI_MATKEY_COLOR_AMBIENT, color);
-        cisdiMaterial.ambient = {color.r, color.g, color.b};
+        cisdiMaterial.data.ambient = {color.r, color.g, color.b};
         material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
-        cisdiMaterial.diffuse = {color.r, color.g, color.b};
+        cisdiMaterial.data.diffuse = {color.r, color.g, color.b};
         material->Get(AI_MATKEY_COLOR_EMISSIVE, color);
-        cisdiMaterial.emissive = {color.r, color.g, color.b};
+        cisdiMaterial.data.emissive = {color.r, color.g, color.b};
         material->Get(AI_MATKEY_OPACITY, opacity);
-        cisdiMaterial.opacity = opacity;
+        cisdiMaterial.data.transparency = opacity;
         data.materials.emplace_back(cisdiMaterial);
     }
 

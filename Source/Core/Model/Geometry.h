@@ -31,6 +31,11 @@ struct MeshletPushConstants {
     vk::DeviceAddress mMeshletBoundingBoxBufAddr {};
 };
 
+struct FragmentPushConstants {
+    vk::DeviceAddress mMeshMaterialIdxBufAddr {};
+    vk::DeviceAddress mMaterialBufAddr {};
+};
+
 class Geometry {
 public:
     Geometry(const char* path, bool flipYZ = true,
@@ -50,6 +55,7 @@ public:
     GPUMeshBuffers& GetMeshBuffer();
     MeshletPushConstants GetMeshletPushContants() const;
     MeshletPushConstants* GetMeshletPushContantsPtr();
+    FragmentPushConstants* GetFragmentPushConstantsPtr();
 
     Buffer* GetMeshTaskIndirectCmdBuffer() const;
 
@@ -87,6 +93,7 @@ private:
     GPUMeshBuffers mBuffers {};
 
     MeshletPushConstants mMeshletConstants {};
+    FragmentPushConstants mFragmentConstants {};
 
     Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
     SharedPtr<Buffer> mMeshTaskIndirectCmdBuffer;

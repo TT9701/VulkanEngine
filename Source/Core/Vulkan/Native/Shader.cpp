@@ -7,8 +7,8 @@
 #include <spirv_glsl.hpp>
 
 #include <regex>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 
 namespace {
 
@@ -516,8 +516,7 @@ void ShaderProgram::CreateDescLayouts(
             Type_STLVector<Type_STLString> const& bindingNames,
             Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings) {
             auto ptr = MakeShared<DescriptorSetLayout>(
-                mContext, bindingNames, bindings, descBufProps,
-                pNext);
+                mContext, bindingNames, bindings, descBufProps, pNext);
 
             mContext.SetName(ptr->GetHandle(), name);
 
@@ -628,7 +627,16 @@ Shader::SPIRVReflect_DescSetLayouts() {
         vk::PushConstantRange pushConstant;
         pushConstant.size = compiler.get_declared_struct_size(type);
         pushConstant.stageFlags = mStage;
-        pushConstant.offset = 0;
+        auto ranges = compiler.get_active_buffer_ranges(resource.id);
+        for (auto const& range : ranges) {
+            auto index = range.index;
+            auto offset = range.offset;
+            auto size = range.range;
+            if (index == 0) {
+                pushConstant.offset = offset;
+            }
+        }
+        pushConstant.size -= pushConstant.offset;
         data = pushConstant;
     }
 

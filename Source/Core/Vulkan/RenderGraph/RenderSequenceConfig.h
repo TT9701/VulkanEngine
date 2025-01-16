@@ -86,8 +86,7 @@ private:
     Type_STLString mPipelineName;
 
     Type_STLVector<::std::pair<Type_STLString, Type_STLString>> mConfigs;
-    ::std::optional<
-        ::std::pair<Type_STLString, RenderPassBinding::PushContants>>
+    Type_STLVector<::std::pair<Type_STLString, RenderPassBinding::PushContants>>
         mPushConstants;
     ::std::optional<
         ::std::pair<Type_STLString, RenderPassBinding::BindlessDescBufInfo>>
@@ -169,8 +168,9 @@ private:
 template <class T>
 RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* name,
                                                      T* pPushConstants) {
-    mPushConstants = {
-        name, RenderPassBinding::PushContants {sizeof(T), pPushConstants}};
+    mPushConstants.emplace_back(::std::pair {
+        name,
+        RenderPassBinding::PushContants {sizeof(T), pPushConstants}});
     return *this;
 }
 

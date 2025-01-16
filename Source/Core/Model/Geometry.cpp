@@ -93,6 +93,31 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             mBuffers.mBoundingBoxBuf->GetBufferDeviceAddress();
     }
 
+    // materials
+    const size_t materialBufSize =
+        sizeof(mModelData.materials[0].data) * mModelData.materials.size();
+    {
+        mBuffers.mMaterialBuf = context.CreateDeviceLocalBufferResource(
+            (mName + " Materials").c_str(), materialBufSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+        mBuffers.mMaterialBufAddr =
+            mBuffers.mMaterialBuf->GetBufferDeviceAddress();
+    }
+
+    const size_t meshMaterialIndexBufSize = sizeof(uint32_t) * meshCount;
+    {
+        mBuffers.mMeshMaterialIdxBuf = context.CreateDeviceLocalBufferResource(
+            (mName + " Mesh Material Indices").c_str(),
+            meshMaterialIndexBufSize,
+            vk::BufferUsageFlagBits::eStorageBuffer
+                | vk::BufferUsageFlagBits::eTransferDst
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+        mBuffers.mMeshMaterialIdxBufAddr =
+            mBuffers.mMeshMaterialIdxBuf->GetBufferDeviceAddress();
+    }
+
     // offsets data buffer *NO index*
     // vertex offsets + meshletoffsets + meshlettriangles offsets + meshlet counts
     const size_t offsetsBufSize = meshCount * 4 * sizeof(uint32_t);
@@ -109,8 +134,8 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     // copy through staging buffer
     {
         auto staging = context.CreateStagingBuffer(
-            "", vpBufSize + vnBufSize + vtBufSize + mlBufSize
-                    + mlTriBufSize + offsetsBufSize);
+            "", vpBufSize + vnBufSize + vtBufSize + mlBufSize + mlTriBufSize
+                    + offsetsBufSize);
 
         auto data = static_cast<char*>(staging->GetMapPtr());
 
@@ -173,7 +198,8 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         }
         // offsets
         auto meshCountSize = meshCount * sizeof(meshCount);
-        auto totalOffsets = vpBufSize + vnBufSize + vtBufSize + mlBufSize + mlTriBufSize;
+        auto totalOffsets =
+            vpBufSize + vnBufSize + vtBufSize + mlBufSize + mlTriBufSize;
         for (uint32_t i = 0; i < meshCount; ++i) {}
         {
             memcpy(data + totalOffsets, mMeshDatas.vertexOffsets.data(),
@@ -221,7 +247,8 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
 
             vk::BufferCopy offsetsCopy {};
             offsetsCopy.setSize(offsetsBufSize)
-                .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize+ mlTriBufSize);
+                .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize
+                              + mlTriBufSize);
             cmd->copyBuffer(staging->GetHandle(),
                             mBuffers.mMeshDataBuf->GetBufferHandle(),
                             offsetsCopy);
@@ -272,6 +299,46 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         mMeshletConstants.mBoundingBoxBufAddr = mBuffers.mBoundingBoxBufAddr;
         mMeshletConstants.mMeshletBoundingBoxBufAddr =
             mBuffers.mBoundingBoxBufAddr + aabbSize * (meshCount + 1);
+    }
+
+    // copy material data
+    {
+        auto staging = context.CreateStagingBuffer(
+            "", materialBufSize + meshMaterialIndexBufSize);
+        auto data = static_cast<char*>(staging->GetMapPtr());
+
+        for (auto const& mat : mModelData.materials) {
+            memcpy(data, &mat.data, sizeof(mat.data));
+            data += sizeof(mat.data);
+        }
+
+        ::std::vector<uint32_t> meshMaterialIndices(meshCount);
+        for (auto const& node : mModelData.nodes) {
+            if (node.meshIdx == -1)
+                continue;
+            meshMaterialIndices[node.meshIdx] = node.materialIdx;
+        }
+
+        memcpy(data, meshMaterialIndices.data(), meshMaterialIndexBufSize);
+
+        {
+            auto cmd = context.CreateCmdBufToBegin(
+                context.GetQueue(QueueType::Transfer));
+            vk::BufferCopy cmdBufCopy {};
+            cmdBufCopy.setSize(materialBufSize);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMaterialBuf->GetBufferHandle(),
+                            cmdBufCopy);
+            cmdBufCopy.setSize(meshMaterialIndexBufSize)
+                .setSrcOffset(materialBufSize);
+            cmd->copyBuffer(staging->GetHandle(),
+                            mBuffers.mMeshMaterialIdxBuf->GetBufferHandle(),
+                            cmdBufCopy);
+        }
+
+        mFragmentConstants.mMaterialBufAddr = mBuffers.mMaterialBufAddr;
+        mFragmentConstants.mMeshMaterialIdxBufAddr =
+            mBuffers.mMeshMaterialIdxBufAddr;
     }
 
     // indirect mesh task command buffer
@@ -334,6 +401,10 @@ MeshletPushConstants Geometry::GetMeshletPushContants() const {
 
 MeshletPushConstants* Geometry::GetMeshletPushContantsPtr() {
     return &mMeshletConstants;
+}
+
+FragmentPushConstants* Geometry::GetFragmentPushConstantsPtr() {
+    return &mFragmentConstants;
 }
 
 Buffer* Geometry::GetMeshTaskIndirectCmdBuffer() const {

@@ -68,11 +68,21 @@ struct CISDI_3DModel {
     };
 
     struct Material {
+        enum class ShadingModel : uint32_t { Lambert = 0, Phong };
+
         Type_STLString name {};
-        Float32_3 ambient {};
-        Float32_3 diffuse {};
-        Float32_3 emissive {};
-        float opacity {};
+
+        struct {
+            ShadingModel shadingModel {ShadingModel::Lambert};
+            float shininess {};
+            Float32_2 padding {};
+            Float32_4 ambient {};
+            Float32_4 diffuse {};
+            Float32_4 specular {};
+            Float32_4 emissive {};
+            Float32_4 reflection {};
+            Float32_4 transparency {};
+        } data;
     };
 
     Header header {};

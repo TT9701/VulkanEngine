@@ -412,8 +412,7 @@ void WriteMaterial(std::ofstream& ofs,
                    Type_STLVector<CISDI_3DModel::Material> const& materials) {
     for (auto const& material : materials) {
         WriteString(ofs, material.name.c_str());
-        ofs.write((char*)&material.ambient,
-                  sizeof(material.ambient) * 3 + sizeof(material.opacity));
+        ofs.write((char*)&material.data, sizeof(material.data));
     }
 }
 
@@ -558,8 +557,7 @@ CISDI_3DModel Load(const char* path) {
     data.materials.resize(data.header.materialCount);
     for (auto& mat : data.materials) {
         ReadString(in, mat.name);
-        in.read((char*)&mat.ambient,
-                sizeof(mat.ambient) * 3 + sizeof(mat.opacity));
+        in.read((char*)&mat.data, sizeof(mat.data));
     }
 
     in.read((char*)&data.boundingBox, sizeof(data.boundingBox));
