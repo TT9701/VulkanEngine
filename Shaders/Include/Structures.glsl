@@ -79,7 +79,10 @@ vec4 CalculateLight(Material mat, vec3 lightDir, vec3 cameraPos, vec3 fragPos, v
 	
 	vec3 ambient = mat.ambient.rgb * mat.ambient.w;
 	vec3 diffuse = mat.diffuse.rgb * max(dot(normal, lightDir), 0.0) * mat.diffuse.w;
-	vec3 specular = mat.shadingModel == ShadingModel_Lambert ? vec3(0.0) : mat.specular.rgb * pow(max(dot(reflect(lightDir, normal), normalize(cameraPos - fragPos)), 0.0), int(mat.shininess)) * mat.specular.w;
+	vec3 specular = 
+		mat.shadingModel == ShadingModel_Lambert ? vec3(0.0) 
+												 : int(mat.shininess) == 0 ? vec3(0.0) 
+																		   : mat.specular.rgb * pow(max(dot(normalize(lightDir + normalize(cameraPos - fragPos)), normal), 0.0), int(mat.shininess)) * mat.specular.w;
 
 	return vec4((ambient + diffuse + specular) * lightColor + mat.emissive.rgb * mat.emissive.w, mat.transparent.a);
 }

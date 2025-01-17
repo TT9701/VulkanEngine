@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
+#include <variant>
 #include <vector>
-#include <cassert>
 
 #define CISDI_3DModel_Subfix_Str ".cisdi"
 #define CISDI_3DModel_Subfix_WStr L".cisdi"
@@ -20,6 +22,9 @@ namespace IntelliDesign_NS::ModelData {
 template <class T>
 using Type_STLVector = ::std::pmr::vector<T>;
 using Type_STLString = ::std::string;
+template <class Value>
+using Type_STLUnorderedMap_String =
+    std::pmr::unordered_map<Type_STLString, Value>;
 
 template <class T, uint32_t Dim>
 struct Vec;
@@ -82,6 +87,84 @@ struct MeshletInfo {
     uint32_t vertexCount;
     uint32_t triangleCount;
 };
+
+enum class UserPropertyValueTypeEnum : uint8_t {
+    Bool,
+    Char,
+    UChar,
+    Int,
+    UInt,
+    LongLong,
+    ULongLong,
+    Float,
+    Double,
+    String,
+    TypeNum
+};
+
+template <UserPropertyValueTypeEnum Type>
+struct UserPropertyValueType;
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::Bool> {
+    using Type = bool;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::Char> {
+    using Type = char;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::UChar> {
+    using Type = unsigned char;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::Int> {
+    using Type = int;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::UInt> {
+    using Type = unsigned int;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::LongLong> {
+    using Type = long long;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::ULongLong> {
+    using Type = unsigned long long;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::Float> {
+    using Type = float;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::Double> {
+    using Type = double;
+};
+
+template <>
+struct UserPropertyValueType<UserPropertyValueTypeEnum::String> {
+    using Type = ::std::string;
+};
+
+template <uint8_t... Indices>
+auto DeclType_UserPropertyType(::std::index_sequence<Indices...> const&) {
+    return ::std::variant<typename UserPropertyValueType<
+        static_cast<UserPropertyValueTypeEnum>(Indices)>::Type...> {};
+}
+
+// User defined property value type
+using Type_UserPropertyValue = decltype(DeclType_UserPropertyType(
+    ::std::make_index_sequence<(
+        uint8_t)UserPropertyValueTypeEnum::TypeNum> {}));
 
 template <class T>
 constexpr const T& Clamp(const T& v, const T& lo, const T& hi) {

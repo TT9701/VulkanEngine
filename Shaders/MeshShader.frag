@@ -43,18 +43,18 @@ void main()
     uint InMaterialIdx = constants.meshMaterialIndexBuffer.materialIndices[InMeshIdx.index];
     Material material = constants.materialBuffer.materials[InMaterialIdx];
 
-    vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
+    // vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
 
-    vec3 albedo = texColor;
+    // vec3 albedo = texColor;
     // vec3 albedo = InColor.xyz;
     // vec3 albedo = material.diffuse.xyz;
 
-    // vec3 N = normalize(InNormal.xyz);
-    // vec3 V = normalize(ubo.data.cameraPos.xyz - InPos.xyz);
+    vec3 N = normalize(InNormal.xyz);
+    vec3 V = normalize(ubo.data.cameraPos.xyz - InPos.xyz);
 
-    // if (dot(N, V) < 0.0){
-    //     N = -N;
-    // }
+    if (dot(N, V) < 0.0){
+        N = -N;
+    }
         
     // float metallic = ubo.data.metallicRoughness.x;
     // float roughness = ubo.data.metallicRoughness.y;
@@ -95,7 +95,7 @@ void main()
     vec4 color = CalculateLight(material, 
                                 normalize(ubo.data.sunLightPos.xyz), 
                                 ubo.data.cameraPos.xyz, 
-                                InPos.xyz, InNormal.xyz, 
+                                InPos.xyz, N, 
                                 ubo.data.sunLightColor.xyz);
 
     outFragColor = color;

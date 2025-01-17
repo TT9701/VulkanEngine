@@ -36,6 +36,9 @@ struct CISDI_3DModel {
 
         uint32_t childCount {0};
         Type_STLVector<uint32_t> childrenIdx {};
+
+        uint32_t userPropertyCount {0};
+        Type_STLUnorderedMap_String<Type_UserPropertyValue> userProperties {};
     };
 
     struct Mesh {

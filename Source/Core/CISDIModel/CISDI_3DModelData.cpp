@@ -342,6 +342,30 @@ void WriteString(std::ofstream& ofs, const char* str) {
     ofs.write(str, nameLen);
 }
 
+void WriteNodeUserProperties(std::ofstream& ofs,
+                             CISDI_3DModel::Node const& node) {
+    assert(node.userPropertyCount == node.userProperties.size());
+    ofs.write((char*)&node.userPropertyCount, sizeof(node.userPropertyCount));
+    for (auto const& prop : node.userProperties) {
+        WriteString(ofs, prop.first.c_str());
+
+        ::std::underlying_type_t<UserPropertyValueTypeEnum> type =
+            prop.second.index();
+        ofs.write((char*)&type, sizeof(type));
+
+        ::std::visit(
+            [&](auto&& v) {
+                using T = std::decay_t<decltype(v)>;
+                if constexpr (::std::is_same_v<T, ::std::string>) {
+                    WriteString(ofs, v.c_str());
+                } else {
+                    ofs.write((char*)&v, sizeof(v));
+                }
+            },
+            prop.second);
+    }
+}
+
 void WriteNodes(std::ofstream& ofs,
                 Type_STLVector<CISDI_3DModel::Node> const& nodes) {
     for (auto const& node : nodes) {
@@ -351,6 +375,8 @@ void WriteNodes(std::ofstream& ofs,
         if (node.childCount > 0)
             ofs.write((char*)node.childrenIdx.data(),
                       sizeof(node.childrenIdx[0]) * node.childCount);
+
+        WriteNodeUserProperties(ofs, node);
     }
 }
 
@@ -508,6 +534,78 @@ CISDI_3DModel Load(const char* path) {
             node.childrenIdx.resize(node.childCount);
             in.read((char*)node.childrenIdx.data(),
                     sizeof(node.childrenIdx[0]) * node.childCount);
+        }
+        in.read((char*)&node.userPropertyCount, sizeof(node.userPropertyCount));
+        for (uint32_t i = 0; i < node.userPropertyCount; ++i) {
+            Type_STLString key;
+            ReadString(in, key);
+
+            UserPropertyValueTypeEnum type {};
+
+            in.read((char*)&type, sizeof(type));
+
+            switch (type) {
+                case UserPropertyValueTypeEnum::Bool: {
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Bool>::Type
+                        value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::Char: {
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Char>::Type
+                        value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::UChar: {
+                    UserPropertyValueType<
+                        UserPropertyValueTypeEnum::UChar>::Type value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::Int: {
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Int>::Type
+                        value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::UInt: {
+                    UserPropertyValueType<UserPropertyValueTypeEnum::UInt>::Type
+                        value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::LongLong: {
+                    UserPropertyValueType<
+                        UserPropertyValueTypeEnum::LongLong>::Type value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::ULongLong: {
+                    UserPropertyValueType<
+                        UserPropertyValueTypeEnum::ULongLong>::Type value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::Float: {
+                    UserPropertyValueType<
+                        UserPropertyValueTypeEnum::Float>::Type value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::Double: {
+                    UserPropertyValueType<
+                        UserPropertyValueTypeEnum::Double>::Type value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
+                case UserPropertyValueTypeEnum::String: {
+                    UserPropertyValueType<
+                        UserPropertyValueTypeEnum::String>::Type value;
+                    ReadString(in, value);
+                    node.userProperties[key] = value;
+                } break;
+            }
         }
     }
 

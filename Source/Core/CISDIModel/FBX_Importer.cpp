@@ -8,7 +8,9 @@
 #include <codecvt>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <map>
+#include <string>
 
 using namespace IntelliDesign_NS::ModelData;
 
@@ -191,6 +193,108 @@ int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
 
 ::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
 
+void PrintUserDefinedProperties(FbxNode* pNode) {
+    if (!pNode)
+        return;
+
+    FbxProperty prop = pNode->GetFirstProperty();
+    while (prop.IsValid()) {
+        if (prop.GetFlag(FbxPropertyFlags::eUserDefined)
+            || prop.GetFlag(FbxPropertyFlags::eImported)) {
+            std::string propName = prop.GetNameAsCStr();
+            FbxDataType dataType = prop.GetPropertyDataType();
+            std::cout << "User-defined property: " << propName
+                      << " (Type: " << dataType.GetName() << ")\n";
+
+            // Print property value based on its type
+            if (dataType == FbxBoolDT) {
+                std::cout << "Value: " << prop.Get<FbxBool>() << "\n";
+            } else if (dataType == FbxIntDT) {
+                std::cout << "Value: " << prop.Get<FbxInt>() << "\n";
+            } else if (dataType == FbxFloatDT) {
+                std::cout << "Value: " << prop.Get<FbxFloat>() << "\n";
+            } else if (dataType == FbxDoubleDT) {
+                std::cout << "Value: " << prop.Get<FbxDouble>() << "\n";
+            } else if (dataType == FbxStringDT) {
+                std::cout << "Value: " << prop.Get<FbxString>().Buffer()
+                          << "\n";
+            } else if (dataType == FbxDouble3DT) {
+                FbxDouble3 val = prop.Get<FbxDouble3>();
+                std::cout << "Value: (" << val[0] << ", " << val[1] << ", "
+                          << val[2] << ")\n";
+            } else if (dataType == FbxDouble4DT) {
+                FbxDouble4 val = prop.Get<FbxDouble4>();
+                std::cout << "Value: (" << val[0] << ", " << val[1] << ", "
+                          << val[2] << ", " << val[3] << ")\n";
+            }
+        }
+        prop = pNode->GetNextProperty(prop);
+    }
+}
+
+void ProcessUserDefinedProperties(FbxNode* pNode,
+                                  CISDI_3DModel::Node& cisdiNode) {
+    if (!pNode)
+        return;
+
+    FbxProperty prop = pNode->GetFirstProperty();
+    while (prop.IsValid()) {
+        if (prop.GetFlag(FbxPropertyFlags::eUserDefined)
+            || prop.GetFlag(FbxPropertyFlags::eImported)) {
+            std::string propName = prop.GetNameAsCStr();
+            FbxDataType dataType = prop.GetPropertyDataType();
+
+            switch (dataType.GetType()) {
+                case eFbxBool:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxBool>());
+                    break;
+                case eFbxChar:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxChar>());
+                    break;
+                case eFbxUChar:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxUChar>());
+                    break;
+                case eFbxInt:
+                    cisdiNode.userProperties.emplace(propName,
+                                                            prop.Get<FbxInt>());
+                    break;
+                case eFbxUInt:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxUInt>());
+                    break;
+                case eFbxLongLong:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxLongLong>());
+                    break;
+                case eFbxULongLong:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxULongLong>());
+                    break;
+                case eFbxFloat:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxFloat>());
+                    break;
+                case eFbxDouble:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxDouble>());
+                    break;
+                case eFbxString:
+                    cisdiNode.userProperties.emplace(
+                        propName, prop.Get<FbxString>().Buffer());
+                    break;
+                default:
+                    throw ::std::runtime_error(
+                        "ProcessUserDefinedProperties: Unknown property type");
+            }
+            cisdiNode.userPropertyCount++;
+        }
+        prop = pNode->GetNextProperty(prop);
+    }
+}
+
 int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
                 bool flipYZ, Type_STLVector<InternalMeshData>& tmpVertices) {
     int nodeIdx = (int)data.nodes.size();
@@ -220,6 +324,9 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
         auto lMaterial = pNode->GetMaterial(0);
         cisdiNode.materialIdx = materialIdxMap.at(lMaterial);
     }
+
+    // process user properties
+    ProcessUserDefinedProperties(pNode, cisdiNode);
 
     auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
 

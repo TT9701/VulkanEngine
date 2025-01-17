@@ -1,4 +1,4 @@
-#include <random>
+﻿#include <random>
 
 #include "MeshShaderDemo.h"
 
@@ -190,7 +190,7 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        const char* model = "06c17a29-7462-4716-8c43-5aafdd45dcdc.fbx";
+        const char* model = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx";
 
         mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
 
@@ -573,8 +573,6 @@ void MeshShaderDemo::PrepareUIContext() {
                                          mesh.header.vertexCount);
                              ImGui::Text("meshlet count: %d",
                                          mesh.header.meshletCount);
-                             // ImGui::Text("meshlet vertex count: %d",
-                             //             mesh.header.meshletVertexCount);
 
                              ImGui::Text("meshlet triangle count: %d",
                                          mesh.header.meshletTriangleCount);
@@ -584,6 +582,32 @@ void MeshShaderDemo::PrepareUIContext() {
                              ImGui::Text("material: %s",
                                          model.materials[node.materialIdx]
                                              .name.c_str());
+                         }
+
+                         if (node.userPropertyCount > 0) {
+                             if (ImGui::TreeNode("User Properties:")) {
+                                 for (auto const& [k, v] :
+                                      node.userProperties) {
+                                     ImGui::Text(
+                                         "%s: %s", k.c_str(),
+                                         ::std::visit(
+                                             [&](auto&& val) {
+                                                 using T = std::decay_t<
+                                                     decltype(val)>;
+                                                 if constexpr (
+                                                     ::std::is_same_v<
+                                                         T, ::std::string>) {
+                                                     return val.c_str();
+                                                 } else {
+                                                     return ::std::to_string(
+                                                                val)
+                                                         .c_str();
+                                                 }
+                                             },
+                                             v));
+                                 }
+                                 ImGui::TreePop();
+                             }
                          }
 
                          for (auto const& childIdx : node.childrenIdx) {
@@ -618,6 +642,12 @@ void MeshShaderDemo::PrepareUIContext() {
                                         material.data.diffuse.z);
                             ImGui::Text("DiffuseFactor: %.3f",
                                         material.data.diffuse.w);
+                            ImGui::Text("Specular: (%.3f, %.3f, %.3f)",
+                                        material.data.specular.x,
+                                        material.data.specular.y,
+                                        material.data.specular.z);
+                            ImGui::Text("SpecularFactor: %.3f",
+                                        material.data.specular.w);
                             ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
                                         material.data.emissive.x,
                                         material.data.emissive.y,
@@ -678,7 +708,7 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
         .SetBinding("PushConstantsFrag",
                     mFactoryModel->GetFragmentPushConstantsPtr())
         .SetBinding("UBO", "SceneUniformBuffer")
-        .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
+        // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
         .SetBinding("_Depth_", "DepthImage")
         .SetBinding(mFactoryModel->GetMeshTaskIndirectCmdBuffer())

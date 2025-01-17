@@ -27,8 +27,7 @@ uint32_t CalcNodeCount(aiNode* node) {
     return nodeCount;
 }
 
-void ReadNodeProperties(aiNode* node) {
-    ::std::cout << node->mName.C_Str() << ::std::endl;
+void ProcessNodeProperties(aiNode* node, CISDI_3DModel::Node& cisdiNode) {
     if (node->mMetaData) {
         for (unsigned int i = 0; i < node->mMetaData->mNumProperties; ++i) {
             aiString key = node->mMetaData->mKeys[i];
@@ -38,39 +37,30 @@ void ReadNodeProperties(aiNode* node) {
 
             switch (entry.mType) {
                 case AI_BOOL:
-                    std::cout << "AI_BOOL: " << keyStr << ": "
-                              << (entry.mData ? "true" : "false") << std::endl;
+                    cisdiNode.userProperties[keyStr] = *(bool*)entry.mData;
                     break;
                 case AI_INT32:
-                    std::cout << "AI_INT32: " << keyStr << ": "
-                              << *static_cast<int32_t*>(entry.mData)
-                              << std::endl;
+                    cisdiNode.userProperties[keyStr] = *(int32_t*)entry.mData;
+                    break;
+                case AI_UINT32:
+                    cisdiNode.userProperties[keyStr] = *(uint32_t*)entry.mData;
+                    break;
+                case AI_INT64:
+                    cisdiNode.userProperties[keyStr] = *(int64_t*)entry.mData;
                     break;
                 case AI_UINT64:
-                    std::cout << "AI_UINT64: " << keyStr << ": "
-                              << *static_cast<uint64_t*>(entry.mData)
-                              << std::endl;
+                    cisdiNode.userProperties[keyStr] = *(uint64_t*)entry.mData;
                     break;
                 case AI_FLOAT:
-                    std::cout << "AI_FLOAT: " << keyStr << ": "
-                              << *static_cast<float*>(entry.mData) << std::endl;
+                    cisdiNode.userProperties[keyStr] = *(float*)entry.mData;
                     break;
                 case AI_DOUBLE:
-                    std::cout << "AI_DOUBLE: " << keyStr << ": "
-                              << *static_cast<double*>(entry.mData)
-                              << std::endl;
+                    cisdiNode.userProperties[keyStr] = *(double*)entry.mData;
                     break;
                 case AI_AISTRING:
-                    std::cout << "AI_AISTRING: " << keyStr << ": "
-                              << static_cast<aiString*>(entry.mData)->C_Str()
-                              << std::endl;
+                    cisdiNode.userProperties[keyStr] = std::string(
+                        static_cast<aiString*>(entry.mData)->C_Str());
                     break;
-                case AI_AIVECTOR3D: {
-                    aiVector3D* vec = static_cast<aiVector3D*>(entry.mData);
-                    std::cout << "AI_AIVECTOR3D: " << keyStr << ": (" << vec->x
-                              << ", " << vec->y << ", " << vec->z << ")"
-                              << std::endl;
-                } break;
                 default:
                     std::cout << keyStr << ": (unknown type)" << std::endl;
                     break;
@@ -142,8 +132,6 @@ uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
                      const aiScene* scene, bool flipYZ,
                      Type_STLVector<InternalMeshData>& tmpVertices,
                      Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
-    // ReadNodeProperties(node);
-
     uint32_t nodeIdx = data.nodes.size();
     int childCount = node->mNumChildren;
 
@@ -159,6 +147,8 @@ uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
     if (node->mNumMeshes > 0)
         ProcessMesh(cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ,
                     tmpVertices, tmpIndices);
+
+    ProcessNodeProperties(node, cisdiNode);
 
     auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
 
