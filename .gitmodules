@@ -15,4 +15,4 @@
 [submodule "External/SPIRV-Cross"]
 	path = External/SPIRV-Cross
 	url = https://github.com/KhronosGroup/SPIRV-Cross.git
-	branch = vulkan-sdk-1.3.283
+	branch = vulkan-sdk-1.4.304
