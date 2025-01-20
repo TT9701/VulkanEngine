@@ -1,28 +1,25 @@
 #pragma once
 
-#include <meshoptimizer.h>
-#include <glm/glm.hpp>
-
 #ifdef CUDA_VULKAN_INTEROP
 #include "CUDA/CUDAVulkan.h"
 #endif
 
 #include "Core/Utilities/MemoryPool.h"
-#include "Core/Vulkan/Native/RenderResource.h"
+#include "Core/Vulkan/Native/Buffer.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 struct GPUMeshBuffers {
-    SharedPtr<RenderResource> mVPBuf {nullptr};
-    SharedPtr<RenderResource> mVNBuf {nullptr};
-    SharedPtr<RenderResource> mVTBuf {nullptr};
-    SharedPtr<RenderResource> mMeshletBuf {nullptr};
-    SharedPtr<RenderResource> mMeshletTriBuf {nullptr};
-    SharedPtr<RenderResource> mMeshDataBuf {nullptr};
-    SharedPtr<RenderResource> mBoundingBoxBuf {nullptr};
+    SharedPtr<Buffer> mVPBuf {nullptr};
+    SharedPtr<Buffer> mVNBuf {nullptr};
+    SharedPtr<Buffer> mVTBuf {nullptr};
+    SharedPtr<Buffer> mMeshletBuf {nullptr};
+    SharedPtr<Buffer> mMeshletTriBuf {nullptr};
+    SharedPtr<Buffer> mMeshDataBuf {nullptr};
+    SharedPtr<Buffer> mBoundingBoxBuf {nullptr};
 
-    SharedPtr<RenderResource> mMaterialBuf {nullptr};
-    SharedPtr<RenderResource> mMeshMaterialIdxBuf {nullptr};
+    SharedPtr<Buffer> mMaterialBuf {nullptr};
+    SharedPtr<Buffer> mMeshMaterialIdxBuf {nullptr};
 
     vk::DeviceAddress mVPBufAddr {};
     vk::DeviceAddress mVNBufAddr {};

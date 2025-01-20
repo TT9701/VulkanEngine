@@ -1,14 +1,14 @@
 ﻿#include "FBX_Importer.h"
 
 #include "CISDI_3DModelData.h"
-#include "Common.h"
+#include "Source/Common/Common.h"
 
 #include <fbxsdk.h>
 
+#include <cassert>
 #include <codecvt>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <map>
 #include <string>
 
@@ -193,45 +193,6 @@ int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
 
 ::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
 
-void PrintUserDefinedProperties(FbxNode* pNode) {
-    if (!pNode)
-        return;
-
-    FbxProperty prop = pNode->GetFirstProperty();
-    while (prop.IsValid()) {
-        if (prop.GetFlag(FbxPropertyFlags::eUserDefined)
-            || prop.GetFlag(FbxPropertyFlags::eImported)) {
-            std::string propName = prop.GetNameAsCStr();
-            FbxDataType dataType = prop.GetPropertyDataType();
-            std::cout << "User-defined property: " << propName
-                      << " (Type: " << dataType.GetName() << ")\n";
-
-            // Print property value based on its type
-            if (dataType == FbxBoolDT) {
-                std::cout << "Value: " << prop.Get<FbxBool>() << "\n";
-            } else if (dataType == FbxIntDT) {
-                std::cout << "Value: " << prop.Get<FbxInt>() << "\n";
-            } else if (dataType == FbxFloatDT) {
-                std::cout << "Value: " << prop.Get<FbxFloat>() << "\n";
-            } else if (dataType == FbxDoubleDT) {
-                std::cout << "Value: " << prop.Get<FbxDouble>() << "\n";
-            } else if (dataType == FbxStringDT) {
-                std::cout << "Value: " << prop.Get<FbxString>().Buffer()
-                          << "\n";
-            } else if (dataType == FbxDouble3DT) {
-                FbxDouble3 val = prop.Get<FbxDouble3>();
-                std::cout << "Value: (" << val[0] << ", " << val[1] << ", "
-                          << val[2] << ")\n";
-            } else if (dataType == FbxDouble4DT) {
-                FbxDouble4 val = prop.Get<FbxDouble4>();
-                std::cout << "Value: (" << val[0] << ", " << val[1] << ", "
-                          << val[2] << ", " << val[3] << ")\n";
-            }
-        }
-        prop = pNode->GetNextProperty(prop);
-    }
-}
-
 void ProcessUserDefinedProperties(FbxNode* pNode,
                                   CISDI_3DModel::Node& cisdiNode) {
     if (!pNode)
@@ -246,40 +207,40 @@ void ProcessUserDefinedProperties(FbxNode* pNode,
 
             switch (dataType.GetType()) {
                 case eFbxBool:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxBool>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxBool>());
                     break;
                 case eFbxChar:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxChar>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxChar>());
                     break;
                 case eFbxUChar:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxUChar>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxUChar>());
                     break;
                 case eFbxInt:
                     cisdiNode.userProperties.emplace(propName,
-                                                            prop.Get<FbxInt>());
+                                                     prop.Get<FbxInt>());
                     break;
                 case eFbxUInt:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxUInt>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxUInt>());
                     break;
                 case eFbxLongLong:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxLongLong>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxLongLong>());
                     break;
                 case eFbxULongLong:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxULongLong>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxULongLong>());
                     break;
                 case eFbxFloat:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxFloat>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxFloat>());
                     break;
                 case eFbxDouble:
-                    cisdiNode.userProperties.emplace(
-                        propName, prop.Get<FbxDouble>());
+                    cisdiNode.userProperties.emplace(propName,
+                                                     prop.Get<FbxDouble>());
                     break;
                 case eFbxString:
                     cisdiNode.userProperties.emplace(
@@ -443,12 +404,11 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
         FbxSurfaceMaterial* lMaterial = lScene->GetMaterial(i);
         materialIdxMap.emplace(lMaterial, i);
 
-        CISDI_3DModel::Material cisdiMaterial {};
+        Material cisdiMaterial {};
         cisdiMaterial.name = lMaterial->GetName();
 
         if (lMaterial->GetClassId().Is(FbxSurfacePhong::ClassId)) {
-            cisdiMaterial.data.shadingModel =
-                CISDI_3DModel::Material::ShadingModel::Phong;
+            cisdiMaterial.data.shadingModel = Material::ShadingModel::Phong;
 
             auto lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Ambient;
             cisdiMaterial.data.ambient = Float32_4 {
@@ -494,7 +454,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
         } else if (lMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId)) {
             cisdiMaterial.data.shadingModel =
-                CISDI_3DModel::Material::ShadingModel::Lambert;
+                Material::ShadingModel::Lambert;
 
             auto lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Ambient;
             cisdiMaterial.data.ambient = Float32_4 {

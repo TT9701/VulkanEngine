@@ -1,16 +1,16 @@
 #include "Assimp_Importer.h"
 
-#include <iostream>
-#include <stdexcept>
+#include "CISDI_3DModelData.h"
+#include "Source/Common/Common.h"
 
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
-
 #include <assimp/Importer.hpp>
-#include <filesystem>
 
-#include "CISDI_3DModelData.h"
-#include "Common.h"
+#include <cassert>
+#include <filesystem>
+#include <iostream>
+#include <stdexcept>
 
 using namespace IntelliDesign_NS::ModelData;
 
@@ -199,7 +199,7 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
     for (uint32_t i = 0; i < data.header.materialCount; ++i) {
         auto material = scene->mMaterials[i];
-        CISDI_3DModel::Material cisdiMaterial {};
+        Material cisdiMaterial {};
         material->Get(AI_MATKEY_NAME, cisdiMaterial.name);
         aiColor3D color;
         float opacity;

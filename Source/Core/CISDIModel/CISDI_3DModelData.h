@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common.h"
+#include "Source/Common/Common.h"
 
 #ifdef CISDI_MODEL_DATA_EXPORTS
 #define CISDI_MODEL_DATA_API __declspec(dllexport)
@@ -12,7 +12,7 @@ namespace IntelliDesign_NS::ModelData {
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
 
-constexpr Version CISDI_3DModel_VERSION = {0ui8, 3ui8, 1ui16};
+constexpr Version CISDI_3DModel_VERSION = {0ui8, 4ui8, 1ui16};
 
 // TODO: add pmr mempool param in ctor.
 
@@ -26,7 +26,6 @@ struct CISDI_3DModel {
     };
 
     struct Mesh;
-    struct Material;
 
     struct Node {
         Type_STLString name {};
@@ -48,44 +47,11 @@ struct CISDI_3DModel {
             uint32_t meshletTriangleCount {0};
         };
 
-        struct Vertices {
-            Type_STLVector<UInt16_3> positions {};
-            Type_STLVector<Int16_2> normals {};
-            Type_STLVector<UInt16_2> uvs {};
-        };
-
-        struct Meshlets {
-            Type_STLVector<MeshletInfo> infos {};
-            Type_STLVector<uint8_t> triangles {};
-
-            Type_STLVector<Vertices> vertices {};
-
-            Type_STLVector<AABoundingBox> boundingBoxes {};
-        };
-
         MeshHeader header {};
 
         Meshlets meshlets {};
 
         AABoundingBox boundingBox {};
-    };
-
-    struct Material {
-        enum class ShadingModel : uint32_t { Lambert = 0, Phong };
-
-        Type_STLString name {};
-
-        struct {
-            ShadingModel shadingModel {ShadingModel::Lambert};
-            float shininess {};
-            Float32_2 padding {};
-            Float32_4 ambient {};
-            Float32_4 diffuse {};
-            Float32_4 specular {};
-            Float32_4 emissive {};
-            Float32_4 reflection {};
-            Float32_4 transparency {};
-        } data;
     };
 
     Header header {};

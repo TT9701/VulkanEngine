@@ -3,6 +3,7 @@
 #include <filesystem>
 
 #include <assimp/scene.h>
+#include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
 
 #include "Core/CISDIModel/CISDI_3DModelData.h"

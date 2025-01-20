@@ -6,8 +6,8 @@
 
 #include <meshoptimizer.h>
 
-#include "Assimp_Importer.h"
-#include "FBX_Importer.h"
+#include "Source/Importer/Assimp_Importer.h"
+#include "Source/Importer/FBX_Importer.h"
 
 namespace IntelliDesign_NS::ModelData {
 
@@ -225,8 +225,13 @@ void Generate_CISDIModel_Meshlets(
         mesh.header.vertexCount = tmpMeshlet.vertIndices.size();
         mesh.header.meshletTriangleCount = tmpMeshlet.triangles.size();
 
-        mesh.meshlets.infos = ::std::move(tmpMeshlet.infos);
-        mesh.meshlets.triangles = ::std::move(tmpMeshlet.triangles);
+        auto& infos = mesh.meshlets.properties
+                          .GetProperty<MeshletPropertyTypeEnum::Info>();
+        infos = ::std::move(tmpMeshlet.infos);
+
+        auto& triangles = mesh.meshlets.properties
+                              .GetProperty<MeshletPropertyTypeEnum::Triangle>();
+        triangles = ::std::move(tmpMeshlet.triangles);
     }
 }
 
@@ -236,22 +241,28 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
         auto& mesh = data.meshes[i];
         auto& tmpPosVec = tmpVertices[i].positions;
 
+        auto& infos = mesh.meshlets.properties
+                          .GetProperty<MeshletPropertyTypeEnum::Info>();
+
+        auto& boundingBoxes =
+            mesh.meshlets.properties
+                .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
+        boundingBoxes.resize(mesh.header.meshletCount);
+
         // meshlet bounding box
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
-            auto& info = mesh.meshlets.infos[j];
-            mesh.meshlets.boundingBoxes.resize(mesh.header.meshletCount);
+            auto& info = infos[j];
 
             AABoundingBox bb {};
-
             for (uint32_t k = 0; k < info.vertexCount; ++k) {
                 uint32_t vertIdx = info.vertexOffset + k;
                 UpdateAABB(bb, tmpPosVec[vertIdx]);
             }
-            mesh.meshlets.boundingBoxes[j] = bb;
+            boundingBoxes[j] = bb;
         }
 
         // mesh bounding box
-        for (auto const& meshletbb : mesh.meshlets.boundingBoxes) {
+        for (auto const& meshletbb : boundingBoxes) {
             UpdateAABB(mesh.boundingBox, meshletbb);
         }
     }
@@ -270,25 +281,40 @@ void Generate_CISDIModel_PackedVertices(
 
         mesh.header.vertexCount = tmpMeshVertices.positions.size();
 
-        mesh.meshlets.vertices.resize(mesh.header.meshletCount);
+        auto& vertices = mesh.meshlets.properties
+                             .GetProperty<MeshletPropertyTypeEnum::Vertex>();
+        vertices.resize(mesh.header.meshletCount);
 
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
-            auto vertCount = mesh.meshlets.infos[j].vertexCount;
-            mesh.meshlets.vertices[j].positions.resize(vertCount);
-            mesh.meshlets.vertices[j].normals.resize(vertCount);
-            mesh.meshlets.vertices[j].uvs.resize(vertCount);
+            auto& info = mesh.meshlets.properties
+                             .GetProperty<MeshletPropertyTypeEnum::Info>()[j];
+            auto vertCount = info.vertexCount;
+            vertices[j]
+                .attributes.GetProperty<VertexAttributeEnum::Position>()
+                .resize(vertCount);
+            vertices[j]
+                .attributes.GetProperty<VertexAttributeEnum::Normal>()
+                .resize(vertCount);
+            vertices[j]
+                .attributes.GetProperty<VertexAttributeEnum::UV>()
+                .resize(vertCount);
         }
 
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
-            auto& info = mesh.meshlets.infos[j];
-            auto& vertices = mesh.meshlets.vertices[j];
+            auto& info = mesh.meshlets.properties
+                             .GetProperty<MeshletPropertyTypeEnum::Info>()[j];
+            auto& meshletVertices =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Vertex>()[j];
+            auto& bb =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::BoundingBox>()[j];
+
             for (uint32_t k = 0; k < info.vertexCount; ++k) {
                 uint32_t vertIdx = info.vertexOffset + k;
 
                 // position
                 {
-                    auto const& bb = mesh.meshlets.boundingBoxes[j];
-
                     Float32_3 fPos = tmpMeshVertices.positions[vertIdx];
                     Float32_3 bbLength {bb.max.x - bb.min.x,
                                         bb.max.y - bb.min.y,
@@ -303,7 +329,9 @@ void Generate_CISDIModel_PackedVertices(
                     UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
                                         PackUnorm16(encodedPos.y),
                                         PackUnorm16(encodedPos.z)};
-                    vertices.positions[k] = ui16Pos;
+                    meshletVertices.attributes
+                        .GetProperty<VertexAttributeEnum::Position>()[k] =
+                        ui16Pos;
                 }
 
                 // normals
@@ -314,7 +342,9 @@ void Generate_CISDIModel_PackedVertices(
 
                     Int16_2 i16Norm = {PackSnorm16(octNorm.x),
                                        PackSnorm16(octNorm.y)};
-                    vertices.normals[k] = i16Norm;
+                    meshletVertices.attributes
+                        .GetProperty<VertexAttributeEnum::Normal>()[k] =
+                        i16Norm;
                 }
 
                 // uvs
@@ -325,7 +355,8 @@ void Generate_CISDIModel_PackedVertices(
                     fUV = RepeatTexCoords(fUV);
 
                     UInt16_2 ui16UV = {PackUnorm16(fUV.x), PackUnorm16(fUV.y)};
-                    vertices.uvs[k] = ui16UV;
+                    meshletVertices.attributes
+                        .GetProperty<VertexAttributeEnum::UV>()[k] = ui16UV;
                 }
             }
         }
@@ -398,35 +429,56 @@ void WriteMeshes(std::ofstream& ofs,
 
         // meshlet datas
         if (mesh.header.meshletCount > 0) {
-            ofs.write(
-                (char*)mesh.meshlets.infos.data(),
-                sizeof(mesh.meshlets.infos[0]) * mesh.header.meshletCount);
+            auto const& infos =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Info>();
+            ofs.write((char*)infos.data(),
+                      sizeof(infos[0]) * mesh.header.meshletCount);
         }
 
         if (mesh.header.meshletTriangleCount > 0) {
-            ofs.write((char*)mesh.meshlets.triangles.data(),
-                      sizeof(mesh.meshlets.triangles[0])
-                          * mesh.header.meshletTriangleCount);
+            auto const& triangles =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Triangle>();
+            ofs.write((char*)triangles.data(),
+                      sizeof(triangles[0]) * mesh.header.meshletTriangleCount);
         }
 
         for (uint32_t i = 0; i < mesh.header.meshletCount; ++i) {
-            auto const& vertices = mesh.meshlets.vertices[i];
-            auto vertCount = mesh.meshlets.infos[i].vertexCount;
+            auto const& vertices =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Vertex>()[i];
 
-            ofs.write((char*)vertices.positions.data(),
-                      sizeof(vertices.positions[0]) * vertCount);
+            auto const& vertCount =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Info>()[i]
+                    .vertexCount;
 
-            ofs.write((char*)vertices.normals.data(),
-                      sizeof(vertices.normals[0]) * vertCount);
+            auto const& vertPositions =
+                vertices.attributes
+                    .GetProperty<VertexAttributeEnum::Position>();
 
-            ofs.write((char*)vertices.uvs.data(),
-                      sizeof(vertices.uvs[0]) * vertCount);
+            auto const& vertNormals =
+                vertices.attributes.GetProperty<VertexAttributeEnum::Normal>();
+
+            auto const& vertUVs =
+                vertices.attributes.GetProperty<VertexAttributeEnum::UV>();
+
+            ofs.write((char*)vertPositions.data(),
+                      sizeof(vertPositions[0]) * vertCount);
+
+            ofs.write((char*)vertNormals.data(),
+                      sizeof(vertNormals[0]) * vertCount);
+
+            ofs.write((char*)vertUVs.data(), sizeof(vertUVs[0]) * vertCount);
         }
 
         if (mesh.header.meshletCount > 0) {
-            ofs.write((char*)mesh.meshlets.boundingBoxes.data(),
-                      sizeof(mesh.meshlets.boundingBoxes[0])
-                          * mesh.header.meshletCount);
+            auto const& boundingBoxes =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
+            ofs.write((char*)boundingBoxes.data(),
+                      sizeof(boundingBoxes[0]) * mesh.header.meshletCount);
         }
 
         // bounding box
@@ -435,7 +487,7 @@ void WriteMeshes(std::ofstream& ofs,
 }
 
 void WriteMaterial(std::ofstream& ofs,
-                   Type_STLVector<CISDI_3DModel::Material> const& materials) {
+                   Type_STLVector<Material> const& materials) {
     for (auto const& material : materials) {
         WriteString(ofs, material.name.c_str());
         ofs.write((char*)&material.data, sizeof(material.data));
@@ -615,38 +667,51 @@ CISDI_3DModel Load(const char* path) {
         in.read((char*)&mesh.header, sizeof(mesh.header));
 
         // TODO: other attributes
+        auto& infos = mesh.meshlets.properties
+                          .GetProperty<MeshletPropertyTypeEnum::Info>();
 
-        mesh.meshlets.infos.resize(mesh.header.meshletCount);
-        in.read((char*)mesh.meshlets.infos.data(),
-                sizeof(mesh.meshlets.infos[0]) * mesh.header.meshletCount);
+        infos.resize(mesh.header.meshletCount);
+        in.read((char*)infos.data(),
+                sizeof(infos[0]) * mesh.header.meshletCount);
 
-        mesh.meshlets.triangles.resize(mesh.header.meshletTriangleCount);
-        in.read((char*)mesh.meshlets.triangles.data(),
-                sizeof(mesh.meshlets.triangles[0])
-                    * mesh.header.meshletTriangleCount);
+        auto& triangles = mesh.meshlets.properties
+                              .GetProperty<MeshletPropertyTypeEnum::Triangle>();
+        triangles.resize(mesh.header.meshletTriangleCount);
+        in.read((char*)triangles.data(),
+                sizeof(triangles[0]) * mesh.header.meshletTriangleCount);
 
-        mesh.meshlets.vertices.resize(mesh.header.meshletCount);
+        auto& vertices = mesh.meshlets.properties
+                             .GetProperty<MeshletPropertyTypeEnum::Vertex>();
+        vertices.resize(mesh.header.meshletCount);
         for (uint32_t i = 0; i < mesh.header.meshletCount; ++i) {
-            auto& vertices = mesh.meshlets.vertices[i];
-            auto vertCount = mesh.meshlets.infos[i].vertexCount;
+            auto vertCount = infos[i].vertexCount;
+            auto& vertPostions =
+                vertices[i]
+                    .attributes.GetProperty<VertexAttributeEnum::Position>();
+            auto& vertNormals =
+                vertices[i]
+                    .attributes.GetProperty<VertexAttributeEnum::Normal>();
+            auto& vertUVs =
+                vertices[i].attributes.GetProperty<VertexAttributeEnum::UV>();
 
-            vertices.positions.resize(vertCount);
-            in.read((char*)vertices.positions.data(),
-                    sizeof(vertices.positions[0]) * vertCount);
+            vertPostions.resize(vertCount);
+            in.read((char*)vertPostions.data(),
+                    sizeof(vertPostions[0]) * vertCount);
 
-            vertices.normals.resize(vertCount);
-            in.read((char*)vertices.normals.data(),
-                    sizeof(vertices.normals[0]) * vertCount);
+            vertNormals.resize(vertCount);
+            in.read((char*)vertNormals.data(),
+                    sizeof(vertNormals[0]) * vertCount);
 
-            vertices.uvs.resize(vertCount);
-            in.read((char*)vertices.uvs.data(),
-                    sizeof(vertices.uvs[0]) * vertCount);
+            vertUVs.resize(vertCount);
+            in.read((char*)vertUVs.data(), sizeof(vertUVs[0]) * vertCount);
         }
 
-        mesh.meshlets.boundingBoxes.resize(mesh.header.meshletCount);
-        in.read(
-            (char*)mesh.meshlets.boundingBoxes.data(),
-            sizeof(mesh.meshlets.boundingBoxes[0]) * mesh.header.meshletCount);
+        auto& boundingBoxes =
+            mesh.meshlets.properties
+                .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
+        boundingBoxes.resize(mesh.header.meshletCount);
+        in.read((char*)boundingBoxes.data(),
+                sizeof(boundingBoxes[0]) * mesh.header.meshletCount);
 
         in.read((char*)&mesh.boundingBox, sizeof(mesh.boundingBox));
     }

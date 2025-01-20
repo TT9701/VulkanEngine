@@ -17,11 +17,22 @@ Geometry::Geometry(const char* path, bool flipYZ, const char* output)
 
 void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     constexpr size_t vpSize =
-        sizeof(mModelData.meshes[0].meshlets.vertices[0].positions[0]);
+        sizeof(mModelData.meshes[0]
+                   .meshlets.properties
+                   .GetProperty<ModelData::MeshletPropertyTypeEnum::Vertex>()[0]
+                   .attributes
+                   .GetProperty<ModelData::VertexAttributeEnum::Position>()[0]);
     constexpr size_t vnSize =
-        sizeof(mModelData.meshes[0].meshlets.vertices[0].normals[0]);
-    constexpr size_t vtSize =
-        sizeof(mModelData.meshes[0].meshlets.vertices[0].uvs[0]);
+        sizeof(mModelData.meshes[0]
+                   .meshlets.properties
+                   .GetProperty<ModelData::MeshletPropertyTypeEnum::Vertex>()[0]
+                   .attributes
+                   .GetProperty<ModelData::VertexAttributeEnum::Normal>()[0]);
+    constexpr size_t vtSize = sizeof(
+        mModelData.meshes[0]
+            .meshlets.properties
+            .GetProperty<ModelData::MeshletPropertyTypeEnum::Vertex>()[0]
+            .attributes.GetProperty<ModelData::VertexAttributeEnum::UV>()[0]);
     constexpr size_t aabbSize = sizeof(mModelData.boundingBox);
 
     const size_t vpBufSize = mVertexCount * vpSize;
@@ -30,53 +41,52 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
 
     // Vertices SSBO
     {
-        mBuffers.mVPBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mVPBuf = context.CreateStorageBuffer(
             (mName + " Vertex Position").c_str(), vpBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-        mBuffers.mVNBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mVNBuf = context.CreateStorageBuffer(
             (mName + " Vertex Normal").c_str(), vnBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-        mBuffers.mVTBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mVTBuf = context.CreateStorageBuffer(
             (mName + " Vertex Texcoords").c_str(), vtBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-        mBuffers.mVPBufAddr = mBuffers.mVPBuf->GetBufferDeviceAddress();
-        mBuffers.mVNBufAddr = mBuffers.mVNBuf->GetBufferDeviceAddress();
-        mBuffers.mVTBufAddr = mBuffers.mVTBuf->GetBufferDeviceAddress();
+        mBuffers.mVPBufAddr = mBuffers.mVPBuf->GetDeviceAddress();
+        mBuffers.mVNBufAddr = mBuffers.mVNBuf->GetDeviceAddress();
+        mBuffers.mVTBufAddr = mBuffers.mVTBuf->GetDeviceAddress();
     }
 
-    constexpr size_t mlSize = sizeof(mModelData.meshes[0].meshlets.infos[0]);
-    constexpr size_t mlTriSize =
-        sizeof(mModelData.meshes[0].meshlets.triangles[0]);
+    constexpr size_t mlSize =
+        sizeof(mModelData.meshes[0]
+                   .meshlets.properties
+                   .GetProperty<ModelData::MeshletPropertyTypeEnum::Info>()[0]);
+    constexpr size_t mlTriSize = sizeof(
+        mModelData.meshes[0]
+            .meshlets.properties
+            .GetProperty<ModelData::MeshletPropertyTypeEnum::Triangle>()[0]);
     const size_t mlBufSize = mMeshletCount * mlSize;
     const size_t mlTriBufSize = mMeshletTriangleCount * mlTriSize;
 
     // Meshlets buffers
     {
-        mBuffers.mMeshletBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mMeshletBuf = context.CreateStorageBuffer(
             (mName + " Meshlet").c_str(), mlBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-        mBuffers.mMeshletTriBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mMeshletTriBuf = context.CreateStorageBuffer(
             (mName + " Meshlet triangles").c_str(), mlTriBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
-        mBuffers.mMeshletBufAddr =
-            mBuffers.mMeshletBuf->GetBufferDeviceAddress();
+        mBuffers.mMeshletBufAddr = mBuffers.mMeshletBuf->GetDeviceAddress();
         mBuffers.mMeshletTriBufAddr =
-            mBuffers.mMeshletTriBuf->GetBufferDeviceAddress();
+            mBuffers.mMeshletTriBuf->GetDeviceAddress();
     }
 
     uint32_t meshCount = mModelData.meshes.size();
@@ -84,51 +94,45 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     // bounding box
     const size_t aabbBufSize = aabbSize * (meshCount + 1 + mMeshletCount);
     {
-        mBuffers.mBoundingBoxBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mBoundingBoxBuf = context.CreateStorageBuffer(
             (mName + " Bounding Box").c_str(), aabbBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
         mBuffers.mBoundingBoxBufAddr =
-            mBuffers.mBoundingBoxBuf->GetBufferDeviceAddress();
+            mBuffers.mBoundingBoxBuf->GetDeviceAddress();
     }
 
     // materials
     const size_t materialBufSize =
         sizeof(mModelData.materials[0].data) * mModelData.materials.size();
     {
-        mBuffers.mMaterialBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mMaterialBuf = context.CreateStorageBuffer(
             (mName + " Materials").c_str(), materialBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-        mBuffers.mMaterialBufAddr =
-            mBuffers.mMaterialBuf->GetBufferDeviceAddress();
+        mBuffers.mMaterialBufAddr = mBuffers.mMaterialBuf->GetDeviceAddress();
     }
 
     const size_t meshMaterialIndexBufSize = sizeof(uint32_t) * meshCount;
     {
-        mBuffers.mMeshMaterialIdxBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mMeshMaterialIdxBuf = context.CreateStorageBuffer(
             (mName + " Mesh Material Indices").c_str(),
             meshMaterialIndexBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
         mBuffers.mMeshMaterialIdxBufAddr =
-            mBuffers.mMeshMaterialIdxBuf->GetBufferDeviceAddress();
+            mBuffers.mMeshMaterialIdxBuf->GetDeviceAddress();
     }
 
     // offsets data buffer *NO index*
     // vertex offsets + meshletoffsets + meshlettriangles offsets + meshlet counts
     const size_t offsetsBufSize = meshCount * 4 * sizeof(uint32_t);
     {
-        mBuffers.mMeshDataBuf = context.CreateDeviceLocalBufferResource(
+        mBuffers.mMeshDataBuf = context.CreateStorageBuffer(
             (mName + " Offsets data").c_str(), offsetsBufSize,
-            vk::BufferUsageFlagBits::eStorageBuffer
-                | vk::BufferUsageFlagBits::eTransferDst
+            vk::BufferUsageFlagBits::eTransferDst
                 | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-        mBuffers.mMeshDataBufAddr =
-            mBuffers.mMeshDataBuf->GetBufferDeviceAddress();
+        mBuffers.mMeshDataBufAddr = mBuffers.mMeshDataBuf->GetDeviceAddress();
     }
 
     // copy through staging buffer
@@ -144,12 +148,21 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             auto ptr = data + mMeshDatas.vertexOffsets[i] * vpSize;
             for (uint32_t j = 0; j < mModelData.meshes[i].header.meshletCount;
                  ++j) {
-                auto& info = mModelData.meshes[i].meshlets.infos[j];
+                auto const& info =
+                    mModelData.meshes[i]
+                        .meshlets.properties.GetProperty<
+                            ModelData::MeshletPropertyTypeEnum::Info>()[j];
                 auto size = info.vertexCount * vpSize;
-                memcpy(
-                    ptr,
-                    mModelData.meshes[i].meshlets.vertices[j].positions.data(),
-                    size);
+
+                auto dataPtr =
+                    mModelData.meshes[i]
+                        .meshlets.properties
+                        .GetProperty<
+                            ModelData::MeshletPropertyTypeEnum::Vertex>()[j]
+                        .attributes.GetPropertyPtr<
+                            ModelData::VertexAttributeEnum::Position>();
+
+                memcpy(ptr, dataPtr, size);
                 ptr += size;
             }
         }
@@ -158,11 +171,21 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             auto ptr = data + vpBufSize + mMeshDatas.vertexOffsets[i] * vnSize;
             for (uint32_t j = 0; j < mModelData.meshes[i].header.meshletCount;
                  ++j) {
-                auto& info = mModelData.meshes[i].meshlets.infos[j];
+                auto const& info =
+                    mModelData.meshes[i]
+                        .meshlets.properties.GetProperty<
+                            ModelData::MeshletPropertyTypeEnum::Info>()[j];
                 auto size = info.vertexCount * vnSize;
-                memcpy(ptr,
-                       mModelData.meshes[i].meshlets.vertices[j].normals.data(),
-                       size);
+
+                auto dataPtr =
+                    mModelData.meshes[i]
+                        .meshlets.properties
+                        .GetProperty<
+                            ModelData::MeshletPropertyTypeEnum::Vertex>()[j]
+                        .attributes.GetPropertyPtr<
+                            ModelData::VertexAttributeEnum::Normal>();
+
+                memcpy(ptr, dataPtr, size);
                 ptr += size;
             }
         }
@@ -172,29 +195,46 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
                      + mMeshDatas.vertexOffsets[i] * vtSize;
             for (uint32_t j = 0; j < mModelData.meshes[i].header.meshletCount;
                  ++j) {
-                auto& info = mModelData.meshes[i].meshlets.infos[j];
+                auto const& info =
+                    mModelData.meshes[i]
+                        .meshlets.properties.GetProperty<
+                            ModelData::MeshletPropertyTypeEnum::Info>()[j];
                 auto size = info.vertexCount * vtSize;
-                memcpy(ptr,
-                       mModelData.meshes[i].meshlets.vertices[j].uvs.data(),
-                       size);
+
+                auto dataPtr =
+                    mModelData.meshes[i]
+                        .meshlets.properties
+                        .GetProperty<
+                            ModelData::MeshletPropertyTypeEnum::Vertex>()[j]
+                        .attributes
+                        .GetPropertyPtr<ModelData::VertexAttributeEnum::UV>();
+
+                memcpy(ptr, dataPtr, size);
                 ptr += size;
             }
         }
 
         // meshlets
         for (uint32_t i = 0; i < meshCount; ++i) {
+            auto const& meshlets =
+                mModelData.meshes[i]
+                    .meshlets.properties
+                    .GetProperty<ModelData::MeshletPropertyTypeEnum::Info>();
             memcpy(data + vpBufSize + vnBufSize + vtBufSize
                        + mMeshDatas.meshletOffsets[i] * mlSize,
-                   mModelData.meshes[i].meshlets.infos.data(),
-                   mModelData.meshes[i].meshlets.infos.size() * mlSize);
+                   meshlets.data(), meshlets.size() * mlSize);
         }
 
         //meshlet triangles
         for (uint32_t i = 0; i < meshCount; ++i) {
+            auto const& meshletTriangles =
+                mModelData.meshes[i]
+                    .meshlets.properties.GetProperty<
+                        ModelData::MeshletPropertyTypeEnum::Triangle>();
             memcpy(data + vpBufSize + vnBufSize + vtBufSize + mlBufSize
                        + mMeshDatas.meshletTrianglesOffsets[i] * mlTriSize,
-                   mModelData.meshes[i].meshlets.triangles.data(),
-                   mModelData.meshes[i].meshlets.triangles.size() * mlTriSize);
+                   meshletTriangles.data(),
+                   meshletTriangles.size() * mlTriSize);
         }
         // offsets
         auto meshCountSize = meshCount * sizeof(meshCount);
@@ -220,29 +260,28 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
                 context.GetQueue(QueueType::Transfer));
             vk::BufferCopy vertexCopy {};
             vertexCopy.setSize(vpBufSize);
-            cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mVPBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(), mBuffers.mVPBuf->GetHandle(),
+                            vertexCopy);
 
             vertexCopy.setSize(vnBufSize).setSrcOffset(vpBufSize);
-            cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mVNBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(), mBuffers.mVNBuf->GetHandle(),
+                            vertexCopy);
 
             vertexCopy.setSize(vtBufSize).setSrcOffset(vpBufSize + vnBufSize);
-            cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mVTBuf->GetBufferHandle(), vertexCopy);
+            cmd->copyBuffer(staging->GetHandle(), mBuffers.mVTBuf->GetHandle(),
+                            vertexCopy);
 
             vk::BufferCopy meshletCopy {};
             meshletCopy.setSize(mlBufSize).setSrcOffset(vpBufSize + vnBufSize
                                                         + vtBufSize);
             cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mMeshletBuf->GetBufferHandle(),
-                            meshletCopy);
+                            mBuffers.mMeshletBuf->GetHandle(), meshletCopy);
 
             vk::BufferCopy meshletTriCopy {};
             meshletTriCopy.setSize(mlTriBufSize)
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize);
             cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mMeshletTriBuf->GetBufferHandle(),
+                            mBuffers.mMeshletTriBuf->GetHandle(),
                             meshletTriCopy);
 
             vk::BufferCopy offsetsCopy {};
@@ -250,8 +289,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
                 .setSrcOffset(vpBufSize + vnBufSize + vtBufSize + mlBufSize
                               + mlTriBufSize);
             cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mMeshDataBuf->GetBufferHandle(),
-                            offsetsCopy);
+                            mBuffers.mMeshDataBuf->GetHandle(), offsetsCopy);
         }
 
         mMeshletConstants.mVPBufAddr = mBuffers.mVPBufAddr;
@@ -280,10 +318,12 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         }
         char* ptr = data + aabbSize * (meshCount + 1);
         for (uint32_t i = 0; i < meshCount; ++i) {
-            uint32_t size =
-                mModelData.meshes[i].meshlets.boundingBoxes.size() * aabbSize;
-            memcpy(ptr, mModelData.meshes[i].meshlets.boundingBoxes.data(),
-                   size);
+            auto const& meshletBoundingBoxes =
+                mModelData.meshes[i]
+                    .meshlets.properties.GetProperty<
+                        ModelData::MeshletPropertyTypeEnum::BoundingBox>();
+            uint32_t size = meshletBoundingBoxes.size() * aabbSize;
+            memcpy(ptr, meshletBoundingBoxes.data(), size);
             ptr += size;
         }
 
@@ -293,8 +333,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(aabbBufSize);
             cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mBoundingBoxBuf->GetBufferHandle(),
-                            cmdBufCopy);
+                            mBuffers.mBoundingBoxBuf->GetHandle(), cmdBufCopy);
         }
         mMeshletConstants.mBoundingBoxBufAddr = mBuffers.mBoundingBoxBufAddr;
         mMeshletConstants.mMeshletBoundingBoxBufAddr =
@@ -327,12 +366,11 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             vk::BufferCopy cmdBufCopy {};
             cmdBufCopy.setSize(materialBufSize);
             cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mMaterialBuf->GetBufferHandle(),
-                            cmdBufCopy);
+                            mBuffers.mMaterialBuf->GetHandle(), cmdBufCopy);
             cmdBufCopy.setSize(meshMaterialIndexBufSize)
                 .setSrcOffset(materialBufSize);
             cmd->copyBuffer(staging->GetHandle(),
-                            mBuffers.mMeshMaterialIdxBuf->GetBufferHandle(),
+                            mBuffers.mMeshMaterialIdxBuf->GetHandle(),
                             cmdBufCopy);
         }
 
@@ -428,10 +466,13 @@ void Geometry::GenerateStats() {
     mMeshTaskIndirectCmds.reserve(meshCount);
     for (auto& mesh : mModelData.meshes) {
         vk::DrawMeshTasksIndirectCommandEXT meshTasksIndirectCmd {};
+        auto const& infos =
+            mesh.meshlets.properties
+                .GetProperty<ModelData::MeshletPropertyTypeEnum::Info>();
+
         meshTasksIndirectCmd
-            .setGroupCountX(
-                (mesh.meshlets.infos.size() + TASK_SHADER_INVOCATION_COUNT - 1)
-                / TASK_SHADER_INVOCATION_COUNT)
+            .setGroupCountX((infos.size() + TASK_SHADER_INVOCATION_COUNT - 1)
+                            / TASK_SHADER_INVOCATION_COUNT)
             .setGroupCountY(1)
             .setGroupCountZ(1);
         mMeshTaskIndirectCmds.push_back(meshTasksIndirectCmd);
@@ -440,11 +481,14 @@ void Geometry::GenerateStats() {
         mVertexCount += mesh.header.vertexCount;
 
         mMeshDatas.meshletOffsets.push_back(mMeshletCount);
-        mMeshletCount += mesh.meshlets.infos.size();
-        mMeshDatas.meshletCounts.push_back(mesh.meshlets.infos.size());
+        mMeshletCount += infos.size();
+        mMeshDatas.meshletCounts.push_back(infos.size());
 
+        auto const& triangles =
+            mesh.meshlets.properties
+                .GetProperty<ModelData::MeshletPropertyTypeEnum::Triangle>();
         mMeshDatas.meshletTrianglesOffsets.push_back(mMeshletTriangleCount);
-        mMeshletTriangleCount += mesh.meshlets.triangles.size();
+        mMeshletTriangleCount += triangles.size();
     }
 }
 

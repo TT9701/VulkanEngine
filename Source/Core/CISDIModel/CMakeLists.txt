@@ -3,13 +3,16 @@ project(CISDI_ModelData)
 set(CMAKE_CXX_STANDARD 20)
 
 set (MODEL_SRC
-    Common.h
     CISDI_3DModelData.h
-    CISDI_3DModelData.cpp
-    FBX_Importer.h
-    FBX_Importer.cpp
-    Assimp_Importer.h
-    Assimp_Importer.cpp
+    Source/Common/Common.h
+    Source/Common/Math.h
+    Source/Common/BaseTypes.h
+    Source/Common/MeshletType.h
+    Source/CISDI_3DModelData.cpp
+    Source/Importer/FBX_Importer.h
+    Source/Importer/FBX_Importer.cpp
+    Source/Importer/Assimp_Importer.h
+    Source/Importer/Assimp_Importer.cpp
 )
 
 add_library(CISDI_ModelData SHARED ${MODEL_SRC})
