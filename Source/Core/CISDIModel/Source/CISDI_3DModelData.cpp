@@ -52,9 +52,11 @@ void RemapIndex(InternalMeshData& tmpMeshVertices,
         {uvs.data(), sizeof(uvs[0]), sizeof(uvs[0])}};
 
     Type_STLVector<uint32_t> remap(indexCount);
+    const auto pRemap = remap.data();
+
     vertexCount = meshopt_generateVertexRemapMulti(
-        remap.data(), tmpIndices.empty() ? nullptr : tmpIndices.data(),
-        indexCount, vertexCount, streams.data(), streams.size());
+        pRemap, tmpIndices.empty() ? nullptr : tmpIndices.data(), indexCount,
+        vertexCount, streams.data(), streams.size());
 
     ::std::decay_t<decltype(positions)> optimizedVertexPositions(vertexCount);
     ::std::decay_t<decltype(normals)> optimizedVertexNormals(vertexCount);
@@ -63,16 +65,16 @@ void RemapIndex(InternalMeshData& tmpMeshVertices,
     Type_STLVector<uint32_t> optimizedIndices(indexCount);
 
     meshopt_remapVertexBuffer(optimizedVertexPositions.data(), positions.data(),
-                              indexCount, sizeof(positions[0]), remap.data());
+                              indexCount, sizeof(positions[0]), pRemap);
 
     meshopt_remapVertexBuffer(optimizedVertexNormals.data(), normals.data(),
-                              indexCount, sizeof(normals[0]), remap.data());
+                              indexCount, sizeof(normals[0]), pRemap);
 
     meshopt_remapVertexBuffer(optimizedVertexUVs.data(), uvs.data(), indexCount,
-                              sizeof(uvs[0]), remap.data());
+                              sizeof(uvs[0]), pRemap);
 
     meshopt_remapIndexBuffer(optimizedIndices.data(), tmpIndices.data(),
-                             indexCount, remap.data());
+                             indexCount, pRemap);
 
     positions = std::move(optimizedVertexPositions);
     normals = std::move(optimizedVertexNormals);
@@ -102,28 +104,29 @@ void OptimizeMesh(InternalMeshData& tmpMeshVertices,
     auto indexCount = tmpIndices.size();
     auto vertexCount = positions.size();
 
-    const auto indices = tmpIndices.data();
+    const auto pIndices = tmpIndices.data();
 
-    meshopt_optimizeVertexCache(indices, indices, indexCount, vertexCount);
+    meshopt_optimizeVertexCache(pIndices, pIndices, indexCount, vertexCount);
 
-    meshopt_optimizeOverdraw(indices, indices, indexCount,
+    meshopt_optimizeOverdraw(pIndices, pIndices, indexCount,
                              reinterpret_cast<const float*>(positions.data()),
                              vertexCount, sizeof(positions[0]), 1.05f);
 
     Type_STLVector<uint32_t> remap(vertexCount);
-    meshopt_optimizeVertexFetchRemap(remap.data(), indices, indexCount,
-                                     vertexCount);
+    const auto pRemap = remap.data();
+
+    meshopt_optimizeVertexFetchRemap(pRemap, pIndices, indexCount, vertexCount);
 
     meshopt_remapVertexBuffer(positions.data(), positions.data(), vertexCount,
-                              sizeof(positions[0]), remap.data());
+                              sizeof(positions[0]), pRemap);
 
     meshopt_remapVertexBuffer(normals.data(), normals.data(), vertexCount,
-                              sizeof(normals[0]), remap.data());
+                              sizeof(normals[0]), pRemap);
 
     meshopt_remapVertexBuffer(uvs.data(), uvs.data(), vertexCount,
-                              sizeof(uvs[0]), remap.data());
+                              sizeof(uvs[0]), pRemap);
 
-    meshopt_remapIndexBuffer(indices, indices, indexCount, remap.data());
+    meshopt_remapIndexBuffer(pIndices, pIndices, indexCount, pRemap);
 }
 
 void OptimizeData(Type_STLVector<InternalMeshData>& tmpVertices,
@@ -148,10 +151,11 @@ void BuildMeshlet(InternalMeshlet& meshlet,
     meshlet.triangles.resize(maxMeshlets * MESHLET_MAX_TRIANGLE_COUNT * 3);
 
     size_t meshletCount = meshopt_buildMeshlets(
-        (meshopt_Meshlet*)meshlet.infos.data(), meshlet.vertIndices.data(),
-        meshlet.triangles.data(), tmpIndices.data(), tmpIndices.size(),
-        (const float*)positions.data(), positions.size(), sizeof(positions[0]),
-        MESHLET_MAX_VERTEX_COUNT, MESHLET_MAX_TRIANGLE_COUNT, 0.0f);
+        reinterpret_cast<meshopt_Meshlet*>(meshlet.infos.data()),
+        meshlet.vertIndices.data(), meshlet.triangles.data(), tmpIndices.data(),
+        tmpIndices.size(), reinterpret_cast<const float*>(positions.data()),
+        positions.size(), sizeof(positions[0]), MESHLET_MAX_VERTEX_COUNT,
+        MESHLET_MAX_TRIANGLE_COUNT, 0.0f);
 
     const auto& last = meshlet.infos[meshletCount - 1];
 
@@ -161,10 +165,10 @@ void BuildMeshlet(InternalMeshlet& meshlet,
     meshlet.infos.resize(meshletCount);
 
     for (uint32_t i = 0; i < meshletCount; ++i) {
-        meshopt_optimizeMeshlet(
-            &meshlet.vertIndices[meshlet.infos[i].vertexOffset],
-            &meshlet.triangles[meshlet.infos[i].triangleOffset],
-            meshlet.infos[i].triangleCount, meshlet.infos[i].vertexCount);
+        auto& info = meshlet.infos[i];
+        meshopt_optimizeMeshlet(&meshlet.vertIndices[info.vertexOffset],
+                                &meshlet.triangles[info.triangleOffset],
+                                info.triangleCount, info.vertexCount);
     }
 }
 

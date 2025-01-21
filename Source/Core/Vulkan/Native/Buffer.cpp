@@ -60,6 +60,22 @@ void Buffer::Resize(size_t newSize) {
     mHandle = CreateBufferResource();
 }
 
+void Buffer::CopyData(const void* data, size_t size, size_t offset) {
+    if (bMapped) {
+        memcpy(static_cast<char*>(mAllocationInfo.pMappedData) + offset, data,
+               size);
+    } else {
+        auto staging = mContext.CreateStagingBuffer("", size);
+        auto stagingData = static_cast<char*>(staging->GetMapPtr());
+        memcpy(stagingData, data, size);
+        auto cmd = mContext.CreateCmdBufToBegin(
+            mContext.GetQueue(QueueType::Transfer));
+        vk::BufferCopy cmdBufCopy {};
+        cmdBufCopy.setSize(size).setDstOffset(offset);
+        cmd->copyBuffer(staging->GetHandle(), mHandle, cmdBufCopy);
+    }
+}
+
 vk::Buffer Buffer::CreateBufferResource() {
     bMapped = mMemoryType != MemoryType::DeviceLocal;
     if (mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddress
@@ -111,7 +127,7 @@ vk::BufferUsageFlags Buffer::GetUsageFlags() const {
 size_t Buffer::GetSize() const {
     return mSize;
 }
- 
+
 size_t Buffer::GetStride() const {
     return mStride;
 }

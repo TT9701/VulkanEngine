@@ -20,17 +20,6 @@ struct GPUMeshBuffers {
 
     SharedPtr<Buffer> mMaterialBuf {nullptr};
     SharedPtr<Buffer> mMeshMaterialIdxBuf {nullptr};
-
-    vk::DeviceAddress mVPBufAddr {};
-    vk::DeviceAddress mVNBufAddr {};
-    vk::DeviceAddress mVTBufAddr {};
-    vk::DeviceAddress mMeshletBufAddr {};
-    vk::DeviceAddress mMeshletTriBufAddr {};
-    vk::DeviceAddress mMeshDataBufAddr {};
-    vk::DeviceAddress mBoundingBoxBufAddr {};
-
-    vk::DeviceAddress mMaterialBufAddr {};
-    vk::DeviceAddress mMeshMaterialIdxBufAddr {};
 };
 
 #ifdef CUDA_VULKAN_INTEROP

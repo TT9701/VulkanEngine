@@ -22,28 +22,28 @@ template <class Enum, template <Enum e> class BaseStruct>
 struct PropertyTuple {
     DeclType_Tuple_BasedOnEnum(Type_PropTuple, Enum, Enum::Count, BaseStruct);
 
-    Type_PropTuple data {};
+    Type_PropTuple datas {};
 
     template <Enum Prop>
     auto& GetProperty() {
-        return ::std::get<static_cast<size_t>(Prop)>(data);
+        return ::std::get<static_cast<size_t>(Prop)>(datas);
     }
 
     template <Enum Prop>
-    auto const& GetProperty() const {
-        return ::std::get<static_cast<size_t>(Prop)>(data);
+    const auto& GetProperty() const {
+        return ::std::get<static_cast<size_t>(Prop)>(datas);
     }
 
     template <Enum Prop>
     uint64_t GetProptyByteSize() const {
         return GetProperty<Prop>().size()
              * sizeof(::std::tuple_element_t<static_cast<size_t>(Prop),
-                                             decltype(data)>);
+                                             decltype(datas)>);
     }
 
     template <Enum Prop>
-    void const* GetPropertyPtr() const {
-        return reinterpret_cast<void const*>(GetProperty<Prop>().data());
+    const void* GetPropertyPtr() const {
+        return reinterpret_cast<const void*>(GetProperty<Prop>().data());
     }
 };
 

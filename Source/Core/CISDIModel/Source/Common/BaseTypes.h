@@ -171,7 +171,7 @@ struct Material {
 
     Type_STLString name {};
 
-    struct {
+    struct Data {
         ShadingModel shadingModel {ShadingModel::Lambert};
         float shininess {};
         Float32_2 padding {};
@@ -200,7 +200,7 @@ struct InternalMeshlet {
 
 #define DeclType_BasedOnEnum(T, UsingType, EnumType, EnumCount, TypeStruct)   \
     using UnderLyingType_##EnumType = ::std::underlying_type_t<EnumType>;     \
-    template <UnderLyingType_##EnumType... Indices>                           \
+    template <size_t... Indices>                           \
     static auto DeclType_##UsingType(                                         \
         ::std::index_sequence<Indices...> const&) {                           \
         return T<                                                             \

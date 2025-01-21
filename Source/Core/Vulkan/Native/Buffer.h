@@ -41,6 +41,8 @@ public:
 
     void Resize(size_t newSize);
 
+    void CopyData(const void* data, size_t size, size_t offset = 0);
+
 protected:
     vk::Buffer CreateBufferResource();
 

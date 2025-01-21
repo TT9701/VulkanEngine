@@ -9,7 +9,7 @@ enum class MeshletPropertyTypeEnum : uint8_t {
     Info,
     Triangle,
     BoundingBox,
-    Vertex,
+    Vertex, 
     Count
 };
 
