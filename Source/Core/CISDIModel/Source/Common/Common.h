@@ -3,6 +3,7 @@
 #include "BaseTypes.h"
 
 #define CISDI_3DModel_Subfix_Str ".cisdi"
+#define CISDI_3DModel_Subfix_WStr L".cisdi"
 
 // #ifdef USING_NVIDIA_GPU
 #define MESHLET_MAX_VERTEX_COUNT 64
