@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <vulkan/vulkan.hpp>
+
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/Device.h"
@@ -14,8 +16,6 @@
 #include "Core/Vulkan/Native/Sampler.h"
 #include "Core/Vulkan/Native/Surface.h"
 #include "Core/Vulkan/Native/SyncStructures.h"
-
-#include <vulkan/vulkan.hpp>
 
 class SDLWindow;
 

@@ -6,6 +6,7 @@
 
 #include <SDL2/SDL_events.h>
 #include <SDL_timer.h>
+
 #include "Core/Utilities/Defines.h"
 
 /**

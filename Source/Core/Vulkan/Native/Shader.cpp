@@ -1,14 +1,14 @@
 #include "Shader.h"
 
-#include "Core/Utilities/Defines.h"
-#include "Core/Vulkan/Manager/VulkanContext.h"
+#include <regex>
+#include <sstream>
+#include <stdexcept>
 
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>
 
-#include <regex>
-#include <sstream>
-#include <stdexcept>
+#include "Core/Utilities/Defines.h"
+#include "Core/Vulkan/Manager/VulkanContext.h"
 
 namespace {
 

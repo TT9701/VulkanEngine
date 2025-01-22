@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Core/Utilities/Defines.h"
-#include "Core/Utilities/MemoryPool.h"
-
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
+
+#include "Core/Utilities/Defines.h"
+#include "Core/Utilities/MemoryPool.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 class VulkanContext;

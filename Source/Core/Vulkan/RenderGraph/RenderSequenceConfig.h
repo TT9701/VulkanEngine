@@ -1,12 +1,11 @@
 #pragma once
 
+#include <optional>
+
 #include "ArgumentTypes.h"
-#include "Core/Utilities/Functor.hpp"
 #include "Core/Vulkan/Native/Buffer.h"
 #include "RenderPassBindingInfo.h"
 #include "RenderSequence.h"
-
-#include <optional>
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

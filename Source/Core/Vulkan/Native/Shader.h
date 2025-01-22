@@ -1,14 +1,13 @@
 #pragma once
 
 #include <mutex>
+#include <optional>
 
 #include <vulkan/vulkan.hpp>
 
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/Descriptors.h"
-
-#include <optional>
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

@@ -1,13 +1,13 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-#include "backends/imgui_impl_sdl2.h"
-#include "backends/imgui_impl_vulkan.h"
-#include "imgui.h"
-
 #include <array>
 #include <functional>
 #include <vector>
+
+#include <vulkan/vulkan.hpp>
+#include <backends/imgui_impl_sdl2.h>
+#include <backends/imgui_impl_vulkan.h>
+#include <imgui.h>
 
 class SDLWindow;
 

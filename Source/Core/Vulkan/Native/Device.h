@@ -1,10 +1,10 @@
 #pragma once
 
+#include <vulkan/vulkan.hpp>
+
 #include "Core/Utilities/Defines.h"
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/Queue.h"
-
-#include <vulkan/vulkan.hpp>
 
 namespace IntelliDesign_NS::Vulkan::Core {
 

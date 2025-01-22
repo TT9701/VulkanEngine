@@ -1,6 +1,6 @@
 #include "Camera.h"
 
-#include "glm/gtx/transform.hpp"
+#include <glm/gtx/transform.hpp>
 
 Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
     : mPosition(position),
