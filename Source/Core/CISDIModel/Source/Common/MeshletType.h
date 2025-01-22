@@ -9,7 +9,7 @@ enum class MeshletPropertyTypeEnum : uint8_t {
     Info,
     Triangle,
     BoundingBox,
-    Vertex, 
+    Vertex,
     Count
 };
 
@@ -28,7 +28,7 @@ struct MeshletPropertyType<MeshletPropertyTypeEnum::Triangle> {
 
 template <>
 struct MeshletPropertyType<MeshletPropertyTypeEnum::Vertex> {
-    using Type = Type_STLVector<Vertices>;
+    using Type = Type_STLVector<CISDI_Vertices>;
 };
 
 template <>
@@ -36,7 +36,7 @@ struct MeshletPropertyType<MeshletPropertyTypeEnum::BoundingBox> {
     using Type = Type_STLVector<AABoundingBox>;
 };
 
-struct Meshlets {
+struct CISDI_Meshlets {
     using Type_MeshletPropTuple =
         PropertyTuple<MeshletPropertyTypeEnum, MeshletPropertyType>;
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -10,7 +11,7 @@ namespace IntelliDesign_NS::ModelData {
 
 template <class T>
 using Type_STLVector = ::std::pmr::vector<T>;
-using Type_STLString = ::std::string;
+using Type_STLString = ::std::pmr::string;
 template <class T>
 using Type_STLUnorderedMap_String = std::pmr::unordered_map<Type_STLString, T>;
 
@@ -141,7 +142,7 @@ struct UserPropertyValueType<UserPropertyValueTypeEnum::Double> {
 
 template <>
 struct UserPropertyValueType<UserPropertyValueTypeEnum::String> {
-    using Type = ::std::string;
+    using Type = Type_STLString;
 };
 
 // vertice attributes
@@ -166,24 +167,6 @@ struct VertexAttributeType<VertexAttributeEnum::UV> {
     using Type = Type_STLVector<UInt16_2>;
 };
 
-struct Material {
-    enum class ShadingModel : uint32_t { Lambert = 0, Phong };
-
-    Type_STLString name {};
-
-    struct Data {
-        ShadingModel shadingModel {ShadingModel::Lambert};
-        float shininess {};
-        Float32_2 padding {};
-        Float32_4 ambient {};
-        Float32_4 diffuse {};
-        Float32_4 specular {};
-        Float32_4 emissive {};
-        Float32_4 reflection {};
-        Float32_4 transparency {};
-    } data;
-};
-
 // for internal use.
 struct InternalMeshData {
     Type_STLVector<Float32_3> positions;
@@ -193,14 +176,17 @@ struct InternalMeshData {
 
 // for internal use.
 struct InternalMeshlet {
-    Type_STLVector<MeshletInfo> infos {};
-    Type_STLVector<uint32_t> vertIndices {};
-    Type_STLVector<uint8_t> triangles {};
+    InternalMeshlet(::std::pmr::memory_resource* pMemPool)
+        : infos(pMemPool), vertIndices(pMemPool), triangles(pMemPool) {}
+
+    Type_STLVector<MeshletInfo> infos;
+    Type_STLVector<uint32_t> vertIndices;
+    Type_STLVector<uint8_t> triangles;
 };
 
 #define DeclType_BasedOnEnum(T, UsingType, EnumType, EnumCount, TypeStruct)   \
     using UnderLyingType_##EnumType = ::std::underlying_type_t<EnumType>;     \
-    template <size_t... Indices>                           \
+    template <UnderLyingType_##EnumType... Indices>                           \
     static auto DeclType_##UsingType(                                         \
         ::std::index_sequence<Indices...> const&) {                           \
         return T<                                                             \

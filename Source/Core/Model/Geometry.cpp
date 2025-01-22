@@ -7,12 +7,13 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Geometry::Geometry(const char* path, bool flipYZ, const char* output)
+Geometry::Geometry(const char* path, ::std::pmr::memory_resource* pMemPool,
+                   bool flipYZ, const char* output)
     : mFlipYZ(flipYZ),
       mPath(path),
       mDirectory(::std::filesystem::path {mPath}.remove_filename()),
-      mName(mPath.stem().generic_string()) {
-    LoadModel(output);
+      mName(mPath.stem().generic_string()),
+      mModelData(LoadModel(output, pMemPool)) {
     GenerateStats();
 }
 
@@ -53,6 +54,7 @@ template <ModelData::MeshletPropertyTypeEnum Enum>
 auto ExtractMeshletProperty(ModelData::CISDI_3DModel const& modelData,
                             uint32_t count) {
     using Type = typename ModelData::MeshletPropertyType<Enum>::Type;
+
     Type tmp {};
     tmp.reserve(count);
     for (auto const& mesh : modelData.meshes) {
@@ -132,7 +134,6 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
 
     // aabb data buffer
     {
-        uint32_t aabbSize = sizeof(ModelData::AABoundingBox);
         uint32_t meshCount = mModelData.meshes.size();
 
         ::std::vector<ModelData::AABoundingBox> tmp;
@@ -154,12 +155,13 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
         mMeshletConstants.mBoundingBoxBufAddr =
             mBuffers.mBoundingBoxBuf->GetDeviceAddress();
         mMeshletConstants.mMeshletBoundingBoxBufAddr =
-            mMeshletConstants.mBoundingBoxBufAddr + aabbSize * (meshCount + 1);
+            mMeshletConstants.mBoundingBoxBufAddr
+            + sizeof(ModelData::AABoundingBox) * (meshCount + 1);
     }
 
     // material data buffer
     {
-        ::std::vector<ModelData::Material::Data> datas {};
+        ::std::vector<ModelData::CISDI_Material::Data> datas {};
         datas.reserve(mModelData.materials.size());
         for (auto const& material : mModelData.materials) {
             datas.push_back(material.data);
@@ -277,15 +279,24 @@ Buffer* Geometry::GetMeshTaskIndirectCmdBuffer() const {
     return mMeshTaskIndirectCmdBuffer.get();
 }
 
-void Geometry::LoadModel(const char* output) {
+ModelData::CISDI_3DModel Geometry::LoadModel(
+    const char* output, ::std::pmr::memory_resource* pMemPool) {
     auto modelPath = mPath.string();
-    auto cisdiModelPath = modelPath + CISDI_3DModel_Subfix_Str;
-    if (::std::filesystem::exists(cisdiModelPath)) {
-        mModelData = IntelliDesign_NS::ModelData::Load(cisdiModelPath.c_str());
-    } else {
-        mModelData = IntelliDesign_NS::ModelData::Convert(modelPath.c_str(),
-                                                          mFlipYZ, output);
+
+    if (mPath.extension() == CISDI_3DModel_Subfix_Str) {
+        return IntelliDesign_NS::ModelData::Load(mPath.string().c_str(),
+                                                 pMemPool);
     }
+
+    auto cisdiModelPath = modelPath + CISDI_3DModel_Subfix_Str;
+
+    if (::std::filesystem::exists(cisdiModelPath)) {
+        return IntelliDesign_NS::ModelData::Load(cisdiModelPath.c_str(),
+                                                 pMemPool);
+    }
+
+    return IntelliDesign_NS::ModelData::Convert(modelPath.c_str(), mFlipYZ,
+                                                pMemPool, output);
 }
 
 void Geometry::GenerateStats() {

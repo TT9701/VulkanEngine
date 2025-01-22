@@ -8,6 +8,8 @@ set (MODEL_SRC
     Source/Common/Math.h
     Source/Common/BaseTypes.h
     Source/Common/MeshletType.h
+    Source/Common/FileIO.h
+    Source/Common/FileIO.cpp
     Source/CISDI_3DModelData.cpp
     Source/Importer/FBX_Importer.h
     Source/Importer/FBX_Importer.cpp

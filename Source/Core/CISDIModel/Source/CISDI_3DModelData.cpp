@@ -1,39 +1,13 @@
 #include "CISDI_3DModelData.h"
 
-#include <filesystem>
-#include <fstream>
-#include <string>
-
 #include <meshoptimizer.h>
 
+#include "Source/Common/FileIO.h"
+#include "Source/Common/Math.h"
 #include "Source/Importer/Assimp_Importer.h"
 #include "Source/Importer/FBX_Importer.h"
 
 namespace IntelliDesign_NS::ModelData {
-
-Type_STLString ProcessOutputPath(const char* input, const char* output) {
-    auto inPath = ::std::filesystem::path(input);
-    ::std::filesystem::path outputPath;
-
-    if (inPath.extension() == CISDI_3DModel_Subfix_Str) {
-        return inPath.string();
-    }
-
-    if (!output) {
-        outputPath = inPath.string().append(CISDI_3DModel_Subfix_Str);
-    } else {
-        outputPath = ::std::filesystem::canonical(output);
-        if (::std::filesystem::is_directory(outputPath)) {
-            outputPath = outputPath.wstring().append(L"/").append(
-                inPath.wstring().append(CISDI_3DModel_Subfix_WStr));
-        } else {
-            throw ::std::runtime_error(
-                "ERROR::CISDI_3DMODELDATA::CONVERT: Output is not a "
-                "directory!");
-        }
-    }
-    return outputPath.string();
-}
 
 void RemapIndex(InternalMeshData& tmpMeshVertices,
                 Type_STLVector<uint32_t>& tmpIndices) {
@@ -172,10 +146,12 @@ void BuildMeshlet(InternalMeshlet& meshlet,
     }
 }
 
-void BuildMeshletDatas(Type_STLVector<InternalMeshlet>& tmpMeshlets,
-                       Type_STLVector<InternalMeshData>& tmpVertices,
-                       Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
-    tmpMeshlets.resize(tmpVertices.size());
+void BuildMeshletDatas(
+    Type_STLVector<InternalMeshlet>& tmpMeshlets,
+    Type_STLVector<InternalMeshData> const& tmpVertices,
+    Type_STLVector<Type_STLVector<uint32_t>> const& tmpIndices,
+    ::std::pmr::memory_resource* pMemPool) {
+    tmpMeshlets.resize(tmpVertices.size(), pMemPool);
     for (uint32_t i = 0; i < tmpVertices.size(); ++i) {
         BuildMeshlet(tmpMeshlets[i], tmpVertices[i], tmpIndices[i]);
     }
@@ -240,22 +216,24 @@ void Generate_CISDIModel_Meshlets(
 }
 
 void Generate_CISDIModel_MeshletBoundingBoxes(
-    CISDI_3DModel& data, Type_STLVector<InternalMeshData>& tmpVertices) {
+    CISDI_3DModel& data, Type_STLVector<InternalMeshData> const& tmpVertices,
+    ::std::pmr::memory_resource* pMemPool) {
     for (uint32_t i = 0; i < data.meshes.size(); ++i) {
         auto& mesh = data.meshes[i];
-        auto& tmpPosVec = tmpVertices[i].positions;
+        auto const& tmpPosVec = tmpVertices[i].positions;
 
-        auto& infos = mesh.meshlets.properties
-                          .GetProperty<MeshletPropertyTypeEnum::Info>();
+        auto const& infos = mesh.meshlets.properties
+                                .GetProperty<MeshletPropertyTypeEnum::Info>();
 
         auto& boundingBoxes =
             mesh.meshlets.properties
                 .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
-        boundingBoxes.resize(mesh.header.meshletCount);
+        boundingBoxes =
+            Type_STLVector<AABoundingBox>(mesh.header.meshletCount, pMemPool);
 
         // meshlet bounding box
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
-            auto& info = infos[j];
+            auto const& info = infos[j];
 
             AABoundingBox bb {};
             for (uint32_t k = 0; k < info.vertexCount; ++k) {
@@ -278,7 +256,8 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
 }
 
 void Generate_CISDIModel_PackedVertices(
-    CISDI_3DModel& data, Type_STLVector<InternalMeshData> const& tmpVertices) {
+    CISDI_3DModel& data, Type_STLVector<InternalMeshData> const& tmpVertices,
+    ::std::pmr::memory_resource* pMemPool) {
     for (uint32_t i = 0; i < data.header.meshCount; ++i) {
         auto& mesh = data.meshes[i];
         auto const& tmpMeshVertices = tmpVertices[i];
@@ -287,30 +266,36 @@ void Generate_CISDIModel_PackedVertices(
 
         auto& vertices = mesh.meshlets.properties
                              .GetProperty<MeshletPropertyTypeEnum::Vertex>();
+
         vertices.resize(mesh.header.meshletCount);
 
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
-            auto& info = mesh.meshlets.properties
-                             .GetProperty<MeshletPropertyTypeEnum::Info>()[j];
-            auto vertCount = info.vertexCount;
+            auto vertCount =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Info>()[j]
+                    .vertexCount;
+
             vertices[j]
-                .attributes.GetProperty<VertexAttributeEnum::Position>()
-                .resize(vertCount);
-            vertices[j]
-                .attributes.GetProperty<VertexAttributeEnum::Normal>()
-                .resize(vertCount);
-            vertices[j]
-                .attributes.GetProperty<VertexAttributeEnum::UV>()
-                .resize(vertCount);
+                .attributes.GetProperty<VertexAttributeEnum::Position>() =
+                Type_STLVector<UInt16_3>(vertCount, pMemPool);
+
+            vertices[j].attributes.GetProperty<VertexAttributeEnum::Normal>() =
+                Type_STLVector<Int16_2>(vertCount, pMemPool);
+
+            vertices[j].attributes.GetProperty<VertexAttributeEnum::UV>() =
+                Type_STLVector<UInt16_2>(vertCount, pMemPool);
         }
 
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
-            auto& info = mesh.meshlets.properties
-                             .GetProperty<MeshletPropertyTypeEnum::Info>()[j];
+            auto const& info =
+                mesh.meshlets.properties
+                    .GetProperty<MeshletPropertyTypeEnum::Info>()[j];
+
             auto& meshletVertices =
                 mesh.meshlets.properties
                     .GetProperty<MeshletPropertyTypeEnum::Vertex>()[j];
-            auto& bb =
+
+            auto const& bb =
                 mesh.meshlets.properties
                     .GetProperty<MeshletPropertyTypeEnum::BoundingBox>()[j];
 
@@ -367,369 +352,52 @@ void Generate_CISDIModel_PackedVertices(
     }
 }
 
-void WriteDataHeader(std::ofstream& ofs, CISDI_3DModel::Header header) {
-    ofs.write((char*)&header, sizeof(header));
-}
+CISDI_3DModel::CISDI_3DModel(std::pmr::memory_resource* pMemPool)
+    : name(pMemPool), nodes(pMemPool), meshes(pMemPool), materials(pMemPool) {}
 
-void WriteString(std::ofstream& ofs, const char* str) {
-    size_t nameLen = strlen(str);
-    ofs.write((char*)&nameLen, sizeof(nameLen));
-    ofs.write(str, nameLen);
-}
-
-void WriteNodeUserProperties(std::ofstream& ofs,
-                             CISDI_3DModel::Node const& node) {
-    assert(node.userPropertyCount == node.userProperties.size());
-    ofs.write((char*)&node.userPropertyCount, sizeof(node.userPropertyCount));
-    for (auto const& prop : node.userProperties) {
-        WriteString(ofs, prop.first.c_str());
-
-        ::std::underlying_type_t<UserPropertyValueTypeEnum> type =
-            prop.second.index();
-        ofs.write((char*)&type, sizeof(type));
-
-        ::std::visit(
-            [&](auto&& v) {
-                using T = std::decay_t<decltype(v)>;
-                if constexpr (::std::is_same_v<T, ::std::string>) {
-                    WriteString(ofs, v.c_str());
-                } else {
-                    ofs.write((char*)&v, sizeof(v));
-                }
-            },
-            prop.second);
-    }
-}
-
-void WriteNodes(std::ofstream& ofs,
-                Type_STLVector<CISDI_3DModel::Node> const& nodes) {
-    for (auto const& node : nodes) {
-        WriteString(ofs, node.name.c_str());
-        auto offset = strlen(node.name.c_str());
-        ofs.write((char*)&node.meshIdx, sizeof(uint32_t) * 4);
-        if (node.childCount > 0)
-            ofs.write((char*)node.childrenIdx.data(),
-                      sizeof(node.childrenIdx[0]) * node.childCount);
-
-        WriteNodeUserProperties(ofs, node);
-    }
-}
-
-void WriteMeshHeader(std::ofstream& ofs,
-                     CISDI_3DModel::Mesh::MeshHeader const& meshHeader) {
-    ofs.write((char*)&meshHeader, sizeof(meshHeader));
-}
-
-void WriteBoundingBox(std::ofstream& ofs, AABoundingBox const& box) {
-    ofs.write((char*)&box, sizeof(box));
-}
-
-void WriteMeshes(std::ofstream& ofs,
-                 Type_STLVector<CISDI_3DModel::Mesh> const& meshes) {
-    for (auto const& mesh : meshes) {
-        WriteMeshHeader(ofs, mesh.header);
-
-        // TODO: other attributes
-
-        // meshlet datas
-        if (mesh.header.meshletCount > 0) {
-            auto const& infos =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Info>();
-            ofs.write((char*)infos.data(),
-                      sizeof(infos[0]) * mesh.header.meshletCount);
-        }
-
-        if (mesh.header.meshletTriangleCount > 0) {
-            auto const& triangles =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Triangle>();
-            ofs.write((char*)triangles.data(),
-                      sizeof(triangles[0]) * mesh.header.meshletTriangleCount);
-        }
-
-        for (uint32_t i = 0; i < mesh.header.meshletCount; ++i) {
-            auto const& vertices =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Vertex>()[i];
-
-            auto const& vertCount =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Info>()[i]
-                    .vertexCount;
-
-            auto const& vertPositions =
-                vertices.attributes
-                    .GetProperty<VertexAttributeEnum::Position>();
-
-            auto const& vertNormals =
-                vertices.attributes.GetProperty<VertexAttributeEnum::Normal>();
-
-            auto const& vertUVs =
-                vertices.attributes.GetProperty<VertexAttributeEnum::UV>();
-
-            ofs.write((char*)vertPositions.data(),
-                      sizeof(vertPositions[0]) * vertCount);
-
-            ofs.write((char*)vertNormals.data(),
-                      sizeof(vertNormals[0]) * vertCount);
-
-            ofs.write((char*)vertUVs.data(), sizeof(vertUVs[0]) * vertCount);
-        }
-
-        if (mesh.header.meshletCount > 0) {
-            auto const& boundingBoxes =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
-            ofs.write((char*)boundingBoxes.data(),
-                      sizeof(boundingBoxes[0]) * mesh.header.meshletCount);
-        }
-
-        // bounding box
-        WriteBoundingBox(ofs, mesh.boundingBox);
-    }
-}
-
-void WriteMaterial(std::ofstream& ofs,
-                   Type_STLVector<Material> const& materials) {
-    for (auto const& material : materials) {
-        WriteString(ofs, material.name.c_str());
-        ofs.write((char*)&material.data, sizeof(material.data));
-    }
-}
-
-void WriteFile(const char* outputPath, CISDI_3DModel const& data) {
-    ::std::ofstream out(outputPath, ::std::ios::out | ::std::ios::binary);
-
-    if (!out.is_open()) {
-        throw ::std::runtime_error(
-            (Type_STLString("fail to open file: ") + outputPath).c_str());
-    }
-
-    WriteDataHeader(out, data.header);
-    WriteString(out, data.name.c_str());
-    WriteNodes(out, data.nodes);
-    WriteMeshes(out, data.meshes);
-    WriteMaterial(out, data.materials);
-    WriteBoundingBox(out, data.boundingBox);
-}
-
-CISDI_3DModel Convert(const char* path, bool flipYZ, const char* output) {
+CISDI_3DModel Convert(const char* path, bool flipYZ,
+                      ::std::pmr::memory_resource* pMemPool,
+                      const char* output) {
     auto outputPath = ProcessOutputPath(path, output);
 
-    CISDI_3DModel data {};
+    CISDI_3DModel data {pMemPool};
 
     // process input model file
     {
-        Type_STLVector<InternalMeshData> tmpVertices {};
-        Type_STLVector<Type_STLVector<uint32_t>> tmpIndices {};
-        Type_STLVector<InternalMeshlet> tmpMeshlets {};
+        Type_STLVector<InternalMeshData> tmpVertices {pMemPool};
+        Type_STLVector<Type_STLVector<uint32_t>> tmpIndices {pMemPool};
+        Type_STLVector<InternalMeshlet> tmpMeshlets {pMemPool};
 
         if (::std::filesystem::path(path).extension() == ".fbx"
             || ::std::filesystem::path(path).extension() == ".FBX") {
             data = IntelliDesign_NS::ModelImporter::FBXSDK::Convert(
-                path, flipYZ, tmpVertices, tmpIndices);
+                path, flipYZ, tmpVertices, tmpIndices, pMemPool);
             RemapIndex(tmpVertices, tmpIndices);
         } else {
             data = IntelliDesign_NS::ModelImporter::Assimp::Convert(
-                path, flipYZ, tmpVertices, tmpIndices);
+                path, flipYZ, tmpVertices, tmpIndices, pMemPool);
         }
 
         OptimizeData(tmpVertices, tmpIndices);
 
-        BuildMeshletDatas(tmpMeshlets, tmpVertices, tmpIndices);
+        BuildMeshletDatas(tmpMeshlets, tmpVertices, tmpIndices, pMemPool);
 
         GenerateMeshletVertices(tmpMeshlets, tmpVertices);
 
         Generate_CISDIModel_Meshlets(data, tmpMeshlets);
 
-        Generate_CISDIModel_MeshletBoundingBoxes(data, tmpVertices);
+        Generate_CISDIModel_MeshletBoundingBoxes(data, tmpVertices, pMemPool);
 
-        Generate_CISDIModel_PackedVertices(data, tmpVertices);
+        Generate_CISDIModel_PackedVertices(data, tmpVertices, pMemPool);
     }
 
-    WriteFile(outputPath.c_str(), data);
+    Write_CISDI_File(outputPath.c_str(), data);
 
     return data;
 }
 
-void ReadString(::std::ifstream& in, Type_STLString& str) {
-    size_t nameLen;
-    in.read((char*)&nameLen, sizeof(nameLen));
-    str.resize(nameLen);
-    in.read(str.data(), nameLen);
-}
-
-CISDI_3DModel Load(const char* path) {
-    ::std::ifstream in(path, ::std::ios::binary);
-    if (!in.is_open()) {
-        throw ::std::runtime_error(
-            (Type_STLString("fail to open file: ") + path).c_str());
-    }
-
-    CISDI_3DModel data {};
-
-    // Header check
-    in.read((char*)&data, sizeof(data.header));
-    if (CISDI_3DModel_HEADER_UINT64 != data.header.header) {
-        throw ::std::runtime_error(
-            (Type_STLString("ERROR::CISDI_3DModel::Convert ") + path).c_str());
-    }
-
-    // TODO: Version Check
-
-    // read name
-    ReadString(in, data.name);
-
-    // read node
-    data.nodes.resize(data.header.nodeCount);
-    for (auto& node : data.nodes) {
-        ReadString(in, node.name);
-        in.read((char*)&node.meshIdx, sizeof(uint32_t) * 4);
-        if (node.childCount > 0) {
-            node.childrenIdx.resize(node.childCount);
-            in.read((char*)node.childrenIdx.data(),
-                    sizeof(node.childrenIdx[0]) * node.childCount);
-        }
-        in.read((char*)&node.userPropertyCount, sizeof(node.userPropertyCount));
-        for (uint32_t i = 0; i < node.userPropertyCount; ++i) {
-            Type_STLString key;
-            ReadString(in, key);
-
-            UserPropertyValueTypeEnum type {};
-
-            in.read((char*)&type, sizeof(type));
-
-            switch (type) {
-                case UserPropertyValueTypeEnum::Bool: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::Bool>::Type
-                        value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::Char: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::Char>::Type
-                        value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::UChar: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::UChar>::Type value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::Int: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::Int>::Type
-                        value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::UInt: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::UInt>::Type
-                        value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::LongLong: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::LongLong>::Type value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::ULongLong: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::ULongLong>::Type value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::Float: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::Float>::Type value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::Double: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::Double>::Type value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::String: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::String>::Type value;
-                    ReadString(in, value);
-                    node.userProperties[key] = value;
-                } break;
-            }
-        }
-    }
-
-    // read mesh
-    data.meshes.resize(data.header.meshCount);
-    for (auto& mesh : data.meshes) {
-        in.read((char*)&mesh.header, sizeof(mesh.header));
-
-        // TODO: other attributes
-        auto& infos = mesh.meshlets.properties
-                          .GetProperty<MeshletPropertyTypeEnum::Info>();
-
-        infos.resize(mesh.header.meshletCount);
-        in.read((char*)infos.data(),
-                sizeof(infos[0]) * mesh.header.meshletCount);
-
-        auto& triangles = mesh.meshlets.properties
-                              .GetProperty<MeshletPropertyTypeEnum::Triangle>();
-        triangles.resize(mesh.header.meshletTriangleCount);
-        in.read((char*)triangles.data(),
-                sizeof(triangles[0]) * mesh.header.meshletTriangleCount);
-
-        auto& vertices = mesh.meshlets.properties
-                             .GetProperty<MeshletPropertyTypeEnum::Vertex>();
-        vertices.resize(mesh.header.meshletCount);
-        for (uint32_t i = 0; i < mesh.header.meshletCount; ++i) {
-            auto vertCount = infos[i].vertexCount;
-            auto& vertPostions =
-                vertices[i]
-                    .attributes.GetProperty<VertexAttributeEnum::Position>();
-            auto& vertNormals =
-                vertices[i]
-                    .attributes.GetProperty<VertexAttributeEnum::Normal>();
-            auto& vertUVs =
-                vertices[i].attributes.GetProperty<VertexAttributeEnum::UV>();
-
-            vertPostions.resize(vertCount);
-            in.read((char*)vertPostions.data(),
-                    sizeof(vertPostions[0]) * vertCount);
-
-            vertNormals.resize(vertCount);
-            in.read((char*)vertNormals.data(),
-                    sizeof(vertNormals[0]) * vertCount);
-
-            vertUVs.resize(vertCount);
-            in.read((char*)vertUVs.data(), sizeof(vertUVs[0]) * vertCount);
-        }
-
-        auto& boundingBoxes =
-            mesh.meshlets.properties
-                .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
-        boundingBoxes.resize(mesh.header.meshletCount);
-        in.read((char*)boundingBoxes.data(),
-                sizeof(boundingBoxes[0]) * mesh.header.meshletCount);
-
-        in.read((char*)&mesh.boundingBox, sizeof(mesh.boundingBox));
-    }
-
-    // read material
-    data.materials.resize(data.header.materialCount);
-    for (auto& mat : data.materials) {
-        ReadString(in, mat.name);
-        in.read((char*)&mat.data, sizeof(mat.data));
-    }
-
-    in.read((char*)&data.boundingBox, sizeof(data.boundingBox));
-
-    return data;
+CISDI_3DModel Load(const char* path, ::std::pmr::memory_resource* pMemPool) {
+    return Read_CISDI_File(path, pMemPool);
 }
 
 }  // namespace IntelliDesign_NS::ModelData

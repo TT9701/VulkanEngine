@@ -1,8 +1,8 @@
 #pragma once
 
-#include "BaseTypes.h"
-
 #include <cmath>
+
+#include "BaseTypes.h"
 
 namespace IntelliDesign_NS::ModelData {
 
@@ -60,11 +60,21 @@ inline int16_t PackSnorm16(float v) {
     return packed;
 }
 
-inline float UnpackSnorm16(int16_t p) {
-    // p / 32767.0f,
-    return Clamp(static_cast<float>(p) * 3.0518509475997192297128208258309e-5f,
-                 -1.0f, 1.0f);
-}
+/* Unpack in shader
+ * Here are examples in glsl:
+    float UnpackUnorm16(uint16_t value)
+    {
+	    // value / 65535.0
+	    return float(value) * 1.5259021896696421759365224689097e-5;
+    }
+
+    float UnpackSnorm16(int16_t value)
+    {
+	    // value / 32767.0
+	    return clamp(
+	    float(value) * 3.0518509475997192297128208258309e-5, -1.0, 1.0);
+    }
+ */
 
 inline Float32_2 ClampTexCoords(Float32_2 texCoords) {
     texCoords.x = Clamp(texCoords.x, 0.0f, 1.0f);
@@ -92,21 +102,23 @@ inline Float32_2 MirrorTexCoords(Float32_2 texCoords) {
 }
 
 inline void UpdateAABB(AABoundingBox& aabb, Float32_3 pos) {
-    aabb.min.x = std::min(aabb.min.x, pos.x);
-    aabb.min.y = std::min(aabb.min.y, pos.y);
-    aabb.min.z = std::min(aabb.min.z, pos.z);
-    aabb.max.x = std::max(aabb.max.x, pos.x);
-    aabb.max.y = std::max(aabb.max.y, pos.y);
-    aabb.max.z = std::max(aabb.max.z, pos.z);
+    aabb.min.x = aabb.min.x < pos.x ? aabb.min.x : pos.x;
+    aabb.min.y = aabb.min.y < pos.y ? aabb.min.y : pos.y;
+    aabb.min.z = aabb.min.z < pos.z ? aabb.min.z : pos.z;
+
+    aabb.max.x = aabb.max.x > pos.x ? aabb.max.x : pos.x;
+    aabb.max.y = aabb.max.y > pos.y ? aabb.max.y : pos.y;
+    aabb.max.z = aabb.max.z > pos.z ? aabb.max.z : pos.z;
 }
 
 inline void UpdateAABB(AABoundingBox& aabb, AABoundingBox const& other) {
-    aabb.min.x = std::min(aabb.min.x, other.min.x);
-    aabb.min.y = std::min(aabb.min.y, other.min.y);
-    aabb.min.z = std::min(aabb.min.z, other.min.z);
-    aabb.max.x = std::max(aabb.max.x, other.max.x);
-    aabb.max.y = std::max(aabb.max.y, other.max.y);
-    aabb.max.z = std::max(aabb.max.z, other.max.z);
+    aabb.min.x = aabb.min.x < other.min.x ? aabb.min.x : other.min.x;
+    aabb.min.y = aabb.min.y < other.min.y ? aabb.min.y : other.min.y;
+    aabb.min.z = aabb.min.z < other.min.z ? aabb.min.z : other.min.z;
+
+    aabb.max.x = aabb.max.x > other.max.x ? aabb.max.x : other.max.x;
+    aabb.max.y = aabb.max.y > other.max.y ? aabb.max.y : other.max.y;
+    aabb.max.z = aabb.max.z > other.max.z ? aabb.max.z : other.max.z;
 }
 
 inline Float32_3 GetAABBCenter(AABoundingBox const& aabb) {

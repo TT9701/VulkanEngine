@@ -1,16 +1,17 @@
 ﻿#include "FBX_Importer.h"
 
-#include "CISDI_3DModelData.h"
-#include "Source/Common/Common.h"
-
-#include <fbxsdk.h>
-
 #include <cassert>
+
 #include <codecvt>
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <string>
+
+#include <fbxsdk.h>
+
+#include "CISDI_3DModelData.h"
+#include "Source/Common/Common.h"
 
 using namespace IntelliDesign_NS::ModelData;
 
@@ -55,9 +56,177 @@ void InitializeSdkObjects(FbxManager*& pManager, FbxScene*& pScene) {
     }
 }
 
+void ImportScene(const char* path, FbxManager* pManager, FbxScene* pScene) {
+    FbxImporter* lImporter = FbxImporter::Create(pManager, "");
+
+    if (!lImporter->Initialize(path, -1, pManager->GetIOSettings())) {
+        printf("Call to FbxImporter::Initialize() failed.\n");
+        printf("Error returned: %s\n\n",
+               lImporter->GetStatus().GetErrorString());
+        exit(-1);
+    }
+
+    if (lImporter->Import(pScene)) {
+        // Check the scene integrity!
+        FbxStatus status;
+        FbxArray<FbxString*> details;
+        FbxSceneCheckUtility sceneCheck(FbxCast<FbxScene>(pScene), &status,
+                                        &details);
+        bool lNotify =
+            (!sceneCheck.Validate(FbxSceneCheckUtility::eCkeckData)
+             && details.GetCount() > 0)
+            || (lImporter->GetStatus().GetCode() != FbxStatus::eSuccess);
+        if (lNotify) {
+            printf("FbxImporter:\n");
+            if (details.GetCount()) {
+                printf(
+                    "Scene integrity verification failed with the following "
+                    "errors:\n");
+
+                for (int i = 0; i < details.GetCount(); i++)
+                    printf("   %s\n", details[i]->Buffer());
+
+                FbxArrayDelete<FbxString*>(details);
+            }
+
+            if (lImporter->GetStatus().GetCode() != FbxStatus::eSuccess) {
+                printf("\nWARNING:\n");
+                printf(
+                    "   The importer was able to read the file but with "
+                    "errors.\n");
+                printf("   Loaded scene may be incomplete.\n\n");
+                printf("   Last error message:'%s'\n",
+                       lImporter->GetStatus().GetErrorString());
+            }
+        }
+    }
+
+    lImporter->Destroy();
+}
+
+/**
+ * @brief Change axis system, system scale factor. Triangulate.
+ * @param pManager 
+ * @param pScene 
+ */
+void ModifyGeometry(FbxManager* pManager, FbxScene* pScene) {
+    FbxAxisSystem SceneAxisSystem = pScene->GetGlobalSettings().GetAxisSystem();
+    FbxAxisSystem OurAxisSystem(FbxAxisSystem::eYAxis,
+                                FbxAxisSystem::eParityOdd,
+                                FbxAxisSystem::eRightHanded);
+    if (SceneAxisSystem != OurAxisSystem) {
+        OurAxisSystem.ConvertScene(pScene);
+    }
+
+    FbxSystemUnit SceneSystemUnit = pScene->GetGlobalSettings().GetSystemUnit();
+    if (SceneSystemUnit.GetScaleFactor() != 1.0) {
+        FbxSystemUnit::cm.ConvertScene(pScene);
+    }
+
+    // Convert mesh, NURBS and patch into triangle mesh
+    FbxGeometryConverter lGeomConverter(pManager);
+    try {
+        lGeomConverter.Triangulate(pScene, true);
+    } catch (std::runtime_error&) {
+        FBXSDK_printf("Scene integrity verification failed.\n");
+    }
+}
+
 void DestroySdkObjects(FbxManager* pManager) {
     if (pManager)
         pManager->Destroy();
+}
+
+::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
+
+void ExtractMaterials(FbxScene* pScene,
+                      Type_STLVector<CISDI_Material>& materials,
+                      ::std::pmr::memory_resource* pMemPool) {
+    materialIdxMap.clear();
+
+    for (int i = 0; i < pScene->GetMaterialCount(); ++i) {
+        FbxSurfaceMaterial* lMaterial = pScene->GetMaterial(i);
+        materialIdxMap.emplace(lMaterial, i);
+
+        CISDI_Material cisdiMaterial {pMemPool};
+        cisdiMaterial.name = lMaterial->GetName();
+
+        if (lMaterial->GetClassId().Is(FbxSurfacePhong::ClassId)) {
+            cisdiMaterial.data.shadingModel =
+                CISDI_Material::ShadingModel::Phong;
+
+            auto lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Ambient;
+            cisdiMaterial.data.ambient = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->AmbientFactor};
+
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Diffuse;
+            cisdiMaterial.data.diffuse = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->DiffuseFactor};
+
+            // TODO: how to deal with specular?
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Specular;
+            cisdiMaterial.data.specular = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->SpecularFactor};
+
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Emissive;
+            cisdiMaterial.data.emissive = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->EmissiveFactor};
+
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->TransparentColor;
+            cisdiMaterial.data.transparency = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->TransparencyFactor};
+
+            // TODO: how to deal with Shininess?
+            float shininess = ((FbxSurfacePhong*)lMaterial)->Shininess;
+            cisdiMaterial.data.shininess = shininess;
+
+            // TODO: how to deal with Reflectivity?
+            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Reflection;
+            cisdiMaterial.data.reflection = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->ReflectionFactor};
+
+        } else if (lMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId)) {
+            cisdiMaterial.data.shadingModel =
+                CISDI_Material::ShadingModel::Lambert;
+
+            auto lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Ambient;
+            cisdiMaterial.data.ambient = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->AmbientFactor};
+
+            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Diffuse;
+            cisdiMaterial.data.diffuse = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->DiffuseFactor};
+
+            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Emissive;
+            cisdiMaterial.data.emissive = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfacePhong*)lMaterial)->EmissiveFactor};
+
+            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->TransparentColor;
+            cisdiMaterial.data.transparency = Float32_4 {
+                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
+                (float)lKFbxDouble3.Get()[2],
+                (float)((FbxSurfaceLambert*)lMaterial)->TransparencyFactor};
+        }
+        materials.emplace_back(::std::move(cisdiMaterial));
+    }
 }
 
 int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
@@ -143,6 +312,7 @@ int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
                 } break;
             }
 
+            // UVs
             if (pMesh->GetElementUVCount() < 1)
                 continue;
             auto leUV = pMesh->GetElementUV();
@@ -191,10 +361,7 @@ int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
     return meshIdx;
 }
 
-::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
-
-void ProcessUserDefinedProperties(FbxNode* pNode,
-                                  CISDI_3DModel::Node& cisdiNode) {
+void ProcessUserDefinedProperties(FbxNode* pNode, CISDI_Node& cisdiNode) {
     if (!pNode)
         return;
 
@@ -257,11 +424,12 @@ void ProcessUserDefinedProperties(FbxNode* pNode,
 }
 
 int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
-                bool flipYZ, Type_STLVector<InternalMeshData>& tmpVertices) {
+                bool flipYZ, Type_STLVector<InternalMeshData>& tmpVertices,
+                ::std::pmr::memory_resource* pMemPool) {
     int nodeIdx = (int)data.nodes.size();
     int childCount = pNode->GetChildCount();
 
-    CISDI_3DModel::Node cisdiNode {};
+    CISDI_Node cisdiNode {pMemPool};
     cisdiNode.name = pNode->GetName();
     cisdiNode.parentIdx = parentNodeIdx;
     cisdiNode.childCount = childCount;
@@ -292,8 +460,8 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
     auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
 
     for (int i = 0; i < childCount; i++) {
-        ref.childrenIdx.emplace_back(ProcessNode(pNode->GetChild(i), nodeIdx,
-                                                 data, flipYZ, tmpVertices));
+        ref.childrenIdx.emplace_back(ProcessNode(
+            pNode->GetChild(i), nodeIdx, data, flipYZ, tmpVertices, pMemPool));
     }
 
     return nodeIdx;
@@ -303,88 +471,17 @@ int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
 
 CISDI_3DModel Convert(const char* path, bool flipYZ,
                       Type_STLVector<InternalMeshData>& tmpVertices,
-                      Type_STLVector<Type_STLVector<uint32_t>>& outIndices) {
-    CISDI_3DModel data {};
+                      Type_STLVector<Type_STLVector<uint32_t>>& outIndices,
+                      ::std::pmr::memory_resource* pMemPool) {
+    CISDI_3DModel data {pMemPool};
 
     FbxManager* lSdkManager;
     FbxScene* lScene;
+
     InitializeSdkObjects(lSdkManager, lScene);
 
-    FbxImporter* lImporter = FbxImporter::Create(lSdkManager, "");
-
-    if (!lImporter->Initialize(path, -1, lSdkManager->GetIOSettings())) {
-        printf("Call to FbxImporter::Initialize() failed.\n");
-        printf("Error returned: %s\n\n",
-               lImporter->GetStatus().GetErrorString());
-        exit(-1);
-    }
-
-    if (lImporter->Import(lScene)) {
-        // Check the scene integrity!
-        FbxStatus status;
-        FbxArray<FbxString*> details;
-        FbxSceneCheckUtility sceneCheck(FbxCast<FbxScene>(lScene), &status,
-                                        &details);
-        bool lNotify =
-            (!sceneCheck.Validate(FbxSceneCheckUtility::eCkeckData)
-             && details.GetCount() > 0)
-            || (lImporter->GetStatus().GetCode() != FbxStatus::eSuccess);
-        if (lNotify) {
-            FBXSDK_printf("\n");
-            FBXSDK_printf(
-                "**************************************************************"
-                "******************\n");
-            if (details.GetCount()) {
-                FBXSDK_printf(
-                    "Scene integrity verification failed with the following "
-                    "errors:\n");
-
-                for (int i = 0; i < details.GetCount(); i++)
-                    FBXSDK_printf("   %s\n", details[i]->Buffer());
-
-                FbxArrayDelete<FbxString*>(details);
-            }
-
-            if (lImporter->GetStatus().GetCode() != FbxStatus::eSuccess) {
-                FBXSDK_printf("\n");
-                FBXSDK_printf("WARNING:\n");
-                FBXSDK_printf(
-                    "   The importer was able to read the file but with "
-                    "errors.\n");
-                FBXSDK_printf("   Loaded scene may be incomplete.\n\n");
-                FBXSDK_printf("   Last error message:'%s'\n",
-                              lImporter->GetStatus().GetErrorString());
-            }
-
-            FBXSDK_printf(
-                "**************************************************************"
-                "******************\n");
-            FBXSDK_printf("\n");
-        }
-    }
-
-    lImporter->Destroy();
-
-    FbxAxisSystem SceneAxisSystem = lScene->GetGlobalSettings().GetAxisSystem();
-    FbxAxisSystem OurAxisSystem(FbxAxisSystem::eYAxis,
-                                FbxAxisSystem::eParityOdd,
-                                FbxAxisSystem::eRightHanded);
-    if (SceneAxisSystem != OurAxisSystem) {
-        OurAxisSystem.ConvertScene(lScene);
-    }
-
-    FbxSystemUnit SceneSystemUnit = lScene->GetGlobalSettings().GetSystemUnit();
-    if (SceneSystemUnit.GetScaleFactor() != 1.0) {
-        FbxSystemUnit::cm.ConvertScene(lScene);
-    }
-
-    // Convert mesh, NURBS and patch into triangle mesh
-    FbxGeometryConverter lGeomConverter(lSdkManager);
-    try {
-        lGeomConverter.Triangulate(lScene, true);
-    } catch (std::runtime_error&) {
-        FBXSDK_printf("Scene integrity verification failed.\n");
-    }
+    ImportScene(path, lSdkManager, lScene);
+    ModifyGeometry(lSdkManager, lScene);
 
     data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
                    (uint32_t)lScene->GetNodeCount(),
@@ -400,97 +497,10 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
     data.materials.reserve(data.header.materialCount);
 
-    for (int i = 0; i < lScene->GetMaterialCount(); ++i) {
-        FbxSurfaceMaterial* lMaterial = lScene->GetMaterial(i);
-        materialIdxMap.emplace(lMaterial, i);
+    ExtractMaterials(lScene, data.materials, pMemPool);
 
-        Material cisdiMaterial {};
-        cisdiMaterial.name = lMaterial->GetName();
-
-        if (lMaterial->GetClassId().Is(FbxSurfacePhong::ClassId)) {
-            cisdiMaterial.data.shadingModel = Material::ShadingModel::Phong;
-
-            auto lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Ambient;
-            cisdiMaterial.data.ambient = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->AmbientFactor};
-
-            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Diffuse;
-            cisdiMaterial.data.diffuse = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->DiffuseFactor};
-
-            // TODO: how to deal with specular?
-            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Specular;
-            cisdiMaterial.data.specular = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->SpecularFactor};
-
-            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Emissive;
-            cisdiMaterial.data.emissive = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->EmissiveFactor};
-
-            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->TransparentColor;
-            cisdiMaterial.data.transparency = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->TransparencyFactor};
-
-            // TODO: how to deal with Shininess?
-            float shininess = ((FbxSurfacePhong*)lMaterial)->Shininess;
-            cisdiMaterial.data.shininess = shininess;
-
-            // TODO: how to deal with Reflectivity?
-            lKFbxDouble3 = ((FbxSurfacePhong*)lMaterial)->Reflection;
-            cisdiMaterial.data.reflection = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->ReflectionFactor};
-
-        } else if (lMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId)) {
-            cisdiMaterial.data.shadingModel =
-                Material::ShadingModel::Lambert;
-
-            auto lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Ambient;
-            cisdiMaterial.data.ambient = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->AmbientFactor};
-
-            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Diffuse;
-            cisdiMaterial.data.diffuse = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->DiffuseFactor};
-
-            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->Emissive;
-            cisdiMaterial.data.emissive = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfacePhong*)lMaterial)->EmissiveFactor};
-
-            lKFbxDouble3 = ((FbxSurfaceLambert*)lMaterial)->TransparentColor;
-            cisdiMaterial.data.transparency = Float32_4 {
-                (float)lKFbxDouble3.Get()[0], (float)lKFbxDouble3.Get()[1],
-                (float)lKFbxDouble3.Get()[2],
-                (float)((FbxSurfaceLambert*)lMaterial)->TransparencyFactor};
-        }
-        data.materials.emplace_back(::std::move(cisdiMaterial));
-    }
-
-    FbxNode* lRootNode = lScene->GetRootNode();
-    if (lRootNode) {
-        ProcessNode(lRootNode, -1, data, flipYZ, tmpVertices);
-    }
-
-    // Generate model bounding box
-    for (auto const& mesh : data.meshes) {
-        UpdateAABB(data.boundingBox, mesh.boundingBox);
+    if (FbxNode* lRootNode = lScene->GetRootNode()) {
+        ProcessNode(lRootNode, -1, data, flipYZ, tmpVertices, pMemPool);
     }
 
     // TODO: process keyframes

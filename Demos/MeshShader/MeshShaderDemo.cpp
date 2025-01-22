@@ -1,10 +1,10 @@
-﻿#include <random>
+﻿#include "MeshShaderDemo.h"
 
-#include "MeshShaderDemo.h"
-
-#include "Core/System/GameTimer.h"
+#include <random>
 
 #include <glm/gtc/packing.hpp>
+
+#include "Core/System/GameTimer.h"
 
 using namespace IDNS_VC;
 
@@ -192,7 +192,9 @@ void MeshShaderDemo::Prepare() {
 
         const char* model = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx";
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), false);
+        auto pMemPool = ::std::pmr::get_default_resource();
+
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), pMemPool);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model,
@@ -219,8 +221,6 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     const uint64_t graphicsFinished = timelineSem.GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
-
-    GameTimer timer {};
 
     RecordPasses(mRenderSequence);
 
@@ -558,11 +558,10 @@ void MeshShaderDemo::PrepareUIContext() {
             auto displayNode =
                 [&,
                  d = [&](auto&& self,
-                         IntelliDesign_NS::ModelData::CISDI_3DModel::Node const&
-                             node,
+                         IntelliDesign_NS::ModelData::CISDI_Node const& node,
                          uint32_t idx) -> void {
                      if (ImGui::TreeNode(
-                             (node.name + "##" + ::std::to_string(idx))
+                             (node.name + "##" + ::std::to_string(idx).c_str())
                                  .c_str())) {
 
                          if (node.meshIdx != -1) {
@@ -596,7 +595,7 @@ void MeshShaderDemo::PrepareUIContext() {
                                                      decltype(val)>;
                                                  if constexpr (
                                                      ::std::is_same_v<
-                                                         T, ::std::string>) {
+                                                         T, Type_STLString>) {
                                                      return val.c_str();
                                                  } else {
                                                      return ::std::to_string(
@@ -615,8 +614,7 @@ void MeshShaderDemo::PrepareUIContext() {
                          }
                          ImGui::TreePop();
                      }
-                 }](IntelliDesign_NS::ModelData::CISDI_3DModel::Node const&
-                        node,
+                 }](IntelliDesign_NS::ModelData::CISDI_Node const& node,
                     uint32_t idx) {
                     d(d, node, idx);
                 };

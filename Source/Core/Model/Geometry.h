@@ -40,8 +40,8 @@ struct FragmentPushConstants {
 
 class Geometry {
 public:
-    Geometry(const char* path, bool flipYZ = true,
-             const char* output = nullptr);
+    Geometry(const char* path, ::std::pmr::memory_resource* pMemPool,
+             bool flipYZ = false, const char* output = nullptr);
 
     void GenerateMeshletBuffers(VulkanContext& context);
 
@@ -66,7 +66,8 @@ private:
      * if "*.cisdi" model file exists, load existing "*.cisdi" model.
      * else convert 3d model file into "*.cisdi" model file. then move here from memory.
      */
-    void LoadModel(const char* output);
+    ModelData::CISDI_3DModel LoadModel(const char* output,
+                                       ::std::pmr::memory_resource* pMemPool);
     void GenerateStats();
 
     // TODO: Texture
@@ -78,11 +79,11 @@ private:
     uint32_t mMeshletCount {0};
     uint32_t mMeshletTriangleCount {0};
 
-    ModelData::CISDI_3DModel mModelData;
-
     ::std::filesystem::path mPath;
     ::std::filesystem::path mDirectory;
     Type_STLString mName;
+
+    ModelData::CISDI_3DModel mModelData;
 
     struct MeshDatas {
         Type_STLVector<uint32_t> vertexOffsets;

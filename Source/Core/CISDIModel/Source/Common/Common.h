@@ -1,10 +1,8 @@
 #pragma once
 
 #include "BaseTypes.h"
-#include "Math.h"
 
 #define CISDI_3DModel_Subfix_Str ".cisdi"
-#define CISDI_3DModel_Subfix_WStr L".cisdi"
 
 // #ifdef USING_NVIDIA_GPU
 #define MESHLET_MAX_VERTEX_COUNT 64
@@ -19,11 +17,10 @@ DeclType_Variant_BasedOnEnum(Type_UserPropertyValue, UserPropertyValueTypeEnum,
                              UserPropertyValueType);
 
 template <class Enum, template <Enum e> class BaseStruct>
-struct PropertyTuple {
+class PropertyTuple {
     DeclType_Tuple_BasedOnEnum(Type_PropTuple, Enum, Enum::Count, BaseStruct);
 
-    Type_PropTuple datas {};
-
+public:
     template <Enum Prop>
     auto& GetProperty() {
         return ::std::get<static_cast<size_t>(Prop)>(datas);
@@ -45,13 +42,52 @@ struct PropertyTuple {
     const void* GetPropertyPtr() const {
         return reinterpret_cast<const void*>(GetProperty<Prop>().data());
     }
+
+private:
+    Type_PropTuple datas {};
 };
 
-struct Vertices {
+struct CISDI_Vertices {
     using Type_VertexAttribTuple =
         PropertyTuple<VertexAttributeEnum, VertexAttributeType>;
 
     Type_VertexAttribTuple attributes {};
+};
+
+struct CISDI_Material {
+    CISDI_Material(::std::pmr::memory_resource* pMemPool) : name {pMemPool} {}
+
+    enum class ShadingModel : uint32_t { Lambert = 0, Phong };
+
+    Type_STLString name;
+
+    struct Data {
+        ShadingModel shadingModel {ShadingModel::Lambert};
+        float shininess {};
+        Float32_2 padding {};
+        Float32_4 ambient {};
+        Float32_4 diffuse {};
+        Float32_4 specular {};
+        Float32_4 emissive {};
+        Float32_4 reflection {};
+        Float32_4 transparency {};
+    } data;
+};
+
+struct CISDI_Node {
+    CISDI_Node(::std::pmr::memory_resource* pMemPool)
+        : name {pMemPool}, childrenIdx {pMemPool}, userProperties {pMemPool} {}
+
+    Type_STLString name;
+    uint32_t meshIdx {~0ui32};
+    uint32_t materialIdx {~0ui32};
+    uint32_t parentIdx {~0ui32};
+
+    uint32_t childCount {0};
+    Type_STLVector<uint32_t> childrenIdx;
+
+    uint32_t userPropertyCount {0};
+    Type_STLUnorderedMap_String<Type_UserPropertyValue> userProperties;
 };
 
 }  // namespace IntelliDesign_NS::ModelData
