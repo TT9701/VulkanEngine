@@ -35,15 +35,15 @@ SharedPtr<Buffer> CreateStorageBuffer_WithData(
 template <ModelData::VertexAttributeEnum Enum>
 auto ExtractVertexAttribute(ModelData::CISDI_3DModel const& modelData,
                             uint32_t vertCount) {
-    using Type = typename ModelData::VertexAttributeType<Enum>::Type;
+    using Type = ModelData::CISDI_Vertices::PropertyType<Enum>;
 
     Type tmp {};
     tmp.reserve(vertCount);
     for (auto const& mesh : modelData.meshes) {
         for (auto const& vertices :
-             mesh.meshlets.properties
+             mesh.meshlets
                  .GetProperty<ModelData::MeshletPropertyTypeEnum::Vertex>()) {
-            auto const& data = vertices.attributes.GetProperty<Enum>();
+            auto const& data = vertices.GetProperty<Enum>();
             tmp.insert(tmp.end(), data.begin(), data.end());
         }
     }
@@ -53,12 +53,12 @@ auto ExtractVertexAttribute(ModelData::CISDI_3DModel const& modelData,
 template <ModelData::MeshletPropertyTypeEnum Enum>
 auto ExtractMeshletProperty(ModelData::CISDI_3DModel const& modelData,
                             uint32_t count) {
-    using Type = typename ModelData::MeshletPropertyType<Enum>::Type;
+    using Type = ModelData::CISDI_Meshlets::PropertyType<Enum>;
 
     Type tmp {};
     tmp.reserve(count);
     for (auto const& mesh : modelData.meshes) {
-        auto const& data = mesh.meshlets.properties.GetProperty<Enum>();
+        auto const& data = mesh.meshlets.GetProperty<Enum>();
         tmp.insert(tmp.end(), data.begin(), data.end());
     }
     return tmp;
@@ -306,7 +306,7 @@ void Geometry::GenerateStats() {
     for (auto& mesh : mModelData.meshes) {
         vk::DrawMeshTasksIndirectCommandEXT meshTasksIndirectCmd {};
         auto const& infos =
-            mesh.meshlets.properties
+            mesh.meshlets
                 .GetProperty<ModelData::MeshletPropertyTypeEnum::Info>();
 
         meshTasksIndirectCmd
@@ -324,7 +324,7 @@ void Geometry::GenerateStats() {
         mMeshDatas.meshletCounts.push_back(infos.size());
 
         auto const& triangles =
-            mesh.meshlets.properties
+            mesh.meshlets
                 .GetProperty<ModelData::MeshletPropertyTypeEnum::Triangle>();
         mMeshDatas.meshletTrianglesOffsets.push_back(mMeshletTriangleCount);
         mMeshletTriangleCount += triangles.size();

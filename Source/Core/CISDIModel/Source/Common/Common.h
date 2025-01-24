@@ -13,50 +13,9 @@
 
 namespace IntelliDesign_NS::ModelData {
 
-DeclType_Variant_BasedOnEnum(Type_UserPropertyValue, UserPropertyValueTypeEnum,
-                             UserPropertyValueTypeEnum::Count,
-                             UserPropertyValueType);
-
-template <class Enum, template <Enum e> class BaseStruct>
-class PropertyTuple {
-    DeclType_Tuple_BasedOnEnum(Type_PropTuple, Enum, Enum::Count, BaseStruct);
-
-public:
-    template <Enum Prop>
-    auto& GetProperty() {
-        return ::std::get<static_cast<size_t>(Prop)>(datas);
-    }
-
-    template <Enum Prop>
-    const auto& GetProperty() const {
-        return ::std::get<static_cast<size_t>(Prop)>(datas);
-    }
-
-    template <Enum Prop>
-    uint64_t GetProptyByteSize() const {
-        return GetProperty<Prop>().size()
-             * sizeof(::std::tuple_element_t<static_cast<size_t>(Prop),
-                                             decltype(datas)>);
-    }
-
-    template <Enum Prop>
-    const void* GetPropertyPtr() const {
-        return reinterpret_cast<const void*>(GetProperty<Prop>().data());
-    }
-
-private:
-    Type_PropTuple datas {};
-};
-
-struct CISDI_Vertices {
-    using Type_VertexAttribTuple =
-        PropertyTuple<VertexAttributeEnum, VertexAttributeType>;
-
-    Type_VertexAttribTuple attributes {};
-};
-
 struct CISDI_Material {
-    CISDI_Material(::std::pmr::memory_resource* pMemPool) : name {pMemPool} {}
+    explicit CISDI_Material(::std::pmr::memory_resource* pMemPool)
+        : name {pMemPool} {}
 
     enum class ShadingModel : uint32_t { Lambert = 0, Phong };
 
@@ -75,9 +34,49 @@ struct CISDI_Material {
     } data;
 };
 
+// vertice attributes
+// using SOA for vertex attributes
+enum class VertexAttributeEnum : uint8_t { Position, Normal, UV, _Count_ };
+
+using CISDI_Vertices =
+    PropertyTuple<VertexAttributeEnum, UInt16_3, Int16_2, UInt16_2>;
+
+// meshlet properties
+// using SOA for meshlet properties
+enum class MeshletPropertyTypeEnum : uint8_t {
+    Info,
+    Triangle,
+    BoundingBox,
+    Vertex,
+    _Count_
+};
+
+using CISDI_Meshlets = PropertyTuple<MeshletPropertyTypeEnum, MeshletInfo,
+                                     uint8_t, AABoundingBox, CISDI_Vertices>;
+
+// user properties
+enum class UserPropertyValueTypeEnum : uint8_t {
+    Bool,
+    Char,
+    UChar,
+    Int,
+    UInt,
+    LongLong,
+    ULongLong,
+    Float,
+    Double,
+    String,
+    _Count_
+};
+using Type_UserPropertyValue =
+    ::std::variant<bool, char, unsigned char, int, unsigned int, long long,
+                   unsigned long long, float, double, Type_STLString>;
+
 struct CISDI_Node {
-    CISDI_Node(::std::pmr::memory_resource* pMemPool)
-        : name {pMemPool}, childrenIdx {pMemPool}, userProperties {pMemPool} {}
+    explicit CISDI_Node(::std::pmr::memory_resource* pMemPool)
+        : name {pMemPool},
+          childrenIdx {::std::pmr::polymorphic_allocator {pMemPool}},
+          userProperties {pMemPool} {}
 
     Type_STLString name;
     uint32_t meshIdx {~0ui32};
@@ -92,5 +91,3 @@ struct CISDI_Node {
 };
 
 }  // namespace IntelliDesign_NS::ModelData
-
-#include "MeshletType.h"

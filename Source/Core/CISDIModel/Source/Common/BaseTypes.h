@@ -2,10 +2,13 @@
 
 #include <cstdint>
 
+#include <memory_resource>
 #include <string>
 #include <unordered_map>
 #include <variant>
 #include <vector>
+
+#include "PMR_Def.h"
 
 namespace IntelliDesign_NS::ModelData {
 
@@ -61,6 +64,41 @@ struct Version {
     uint32_t patch : 16;
 };
 
+template <class TEnum, class... TProps>
+    requires(sizeof...(TProps) == static_cast<size_t>(TEnum::_Count_))
+         && ::std::is_enum_v<TEnum>
+class PropertyTuple {
+    using Type_PropTuple = ::std::tuple<Type_STLVector<TProps>...>;
+
+public:
+    template <TEnum Prop>
+    using PropertyType =
+        ::std::tuple_element_t<static_cast<size_t>(Prop), Type_PropTuple>;
+
+    template <TEnum Prop>
+    auto& GetProperty() {
+        return ::std::get<static_cast<size_t>(Prop)>(props);
+    }
+
+    template <TEnum Prop>
+    const auto& GetProperty() const {
+        return ::std::get<static_cast<size_t>(Prop)>(props);
+    }
+
+    template <TEnum Prop>
+    uint64_t GetProptyByteSize() const {
+        return GetProperty<Prop>().size() * sizeof(PropertyType<Prop>);
+    }
+
+    template <TEnum Prop>
+    const void* GetPropertyPtr() const {
+        return reinterpret_cast<const void*>(GetProperty<Prop>().data());
+    }
+
+private:
+    Type_PropTuple props;
+};
+
 struct AABoundingBox {
     AABoundingBox()
         : min(FLT_MAX, FLT_MAX, FLT_MAX), max(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
@@ -77,96 +115,6 @@ struct MeshletInfo {
     uint32_t triangleCount;
 };
 
-// user properties
-enum class UserPropertyValueTypeEnum : uint8_t {
-    Bool,
-    Char,
-    UChar,
-    Int,
-    UInt,
-    LongLong,
-    ULongLong,
-    Float,
-    Double,
-    String,
-    Count
-};
-
-template <UserPropertyValueTypeEnum Type>
-struct UserPropertyValueType;
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::Bool> {
-    using Type = bool;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::Char> {
-    using Type = char;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::UChar> {
-    using Type = unsigned char;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::Int> {
-    using Type = int;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::UInt> {
-    using Type = unsigned int;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::LongLong> {
-    using Type = long long;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::ULongLong> {
-    using Type = unsigned long long;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::Float> {
-    using Type = float;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::Double> {
-    using Type = double;
-};
-
-template <>
-struct UserPropertyValueType<UserPropertyValueTypeEnum::String> {
-    using Type = Type_STLString;
-};
-
-// vertice attributes
-// using SOA for vertex attributes
-enum class VertexAttributeEnum : uint8_t { Position, Normal, UV, Count };
-
-template <VertexAttributeEnum Type>
-struct VertexAttributeType;
-
-template <>
-struct VertexAttributeType<VertexAttributeEnum::Position> {
-    using Type = Type_STLVector<UInt16_3>;
-};
-
-template <>
-struct VertexAttributeType<VertexAttributeEnum::Normal> {
-    using Type = Type_STLVector<Int16_2>;
-};
-
-template <>
-struct VertexAttributeType<VertexAttributeEnum::UV> {
-    using Type = Type_STLVector<UInt16_2>;
-};
-
 // for internal use.
 struct InternalMeshData {
     Type_STLVector<Float32_3> positions;
@@ -176,34 +124,35 @@ struct InternalMeshData {
 
 // for internal use.
 struct InternalMeshlet {
-    InternalMeshlet(::std::pmr::memory_resource* pMemPool)
-        : infos(pMemPool), vertIndices(pMemPool), triangles(pMemPool) {}
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(InternalMeshlet, infos, vertIndices,
+                                         triangles);
 
     Type_STLVector<MeshletInfo> infos;
     Type_STLVector<uint32_t> vertIndices;
     Type_STLVector<uint8_t> triangles;
 };
 
-#define DeclType_BasedOnEnum(T, UsingType, EnumType, EnumCount, TypeStruct)   \
-    using UnderLyingType_##EnumType = ::std::underlying_type_t<EnumType>;     \
-    template <UnderLyingType_##EnumType... Indices>                           \
-    static auto DeclType_##UsingType(                                         \
-        ::std::index_sequence<Indices...> const&) {                           \
-        return T<                                                             \
-            typename TypeStruct<static_cast<EnumType>(Indices)>::Type...> {}; \
-    }                                                                         \
-                                                                              \
-    using UsingType = decltype(DeclType_##UsingType(                          \
-        ::std::make_index_sequence<static_cast<UnderLyingType_##EnumType>(    \
-            EnumCount)> {}));
+struct MyStruct1 {
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(MyStruct1, name, vertIndices);
 
-#define DeclType_Variant_BasedOnEnum(TypeVariant, EnumType, EnumCount,     \
-                                     TypeStruct)                           \
-    DeclType_BasedOnEnum(::std::variant, TypeVariant, EnumType, EnumCount, \
-                         TypeStruct)
+    ::std::pmr::string name;
+    ::std::pmr::vector<uint32_t> vertIndices;
+};
 
-#define DeclType_Tuple_BasedOnEnum(TypeTuple, EnumType, EnumCount, TypeStruct) \
-    DeclType_BasedOnEnum(::std::tuple, TypeTuple, EnumType, EnumCount,         \
-                         TypeStruct)
+struct MyStruct2 {
+    INTELLI_DS_PMR_ELEMENT_CTOR_SIG(MyStruct2, int n)
+        : count(n),
+          INTELLI_DS_PMR_ELEMENT_CTOR_DEFAULT_INIT_LIST(name, vertIndices) {}
+
+    INTELLI_DS_PMR_ELEMENT_COPY_CTOR(MyStruct2, name, vertIndices),
+        count(_other_.count) {}
+
+    INTELLI_DS_PMR_ELEMENT_MOVE_CTOR(MyStruct2, name, vertIndices),
+        count(::std::move(_other_.count)) {}
+
+    int count;
+    ::std::pmr::string name;
+    ::std::pmr::vector<uint32_t> vertIndices;
+};
 
 }  // namespace IntelliDesign_NS::ModelData

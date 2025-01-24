@@ -151,7 +151,12 @@ void BuildMeshletDatas(
     Type_STLVector<InternalMeshData> const& tmpVertices,
     Type_STLVector<Type_STLVector<uint32_t>> const& tmpIndices,
     ::std::pmr::memory_resource* pMemPool) {
-    tmpMeshlets.resize(tmpVertices.size(), pMemPool);
+
+    Type_STLVector<InternalMeshlet> vecTest {pMemPool};
+
+    tmpMeshlets.emplace_back();
+
+    tmpMeshlets.resize(tmpVertices.size());
     for (uint32_t i = 0; i < tmpVertices.size(); ++i) {
         BuildMeshlet(tmpMeshlets[i], tmpVertices[i], tmpIndices[i]);
     }
@@ -205,12 +210,12 @@ void Generate_CISDIModel_Meshlets(
         mesh.header.vertexCount = tmpMeshlet.vertIndices.size();
         mesh.header.meshletTriangleCount = tmpMeshlet.triangles.size();
 
-        auto& infos = mesh.meshlets.properties
-                          .GetProperty<MeshletPropertyTypeEnum::Info>();
+        auto& infos =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>();
         infos = ::std::move(tmpMeshlet.infos);
 
-        auto& triangles = mesh.meshlets.properties
-                              .GetProperty<MeshletPropertyTypeEnum::Triangle>();
+        auto& triangles =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Triangle>();
         triangles = ::std::move(tmpMeshlet.triangles);
     }
 }
@@ -222,12 +227,11 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
         auto& mesh = data.meshes[i];
         auto const& tmpPosVec = tmpVertices[i].positions;
 
-        auto const& infos = mesh.meshlets.properties
-                                .GetProperty<MeshletPropertyTypeEnum::Info>();
+        auto const& infos =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>();
 
         auto& boundingBoxes =
-            mesh.meshlets.properties
-                .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
         boundingBoxes =
             Type_STLVector<AABoundingBox>(mesh.header.meshletCount, pMemPool);
 
@@ -264,39 +268,35 @@ void Generate_CISDIModel_PackedVertices(
 
         mesh.header.vertexCount = tmpMeshVertices.positions.size();
 
-        auto& vertices = mesh.meshlets.properties
-                             .GetProperty<MeshletPropertyTypeEnum::Vertex>();
+        auto& vertices =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Vertex>();
 
         vertices.resize(mesh.header.meshletCount);
 
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
             auto vertCount =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Info>()[j]
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>()[j]
                     .vertexCount;
 
-            vertices[j]
-                .attributes.GetProperty<VertexAttributeEnum::Position>() =
+            vertices[j].GetProperty<VertexAttributeEnum::Position>() =
                 Type_STLVector<UInt16_3>(vertCount, pMemPool);
 
-            vertices[j].attributes.GetProperty<VertexAttributeEnum::Normal>() =
+            vertices[j].GetProperty<VertexAttributeEnum::Normal>() =
                 Type_STLVector<Int16_2>(vertCount, pMemPool);
 
-            vertices[j].attributes.GetProperty<VertexAttributeEnum::UV>() =
+            vertices[j].GetProperty<VertexAttributeEnum::UV>() =
                 Type_STLVector<UInt16_2>(vertCount, pMemPool);
         }
 
         for (uint32_t j = 0; j < mesh.header.meshletCount; ++j) {
             auto const& info =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Info>()[j];
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>()[j];
 
             auto& meshletVertices =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Vertex>()[j];
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Vertex>()[j];
 
             auto const& bb =
-                mesh.meshlets.properties
+                mesh.meshlets
                     .GetProperty<MeshletPropertyTypeEnum::BoundingBox>()[j];
 
             for (uint32_t k = 0; k < info.vertexCount; ++k) {
@@ -318,7 +318,7 @@ void Generate_CISDIModel_PackedVertices(
                     UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
                                         PackUnorm16(encodedPos.y),
                                         PackUnorm16(encodedPos.z)};
-                    meshletVertices.attributes
+                    meshletVertices
                         .GetProperty<VertexAttributeEnum::Position>()[k] =
                         ui16Pos;
                 }
@@ -331,7 +331,7 @@ void Generate_CISDIModel_PackedVertices(
 
                     Int16_2 i16Norm = {PackSnorm16(octNorm.x),
                                        PackSnorm16(octNorm.y)};
-                    meshletVertices.attributes
+                    meshletVertices
                         .GetProperty<VertexAttributeEnum::Normal>()[k] =
                         i16Norm;
                 }
@@ -344,8 +344,8 @@ void Generate_CISDIModel_PackedVertices(
                     fUV = RepeatTexCoords(fUV);
 
                     UInt16_2 ui16UV = {PackUnorm16(fUV.x), PackUnorm16(fUV.y)};
-                    meshletVertices.attributes
-                        .GetProperty<VertexAttributeEnum::UV>()[k] = ui16UV;
+                    meshletVertices.GetProperty<VertexAttributeEnum::UV>()[k] =
+                        ui16UV;
                 }
             }
         }

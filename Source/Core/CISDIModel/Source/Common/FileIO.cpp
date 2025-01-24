@@ -97,39 +97,34 @@ void WriteMeshes(std::ofstream& ofs,
         // meshlet datas
         if (mesh.header.meshletCount > 0) {
             auto const& infos =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Info>();
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>();
             ofs.write((char*)infos.data(),
                       sizeof(infos[0]) * mesh.header.meshletCount);
         }
 
         if (mesh.header.meshletTriangleCount > 0) {
             auto const& triangles =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Triangle>();
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Triangle>();
             ofs.write((char*)triangles.data(),
                       sizeof(triangles[0]) * mesh.header.meshletTriangleCount);
         }
 
         for (uint32_t i = 0; i < mesh.header.meshletCount; ++i) {
             auto const& vertices =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Vertex>()[i];
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Vertex>()[i];
 
             auto const& vertCount =
-                mesh.meshlets.properties
-                    .GetProperty<MeshletPropertyTypeEnum::Info>()[i]
+                mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>()[i]
                     .vertexCount;
 
             auto const& vertPositions =
-                vertices.attributes
-                    .GetProperty<VertexAttributeEnum::Position>();
+                vertices.GetProperty<VertexAttributeEnum::Position>();
 
             auto const& vertNormals =
-                vertices.attributes.GetProperty<VertexAttributeEnum::Normal>();
+                vertices.GetProperty<VertexAttributeEnum::Normal>();
 
             auto const& vertUVs =
-                vertices.attributes.GetProperty<VertexAttributeEnum::UV>();
+                vertices.GetProperty<VertexAttributeEnum::UV>();
 
             ofs.write((char*)vertPositions.data(),
                       sizeof(vertPositions[0]) * vertCount);
@@ -142,7 +137,7 @@ void WriteMeshes(std::ofstream& ofs,
 
         if (mesh.header.meshletCount > 0) {
             auto const& boundingBoxes =
-                mesh.meshlets.properties
+                mesh.meshlets
                     .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
             ofs.write((char*)boundingBoxes.data(),
                       sizeof(boundingBoxes[0]) * mesh.header.meshletCount);
@@ -191,6 +186,11 @@ void ReadDataHeader(std::ifstream& in, CISDI_3DModel::Header& header) {
     }
 }
 
+template <UserPropertyValueTypeEnum Enum>
+using UserPropertyValueType =
+    ::std::variant_alternative_t<static_cast<size_t>(Enum),
+                                 Type_UserPropertyValue>;
+
 void ReadNode(std::ifstream& in, uint32_t nodeCount,
               Type_STLVector<CISDI_Node>& nodes,
               std::pmr::memory_resource* pMemPool) {
@@ -214,62 +214,61 @@ void ReadNode(std::ifstream& in, uint32_t nodeCount,
 
             switch (type) {
                 case UserPropertyValueTypeEnum::Bool: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::Bool>::Type
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Bool>
                         value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::Char: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::Char>::Type
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Char>
                         value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::UChar: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::UChar>::Type value;
-                    in.read((char*)&value, sizeof(value));
-                    node.userProperties[key] = value;
-                } break;
-                case UserPropertyValueTypeEnum::Int: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::Int>::Type
+                    UserPropertyValueType<UserPropertyValueTypeEnum::UChar>
                         value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
+                case UserPropertyValueTypeEnum::Int: {
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Int> value;
+                    in.read((char*)&value, sizeof(value));
+                    node.userProperties[key] = value;
+                } break;
                 case UserPropertyValueTypeEnum::UInt: {
-                    UserPropertyValueType<UserPropertyValueTypeEnum::UInt>::Type
+                    UserPropertyValueType<UserPropertyValueTypeEnum::UInt>
                         value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::LongLong: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::LongLong>::Type value;
+                    UserPropertyValueType<UserPropertyValueTypeEnum::LongLong>
+                        value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::ULongLong: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::ULongLong>::Type value;
+                    UserPropertyValueType<UserPropertyValueTypeEnum::ULongLong>
+                        value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::Float: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::Float>::Type value;
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Float>
+                        value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::Double: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::Double>::Type value;
+                    UserPropertyValueType<UserPropertyValueTypeEnum::Double>
+                        value;
                     in.read((char*)&value, sizeof(value));
                     node.userProperties[key] = value;
                 } break;
                 case UserPropertyValueTypeEnum::String: {
-                    UserPropertyValueType<
-                        UserPropertyValueTypeEnum::String>::Type value;
+                    UserPropertyValueType<UserPropertyValueTypeEnum::String>
+                        value;
                     ReadString(in, value);
                     node.userProperties[key] = value;
                 } break;
@@ -290,48 +289,44 @@ void ReadMesh(std::ifstream& in, uint32_t meshCount,
         in.read((char*)&mesh.header, sizeof(mesh.header));
 
         // TODO: other attributes
-        auto& infos = mesh.meshlets.properties
-                          .GetProperty<MeshletPropertyTypeEnum::Info>();
+        auto& infos =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Info>();
         infos = Type_STLVector<MeshletInfo>(mesh.header.meshletCount, pMemPool);
         in.read((char*)infos.data(),
                 sizeof(infos[0]) * mesh.header.meshletCount);
 
-        auto& triangles = mesh.meshlets.properties
-                              .GetProperty<MeshletPropertyTypeEnum::Triangle>();
+        auto& triangles =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Triangle>();
         triangles =
             Type_STLVector<uint8_t>(mesh.header.meshletTriangleCount, pMemPool);
         in.read((char*)triangles.data(),
                 sizeof(triangles[0]) * mesh.header.meshletTriangleCount);
 
-        auto& vertices = mesh.meshlets.properties
-                             .GetProperty<MeshletPropertyTypeEnum::Vertex>();
+        auto& vertices =
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::Vertex>();
         vertices =
             Type_STLVector<CISDI_Vertices>(mesh.header.meshletCount, pMemPool);
         for (uint32_t i = 0; i < mesh.header.meshletCount; ++i) {
             auto vertCount = infos[i].vertexCount;
             auto& vertPostions =
-                vertices[i]
-                    .attributes.GetProperty<VertexAttributeEnum::Position>();
+                vertices[i].GetProperty<VertexAttributeEnum::Position>();
             vertPostions = Type_STLVector<UInt16_3>(vertCount, pMemPool);
             in.read((char*)vertPostions.data(),
                     sizeof(vertPostions[0]) * vertCount);
 
             auto& vertNormals =
-                vertices[i]
-                    .attributes.GetProperty<VertexAttributeEnum::Normal>();
+                vertices[i].GetProperty<VertexAttributeEnum::Normal>();
             vertNormals = Type_STLVector<Int16_2>(vertCount, pMemPool);
             in.read((char*)vertNormals.data(),
                     sizeof(vertNormals[0]) * vertCount);
 
-            auto& vertUVs =
-                vertices[i].attributes.GetProperty<VertexAttributeEnum::UV>();
+            auto& vertUVs = vertices[i].GetProperty<VertexAttributeEnum::UV>();
             vertUVs = Type_STLVector<UInt16_2>(vertCount, pMemPool);
             in.read((char*)vertUVs.data(), sizeof(vertUVs[0]) * vertCount);
         }
 
         auto& boundingBoxes =
-            mesh.meshlets.properties
-                .GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
+            mesh.meshlets.GetProperty<MeshletPropertyTypeEnum::BoundingBox>();
         boundingBoxes =
             Type_STLVector<AABoundingBox>(mesh.header.meshletCount, pMemPool);
         in.read((char*)boundingBoxes.data(),

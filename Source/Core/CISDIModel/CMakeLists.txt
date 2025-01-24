@@ -7,9 +7,10 @@ set (MODEL_SRC
     Source/Common/Common.h
     Source/Common/Math.h
     Source/Common/BaseTypes.h
-    Source/Common/MeshletType.h
     Source/Common/FileIO.h
     Source/Common/FileIO.cpp
+    Source/Common/PMR_Def.h
+    Source/Common/CodeGenDef.h
     Source/CISDI_3DModelData.cpp
     Source/Importer/FBX_Importer.h
     Source/Importer/FBX_Importer.cpp

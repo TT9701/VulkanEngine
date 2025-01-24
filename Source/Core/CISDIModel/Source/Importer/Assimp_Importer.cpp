@@ -225,11 +225,6 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
     ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ, tmpVertices,
                 outIndices, pMemPool);
 
-    // shrink to fit
-    // data.header.nodeCount = data.nodes.size();
-    // data.header.meshCount = data.meshes.size();
-    // data.header.materialCount = data.materials.size();
-
     return data;
 }
 

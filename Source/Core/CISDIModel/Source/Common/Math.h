@@ -60,8 +60,7 @@ inline int16_t PackSnorm16(float v) {
     return packed;
 }
 
-/* Unpack in shader
- * Here are examples in glsl:
+/* Unpack in shader. examples in glsl:
     float UnpackUnorm16(uint16_t value)
     {
 	    // value / 65535.0

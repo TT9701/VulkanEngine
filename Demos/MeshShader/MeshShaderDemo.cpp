@@ -8,6 +8,11 @@
 
 using namespace IDNS_VC;
 
+namespace {
+auto s_pMemPool =
+    ::std::pmr::synchronized_pool_resource {::std::pmr::get_default_resource()};
+}
+
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescSetPool(GetVulkanContext())),
@@ -190,11 +195,11 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        const char* model = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx";
+        const char* model = "f29cd4b7-f772-4ea8-9e2b-2f2796a03c38.fbx";
 
         auto pMemPool = ::std::pmr::get_default_resource();
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), pMemPool);
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), &s_pMemPool);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model,
