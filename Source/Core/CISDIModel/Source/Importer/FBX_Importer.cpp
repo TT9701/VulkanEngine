@@ -8,8 +8,6 @@
 #include <map>
 #include <string>
 
-#include <fbxsdk.h>
-
 #include "CISDI_3DModelData.h"
 #include "Source/Common/Common.h"
 
@@ -33,44 +31,68 @@ std::string GbkToUtf8(const std::string& gbkStr) {
     return u8str;
 }
 
-void InitializeSdkObjects(FbxManager*& pManager, FbxScene*& pScene) {
-    pManager = FbxManager::Create();
-    if (!pManager) {
+::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
+
+}  // namespace
+
+Importer::Importer(std::pmr::memory_resource* pMemPool, const char* path,
+                   bool flipYZ, CISDI_3DModel& outData,
+                   Type_InternalMeshDatas& tmpVertices,
+                   Type_Indices& outIndices, bool meshData)
+    : pMemPool(pMemPool), mTmpVertices(tmpVertices), mOutIndices(outIndices) {
+    InitializeSdkObjects();
+
+    ImportScene(path);
+    if (meshData)
+        ModifyGeometry();
+    InitializeData(outData, path);
+    ExtractMaterials(outData);
+    ProcessNode(outData, mScene->GetRootNode(), -1, flipYZ, meshData);
+
+    outData.header.meshCount = (uint32_t)mTmpVertices.size();
+    outData.meshes.resize(outData.header.meshCount);
+}
+
+Importer::~Importer() {
+    if (mSdkManager)
+        mSdkManager->Destroy();
+}
+
+void Importer::InitializeSdkObjects() {
+    mSdkManager = FbxManager::Create();
+    if (!mSdkManager) {
         FBXSDK_printf("Error: Unable to create FBX Manager!\n");
         exit(1);
     } else {
         FBXSDK_printf("Using Autodesk FBX SDK version %s\n",
-                      pManager->GetVersion());
+                      mSdkManager->GetVersion());
     }
 
-    FbxIOSettings* ios = FbxIOSettings::Create(pManager, IOSROOT);
-    pManager->SetIOSettings(ios);
+    FbxIOSettings* ios = FbxIOSettings::Create(mSdkManager, IOSROOT);
+    mSdkManager->SetIOSettings(ios);
 
-    FbxString lPath = FbxGetApplicationDirectory();
-    pManager->LoadPluginsDirectory(lPath.Buffer());
-
-    pScene = FbxScene::Create(pManager, "");
-    if (!pScene) {
+    mScene = ::FbxScene::Create(mSdkManager, "");
+    if (!mScene) {
         FBXSDK_printf("Error: Unable to create FBX scene!\n");
         exit(1);
     }
 }
 
-void ImportScene(const char* path, FbxManager* pManager, FbxScene* pScene) {
-    FbxImporter* lImporter = FbxImporter::Create(pManager, "");
+void Importer::ImportScene(const char* path) {
+    FbxImporter* lImporter = FbxImporter::Create(mSdkManager, "");
 
-    if (!lImporter->Initialize(path, -1, pManager->GetIOSettings())) {
+    if (!lImporter->Initialize(path, -1, mSdkManager->GetIOSettings())) {
         printf("Call to FbxImporter::Initialize() failed.\n");
         printf("Error returned: %s\n\n",
                lImporter->GetStatus().GetErrorString());
         exit(-1);
     }
 
-    if (lImporter->Import(pScene)) {
+    if (lImporter->Import(mScene)) {
         // Check the scene integrity!
         FbxStatus status;
         FbxArray<FbxString*> details;
-        FbxSceneCheckUtility sceneCheck(FbxCast<FbxScene>(pScene), &status,
+        FbxSceneCheckUtility sceneCheck(FbxCast<FbxScene>(mScene), &status,
                                         &details);
         bool lNotify =
             (!sceneCheck.Validate(FbxSceneCheckUtility::eCkeckData)
@@ -104,48 +126,50 @@ void ImportScene(const char* path, FbxManager* pManager, FbxScene* pScene) {
     lImporter->Destroy();
 }
 
-/**
- * @brief Change axis system, system scale factor. Triangulate.
- * @param pManager 
- * @param pScene 
- */
-void ModifyGeometry(FbxManager* pManager, FbxScene* pScene) {
-    FbxAxisSystem SceneAxisSystem = pScene->GetGlobalSettings().GetAxisSystem();
+void Importer::InitializeData(ModelData::CISDI_3DModel& data,
+                              const char* path) {
+    data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
+                   (uint32_t)mScene->GetNodeCount(),
+                   (uint32_t)mScene->GetGeometryCount(),
+                   (uint32_t)mScene->GetMaterialCount()};
+
+    data.name = ::std::filesystem::path(path).stem().string();
+
+    data.nodes.reserve(data.header.nodeCount);
+
+    mTmpVertices.reserve(data.header.meshCount);
+
+    data.materials.reserve(data.header.materialCount);
+}
+
+void Importer::ModifyGeometry() {
+    FbxAxisSystem SceneAxisSystem = mScene->GetGlobalSettings().GetAxisSystem();
     FbxAxisSystem OurAxisSystem(FbxAxisSystem::eYAxis,
                                 FbxAxisSystem::eParityOdd,
                                 FbxAxisSystem::eRightHanded);
     if (SceneAxisSystem != OurAxisSystem) {
-        OurAxisSystem.ConvertScene(pScene);
+        OurAxisSystem.ConvertScene(mScene);
     }
 
-    FbxSystemUnit SceneSystemUnit = pScene->GetGlobalSettings().GetSystemUnit();
+    FbxSystemUnit SceneSystemUnit = mScene->GetGlobalSettings().GetSystemUnit();
     if (SceneSystemUnit.GetScaleFactor() != 1.0) {
-        FbxSystemUnit::cm.ConvertScene(pScene);
+        FbxSystemUnit::cm.ConvertScene(mScene);
     }
 
     // Convert mesh, NURBS and patch into triangle mesh
-    FbxGeometryConverter lGeomConverter(pManager);
+    FbxGeometryConverter lGeomConverter(mSdkManager);
     try {
-        lGeomConverter.Triangulate(pScene, true);
+        lGeomConverter.Triangulate(mScene, true);
     } catch (std::runtime_error&) {
         FBXSDK_printf("Scene integrity verification failed.\n");
     }
 }
 
-void DestroySdkObjects(FbxManager* pManager) {
-    if (pManager)
-        pManager->Destroy();
-}
-
-::std::map<FbxSurfaceMaterial*, uint32_t> materialIdxMap {};
-
-void ExtractMaterials(FbxScene* pScene,
-                      Type_STLVector<CISDI_Material>& materials,
-                      ::std::pmr::memory_resource* pMemPool) {
+void Importer::ExtractMaterials(CISDI_3DModel& data) {
     materialIdxMap.clear();
 
-    for (int i = 0; i < pScene->GetMaterialCount(); ++i) {
-        FbxSurfaceMaterial* lMaterial = pScene->GetMaterial(i);
+    for (int i = 0; i < mScene->GetMaterialCount(); ++i) {
+        FbxSurfaceMaterial* lMaterial = mScene->GetMaterial(i);
         materialIdxMap.emplace(lMaterial, i);
 
         CISDI_Material cisdiMaterial {pMemPool};
@@ -225,19 +249,71 @@ void ExtractMaterials(FbxScene* pScene,
                 (float)lKFbxDouble3.Get()[2],
                 (float)((FbxSurfaceLambert*)lMaterial)->TransparencyFactor};
         }
-        materials.emplace_back(::std::move(cisdiMaterial));
+        data.materials.emplace_back(::std::move(cisdiMaterial));
     }
 }
 
-int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
-                Type_STLVector<InternalMeshData>& tmpVertices) {
+int Importer::ProcessNode(CISDI_3DModel& data, FbxNode* pNode,
+                          int parentNodeIdx, bool flipYZ, bool meshData) {
+    static int meshIdx {0};
+
+    int nodeIdx = (int)data.nodes.size();
+    int childCount = pNode->GetChildCount();
+
+    CISDI_Node cisdiNode {pMemPool};
+    cisdiNode.name = pNode->GetName();
+    cisdiNode.parentIdx = parentNodeIdx;
+    cisdiNode.childCount = childCount;
+    cisdiNode.childrenIdx.reserve(childCount);
+
+    if (FbxNodeAttribute* lNodeAttribute = pNode->GetNodeAttribute()) {
+        switch (lNodeAttribute->GetAttributeType()) {
+            case FbxNodeAttribute::eMesh:
+                if (FbxMesh* mesh = pNode->GetMesh())
+                    cisdiNode.meshIdx = ProcessMesh(mesh, flipYZ, meshData);
+                break;
+            case FbxNodeAttribute::eSkeleton: break;
+            case FbxNodeAttribute::eLight: break;
+            case FbxNodeAttribute::eCamera: break;
+            default: break;
+        }
+    }
+
+    // process material
+    if (pNode->GetMaterialCount() > 0) {
+        auto lMaterial = pNode->GetMaterial(0);
+        cisdiNode.materialIdx = materialIdxMap.at(lMaterial);
+    }
+
+    // process user properties
+    ProcessUserDefinedProperties(pNode, cisdiNode);
+
+    auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
+
+    for (int i = 0; i < childCount; i++) {
+        ref.childrenIdx.emplace_back(
+            ProcessNode(data, pNode->GetChild(i), nodeIdx, flipYZ, meshData));
+    }
+
+    return nodeIdx;
+}
+
+int Importer::ProcessMesh(FbxMesh* pMesh, bool flipYZ, bool meshData) {
     FbxVector4* lControlPoints = pMesh->GetControlPoints();
 
     int triangleCount = pMesh->GetPolygonCount();
+
+    if (triangleCount == 0)
+        return -1;
+
     int vertCount = triangleCount * 3;
 
-    int meshIdx = (int)tmpVertices.size();
-    auto& tmpMeshVertices = tmpVertices.emplace_back();
+    int meshIdx = (int)mTmpVertices.size();
+    auto& tmpMeshVertices = mTmpVertices.emplace_back();
+
+    if (!meshData)
+        return meshIdx;
+
     tmpMeshVertices.positions.resize(vertCount);
     tmpMeshVertices.normals.resize(vertCount);
     tmpMeshVertices.uvs.resize(vertCount);
@@ -361,7 +437,8 @@ int ProcessMesh(FbxMesh* pMesh, bool flipYZ,
     return meshIdx;
 }
 
-void ProcessUserDefinedProperties(FbxNode* pNode, CISDI_Node& cisdiNode) {
+void Importer::ProcessUserDefinedProperties(FbxNode const* pNode,
+                                            CISDI_Node& cisdiNode) {
     if (!pNode)
         return;
 
@@ -421,93 +498,12 @@ void ProcessUserDefinedProperties(FbxNode* pNode, CISDI_Node& cisdiNode) {
         }
         prop = pNode->GetNextProperty(prop);
     }
-}
 
-int ProcessNode(FbxNode* pNode, int parentNodeIdx, CISDI_3DModel& data,
-                bool flipYZ, Type_STLVector<InternalMeshData>& tmpVertices,
-                ::std::pmr::memory_resource* pMemPool) {
-    int nodeIdx = (int)data.nodes.size();
-    int childCount = pNode->GetChildCount();
-
-    CISDI_Node cisdiNode {pMemPool};
-    cisdiNode.name = pNode->GetName();
-    cisdiNode.parentIdx = parentNodeIdx;
-    cisdiNode.childCount = childCount;
-    cisdiNode.childrenIdx.reserve(childCount);
-
-    if (FbxNodeAttribute* lNodeAttribute = pNode->GetNodeAttribute()) {
-        switch (lNodeAttribute->GetAttributeType()) {
-            case FbxNodeAttribute::eMesh:
-                if (FbxMesh* mesh = pNode->GetMesh())
-                    cisdiNode.meshIdx = ProcessMesh(mesh, flipYZ, tmpVertices);
-                break;
-            case FbxNodeAttribute::eSkeleton: break;
-            case FbxNodeAttribute::eLight: break;
-            case FbxNodeAttribute::eCamera: break;
-            default: break;
-        }
+    if (cisdiNode.userPropertyCount > 0) {
+        cisdiNode.userProperties.emplace("_NumProperties_",
+                                         cisdiNode.userPropertyCount);
+        cisdiNode.userPropertyCount++;
     }
-
-    // process material
-    if (pNode->GetMaterialCount() > 0) {
-        auto lMaterial = pNode->GetMaterial(0);
-        cisdiNode.materialIdx = materialIdxMap.at(lMaterial);
-    }
-
-    // process user properties
-    ProcessUserDefinedProperties(pNode, cisdiNode);
-
-    auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
-
-    for (int i = 0; i < childCount; i++) {
-        ref.childrenIdx.emplace_back(ProcessNode(
-            pNode->GetChild(i), nodeIdx, data, flipYZ, tmpVertices, pMemPool));
-    }
-
-    return nodeIdx;
-}
-
-}  // namespace
-
-CISDI_3DModel Convert(const char* path, bool flipYZ,
-                      Type_STLVector<InternalMeshData>& tmpVertices,
-                      Type_STLVector<Type_STLVector<uint32_t>>& outIndices,
-                      ::std::pmr::memory_resource* pMemPool) {
-    CISDI_3DModel data {pMemPool};
-
-    FbxManager* lSdkManager;
-    FbxScene* lScene;
-
-    InitializeSdkObjects(lSdkManager, lScene);
-
-    ImportScene(path, lSdkManager, lScene);
-    ModifyGeometry(lSdkManager, lScene);
-
-    data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
-                   (uint32_t)lScene->GetNodeCount(),
-                   (uint32_t)lScene->GetGeometryCount(),
-                   (uint32_t)lScene->GetMaterialCount()};
-
-    data.name = ::std::filesystem::path(path).stem().string();
-
-    data.nodes.reserve(data.header.nodeCount);
-
-    data.meshes.resize(data.header.meshCount);
-    tmpVertices.reserve(data.header.meshCount);
-
-    data.materials.reserve(data.header.materialCount);
-
-    ExtractMaterials(lScene, data.materials, pMemPool);
-
-    if (FbxNode* lRootNode = lScene->GetRootNode()) {
-        ProcessNode(lRootNode, -1, data, flipYZ, tmpVertices, pMemPool);
-    }
-
-    // TODO: process keyframes
-
-    DestroySdkObjects(lSdkManager);
-
-    return data;
 }
 
 }  // namespace FBXSDK

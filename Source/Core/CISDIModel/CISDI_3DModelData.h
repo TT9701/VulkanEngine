@@ -8,6 +8,8 @@
 #define CISDI_MODEL_DATA_API __declspec(dllimport)
 #endif
 
+constexpr bool bUseCombinedImport = true;
+
 namespace IntelliDesign_NS::ModelData {
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;

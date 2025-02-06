@@ -288,12 +288,12 @@ ModelData::CISDI_3DModel Geometry::LoadModel(
                                                  pMemPool);
     }
 
-    auto cisdiModelPath = modelPath + CISDI_3DModel_Subfix_Str;
-
-    if (::std::filesystem::exists(cisdiModelPath)) {
-        return IntelliDesign_NS::ModelData::Load(cisdiModelPath.c_str(),
-                                                 pMemPool);
-    }
+    // auto cisdiModelPath = modelPath + CISDI_3DModel_Subfix_Str;
+    //
+    // if (::std::filesystem::exists(cisdiModelPath)) {
+    //     return IntelliDesign_NS::ModelData::Load(cisdiModelPath.c_str(),
+    //                                              pMemPool);
+    // }
 
     return IntelliDesign_NS::ModelData::Convert(modelPath.c_str(), mFlipYZ,
                                                 pMemPool, output);

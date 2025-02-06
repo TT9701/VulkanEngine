@@ -132,27 +132,4 @@ struct InternalMeshlet {
     Type_STLVector<uint8_t> triangles;
 };
 
-struct MyStruct1 {
-    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(MyStruct1, name, vertIndices);
-
-    ::std::pmr::string name;
-    ::std::pmr::vector<uint32_t> vertIndices;
-};
-
-struct MyStruct2 {
-    INTELLI_DS_PMR_ELEMENT_CTOR_SIG(MyStruct2, int n)
-        : count(n),
-          INTELLI_DS_PMR_ELEMENT_CTOR_DEFAULT_INIT_LIST(name, vertIndices) {}
-
-    INTELLI_DS_PMR_ELEMENT_COPY_CTOR(MyStruct2, name, vertIndices),
-        count(_other_.count) {}
-
-    INTELLI_DS_PMR_ELEMENT_MOVE_CTOR(MyStruct2, name, vertIndices),
-        count(::std::move(_other_.count)) {}
-
-    int count;
-    ::std::pmr::string name;
-    ::std::pmr::vector<uint32_t> vertIndices;
-};
-
 }  // namespace IntelliDesign_NS::ModelData

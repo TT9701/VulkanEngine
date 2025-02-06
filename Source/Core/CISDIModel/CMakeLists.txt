@@ -16,6 +16,8 @@ set (MODEL_SRC
     Source/Importer/FBX_Importer.cpp
     Source/Importer/Assimp_Importer.h
     Source/Importer/Assimp_Importer.cpp
+    Source/Importer/Combined_Importer.h
+    Source/Importer/Combined_Importer.cpp
 )
 
 add_library(CISDI_ModelData SHARED ${MODEL_SRC})

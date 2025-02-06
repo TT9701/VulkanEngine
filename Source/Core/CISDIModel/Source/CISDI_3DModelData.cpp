@@ -5,6 +5,7 @@
 #include "Source/Common/FileIO.h"
 #include "Source/Common/Math.h"
 #include "Source/Importer/Assimp_Importer.h"
+#include "Source/Importer/Combined_Importer.h"
 #include "Source/Importer/FBX_Importer.h"
 
 namespace IntelliDesign_NS::ModelData {
@@ -151,11 +152,6 @@ void BuildMeshletDatas(
     Type_STLVector<InternalMeshData> const& tmpVertices,
     Type_STLVector<Type_STLVector<uint32_t>> const& tmpIndices,
     ::std::pmr::memory_resource* pMemPool) {
-
-    Type_STLVector<InternalMeshlet> vecTest {pMemPool};
-
-    tmpMeshlets.emplace_back();
-
     tmpMeshlets.resize(tmpVertices.size());
     for (uint32_t i = 0; i < tmpVertices.size(); ++i) {
         BuildMeshlet(tmpMeshlets[i], tmpVertices[i], tmpIndices[i]);
@@ -370,12 +366,19 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
 
         if (::std::filesystem::path(path).extension() == ".fbx"
             || ::std::filesystem::path(path).extension() == ".FBX") {
-            data = IntelliDesign_NS::ModelImporter::FBXSDK::Convert(
-                path, flipYZ, tmpVertices, tmpIndices, pMemPool);
-            RemapIndex(tmpVertices, tmpIndices);
+            if (bUseCombinedImport) {
+                IntelliDesign_NS::ModelImporter::CombinedImporter importer {
+                    pMemPool, path, flipYZ, data, tmpVertices, tmpIndices};
+            } else {
+                IntelliDesign_NS::ModelImporter::FBXSDK::Importer
+                    fbxSDKImporter {pMemPool, path,        flipYZ,
+                                    data,     tmpVertices, tmpIndices};
+
+                RemapIndex(tmpVertices, tmpIndices);
+            }
         } else {
-            data = IntelliDesign_NS::ModelImporter::Assimp::Convert(
-                path, flipYZ, tmpVertices, tmpIndices, pMemPool);
+            IntelliDesign_NS::ModelImporter::Assimp::Importer importer {
+                pMemPool, path, flipYZ, data, tmpVertices, tmpIndices};
         }
 
         OptimizeData(tmpVertices, tmpIndices);

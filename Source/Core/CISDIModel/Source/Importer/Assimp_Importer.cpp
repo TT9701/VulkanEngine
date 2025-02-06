@@ -6,12 +6,10 @@
 #include <iostream>
 #include <stdexcept>
 
+#include <assimp/postprocess.h>
+
 #include "CISDI_3DModelData.h"
 #include "Source/Common/Common.h"
-
-#include <assimp/postprocess.h>
-#include <assimp/scene.h>
-#include <assimp/Importer.hpp>
 
 using namespace IntelliDesign_NS::ModelData;
 
@@ -28,52 +26,58 @@ uint32_t CalcNodeCount(aiNode* node) {
     return nodeCount;
 }
 
-void ProcessNodeProperties(aiNode* node, CISDI_Node& cisdiNode) {
-    if (node->mMetaData) {
-        for (unsigned int i = 0; i < node->mMetaData->mNumProperties; ++i) {
-            const char* key = node->mMetaData->mKeys[i].C_Str();
-            aiMetadataEntry entry = node->mMetaData->mValues[i];
+}  // namespace
 
-            switch (entry.mType) {
-                case AI_BOOL:
-                    cisdiNode.userProperties[key] = *(bool*)entry.mData;
-                    break;
-                case AI_INT32:
-                    cisdiNode.userProperties[key] = *(int32_t*)entry.mData;
-                    break;
-                case AI_UINT32:
-                    cisdiNode.userProperties[key] = *(uint32_t*)entry.mData;
-                    break;
-                case AI_INT64:
-                    cisdiNode.userProperties[key] = *(int64_t*)entry.mData;
-                    break;
-                case AI_UINT64:
-                    cisdiNode.userProperties[key] = *(uint64_t*)entry.mData;
-                    break;
-                case AI_FLOAT:
-                    cisdiNode.userProperties[key] = *(float*)entry.mData;
-                    break;
-                case AI_DOUBLE:
-                    cisdiNode.userProperties[key] = *(double*)entry.mData;
-                    break;
-                case AI_AISTRING:
-                    cisdiNode.userProperties[key] =
-                        static_cast<aiString*>(entry.mData)->C_Str();
-                    break;
-                default:
-                    std::cout << key << ": (unknown type)" << std::endl;
-                    break;
-            }
-        }
-        cisdiNode.userPropertyCount = cisdiNode.userProperties.size();
+Importer::Importer(std::pmr::memory_resource* pMemPool, const char* path,
+                   bool flipYZ, CISDI_3DModel& outData,
+                   Type_InternalMeshDatas& tmpVertices,
+                   Type_Indices& outIndices)
+    : pMemPool(pMemPool), mTmpVertices(tmpVertices), mOutIndices(outIndices) {
+    ImportScene(path);
+    InitializeData(outData, path);
+    ExtractMaterials(outData);
+    ProcessNode(outData, ~0ui32, mScene->mRootNode, flipYZ);
+
+    outData.header.meshCount = (uint32_t)mTmpVertices.size();
+    outData.meshes.resize(outData.header.meshCount);
+}
+
+Importer::~Importer() {}
+
+void Importer::ImportScene(const char* path) {
+
+    mScene = const_cast<aiScene*>(importer.ReadFile(
+        path,
+        aiProcessPreset_TargetRealtime_Fast | aiProcess_FixInfacingNormals));
+
+    if (!mScene || mScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
+        || !mScene->mRootNode) {
+        // TODO: Logging
+        throw ::std::runtime_error(
+            (::std::string("ERROR::CISDI_3DModel::Convert::ASSIMP: ")
+             + importer.GetErrorString())
+                .c_str());
     }
 }
 
-void ExtractMaterials(aiScene const* pScene,
-                      Type_STLVector<CISDI_Material>& materials,
-                      ::std::pmr::memory_resource* pMemPool) {
-    for (uint32_t i = 0; i < pScene->mNumMaterials; ++i) {
-        auto material = pScene->mMaterials[i];
+void Importer::InitializeData(CISDI_3DModel& outData, const char* path) {
+    outData.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
+                      CalcNodeCount(mScene->mRootNode), mScene->mNumMeshes,
+                      mScene->mNumMaterials};
+
+    outData.name = ::std::filesystem::path(path).stem().string();
+
+    outData.nodes.reserve(outData.header.nodeCount);
+
+    mTmpVertices.reserve(outData.header.meshCount);
+    mOutIndices.reserve(outData.header.meshCount);
+
+    outData.materials.reserve(outData.header.materialCount);
+}
+
+void Importer::ExtractMaterials(CISDI_3DModel& outData) {
+    for (uint32_t i = 0; i < mScene->mNumMaterials; ++i) {
+        auto material = mScene->mMaterials[i];
         CISDI_Material cisdiMaterial {pMemPool};
         material->Get(AI_MATKEY_NAME, cisdiMaterial.name);
         aiColor3D color;
@@ -86,17 +90,48 @@ void ExtractMaterials(aiScene const* pScene,
         cisdiMaterial.data.emissive = {color.r, color.g, color.b};
         material->Get(AI_MATKEY_OPACITY, opacity);
         cisdiMaterial.data.transparency = opacity;
-        materials.emplace_back(cisdiMaterial);
+        outData.materials.emplace_back(cisdiMaterial);
     }
 }
 
-void ProcessMesh(CISDI_Node& cisdiNode, aiMesh* mesh, bool flipYZ,
-                 Type_STLVector<InternalMeshData>& tmpVertices,
-                 Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices) {
+uint32_t Importer::ProcessNode(CISDI_3DModel& outData, uint32_t parentNodeIdx,
+                               aiNode* node, bool flipYZ) {
+    uint32_t nodeIdx = outData.nodes.size();
+    int childCount = node->mNumChildren;
+
+    CISDI_Node cisdiNode {pMemPool};
+    cisdiNode.name = node->mName.C_Str();
+    cisdiNode.parentIdx = parentNodeIdx;
+    cisdiNode.childCount = childCount;
+    cisdiNode.childrenIdx.reserve(childCount);
+
+    // node contains <= 1 mesh
+    assert(node->mNumMeshes <= 1);
+
+    if (node->mNumMeshes > 0)
+        ProcessMesh(cisdiNode, mScene->mMeshes[node->mMeshes[0]], flipYZ);
+
+    ProcessNodeProperties(node, cisdiNode);
+
+    auto& ref = outData.nodes.emplace_back(::std::move(cisdiNode));
+
+    for (uint32_t i = 0; i < childCount; ++i) {
+        ref.childrenIdx.emplace_back(
+            ProcessNode(outData, nodeIdx, node->mChildren[i], flipYZ));
+    }
+
+    return nodeIdx;
+}
+
+void Importer::ProcessMesh(ModelData::CISDI_Node& cisdiNode, aiMesh* mesh,
+                           bool flipYZ) {
     uint32_t vertCount = mesh->mNumVertices;
 
-    uint32_t meshIdx = (uint32_t)tmpVertices.size();
-    auto& tmpMeshVertices = tmpVertices.emplace_back();
+    if (vertCount == 0)
+        return;
+
+    uint32_t meshIdx = (uint32_t)mTmpVertices.size();
+    auto& tmpMeshVertices = mTmpVertices.emplace_back();
     tmpMeshVertices.positions.resize(vertCount);
     tmpMeshVertices.normals.resize(vertCount);
     tmpMeshVertices.uvs.resize(vertCount);
@@ -143,89 +178,56 @@ void ProcessMesh(CISDI_Node& cisdiNode, aiMesh* mesh, bool flipYZ,
         }
     }
 
-    tmpIndices.emplace_back(::std::move(indices));
+    mOutIndices.emplace_back(::std::move(indices));
 
     cisdiNode.meshIdx = meshIdx;
     cisdiNode.materialIdx = mesh->mMaterialIndex;
 }
 
-uint32_t ProcessNode(CISDI_3DModel& data, uint32_t parentNodeIdx, aiNode* node,
-                     const aiScene* scene, bool flipYZ,
-                     Type_STLVector<InternalMeshData>& tmpVertices,
-                     Type_STLVector<Type_STLVector<uint32_t>>& tmpIndices,
-                     ::std::pmr::memory_resource* pMemPool) {
-    uint32_t nodeIdx = data.nodes.size();
-    int childCount = node->mNumChildren;
+void Importer::ProcessNodeProperties(aiNode* node, CISDI_Node& cisdiNode) {
+    if (node->mMetaData) {
+        for (unsigned int i = 0; i < node->mMetaData->mNumProperties; ++i) {
+            const char* key = node->mMetaData->mKeys[i].C_Str();
+            aiMetadataEntry entry = node->mMetaData->mValues[i];
 
-    CISDI_Node cisdiNode {pMemPool};
-    cisdiNode.name = node->mName.C_Str();
-    cisdiNode.parentIdx = parentNodeIdx;
-    cisdiNode.childCount = childCount;
-    cisdiNode.childrenIdx.reserve(childCount);
+            switch (entry.mType) {
+                case AI_BOOL:
+                    cisdiNode.userProperties[key] = *(bool*)entry.mData;
+                    break;
+                case AI_INT32:
+                    cisdiNode.userProperties[key] = *(int32_t*)entry.mData;
+                    break;
+                case AI_UINT32:
+                    cisdiNode.userProperties[key] = *(uint32_t*)entry.mData;
+                    break;
+                case AI_INT64:
+                    cisdiNode.userProperties[key] = *(int64_t*)entry.mData;
+                    break;
+                case AI_UINT64:
+                    cisdiNode.userProperties[key] = *(uint64_t*)entry.mData;
+                    break;
+                case AI_FLOAT:
+                    cisdiNode.userProperties[key] = *(float*)entry.mData;
+                    break;
+                case AI_DOUBLE:
+                    cisdiNode.userProperties[key] = *(double*)entry.mData;
+                    break;
+                case AI_AISTRING:
+                    cisdiNode.userProperties[key] =
+                        static_cast<aiString*>(entry.mData)->C_Str();
+                    break;
+                default:
+                    // std::cout << key << ": (unknown type)" << std::endl;
+                    break;
+            }
+        }
 
-    // node contains <= 1 mesh
-    assert(node->mNumMeshes <= 1);
+        if (node->mMetaData->mNumProperties > 0)
+            cisdiNode.userProperties["_NumProperties_"] =
+                node->mMetaData->mNumProperties;
 
-    if (node->mNumMeshes > 0)
-        ProcessMesh(cisdiNode, scene->mMeshes[node->mMeshes[0]], flipYZ,
-                    tmpVertices, tmpIndices);
-
-    ProcessNodeProperties(node, cisdiNode);
-
-    auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
-
-    for (uint32_t i = 0; i < childCount; ++i) {
-        ref.childrenIdx.emplace_back(
-            ProcessNode(data, nodeIdx, node->mChildren[i], scene, flipYZ,
-                        tmpVertices, tmpIndices, pMemPool));
+        cisdiNode.userPropertyCount = cisdiNode.userProperties.size();
     }
-
-    return nodeIdx;
-}
-
-}  // namespace
-
-CISDI_3DModel Convert(const char* path, bool flipYZ,
-                      Type_STLVector<InternalMeshData>& tmpVertices,
-                      Type_STLVector<Type_STLVector<uint32_t>>& outIndices,
-                      ::std::pmr::memory_resource* pMemPool) {
-    CISDI_3DModel data {pMemPool};
-
-    ::Assimp::Importer importer {};
-
-    const auto scene =
-        importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast
-                                    | aiProcess_FixInfacingNormals);
-
-    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE
-        || !scene->mRootNode) {
-        // TODO: Logging
-        throw ::std::runtime_error(
-            (::std::string("ERROR::CISDI_3DModel::Convert::ASSIMP: ")
-             + importer.GetErrorString())
-                .c_str());
-    }
-
-    data.header = {CISDI_3DModel_HEADER_UINT64, CISDI_3DModel_VERSION,
-                   CalcNodeCount(scene->mRootNode), scene->mNumMeshes,
-                   scene->mNumMaterials};
-
-    data.name = ::std::filesystem::path(path).stem().string();
-
-    data.nodes.reserve(data.header.nodeCount);
-
-    data.meshes.resize(data.header.meshCount);
-    tmpVertices.reserve(data.header.meshCount);
-    outIndices.reserve(data.header.meshCount);
-
-    data.materials.reserve(data.header.materialCount);
-
-    ExtractMaterials(scene, data.materials, pMemPool);
-
-    ProcessNode(data, ~0ui32, scene->mRootNode, scene, flipYZ, tmpVertices,
-                outIndices, pMemPool);
-
-    return data;
 }
 
 }  // namespace Assimp

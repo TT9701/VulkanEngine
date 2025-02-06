@@ -195,11 +195,11 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        const char* model = "f29cd4b7-f772-4ea8-9e2b-2f2796a03c38.fbx";
+        const char* model = "f29cd4b7-f772-4ea8-9e2b-2f2796a03c38.fbx.cisdi";
 
         auto pMemPool = ::std::pmr::get_default_resource();
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), &s_pMemPool);
+        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), pMemPool);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model,
@@ -522,6 +522,15 @@ void MeshShaderDemo::PrepareUIContext() {
     mImageName1 = "RandomImage";
     auto& renderResMgr = GetRenderResMgr();
     GetUILayer()
+        .AddContext([]() {
+            ImGui::Begin("Render info");
+            {
+                ImGui::Text("Render efficiency %.3f ms/frame (%.1f FPS)",
+                            1000.0f / ImGui::GetIO().Framerate,
+                            ImGui::GetIO().Framerate);
+            }
+            ImGui::End();
+        })
         .AddContext([&]() {
             if (ImGui::Begin("SceneStats")) {
                 ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
@@ -595,20 +604,20 @@ void MeshShaderDemo::PrepareUIContext() {
                                      ImGui::Text(
                                          "%s: %s", k.c_str(),
                                          ::std::visit(
-                                             [&](auto&& val) {
+                                             [&](auto&& val) -> ::std::string {
                                                  using T = std::decay_t<
                                                      decltype(val)>;
                                                  if constexpr (
                                                      ::std::is_same_v<
                                                          T, Type_STLString>) {
-                                                     return val.c_str();
+                                                     return {val.c_str()};
                                                  } else {
                                                      return ::std::to_string(
-                                                                val)
-                                                         .c_str();
+                                                         val);
                                                  }
                                              },
-                                             v));
+                                             v)
+                                             .c_str());
                                  }
                                  ImGui::TreePop();
                              }
