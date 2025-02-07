@@ -187,6 +187,7 @@ void RenderSequence::GenerateBarriers() {
                                          & vk::ImageUsageFlagBits::
                                                eDepthStencilAttachment
                                      ? vk::ImageAspectFlagBits::eDepth
+                                           | vk::ImageAspectFlagBits::eStencil
                                      : vk::ImageAspectFlagBits::eColor});
                 }
             }
@@ -199,6 +200,70 @@ void RenderSequence::GenerateBarriers() {
             mPasses[i].preBarrieres->GenerateMetaData();
         if (mPasses[i].postBarrieres)
             mPasses[i].postBarrieres->GenerateMetaData();
+    }
+
+    GeneratePreRenderBarriers();
+}
+
+void RenderSequence::GeneratePreRenderBarriers() {
+    mPreRenderBarrieres.reset();
+
+    ::std::unordered_map<uint32_t, Barrier> resIdxToBarInfoMap {};
+    uint32_t passCount = mPasses.size();
+    for (uint32_t i = 0; i < passCount; ++i) {
+        for (auto const& invalidate : mPassBarrierInfos[i]) {
+            uint32_t invalidateResIdx = invalidate.resourceIndex;
+            if (resIdxToBarInfoMap.contains(invalidateResIdx))
+                continue;
+
+            resIdxToBarInfoMap[invalidateResIdx] = invalidate;
+        }
+    }
+
+    if (!resIdxToBarInfoMap.empty()) {
+        mPreRenderBarrieres =
+            MakeUnique<RenderPassBindingInfo_Barrier>(mContext, mResMgr);
+    }
+    for (auto const& [resIdx, barInfo] : resIdxToBarInfoMap) {
+        auto resource = mRenderResources[resIdx];
+        auto resType = resource->GetType();
+
+        if (resType == RenderResource::Type::Buffer) {
+            mPreRenderBarrieres->AddBufferBarrier(
+                Type_STLString {resource->GetName()}.c_str(),
+                {.srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
+                 .srcAccessMask = vk::AccessFlagBits2::eMemoryWrite,
+                 .dstStageMask = barInfo.stages,
+                 .dstAccessMask = barInfo.access});
+        } else {
+
+            mPreRenderBarrieres->AddImageBarrier(
+                Type_STLString {resource->GetName()}.c_str(),
+                {.srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
+                 .srcAccessMask = vk::AccessFlagBits2::eMemoryWrite,
+                 .dstStageMask = barInfo.stages,
+                 .dstAccessMask = barInfo.access,
+                 .oldLayout = vk::ImageLayout::eUndefined,
+                 .newLayout = barInfo.layout == vk::ImageLayout::eGeneral
+                                ? vk::ImageLayout::eShaderReadOnlyOptimal
+                                : barInfo.layout,
+                 .aspect =
+                     resource->GetTexUsage()
+                             & vk::ImageUsageFlagBits::eDepthStencilAttachment
+                         ? vk::ImageAspectFlagBits::eDepth
+                               | vk::ImageAspectFlagBits::eStencil
+                         : vk::ImageAspectFlagBits::eColor});
+        }
+    }
+
+    mPreRenderBarrieres->GenerateMetaData();
+}
+
+void RenderSequence::ExecutePreRenderBarriers() {
+    if (mPreRenderBarrieres) {
+        auto cmd = mContext.CreateCmdBufToBegin(
+            mContext.GetQueue(QueueType::Graphics));
+        mPreRenderBarrieres->RecordCmd(cmd.mHandle);
     }
 }
 

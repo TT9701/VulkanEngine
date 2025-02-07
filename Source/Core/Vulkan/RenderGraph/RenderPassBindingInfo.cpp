@@ -708,6 +708,48 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
     Type_STLVector<vk::BufferMemoryBarrier2> bufBarriers;
     Type_STLVector<vk::MemoryBarrier2> memBarriers;
 
+    // for (auto const& [name, v] : mBarriers) {
+    //     if (auto barrier = ::std::get_if<ImageBarrier>(&v)) {
+    //         vk::ImageMemoryBarrier2 barrierInfo {};
+    //         barrierInfo.setSrcStageMask(barrier->srcStageMask)
+    //             .setSrcAccessMask(barrier->srcAccessMask)
+    //             .setDstStageMask(barrier->dstStageMask)
+    //             .setDstAccessMask(barrier->dstAccessMask)
+    //             .setOldLayout(barrier->oldLayout)
+    //             .setNewLayout(barrier->newLayout)
+    //             .setSrcQueueFamilyIndex(barrier->srcQueueFamilyIndex)
+    //             .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
+    //             .setSubresourceRange(
+    //                 Utils::GetWholeImageSubresource(barrier->aspect));
+    //         barrierInfo.setImage(mResMgr[name.c_str()].GetTexHandle());
+    //
+    //         bNames.push_back(name);
+    //         imgBarriers.push_back(barrierInfo);
+    //
+    //     } else if (auto barrier = ::std::get_if<BufferBarrier>(&v)) {
+    //         vk::BufferMemoryBarrier2 barrierInfo {};
+    //         barrierInfo.setSrcStageMask(barrier->srcStageMask)
+    //             .setSrcAccessMask(barrier->srcAccessMask)
+    //             .setDstStageMask(barrier->dstStageMask)
+    //             .setDstAccessMask(barrier->dstAccessMask)
+    //             .setSrcQueueFamilyIndex(barrier->srcQueueFamilyIndex)
+    //             .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
+    //             .setBuffer(mResMgr[name.c_str()].GetBufferHandle())
+    //             .setOffset(0)
+    //             .setSize(VK_WHOLE_SIZE);
+    //
+    //         bNames.push_back(name);
+    //         bufBarriers.push_back(barrierInfo);
+    //     } else if (auto barrier = ::std::get_if<MemoryBarrier>(&v)) {
+    //         vk::MemoryBarrier2 barrierInfo {};
+    //
+    //         // TODO: memory barrier
+    //
+    //         bNames.push_back(name);
+    //         memBarriers.push_back(barrierInfo);
+    //     }
+    // }
+
     for (auto const& [name, v] : mBarriers) {
         if (auto barrier = ::std::get_if<ImageBarrier>(&v)) {
             vk::ImageMemoryBarrier2 barrierInfo {};
@@ -725,8 +767,10 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
 
             bNames.push_back(name);
             imgBarriers.push_back(barrierInfo);
-
-        } else if (auto barrier = ::std::get_if<BufferBarrier>(&v)) {
+        }
+    }
+    for (auto const& [name, v] : mBarriers) {
+        if (auto barrier = ::std::get_if<BufferBarrier>(&v)) {
             vk::BufferMemoryBarrier2 barrierInfo {};
             barrierInfo.setSrcStageMask(barrier->srcStageMask)
                 .setSrcAccessMask(barrier->srcAccessMask)
@@ -740,7 +784,10 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
 
             bNames.push_back(name);
             bufBarriers.push_back(barrierInfo);
-        } else if (auto barrier = ::std::get_if<MemoryBarrier>(&v)) {
+        }
+    }
+    for (auto const& [name, v] : mBarriers) {
+        if (auto barrier = ::std::get_if<MemoryBarrier>(&v)) {
             vk::MemoryBarrier2 barrierInfo {};
 
             // TODO: memory barrier

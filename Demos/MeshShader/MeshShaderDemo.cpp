@@ -101,6 +101,9 @@ void MeshShaderDemo::Update_OnResize() {
 
     auto& drawQuadPass = mRenderSequence.FindPass("DrawQuad");
     drawQuadPass.OnResize(extent);
+
+    mRenderSequence.GeneratePreRenderBarriers();
+    mRenderSequence.ExecutePreRenderBarriers();
 }
 
 void MeshShaderDemo::UpdateScene() {

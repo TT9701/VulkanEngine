@@ -58,6 +58,10 @@ public:
 
     void GenerateBarriers();
 
+    void GeneratePreRenderBarriers();
+
+    void ExecutePreRenderBarriers();
+
     void Clear();
 
     friend RenderPassBindingInfo_PSO;
@@ -90,6 +94,7 @@ private:
     };
 
     Type_STLVector<Type_STLVector<Barrier>> mPassBarrierInfos;
+    UniquePtr<RenderPassBindingInfo_Barrier> mPreRenderBarrieres {nullptr};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
