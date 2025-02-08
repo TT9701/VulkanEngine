@@ -23,13 +23,13 @@ struct CISDI_Material {
 
     struct Data {
         ShadingModel shadingModel {ShadingModel::Lambert};
-        float shininess {};
+        float shininess {20.0f};
         Float32_2 padding {};
-        Float32_4 ambient {};
-        Float32_4 diffuse {};
-        Float32_4 specular {};
-        Float32_4 emissive {};
-        Float32_4 reflection {};
+        Float32_4 ambient {0.2f, 0.2f, 0.2f, 1.0f};
+        Float32_4 diffuse {0.6f, 0.6f, 0.6f, 1.0f};
+        Float32_4 specular {0.2f, 0.2f, 0.2f, 1.0f};
+        Float32_4 emissive {0.0f, 0.0f, 0.0f, 1.0f};
+        Float32_4 reflection {0.0f, 0.0f, 0.0f, 1.0f};
         Float32_4 transparency {};
     } data;
 };

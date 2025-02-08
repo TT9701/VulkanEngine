@@ -8,11 +8,6 @@
 
 using namespace IDNS_VC;
 
-namespace {
-auto s_pMemPool =
-    ::std::pmr::synchronized_pool_resource {::std::pmr::get_default_resource()};
-}
-
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescSetPool(GetVulkanContext())),
@@ -76,8 +71,32 @@ void MeshShaderDemo::LoadShaders() {
 void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
     Application::PollEvents(e, deltaTime);
 
-    mMainCamera.ProcessSDLEvent(e, deltaTime);
+    switch (e->type) {
+        case SDL_DROPFILE: {
+            DBG_LOG_INFO("Dropped file: %s", e->drop.file);
+            ::std::filesystem::path path{e->drop.file};
+
+            GetVulkanContext().GetDevice()->waitIdle();
+
+            auto pMemPool = ::std::pmr::get_default_resource();
+
+            mFactoryModel = MakeShared<Geometry>(path.string().c_str(), pMemPool);
+            mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
+
+            SDL_free(e->drop.file);
+        } break;
+        default: break;
+    }
+
     GetUILayer().PollEvent(e);
+
+    if (GetUILayer().WantCaptureKeyboard()) {
+        mMainCamera.mCaptureKeyboard = false;
+    } else {
+        mMainCamera.mCaptureKeyboard = true;
+    }
+
+    mMainCamera.ProcessSDLEvent(e, deltaTime);
 }
 
 void MeshShaderDemo::Update_OnResize() {
@@ -198,7 +217,7 @@ void MeshShaderDemo::Prepare() {
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
 
-        const char* model = "f29cd4b7-f772-4ea8-9e2b-2f2796a03c38.fbx.cisdi";
+        const char* model = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
 
         auto pMemPool = ::std::pmr::get_default_resource();
 
@@ -282,6 +301,22 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
                       vkCtx.GetQueue(QueueType::Graphics).GetHandle(), waits,
                       signals, frame.GetFencePool().RequestFence());
     }
+
+    GetVulkanContext().GetDevice()->waitIdle();
+
+    // {
+    //     if(mFrameNum % 1000 ==0) {
+    //         const char* model =
+    //             "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
+    //
+    //         auto pMemPool = ::std::pmr::get_default_resource();
+    //
+    //         mFactoryModel =
+    //             MakeShared<Geometry>(MODEL_PATH_CSTR(model), pMemPool);
+    //
+    //         mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
+    //     }
+    // }
 }
 
 void MeshShaderDemo::EndFrame(IDNS_VC::RenderFrame& frame) {
@@ -526,11 +561,47 @@ void MeshShaderDemo::PrepareUIContext() {
     auto& renderResMgr = GetRenderResMgr();
     GetUILayer()
         .AddContext([]() {
-            ImGui::Begin("Render info");
+            ImGui::Begin("Guide");
+            ImGui::Text("按 WASD 移动相机位置，按住鼠标右键控制相机朝向。");
+            ImGui::End();
+        })
+        .AddContext([this]() {
+            ImGui::Begin("渲染信息");
             {
-                ImGui::Text("Render efficiency %.3f ms/frame (%.1f FPS)",
+                ImGui::Text("单帧耗时 %.3f ms/frame (%.1f FPS)",
                             1000.0f / ImGui::GetIO().Framerate,
                             ImGui::GetIO().Framerate);
+
+                static char buf[1024] {};
+                static float loadTime {};
+
+                ImGui::InputText("模型文件名 -->", buf, 1024);
+
+                ::std::string buffName = buf;
+
+                ImGui::SameLine();
+                if (ImGui::Button("加载")) {
+                    if (buffName.empty()
+                        || !::std::filesystem::exists(
+                            MODEL_PATH_CSTR(buffName.c_str()))) {
+                        MessageBoxW(nullptr, L"模型文件不存在", L"错误", MB_OK);
+                    } else {
+                        auto pMemPool = ::std::pmr::get_default_resource();
+
+                        GameTimer timer;
+                        INTELLI_DS_MEASURE_DURATION_MS_START(timer);
+
+                        mFactoryModel = MakeShared<Geometry>(
+                            MODEL_PATH_CSTR(buffName.c_str()), pMemPool);
+                        mFactoryModel->GenerateMeshletBuffers(
+                            GetVulkanContext());
+
+                        INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
+                                                                 loadTime);
+                    }
+                }
+
+                ImGui::Text("加载耗时: %.3f s", loadTime / 1000.0f);
             }
             ImGui::End();
         })

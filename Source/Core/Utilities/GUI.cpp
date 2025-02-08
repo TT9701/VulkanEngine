@@ -60,6 +60,10 @@ GUI& GUI::AddContext(std::function<void()>&& ctx) {
     return *this;
 }
 
+bool GUI::WantCaptureKeyboard() const {
+    return ImGui::GetIO().WantCaptureKeyboard;
+}
+
 void GUI::PrepareContext() {
     ImGui::CreateContext();
     ImGui_ImplSDL2_InitForVulkan(mWindow.GetPtr());

@@ -101,28 +101,28 @@ inline Float32_2 MirrorTexCoords(Float32_2 texCoords) {
 }
 
 inline void UpdateAABB(AABoundingBox& aabb, Float32_3 pos) {
-    aabb.min.x = aabb.min.x < pos.x ? aabb.min.x : pos.x;
-    aabb.min.y = aabb.min.y < pos.y ? aabb.min.y : pos.y;
-    aabb.min.z = aabb.min.z < pos.z ? aabb.min.z : pos.z;
+    aabb.mMin.x = aabb.mMin.x < pos.x ? aabb.mMin.x : pos.x;
+    aabb.mMin.y = aabb.mMin.y < pos.y ? aabb.mMin.y : pos.y;
+    aabb.mMin.z = aabb.mMin.z < pos.z ? aabb.mMin.z : pos.z;
 
-    aabb.max.x = aabb.max.x > pos.x ? aabb.max.x : pos.x;
-    aabb.max.y = aabb.max.y > pos.y ? aabb.max.y : pos.y;
-    aabb.max.z = aabb.max.z > pos.z ? aabb.max.z : pos.z;
+    aabb.mMax.x = aabb.mMax.x > pos.x ? aabb.mMax.x : pos.x;
+    aabb.mMax.y = aabb.mMax.y > pos.y ? aabb.mMax.y : pos.y;
+    aabb.mMax.z = aabb.mMax.z > pos.z ? aabb.mMax.z : pos.z;
 }
 
 inline void UpdateAABB(AABoundingBox& aabb, AABoundingBox const& other) {
-    aabb.min.x = aabb.min.x < other.min.x ? aabb.min.x : other.min.x;
-    aabb.min.y = aabb.min.y < other.min.y ? aabb.min.y : other.min.y;
-    aabb.min.z = aabb.min.z < other.min.z ? aabb.min.z : other.min.z;
+    aabb.mMin.x = aabb.mMin.x < other.mMin.x ? aabb.mMin.x : other.mMin.x;
+    aabb.mMin.y = aabb.mMin.y < other.mMin.y ? aabb.mMin.y : other.mMin.y;
+    aabb.mMin.z = aabb.mMin.z < other.mMin.z ? aabb.mMin.z : other.mMin.z;
 
-    aabb.max.x = aabb.max.x > other.max.x ? aabb.max.x : other.max.x;
-    aabb.max.y = aabb.max.y > other.max.y ? aabb.max.y : other.max.y;
-    aabb.max.z = aabb.max.z > other.max.z ? aabb.max.z : other.max.z;
+    aabb.mMax.x = aabb.mMax.x > other.mMax.x ? aabb.mMax.x : other.mMax.x;
+    aabb.mMax.y = aabb.mMax.y > other.mMax.y ? aabb.mMax.y : other.mMax.y;
+    aabb.mMax.z = aabb.mMax.z > other.mMax.z ? aabb.mMax.z : other.mMax.z;
 }
 
 inline Float32_3 GetAABBCenter(AABoundingBox const& aabb) {
-    return {(aabb.min.x + aabb.max.x) * 0.5f, (aabb.min.y + aabb.max.y) * 0.5f,
-            (aabb.min.z + aabb.max.z) * 0.5f};
+    return {(aabb.mMin.x + aabb.mMax.x) * 0.5f, (aabb.mMin.y + aabb.mMax.y) * 0.5f,
+            (aabb.mMin.z + aabb.mMax.z) * 0.5f};
 }
 
 }  // namespace IntelliDesign_NS::ModelData

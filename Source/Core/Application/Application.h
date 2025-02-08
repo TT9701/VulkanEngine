@@ -88,7 +88,6 @@ protected:
     Core::RenderFrame& GetCurFrame();
     Type_STLVector<Core::RenderFrame> const& GetFrames() const;
     Type_STLVector<Core::RenderFrame>& GetFrames();
-
     
     bool mStopRendering {false};
     uint64_t mFrameNum {0};

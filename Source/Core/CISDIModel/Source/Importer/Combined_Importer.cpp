@@ -36,6 +36,9 @@ void CombinedImporter::ProcessNode(
     const char* cisdiMeshIDName = "CISDI_Mesh_ID";
     for (auto const& node : tmpAssimpData.nodes) {
         if (node.meshIdx != -1) {
+            if (!node.userProperties.contains(cisdiMeshIDName)) {
+                return;
+            }
             ::std::visit(
                 [&](auto&& v) {
                     using T = ::std::decay_t<decltype(v)>;

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // #define MAX_BINDLESS_DESCRIPTOR_COUNT (1048576ui32)
 #define MAX_BINDLESS_DESCRIPTOR_COUNT (64ui32)
@@ -9,7 +9,7 @@
 #define SHADER_PATH_CSTR(name) SHADER_PATH(name).c_str()
 
 #define MODEL_PATH(name)                                                    \
-    (IntelliDesign_NS::Core::MemoryPool::Type_STLString("../../../Models/") \
+    (IntelliDesign_NS::Core::MemoryPool::Type_STLString("../../../Models/股份数字化/") \
      + name)
 #define MODEL_PATH_CSTR(name) MODEL_PATH(name).c_str()
 

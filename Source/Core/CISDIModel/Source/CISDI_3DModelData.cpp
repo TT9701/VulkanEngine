@@ -301,15 +301,15 @@ void Generate_CISDIModel_PackedVertices(
                 // position
                 {
                     Float32_3 fPos = tmpMeshVertices.positions[vertIdx];
-                    Float32_3 bbLength {bb.max.x - bb.min.x,
-                                        bb.max.y - bb.min.y,
-                                        bb.max.z - bb.min.z};
+                    Float32_3 bbLength {bb.mMax.x - bb.mMin.x,
+                                        bb.mMax.y - bb.mMin.y,
+                                        bb.mMax.z - bb.mMin.z};
                     Float32_3 encodedPos {
-                        bbLength.x > 0.0f ? (fPos.x - bb.min.x) / bbLength.x
+                        bbLength.x > 0.0f ? (fPos.x - bb.mMin.x) / bbLength.x
                                           : 0.0f,
-                        bbLength.y > 0.0f ? (fPos.y - bb.min.y) / bbLength.y
+                        bbLength.y > 0.0f ? (fPos.y - bb.mMin.y) / bbLength.y
                                           : 0.0f,
-                        bbLength.z > 0.0f ? (fPos.z - bb.min.z) / bbLength.z
+                        bbLength.z > 0.0f ? (fPos.z - bb.mMin.z) / bbLength.z
                                           : 0.0f};
                     UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
                                         PackUnorm16(encodedPos.y),

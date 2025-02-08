@@ -101,10 +101,10 @@ private:
 
 struct AABoundingBox {
     AABoundingBox()
-        : min(FLT_MAX, FLT_MAX, FLT_MAX), max(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
+        : mMin(FLT_MAX, FLT_MAX, FLT_MAX), mMax(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
 
-    Float32_3 min;
-    Float32_3 max;
+    Float32_3 mMin;
+    Float32_3 mMax;
 };
 
 // exactly same as meshoptimizer::meshopt_Meshlet

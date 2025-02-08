@@ -63,9 +63,6 @@ void Importer::InitializeSdkObjects() {
     if (!mSdkManager) {
         FBXSDK_printf("Error: Unable to create FBX Manager!\n");
         exit(1);
-    } else {
-        FBXSDK_printf("Using Autodesk FBX SDK version %s\n",
-                      mSdkManager->GetVersion());
     }
 
     FbxIOSettings* ios = FbxIOSettings::Create(mSdkManager, IOSROOT);
@@ -251,12 +248,15 @@ void Importer::ExtractMaterials(CISDI_3DModel& data) {
         }
         data.materials.emplace_back(::std::move(cisdiMaterial));
     }
+    if (data.materials.empty()) {
+        CISDI_Material cisdiMaterial {pMemPool};
+        cisdiMaterial.name = "Default";
+        data.materials.emplace_back(::std::move(cisdiMaterial));
+    }
 }
 
 int Importer::ProcessNode(CISDI_3DModel& data, FbxNode* pNode,
                           int parentNodeIdx, bool flipYZ, bool meshData) {
-    static int meshIdx {0};
-
     int nodeIdx = (int)data.nodes.size();
     int childCount = pNode->GetChildCount();
 
@@ -283,6 +283,11 @@ int Importer::ProcessNode(CISDI_3DModel& data, FbxNode* pNode,
     if (pNode->GetMaterialCount() > 0) {
         auto lMaterial = pNode->GetMaterial(0);
         cisdiNode.materialIdx = materialIdxMap.at(lMaterial);
+    }
+
+    // mesh node with no material
+    if (cisdiNode.meshIdx != -1 && cisdiNode.materialIdx == -1) {
+        cisdiNode.materialIdx = 0;
     }
 
     // process user properties
@@ -491,8 +496,10 @@ void Importer::ProcessUserDefinedProperties(FbxNode const* pNode,
                         propName, prop.Get<FbxString>().Buffer());
                     break;
                 default:
-                    throw ::std::runtime_error(
-                        "ProcessUserDefinedProperties: Unknown property type");
+                    // throw ::std::runtime_error(
+                    //     "ProcessUserDefinedProperties: Unknown property type");
+                    cisdiNode.userPropertyCount--;
+                    break;
             }
             cisdiNode.userPropertyCount++;
         }

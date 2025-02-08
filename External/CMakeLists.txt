@@ -51,3 +51,10 @@ set_target_properties(imgui PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 #     DESTINATION ${INCLUDE_DIR}/SDL)
 
 include (../CMake/FindFBX.cmake)
+
+# add_subdirectory(ImGuiFileDialog)
+
+# target_link_libraries(ImGuiFileDialog
+#     PUBLIC
+#         imgui
+# )

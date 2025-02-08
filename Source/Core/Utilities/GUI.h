@@ -28,6 +28,8 @@ public:
 
     GUI& AddContext(::std::function<void()>&& ctx);
 
+    bool WantCaptureKeyboard() const;
+
 private:
     void PrepareContext();
     void CreateDescPool();

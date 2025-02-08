@@ -32,7 +32,9 @@ glm::mat4 Camera::GetViewMatrix() {
 }
 
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
-    ProcessKeyboard(e, deltaTime);
+    if (mCaptureKeyboard)
+        ProcessKeyboard(e, deltaTime);
+
     ProcessMouseButton(e);
 
     if (mCaptureMouseMovement)
