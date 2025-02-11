@@ -1,10 +1,15 @@
 ﻿#include "CISDIModel_BatchGenerator.h"
 
+#include <codecvt>
 #include <filesystem>
 #include <iostream>
 #include <vector>
 
-constexpr const char8_t* GENERATOR_EXECUTABLE_NAME = u8"CISDIModel_Generator.exe";
+constexpr const char8_t* GENERATOR_EXECUTABLE_NAME =
+    u8"CISDIModel_Generator.exe";
+
+constexpr const char8_t* DEFAULT_MODEL_PATH = u8"../../../Models/股份数字化/";
+
 constexpr int MAX_PROCESS_COUNT = 8;
 
 void WaitAllProcess(
@@ -28,16 +33,15 @@ CISDIModel_GeneratorProcess::CISDIModel_GeneratorProcess(
     mStartupInfo.cb = sizeof(mStartupInfo);
     ZeroMemory(&mProcessInfo, sizeof(mProcessInfo));
 
-    mCreateSucess = CreateProcess(  
-        NULL,  
-        mCommandLine,   
-        NULL,           //_In_opt_    LPSECURITY_ATTRIBUTES lpProcessAttributes,
-        NULL,           //_In_opt_    LPSECURITY_ATTRIBUTES lpThreadAttributes,
-        FALSE,          //_In_        BOOL                  bInheritHandles,
-        0,              
-        NULL,           //_In_opt_    LPVOID                lpEnvironment,
-        NULL,           //_In_opt_    LPCTSTR               lpCurrentDirectory,
-        &mStartupInfo,  //_In_        LPSTARTUPINFO         lpStartupInfo,
+    mCreateSucess = CreateProcess(
+        NULL, mCommandLine,
+        NULL,   //_In_opt_    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+        NULL,   //_In_opt_    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+        FALSE,  //_In_        BOOL                  bInheritHandles,
+        0,
+        NULL,            //_In_opt_    LPVOID                lpEnvironment,
+        NULL,            //_In_opt_    LPCTSTR               lpCurrentDirectory,
+        &mStartupInfo,   //_In_        LPSTARTUPINFO         lpStartupInfo,
         &mProcessInfo);  //_Out_       LPPROCESS_INFORMATION lpProcessInformation
 
     if (!mCreateSucess) {
@@ -60,32 +64,35 @@ DWORD CISDIModel_GeneratorProcess::Wait() {
     return mReturnCode;
 }
 
+void ReadModelNameFromDirectory(const ::std::filesystem::path& path,
+                                ::std::vector<::std::u8string>& modelPathes) {
+    for (const auto& entry : ::std::filesystem::directory_iterator(path)) {
+        if (entry.path().extension() == ".fbx") {
+            modelPathes.push_back(entry.path().u8string());
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     setlocale(LC_ALL, ".utf8");
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
-    if (argc < 2) {
-        printf(
-            "Usage: %s <model_path1>|<directory1> <model_path2>"
-            "|<directory2> ...\n",
-            argv[0]);
-        return 1;
-    }
-
     ::std::vector<::std::u8string> modelPathes;
 
-    for (int i = 1; i < argc; ++i) {
-        ::std::filesystem::path path(argv[i]);
-        if (std::filesystem::is_directory(path)) {
-            for (const auto& entry :
-                 std::filesystem::directory_iterator(path)) {
-                if (entry.path().extension() == ".fbx") {
-                    modelPathes.push_back(entry.path().u8string());
-                }
+    if (argc < 2) {
+        printf("No model path specified.\n");
+        printf("Loading Models from default path: %s.\n", DEFAULT_MODEL_PATH);
+
+        ReadModelNameFromDirectory(DEFAULT_MODEL_PATH, modelPathes);
+    } else {
+        for (int i = 1; i < argc; ++i) {
+            ::std::filesystem::path path(argv[i]);
+            if (std::filesystem::is_directory(path)) {
+                ReadModelNameFromDirectory(path, modelPathes);
+            } else {
+                modelPathes.push_back(path.u8string());
             }
-        } else {
-            modelPathes.push_back(path.u8string());
         }
     }
 
@@ -103,7 +110,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < processCount; ++i) {
         ::std::u8string commandLine = GENERATOR_EXECUTABLE_NAME;
-        for (auto && path : modelPathesList[i]) {
+        for (auto&& path : modelPathesList[i]) {
             commandLine += u8" ";
             commandLine += path;
         }

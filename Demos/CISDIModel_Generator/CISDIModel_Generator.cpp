@@ -1,6 +1,8 @@
 ﻿#include <filesystem>
 #include <vector>
 
+#include <Windows.h>
+
 #include "CISDI_3DModelData.h"
 
 void GenerateModel(std::pmr::memory_resource* pMemPool,
@@ -13,13 +15,13 @@ void GenerateModel(std::pmr::memory_resource* pMemPool,
             continue;
         }
 
-        printf("Generating CISDI Model %d/%d from: %s. \n", i + 1, count,
-               modelPathes[i]);
-
         IntelliDesign_NS::ModelData::Convert(modelPathes[i], false, pMemPool);
-    }
 
-    printf("Model data generation completed.\n");
+        DWORD pid = GetCurrentProcessId();
+
+        printf("[Pid: %ld] CISDI Model %d/%d: %s successfully generated. \n",
+               pid, i + 1, count, modelPathes[i]);
+    }
 }
 
 int main(int argc, char* argv[]) {
