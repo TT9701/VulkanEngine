@@ -57,10 +57,11 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
 void Camera::AdjustPosition(glm::vec3 lookAt, glm::vec3 extent) {
     mEulerAngles = {CameraYaw, CameraPitch};
 
-    auto dist = extent.x / extent.y > mPerspectiveInfo.mAspect
-                  ? extent.x / mPerspectiveInfo.mAspect * 0.5f
-                        / tan(mPerspectiveInfo.mFov * 0.5f)
-                  : extent.y * 0.5f / tan(mPerspectiveInfo.mFov * 0.5f);
+    auto aspect = extent.x / extent.y > mPerspectiveInfo.mAspect
+                    ? extent.x / mPerspectiveInfo.mAspect
+                    : extent.y;
+
+    auto dist = aspect * 0.5f / tan(mPerspectiveInfo.mFov * 0.5f);
 
     mPosition = lookAt + glm::vec3 {0.0f, 0.0f, extent.z * 0.5f + dist};
 

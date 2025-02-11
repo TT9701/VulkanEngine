@@ -134,17 +134,12 @@ void MeshShaderDemo::Update_OnResize() {
 void MeshShaderDemo::UpdateScene() {
     Application::UpdateScene();
 
-    auto& window = GetSDLWindow();
-
-    auto view = mMainCamera->GetViewMatrix();
-    auto proj = mMainCamera->GetProjectionMatrix();
-
-    proj[1][1] *= -1;
-
     mSceneData.cameraPos = glm::vec4 {mMainCamera->mPosition, 1.0f};
-    mSceneData.view = view;
-    mSceneData.proj = proj;
-    mSceneData.viewProj = proj * view;
+    mSceneData.view = mMainCamera->GetViewMatrix();
+    mSceneData.proj = mMainCamera->GetProjectionMatrix();
+    mSceneData.proj[1][1] *= -1;
+    mSceneData.viewProj = mSceneData.proj * mSceneData.view;
+
     UpdateSceneUBO();
 }
 
@@ -605,8 +600,7 @@ void MeshShaderDemo::PrepareUIContext() {
                     IGFD::FileDialogConfig config;
                     config.path = "../../../Models/股份数字化";
                     ImGuiFileDialog::Instance()->OpenDialog(
-                        "ChooseFileDlgKey", "选择文件", ".cisdi,.fbx,.STL,.obj",
-                        config);
+                        "ChooseFileDlgKey", "选择文件", ".cisdi,.fbx", config);
                 }
 
                 // display
