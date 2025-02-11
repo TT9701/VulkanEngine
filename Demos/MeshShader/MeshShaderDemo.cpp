@@ -301,22 +301,6 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
                       vkCtx.GetQueue(QueueType::Graphics).GetHandle(), waits,
                       signals, frame.GetFencePool().RequestFence());
     }
-
-    GetVulkanContext().GetDevice()->waitIdle();
-
-    // {
-    //     if(mFrameNum % 1000 ==0) {
-    //         const char* model =
-    //             "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
-    //
-    //         auto pMemPool = ::std::pmr::get_default_resource();
-    //
-    //         mFactoryModel =
-    //             MakeShared<Geometry>(MODEL_PATH_CSTR(model), pMemPool);
-    //
-    //         mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
-    //     }
-    // }
 }
 
 void MeshShaderDemo::EndFrame(IDNS_VC::RenderFrame& frame) {
@@ -591,6 +575,7 @@ void MeshShaderDemo::PrepareUIContext() {
                         GameTimer timer;
                         INTELLI_DS_MEASURE_DURATION_MS_START(timer);
 
+                        GetVulkanContext().GetDevice()->waitIdle();
                         mFactoryModel = MakeShared<Geometry>(
                             MODEL_PATH_CSTR(buffName.c_str()), pMemPool);
                         mFactoryModel->GenerateMeshletBuffers(
@@ -601,42 +586,75 @@ void MeshShaderDemo::PrepareUIContext() {
                     }
                 }
 
+                if (ImGui::Button("浏览文件列表")) {
+                    IGFD::FileDialogConfig config;
+                    config.path = "../../../Models/股份数字化";
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "ChooseFileDlgKey", "选择文件", ".cisdi,.fbx,.STL,.obj",
+                        config);
+                }
+                
+                // display
+                if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey")) {
+                    if (ImGuiFileDialog::Instance()->IsOk()) {  // action if OK
+                        std::string filePathName =
+                            ImGuiFileDialog::Instance()->GetFilePathName();
+                        std::string filePath =
+                            ImGuiFileDialog::Instance()->GetCurrentPath();
+                
+                        auto pMemPool = ::std::pmr::get_default_resource();
+                
+                        GameTimer timer;
+                        INTELLI_DS_MEASURE_DURATION_MS_START(timer);
+                
+                        GetVulkanContext().GetDevice()->waitIdle();
+                        mFactoryModel = MakeShared<Geometry>(
+                            filePathName.c_str(), pMemPool);
+                        mFactoryModel->GenerateMeshletBuffers(
+                            GetVulkanContext());
+                
+                        INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
+                                                                 loadTime);
+                    }
+                
+                    // close
+                    ImGuiFileDialog::Instance()->Close();
+                }
+
                 ImGui::Text("加载耗时: %.3f s", loadTime / 1000.0f);
             }
             ImGui::End();
         })
         .AddContext([&]() {
             if (ImGui::Begin("SceneStats")) {
-                ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)",
-                            mSceneData.cameraPos.x, mSceneData.cameraPos.y,
-                            mSceneData.cameraPos.z);
+                ImGui::InputFloat3("Camera Position", &mMainCamera.mPosition.x);
                 ImGui::SliderFloat3("Sun light position",
                                     (float*)&mSceneData.sunLightPos, -1.0f,
                                     1.0f);
-                ImGui::ColorEdit4("ObjColor", (float*)&mSceneData.objColor);
-                ImGui::SliderFloat2("MetallicRoughness",
-                                    (float*)&mSceneData.metallicRoughness, 0.0f,
-                                    1.0f);
-                ImGui::InputInt("Texture Index", &mSceneData.texIndex);
-
-                ImGui::InputText("##1", mImageName0.data(), 32);
-                ImGui::SameLine();
-                if (ImGui::Button("Add")) {
-                    auto tex = renderResMgr[mImageName0.c_str()].GetTexPtr();
-                    auto idx = GetCurFrame().GetBindlessDescPool().Add(tex);
-
-                    DBG_LOG_INFO("Add Button pressed, add texture at idx %d",
-                                 idx);
-                }
-
-                ImGui::InputText("##2", mImageName1.data(), 32);
-                ImGui::SameLine();
-                if (ImGui::Button("Delete")) {
-                    auto tex = renderResMgr[mImageName1.c_str()].GetTexPtr();
-                    auto idx = GetCurFrame().GetBindlessDescPool().Delete(tex);
-                    DBG_LOG_INFO(
-                        "Delete Button pressed, delete texture at idx %d", idx);
-                }
+                // ImGui::ColorEdit4("ObjColor", (float*)&mSceneData.objColor);
+                // ImGui::SliderFloat2("MetallicRoughness",
+                //                     (float*)&mSceneData.metallicRoughness, 0.0f,
+                //                     1.0f);
+                // ImGui::InputInt("Texture Index", &mSceneData.texIndex);
+                //
+                // ImGui::InputText("##1", mImageName0.data(), 32);
+                // ImGui::SameLine();
+                // if (ImGui::Button("Add")) {
+                //     auto tex = renderResMgr[mImageName0.c_str()].GetTexPtr();
+                //     auto idx = GetCurFrame().GetBindlessDescPool().Add(tex);
+                //
+                //     DBG_LOG_INFO("Add Button pressed, add texture at idx %d",
+                //                  idx);
+                // }
+                //
+                // ImGui::InputText("##2", mImageName1.data(), 32);
+                // ImGui::SameLine();
+                // if (ImGui::Button("Delete")) {
+                //     auto tex = renderResMgr[mImageName1.c_str()].GetTexPtr();
+                //     auto idx = GetCurFrame().GetBindlessDescPool().Delete(tex);
+                //     DBG_LOG_INFO(
+                //         "Delete Button pressed, delete texture at idx %d", idx);
+                // }
             }
             ImGui::End();
         })
