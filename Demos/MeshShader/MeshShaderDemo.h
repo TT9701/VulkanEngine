@@ -66,7 +66,7 @@ private:
 
     IDNS_VC::SharedPtr<IDNS_VC::Buffer> mDispatchIndirectCmdBuffer;
 
-    Camera mMainCamera {};
+    IDNS_VC::UniquePtr<Camera> mMainCamera;
     SceneData mSceneData {};
     IDNS_VC::SharedPtr<IDNS_VC::Geometry> mFactoryModel {};
 

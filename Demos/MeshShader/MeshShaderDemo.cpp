@@ -14,7 +14,10 @@ MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
       mRenderSequence(GetVulkanContext(), GetRenderResMgr(), GetPipelineMgr(),
                       mDescSetPool),
       mCopySem(GetVulkanContext()),
-      mCmpSem(GetVulkanContext()) {}
+      mCmpSem(GetVulkanContext()) {
+    mMainCamera = MakeUnique<Camera>(PersperctiveInfo {
+        1000.0f, 0.01f, glm::radians(45.0f), (float)spec.width / spec.height});
+}
 
 MeshShaderDemo::~MeshShaderDemo() = default;
 
@@ -74,13 +77,14 @@ void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
     switch (e->type) {
         case SDL_DROPFILE: {
             DBG_LOG_INFO("Dropped file: %s", e->drop.file);
-            ::std::filesystem::path path{e->drop.file};
+            ::std::filesystem::path path {e->drop.file};
 
             GetVulkanContext().GetDevice()->waitIdle();
 
             auto pMemPool = ::std::pmr::get_default_resource();
 
-            mFactoryModel = MakeShared<Geometry>(path.string().c_str(), pMemPool);
+            mFactoryModel =
+                MakeShared<Geometry>(path.string().c_str(), pMemPool);
             mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
 
             SDL_free(e->drop.file);
@@ -91,12 +95,12 @@ void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
     GetUILayer().PollEvent(e);
 
     if (GetUILayer().WantCaptureKeyboard()) {
-        mMainCamera.mCaptureKeyboard = false;
+        mMainCamera->mCaptureKeyboard = false;
     } else {
-        mMainCamera.mCaptureKeyboard = true;
+        mMainCamera->mCaptureKeyboard = true;
     }
 
-    mMainCamera.ProcessSDLEvent(e, deltaTime);
+    mMainCamera->ProcessSDLEvent(e, deltaTime);
 }
 
 void MeshShaderDemo::Update_OnResize() {
@@ -107,6 +111,8 @@ void MeshShaderDemo::Update_OnResize() {
 
     vk::Extent2D extent = {static_cast<uint32_t>(window.GetWidth()),
                            static_cast<uint32_t>(window.GetHeight())};
+
+    mMainCamera->SetAspect(extent.width / extent.height);
 
     renderResMgr.ResizeResources_ScreenSizeRelated(extent);
 
@@ -130,17 +136,12 @@ void MeshShaderDemo::UpdateScene() {
 
     auto& window = GetSDLWindow();
 
-    auto view = mMainCamera.GetViewMatrix();
-
-    glm::mat4 proj =
-        glm::perspective(glm::radians(45.0f),
-                         static_cast<float>(window.GetWidth())
-                             / static_cast<float>(window.GetHeight()),
-                         1000.0f, 0.01f);
+    auto view = mMainCamera->GetViewMatrix();
+    auto proj = mMainCamera->GetProjectionMatrix();
 
     proj[1][1] *= -1;
 
-    mSceneData.cameraPos = glm::vec4 {mMainCamera.mPosition, 1.0f};
+    mSceneData.cameraPos = glm::vec4 {mMainCamera->mPosition, 1.0f};
     mSceneData.view = view;
     mSceneData.proj = proj;
     mSceneData.viewProj = proj * view;
@@ -211,8 +212,6 @@ void MeshShaderDemo::Prepare() {
         }
     }
 
-    mMainCamera.mPosition = glm::vec3 {0.0f, 1.0f, 2.0f};
-
     // cisdi model data converter
     {
         IntelliDesign_NS::Core::Utils::Timer timer;
@@ -229,6 +228,13 @@ void MeshShaderDemo::Prepare() {
 
         mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
     }
+
+    auto center = mFactoryModel->GetCISDIModelData().boundingBox.GetCenter();
+    auto extent = mFactoryModel->GetCISDIModelData().boundingBox.GetExtent();
+
+    mMainCamera->AdjustPosition(
+        glm::vec3 {center.x, center.y, center.z} * 0.01f,
+        glm::vec3 {extent.x, extent.y, extent.z} * 0.01f);
 
     PrepareUIContext();
 
@@ -583,6 +589,15 @@ void MeshShaderDemo::PrepareUIContext() {
 
                         INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
                                                                  loadTime);
+
+                        auto center = mFactoryModel->GetCISDIModelData()
+                                          .boundingBox.GetCenter();
+                        auto extent = mFactoryModel->GetCISDIModelData()
+                                          .boundingBox.GetExtent();
+
+                        mMainCamera->AdjustPosition(
+                            glm::vec3 {center.x, center.y, center.z} * 0.01f,
+                            glm::vec3 {extent.x, extent.y, extent.z} * 0.01f);
                     }
                 }
 
@@ -593,7 +608,7 @@ void MeshShaderDemo::PrepareUIContext() {
                         "ChooseFileDlgKey", "选择文件", ".cisdi,.fbx,.STL,.obj",
                         config);
                 }
-                
+
                 // display
                 if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey")) {
                     if (ImGuiFileDialog::Instance()->IsOk()) {  // action if OK
@@ -601,22 +616,31 @@ void MeshShaderDemo::PrepareUIContext() {
                             ImGuiFileDialog::Instance()->GetFilePathName();
                         std::string filePath =
                             ImGuiFileDialog::Instance()->GetCurrentPath();
-                
+
                         auto pMemPool = ::std::pmr::get_default_resource();
-                
+
                         GameTimer timer;
                         INTELLI_DS_MEASURE_DURATION_MS_START(timer);
-                
+
                         GetVulkanContext().GetDevice()->waitIdle();
                         mFactoryModel = MakeShared<Geometry>(
                             filePathName.c_str(), pMemPool);
                         mFactoryModel->GenerateMeshletBuffers(
                             GetVulkanContext());
-                
+
                         INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
                                                                  loadTime);
+
+                        auto center = mFactoryModel->GetCISDIModelData()
+                                          .boundingBox.GetCenter();
+                        auto extent = mFactoryModel->GetCISDIModelData()
+                                          .boundingBox.GetExtent();
+
+                        mMainCamera->AdjustPosition(
+                            glm::vec3 {center.x, center.y, center.z} * 0.01f,
+                            glm::vec3 {extent.x, extent.y, extent.z} * 0.01f);
                     }
-                
+
                     // close
                     ImGuiFileDialog::Instance()->Close();
                 }
@@ -626,35 +650,21 @@ void MeshShaderDemo::PrepareUIContext() {
             ImGui::End();
         })
         .AddContext([&]() {
-            if (ImGui::Begin("SceneStats")) {
-                ImGui::InputFloat3("Camera Position", &mMainCamera.mPosition.x);
-                ImGui::SliderFloat3("Sun light position",
-                                    (float*)&mSceneData.sunLightPos, -1.0f,
-                                    1.0f);
-                // ImGui::ColorEdit4("ObjColor", (float*)&mSceneData.objColor);
-                // ImGui::SliderFloat2("MetallicRoughness",
-                //                     (float*)&mSceneData.metallicRoughness, 0.0f,
-                //                     1.0f);
-                // ImGui::InputInt("Texture Index", &mSceneData.texIndex);
-                //
-                // ImGui::InputText("##1", mImageName0.data(), 32);
-                // ImGui::SameLine();
-                // if (ImGui::Button("Add")) {
-                //     auto tex = renderResMgr[mImageName0.c_str()].GetTexPtr();
-                //     auto idx = GetCurFrame().GetBindlessDescPool().Add(tex);
-                //
-                //     DBG_LOG_INFO("Add Button pressed, add texture at idx %d",
-                //                  idx);
-                // }
-                //
-                // ImGui::InputText("##2", mImageName1.data(), 32);
-                // ImGui::SameLine();
-                // if (ImGui::Button("Delete")) {
-                //     auto tex = renderResMgr[mImageName1.c_str()].GetTexPtr();
-                //     auto idx = GetCurFrame().GetBindlessDescPool().Delete(tex);
-                //     DBG_LOG_INFO(
-                //         "Delete Button pressed, delete texture at idx %d", idx);
-                // }
+            if (ImGui::Begin("场景信息")) {
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", mMainCamera->mPosition.x,
+                            mMainCamera->mPosition.y, mMainCamera->mPosition.z);
+
+                static auto polar = glm::vec2 {
+                    atan2(mSceneData.sunLightPos.x, mSceneData.sunLightPos.z),
+                    acos(mSceneData.sunLightPos.y)};
+
+                auto pi = glm::pi<float>();
+
+                ImGui::SliderFloat2("太阳光方向：", (float*)&polar, -pi, pi);
+
+                mSceneData.sunLightPos =
+                    glm::vec4 {polar.x * sin(polar.y), cos(polar.x),
+                               polar.x * cos(polar.y), 1.0f};
             }
             ImGui::End();
         })

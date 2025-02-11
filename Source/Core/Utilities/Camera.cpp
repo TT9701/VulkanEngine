@@ -1,16 +1,19 @@
 #include "Camera.h"
 
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
 
-Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
+Camera::Camera(PersperctiveInfo info, glm::vec3 position, glm::vec3 up,
+               float yaw, float pitch)
     : mPosition(position),
       mFront(glm::vec3(0.0f, 0.0f, -1.0f)),
       mWorldUp(up),
-      mYaw(yaw),
-      mPitch(pitch),
+      mEulerAngles {yaw, pitch},
       mMovementSpeed(CameraSpeed),
       mMouseSensitivity(CameraSensitivity),
-      mZoom(CameraZoom) {
+      mZoom(CameraZoom),
+      mPerspectiveInfo(info) {
     Update();
 }
 
@@ -19,16 +22,24 @@ Camera::Camera(float posX, float posY, float posZ, float upX, float upY,
     : mPosition(posX, posY, posZ),
       mFront(glm::vec3(0.0f, 0.0f, -1.0f)),
       mWorldUp(glm::vec3(upX, upY, upZ)),
-      mYaw(yaw),
-      mPitch(pitch),
+      mEulerAngles {yaw, pitch},
       mMovementSpeed(CameraSpeed),
       mMouseSensitivity(CameraSensitivity),
       mZoom(CameraZoom) {
     Update();
 }
 
+void Camera::SetAspect(float aspect) {
+    mPerspectiveInfo.mAspect = aspect;
+}
+
 glm::mat4 Camera::GetViewMatrix() {
     return glm::lookAt(mPosition, mPosition + mFront, mUp);
+}
+
+glm::mat4 Camera::GetProjectionMatrix() {
+    return glm::perspective(mPerspectiveInfo.mFov, mPerspectiveInfo.mAspect,
+                            mPerspectiveInfo.mNear, mPerspectiveInfo.mFar);
 }
 
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
@@ -43,11 +54,26 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     ProcessMouseScroll(e);
 }
 
+void Camera::AdjustPosition(glm::vec3 lookAt, glm::vec3 extent) {
+    mEulerAngles = {CameraYaw, CameraPitch};
+
+    auto dist = extent.x / extent.y > mPerspectiveInfo.mAspect
+                  ? extent.x / mPerspectiveInfo.mAspect * 0.5f
+                        / tan(mPerspectiveInfo.mFov * 0.5f)
+                  : extent.y * 0.5f / tan(mPerspectiveInfo.mFov * 0.5f);
+
+    mPosition = lookAt + glm::vec3 {0.0f, 0.0f, extent.z * 0.5f + dist};
+
+    Update();
+}
+
 void Camera::Update() {
     glm::vec3 front;
-    front.x = cos(glm::radians(mYaw)) * cos(glm::radians(mPitch));
-    front.y = sin(glm::radians(mPitch));
-    front.z = sin(glm::radians(mYaw)) * cos(glm::radians(mPitch));
+    front.x = cos(glm::radians(mEulerAngles.mYaw))
+            * cos(glm::radians(mEulerAngles.mPitch));
+    front.y = sin(glm::radians(mEulerAngles.mPitch));
+    front.z = sin(glm::radians(mEulerAngles.mYaw))
+            * cos(glm::radians(mEulerAngles.mPitch));
 
     mFront = glm::normalize(front);
     mRight = glm::normalize(glm::cross(mFront, mWorldUp));
@@ -56,7 +82,7 @@ void Camera::Update() {
 
 void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
     if (e->type == SDL_KEYDOWN) {
-        mMovementSpeed += CameraSpeed / 10;
+        mMovementSpeed += mMovementSpeed * 0.05f;
         float velocity = mMovementSpeed * deltaTime;
         if (e->key.keysym.sym == SDLK_w) {
             mPosition += mFront * velocity;
@@ -96,14 +122,14 @@ void Camera::ProcessMouseButton(SDL_Event* e) {
 
 void Camera::ProcessMouseMovement(SDL_Event* e) {
     if (e->type == SDL_MOUSEMOTION) {
-        mYaw += (float)e->motion.xrel * mMouseSensitivity;
-        mPitch -= (float)e->motion.yrel * mMouseSensitivity;
+        mEulerAngles.mYaw += (float)e->motion.xrel * mMouseSensitivity;
+        mEulerAngles.mPitch -= (float)e->motion.yrel * mMouseSensitivity;
     }
 
-    if (mPitch > 89.0f)
-        mPitch = 89.0f;
-    if (mPitch < -89.0f)
-        mPitch = -89.0f;
+    if (mEulerAngles.mPitch > 89.0f)
+        mEulerAngles.mPitch = 89.0f;
+    if (mEulerAngles.mPitch < -89.0f)
+        mEulerAngles.mPitch = -89.0f;
 
     Update();
 }

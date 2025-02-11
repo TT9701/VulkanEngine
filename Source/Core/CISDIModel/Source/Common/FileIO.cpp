@@ -357,6 +357,12 @@ CISDI_3DModel Read_CISDI_File(const char* path,
     CISDI_3DModel data {pMemPool};
 
     ReadDataHeader(in, data.header);
+
+    // version check 
+    if (CISDI_3DModel_VERSION != data.header.version) {
+        throw ::std::runtime_error("ERROR::CISDI_3DModel::Convert");
+    }
+
     ReadString(in, data.name);
     ReadNode(in, data.header.nodeCount, data.nodes, pMemPool);
     ReadMesh(in, data.header.meshCount, data.meshes, pMemPool);

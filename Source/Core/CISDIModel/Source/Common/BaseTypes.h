@@ -62,6 +62,12 @@ struct Version {
     uint32_t major : 8;
     uint32_t minor : 8;
     uint32_t patch : 16;
+
+    bool operator==(const Version& rhs) const {
+        return major == rhs.major && minor == rhs.minor && patch == rhs.patch;
+    }
+
+    bool operator!=(const Version& rhs) const { return !(*this == rhs); }
 };
 
 template <class TEnum, class... TProps>
@@ -102,6 +108,15 @@ private:
 struct AABoundingBox {
     AABoundingBox()
         : mMin(FLT_MAX, FLT_MAX, FLT_MAX), mMax(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
+
+    Float32_3 GetCenter() const {
+        return Float32_3 {(mMin.x + mMax.x) * 0.5f, (mMin.y + mMax.y) * 0.5f,
+                          (mMin.z + mMax.z) * 0.5f};
+    }
+
+    Float32_3 GetExtent() const {
+        return Float32_3 {mMax.x - mMin.x, mMax.y - mMin.y, mMax.z - mMin.z};
+    }
 
     Float32_3 mMin;
     Float32_3 mMax;
