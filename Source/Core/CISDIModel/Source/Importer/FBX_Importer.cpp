@@ -130,7 +130,7 @@ void Importer::InitializeData(ModelData::CISDI_3DModel& data,
                    (uint32_t)mScene->GetGeometryCount(),
                    (uint32_t)mScene->GetMaterialCount()};
 
-    data.name = ::std::filesystem::path(path).stem().string();
+    data.name = ::std::filesystem::path(path).stem().string().c_str();
 
     data.nodes.reserve(data.header.nodeCount);
 
@@ -451,7 +451,7 @@ void Importer::ProcessUserDefinedProperties(FbxNode const* pNode,
     while (prop.IsValid()) {
         if (prop.GetFlag(FbxPropertyFlags::eUserDefined)
             || prop.GetFlag(FbxPropertyFlags::eImported)) {
-            std::string propName = prop.GetNameAsCStr();
+            Type_STLString propName = prop.GetNameAsCStr();
             FbxDataType dataType = prop.GetPropertyDataType();
 
             switch (dataType.GetType()) {

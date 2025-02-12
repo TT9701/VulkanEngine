@@ -65,7 +65,7 @@ void Importer::InitializeData(CISDI_3DModel& outData, const char* path) {
                       CalcNodeCount(mScene->mRootNode), mScene->mNumMeshes,
                       mScene->mNumMaterials};
 
-    outData.name = ::std::filesystem::path(path).stem().string();
+    outData.name = ::std::filesystem::path(path).stem().string().c_str();
 
     outData.nodes.reserve(outData.header.nodeCount);
 

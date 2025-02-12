@@ -1,4 +1,15 @@
-﻿#pragma once
+﻿/**
+ * @file CodeGenDef.h
+ * @author 
+ * @brief 宏递归展开
+ * @version 0.1
+ * @date 2025-02-11
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
+
+#pragma once
 
 #define INTELLI_DS_MACRO_EXPAND(x) x
 

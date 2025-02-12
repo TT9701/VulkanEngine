@@ -1,3 +1,14 @@
+/**
+ * @file Math.h
+ * @author 
+ * @brief 通用数学函数
+ * @version 0.1
+ * @date 2025-02-11
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
+
 #pragma once
 
 #include <cmath>
@@ -6,11 +17,17 @@
 
 namespace IntelliDesign_NS::ModelData {
 
+/**
+ * @brief 钳制函数
+ */
 template <class T>
 constexpr const T& Clamp(const T& v, const T& lo, const T& hi) {
     return (v < lo) ? lo : ((hi < v) ? hi : v);
 }
 
+/**
+ * @brief 归一化
+ */
 inline Float32_3 Normalize(Float32_3 v) {
     float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
     if (length > 0.0f) {
@@ -22,8 +39,11 @@ inline Float32_3 Normalize(Float32_3 v) {
     return v;
 }
 
-// https://jcgt.org/published/0003/02/01/
-// https://zhuanlan.zhihu.com/p/33905696
+/**
+ * @brief 单位向量转八面体坐标
+ * @details 参考：https://jcgt.org/published/0003/02/01/
+                https://zhuanlan.zhihu.com/p/33905696
+ */
 inline Float32_2 UnitVectorToOctahedron(Float32_3 n) {
     float absSum = std::abs(n.x) + std::abs(n.y) + std::abs(n.z);
     float u = n.x / absSum;
@@ -36,6 +56,9 @@ inline Float32_2 UnitVectorToOctahedron(Float32_3 n) {
     return {u, v};
 }
 
+/**
+ * @brief 八面体坐标转单位向量
+ */
 inline Float32_3 OctahedronToUnitVector(Float32_2 oct) {
     float nx = oct.x;
     float ny = oct.y;
@@ -48,10 +71,16 @@ inline Float32_3 OctahedronToUnitVector(Float32_2 oct) {
     return Normalize({nx, ny, nz});
 }
 
+/**
+ * @brief 将 float 值转换为 uint16_t 类型的 unorm16
+ */
 inline uint16_t PackUnorm16(float v) {
     return static_cast<uint16_t>(round(Clamp(v, 0.0f, 1.0f) * 65535.0f));
 }
 
+/**
+ * @brief 将 float 值转换为 int16_t 类型的 snorm16
+ */
 inline int16_t PackSnorm16(float v) {
     int16_t const topack =
         static_cast<int16_t>(round(Clamp(v, -1.0f, 1.0f) * 32767.0f));
@@ -75,18 +104,27 @@ inline int16_t PackSnorm16(float v) {
     }
  */
 
+/**
+ * @brief 纹理坐标钳制
+ */
 inline Float32_2 ClampTexCoords(Float32_2 texCoords) {
     texCoords.x = Clamp(texCoords.x, 0.0f, 1.0f);
     texCoords.y = Clamp(texCoords.y, 0.0f, 1.0f);
     return texCoords;
 }
 
+/**
+ * @brief 纹理坐标重复
+ */
 inline Float32_2 RepeatTexCoords(Float32_2 texCoords) {
     texCoords.x = texCoords.x - std::floor(texCoords.x);
     texCoords.y = texCoords.y - std::floor(texCoords.y);
     return texCoords;
 }
 
+/**
+ * @brief 纹理坐标镜像帮助函数
+ */
 inline float Mirror(float v) {
     v = std::abs(v);
     int intPart = static_cast<int>(v);
@@ -94,12 +132,18 @@ inline float Mirror(float v) {
     return (intPart % 2 == 0) ? fracPart : 1.0f - fracPart;
 }
 
+/**
+ * @brief 纹理坐标镜像
+ */
 inline Float32_2 MirrorTexCoords(Float32_2 texCoords) {
     texCoords.x = Mirror(texCoords.x);
     texCoords.y = Mirror(texCoords.y);
     return texCoords;
 }
 
+/**
+ * @brief 根据顶点位置更新包围盒
+ */
 inline void UpdateAABB(AABoundingBox& aabb, Float32_3 pos) {
     aabb.mMin.x = aabb.mMin.x < pos.x ? aabb.mMin.x : pos.x;
     aabb.mMin.y = aabb.mMin.y < pos.y ? aabb.mMin.y : pos.y;
@@ -110,6 +154,9 @@ inline void UpdateAABB(AABoundingBox& aabb, Float32_3 pos) {
     aabb.mMax.z = aabb.mMax.z > pos.z ? aabb.mMax.z : pos.z;
 }
 
+/**
+ * @brief 根据另一个包围盒更新包围盒
+ */
 inline void UpdateAABB(AABoundingBox& aabb, AABoundingBox const& other) {
     aabb.mMin.x = aabb.mMin.x < other.mMin.x ? aabb.mMin.x : other.mMin.x;
     aabb.mMin.y = aabb.mMin.y < other.mMin.y ? aabb.mMin.y : other.mMin.y;
@@ -120,8 +167,12 @@ inline void UpdateAABB(AABoundingBox& aabb, AABoundingBox const& other) {
     aabb.mMax.z = aabb.mMax.z > other.mMax.z ? aabb.mMax.z : other.mMax.z;
 }
 
+/**
+ * @brief 获取包围盒中心
+ */
 inline Float32_3 GetAABBCenter(AABoundingBox const& aabb) {
-    return {(aabb.mMin.x + aabb.mMax.x) * 0.5f, (aabb.mMin.y + aabb.mMax.y) * 0.5f,
+    return {(aabb.mMin.x + aabb.mMax.x) * 0.5f,
+            (aabb.mMin.y + aabb.mMax.y) * 0.5f,
             (aabb.mMin.z + aabb.mMax.z) * 0.5f};
 }
 

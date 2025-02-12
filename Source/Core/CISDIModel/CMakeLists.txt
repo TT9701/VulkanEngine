@@ -28,6 +28,11 @@ set_target_properties(CISDI_ModelData
 
 target_include_directories(CISDI_ModelData PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+target_include_directories(CISDI_ModelData
+    PUBLIC
+        ${INTELLIGENDESIGN_CODE_PATH}
+)
+
 target_compile_definitions(CISDI_ModelData 
     PRIVATE 
         CISDI_MODEL_DATA_EXPORTS)
@@ -37,3 +42,8 @@ target_link_libraries(CISDI_ModelData
     assimp::assimp
     meshoptimizer
     fbx::sdk)
+
+target_link_libraries(CISDI_ModelData
+    PUBLIC
+        debug INTELLI_DS_MemoryPool_DEBUG
+        optimized INTELLI_DS_MemoryPool_RELEASE)

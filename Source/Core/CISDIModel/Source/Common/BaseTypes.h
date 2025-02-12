@@ -1,5 +1,15 @@
-#pragma once
+﻿/**
+ * @file BaseTypes.h
+ * @author 
+ * @brief 该文件定义了各类通用数据结构，以及 CISDI_Vertice、CISDI_Meshlet 所需要的基本数据结构
+ * @version 0.1
+ * @date 2025-02-11
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
 
+#pragma once
 #include <cstdint>
 
 #include <memory_resource>
@@ -8,15 +18,17 @@
 #include <variant>
 #include <vector>
 
+#include "Core/System/MemoryPool/MemoryPool.h"
 #include "PMR_Def.h"
 
 namespace IntelliDesign_NS::ModelData {
 
 template <class T>
-using Type_STLVector = ::std::pmr::vector<T>;
-using Type_STLString = ::std::pmr::string;
+using Type_STLVector = Core::MemoryPool::Type_STLVector<T>;
+using Type_STLString = Core::MemoryPool::Type_STLString;
+
 template <class T>
-using Type_STLUnorderedMap_String = std::pmr::unordered_map<Type_STLString, T>;
+using Type_STLUnorderedMap_String = Core::MemoryPool::Type_STLUnorderedMap_String<T>;
 
 template <class T, uint32_t Dim>
 struct Vec;
@@ -58,6 +70,9 @@ using UInt16_3 = Vec<uint16_t, 3>;
 using Int16_2 = Vec<int16_t, 2>;
 using Int16_3 = Vec<int16_t, 3>;
 
+/**
+ * @brief 版本号
+ */
 struct Version {
     uint32_t major : 8;
     uint32_t minor : 8;
@@ -70,6 +85,9 @@ struct Version {
     bool operator!=(const Version& rhs) const { return !(*this == rhs); }
 };
 
+/**
+ * @brief 属性 tuple 类
+ */
 template <class TEnum, class... TProps>
     requires(sizeof...(TProps) == static_cast<size_t>(TEnum::_Count_))
          && ::std::is_enum_v<TEnum>
@@ -105,6 +123,9 @@ private:
     Type_PropTuple props;
 };
 
+/**
+ * @brief 包围盒
+ */
 struct AABoundingBox {
     AABoundingBox()
         : mMin(FLT_MAX, FLT_MAX, FLT_MAX), mMax(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
@@ -122,7 +143,9 @@ struct AABoundingBox {
     Float32_3 mMax;
 };
 
-// exactly same as meshoptimizer::meshopt_Meshlet
+/**
+ * @brief Meshlet 信息
+ */
 struct MeshletInfo {
     uint32_t vertexOffset;
     uint32_t triangleOffset;
@@ -132,6 +155,9 @@ struct MeshletInfo {
 
 // for internal use.
 struct InternalMeshData {
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(InternalMeshData, positions, normals,
+                                         uvs);
+
     Type_STLVector<Float32_3> positions;
     Type_STLVector<Float32_3> normals;
     Type_STLVector<Float32_2> uvs;

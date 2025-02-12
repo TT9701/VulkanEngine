@@ -176,7 +176,7 @@ void ReadString(std::ifstream& in, Type_STLString& str) {
     size_t nameLen;
     in.read((char*)&nameLen, sizeof(nameLen));
     str.resize(nameLen);
-    in.read(str.data(), nameLen);
+    in.read((char*)str.data(), nameLen);
 }
 
 void ReadDataHeader(std::ifstream& in, CISDI_3DModel::Header& header) {

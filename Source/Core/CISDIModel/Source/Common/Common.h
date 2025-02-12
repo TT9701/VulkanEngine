@@ -1,3 +1,14 @@
+/**
+ * @file Common.h
+ * @author 
+ * @brief 该文件定义了 CISDI_3DModel 所需要的基本数据结构
+ * @version 0.1
+ * @date 2025-02-11
+ * 
+ * @copyright Copyright (c) 2025
+ * 
+ */
+
 #pragma once
 
 #include "BaseTypes.h"
@@ -13,9 +24,11 @@
 
 namespace IntelliDesign_NS::ModelData {
 
+/**
+ * @brief CISDI_3DModel 的材质数据结构
+ */
 struct CISDI_Material {
-    explicit CISDI_Material(::std::pmr::memory_resource* pMemPool)
-        : name {pMemPool} {}
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(CISDI_Material, name);
 
     enum class ShadingModel : uint32_t { Lambert = 0, Phong };
 
@@ -38,6 +51,9 @@ struct CISDI_Material {
 // using SOA for vertex attributes
 enum class VertexAttributeEnum : uint8_t { Position, Normal, UV, _Count_ };
 
+/**
+ * @brief CISDI_3DModel 的顶点数据结构
+ */
 using CISDI_Vertices =
     PropertyTuple<VertexAttributeEnum, UInt16_3, Int16_2, UInt16_2>;
 
@@ -51,6 +67,9 @@ enum class MeshletPropertyTypeEnum : uint8_t {
     _Count_
 };
 
+/**
+ * @brief CISDI_3DModel 的 meshlet 数据结构
+ */
 using CISDI_Meshlets = PropertyTuple<MeshletPropertyTypeEnum, MeshletInfo,
                                      uint8_t, AABoundingBox, CISDI_Vertices>;
 
@@ -68,15 +87,20 @@ enum class UserPropertyValueTypeEnum : uint8_t {
     String,
     _Count_
 };
+
+/**
+ * @brief CISDI_3DModel 的节点用户自定义属性
+ */
 using Type_UserPropertyValue =
     ::std::variant<bool, char, unsigned char, int, unsigned int, long long,
                    unsigned long long, float, double, Type_STLString>;
 
+/**
+ * @brief CISDI_3DModel 的节点数据结构
+ */
 struct CISDI_Node {
-    explicit CISDI_Node(::std::pmr::memory_resource* pMemPool)
-        : name {pMemPool},
-          childrenIdx {::std::pmr::polymorphic_allocator {pMemPool}},
-          userProperties {pMemPool} {}
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(CISDI_Node, name, childrenIdx,
+                                         userProperties);
 
     Type_STLString name;
     uint32_t meshIdx {~0ui32};
