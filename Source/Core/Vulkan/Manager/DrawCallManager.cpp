@@ -122,7 +122,7 @@ void DrawCallManager::AddArgument_RenderingInfo(
                     .GetTexViewHandle(attachment.viewName.c_str());
 
         Type_STLString mappingName {attachment.imageName};
-        mappingName.append("@").append(attachment.viewName);
+        mappingName += "@" + attachment.viewName;
         metaData.mapping.emplace(mappingName, count);
 
         ++count;
@@ -135,7 +135,7 @@ void DrawCallManager::AddArgument_RenderingInfo(
             mRenderResManager[depthStencilAttachment.imageName.c_str()]
                 .GetTexViewHandle(depthStencilAttachment.viewName.c_str());
         Type_STLString mappingName {depthStencilAttachment.imageName};
-        mappingName.append("@").append(depthStencilAttachment.viewName);
+        mappingName += "@" + depthStencilAttachment.viewName;
         metaData.mapping.emplace(mappingName, -1);
     }
 
@@ -250,9 +250,9 @@ void DrawCallManager::AddArgument_IndexBuffer(vk::Buffer buffer,
 }
 
 void DrawCallManager::AddArgument_DrawIndexedIndirect(vk::Buffer buffer,
-                                                     vk::DeviceSize offset,
-                                                     uint32_t drawCount,
-                                                     uint32_t stride) {
+                                                      vk::DeviceSize offset,
+                                                      uint32_t drawCount,
+                                                      uint32_t stride) {
     DrawCallMetaData<DrawCallMetaDataType::DrawIndexedIndirect> metaData;
     metaData.buffer = buffer;
     metaData.offset = offset;
@@ -263,9 +263,9 @@ void DrawCallManager::AddArgument_DrawIndexedIndirect(vk::Buffer buffer,
 }
 
 void DrawCallManager::AddArgument_DrawIndirect(vk::Buffer buffer,
-                                              vk::DeviceSize offset,
-                                              uint32_t drawCount,
-                                              uint32_t stride) {
+                                               vk::DeviceSize offset,
+                                               uint32_t drawCount,
+                                               uint32_t stride) {
     DrawCallMetaData<DrawCallMetaDataType::DrawIndirect> metaData;
     metaData.buffer = buffer;
     metaData.offset = offset;
@@ -663,8 +663,7 @@ void DrawCallManager::UpdateArgument_OnResize(vk::Extent2D extent) {
                     break;
                 }
             }
-            auto mappingName =
-                Type_STLString {name}.append("@").append(viewName);
+            auto mappingName = Type_STLString {name} + "@" + viewName;
 
             if (mRenderingInfo->mapping.contains(mappingName)) {
                 attachmentResourceNames.push_back(mappingName);

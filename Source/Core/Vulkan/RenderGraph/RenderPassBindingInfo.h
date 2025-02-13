@@ -117,7 +117,7 @@ public:
 private:
     void InitBuiltInInfos();
 
-    void GeneratePipelineMetaData(::std::string_view name);
+    void GeneratePipelineMetaData(CMP_NS::Type_STLString_POD name);
     void GeneratePushContantMetaData();
     void GenerateRTVMetaData(
         Type_STLVector<::std::array<Type_STLString, 2>> const& data);

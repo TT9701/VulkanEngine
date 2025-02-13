@@ -8,6 +8,7 @@
 #include <SDL_timer.h>
 
 #include "Core/Utilities/Defines.h"
+#include "Core/Utilities/MemoryPool.h"
 
 /**
  * @brief 使用 SDL2 库创建各平台兼容的窗口系统
@@ -51,9 +52,10 @@ public:
     /**
       * @brief 获取创建 Vulkan 实例所需要的拓展名。
       * 
-      * @return std::vector<std::string> 创建 Vulkan 实例所需要的拓展名。
+      * @return std::vector<IntelliDesign_NS::Core::MemoryPool::Type_STLString> 创建 Vulkan 实例所需要的拓展名。
       */
-    std::vector<std::string> GetVulkanInstanceExtension() const;
+    std::vector<IntelliDesign_NS::Core::MemoryPool::Type_STLString>
+    GetVulkanInstanceExtension() const;
 
     /**
      * @brief 获得 SDL_Window 窗口指针

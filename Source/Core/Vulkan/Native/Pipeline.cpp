@@ -247,7 +247,7 @@ SharedPtr<Pipeline> PipelineBuilder<PipelineType::Graphics>::Build(
         if (modules)
             modules->GetMutex().unlock();
     }
-    mManager.mContext.SetName(pipeline->GetHandle(), pipelineName);
+    mManager.mContext.SetName(pipeline->GetHandle(), pipelineName.c_str());
     mManager.mPipelines.emplace(pipelineName, pipeline);
 
     Clear();
@@ -329,7 +329,7 @@ SharedPtr<Pipeline> PipelineBuilder<PipelineType::Compute>::Build(
     auto pipeline = MakeShared<Pipeline>(mManager.mContext, info, cache);
 
     (*pProgram)[ShaderStage::Compute]->GetMutex().unlock();
-    mManager.mContext.SetName(pipeline->GetHandle(), pipelineName);
+    mManager.mContext.SetName(pipeline->GetHandle(), pipelineName.c_str());
     mManager.mPipelines.emplace(pipelineName.c_str(), pipeline);
 
     return pipeline;

@@ -325,9 +325,4 @@ void VulkanContext::SetName(VkCppHandle handle, const char* name) {
     mDevice->SetObjectName(handle, name);
 }
 
-template <class VkCppHandle>
-void VulkanContext::SetName(VkCppHandle handle, std::string_view name) {
-    SetName(handle, Type_STLString {name}.c_str());
-}
-
 }  // namespace IntelliDesign_NS::Vulkan::Core

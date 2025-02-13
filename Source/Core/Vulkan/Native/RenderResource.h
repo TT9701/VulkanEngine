@@ -45,7 +45,7 @@ public:
 
 public:
     Type GetType() const;
-    ::std::string_view GetName() const;
+    const char* GetName() const;
 
     void SetName(const char* name);
 

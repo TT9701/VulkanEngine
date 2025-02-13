@@ -25,13 +25,14 @@ class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface {
 
         if (!file.is_open()) {
             throw ::std::runtime_error(
-                (Type_STLString("Cannot open shader source file: ") + name)
+                (Type_STLString("Cannot open shader source file: ")
+                 + name.c_str())
                     .c_str());
         }
 
         ::std::ostringstream sstr;
         sstr << file.rdbuf();
-        Type_STLString contents {sstr.str()};
+        Type_STLString contents {sstr.str().c_str()};
 
         auto container = new std::array<Type_STLString, 2>;
         (*container)[0] = name;
@@ -41,10 +42,10 @@ class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface {
 
         data->user_data = container;
 
-        data->source_name = (*container)[0].data();
+        data->source_name = (*container)[0].c_str();
         data->source_name_length = (*container)[0].size();
 
-        data->content = (*container)[1].data();
+        data->content = (*container)[1].c_str();
         data->content_length = (*container)[1].size();
 
         return data;
@@ -74,7 +75,7 @@ Type_STLVector<uint32_t> LoadSPIRVCode(const char* filePath) {
     return buffer;
 }
 
-Type_STLString LoadShaderSource(const char* filePath) {
+Type_ANSIString LoadShaderSource(const char* filePath) {
     std::ifstream file(filePath, std::ios::in);
 
     if (!file.is_open()) {
@@ -85,11 +86,11 @@ Type_STLString LoadShaderSource(const char* filePath) {
 
     ::std::ostringstream sstr;
     sstr << file.rdbuf();
-    return Type_STLString {sstr.str()};
+    return Type_ANSIString {sstr.str().c_str()};
 }
 
 Type_STLVector<uint32_t> CompileGLSLSource(
-    const char* name, Type_STLString const& source,
+    const char* name, Type_ANSIString const& source,
     vk::ShaderStageFlagBits stage, bool hasInclude,
     IntelliDesign_NS::Vulkan::Core::Type_ShaderMacros const& defines,
     const char* entry) {
@@ -97,7 +98,8 @@ Type_STLVector<uint32_t> CompileGLSLSource(
     shaderc::CompileOptions options {};
 
     for (auto& [macro, value] : defines) {
-        options.AddMacroDefinition(::std::string(macro), ::std::string(value));
+        options.AddMacroDefinition(::std::string(macro.c_str()),
+                                   ::std::string(value.c_str()));
     }
 #ifndef NDEBUG
     options.SetGenerateDebugInfo();
@@ -236,13 +238,13 @@ vk::ShaderModule Shader::CreateShader(void* pNext) const {
     return mContext.GetDevice()->createShaderModule(createInfo);
 }
 
-void Shader::GLSLReflect(Type_STLString const& source) {
+void Shader::GLSLReflect(Type_ANSIString const& source) {
     ::std::regex reg(R"(layout.*)");
     ::std::smatch m;
     auto pos = source.cbegin();
     auto end = source.cend();
 
-    Type_STLVector<Type_STLString> layouts;
+    Type_STLVector<Type_ANSIString> layouts;
     for (; ::std::regex_search(pos, end, m, reg); pos = m.suffix().first) {
         layouts.emplace_back(m.str().c_str());
     }
@@ -258,7 +260,7 @@ void Shader::GLSLReflect(Type_STLString const& source) {
 }
 
 void Shader::GLSLReflect_DescriptorBindingName(
-    Type_STLVector<Type_STLString> const& layouts) {
+    Type_STLVector<Type_ANSIString> const& layouts) {
     ::std::regex reg(
         R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*\)\s*(buffer|uniform)\s*(image2D|sampler2D)*\s+(.*)\s*[;|{|\s])");
     ::std::smatch m;
@@ -279,13 +281,13 @@ void Shader::GLSLReflect_DescriptorBindingName(
                 name = m.str(1);
             }
 
-            mGLSL_SetBindingNameMap.emplace_back(info, name);
+            mGLSL_SetBindingNameMap.emplace_back(info, name.c_str());
         }
     }
 }
 
 void Shader::GLSLReflect_PushConstantName(
-    Type_STLVector<Type_STLString> const& layouts) {
+    Type_STLVector<Type_ANSIString> const& layouts) {
     ::std::smatch m;
     ::std::regex pcReg(
         R"(.*\(\s*(push_constant)\s*\)\s+(uniform)\s+(.*)\s*\{*)");
@@ -293,14 +295,14 @@ void Shader::GLSLReflect_PushConstantName(
         if (::std::regex_match(layout.cbegin(), layout.cend(), m, pcReg)) {
             auto name = m.str(3);
             ::std::erase(name, ' ');
-            mGLSL_PushContantName = name;
+            mGLSL_PushContantName = name.c_str();
             break;
         }
     }
 }
 
 void Shader::GLSLReflect_OutVarName(
-    Type_STLVector<Type_STLString> const& layouts) {
+    Type_STLVector<Type_ANSIString> const& layouts) {
     Type_STLMap<uint32_t, Type_STLString> tempMap;
 
     ::std::smatch m;
@@ -311,7 +313,7 @@ void Shader::GLSLReflect_OutVarName(
             uint32_t idx = atoi(m.str(2).c_str());
             auto name = m.str(5);
             ::std::erase(name, ' ');
-            tempMap.emplace(idx, name);
+            tempMap.emplace(idx, name.c_str());
         }
     }
 
@@ -530,15 +532,15 @@ void ShaderProgram::CreateDescLayouts(
         Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
         auto stage = vk::to_string(it->stage);
         std::erase(stage, ' ');
-        setName.append("@" + stage);
+        setName = setName + "@" + stage.c_str();
         for (; it != datas.end() && it->setIdx == setIdx; ++it) {
             Type_STLString bindingName {it->name};
-            bindingName.append("@").append(stage);
+            bindingName = bindingName + "@" + stage.c_str();
             bindingNames.emplace_back(bindingName);
             bindings.emplace_back(it->bindingIdx, it->type, it->descCount,
                                   it->stage, nullptr);
         }
-        setName.append("@Set" + ::std::to_string(setIdx));
+        setName = setName + "@Set" + ::std::to_string(setIdx).c_str();
         CreateDescLayout(setName.c_str(), bindingNames, bindings);
     }
 }

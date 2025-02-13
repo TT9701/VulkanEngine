@@ -99,11 +99,13 @@ void GUI::PrepareContext() {
                                  sizePixels, nullptr,
                                  io.Fonts->GetGlyphRangesDefault());
 
+    io.Fonts->AddFontFromFileTTF("../../Resources/fonts/Roboto-Medium.ttf",
+                                 sizePixels, &config,
+                                 io.Fonts->GetGlyphRangesGreek());
+
     io.Fonts->AddFontFromFileTTF("c:/windows/fonts/simhei.ttf", sizePixels,
                                  &config,
                                  io.Fonts->GetGlyphRangesChineseFull());
-
-    
 }
 
 void GUI::CreateDescPool() {

@@ -67,14 +67,14 @@ void SDLWindow::PollEvents(bool& quit, bool& stopRendering,
     }
 }
 
-std::vector<std::string> SDLWindow::GetVulkanInstanceExtension() const {
+std::vector<IntelliDesign_NS::Core::MemoryPool::Type_STLString> SDLWindow::GetVulkanInstanceExtension() const {
     uint32_t count {0};
     SDL_Vulkan_GetInstanceExtensions(mWindow, &count, nullptr);
     ::std::vector<const char*> requestedExtensions(count);
     SDL_Vulkan_GetInstanceExtensions(mWindow, &count,
                                      requestedExtensions.data());
 
-    std::vector<std::string> result {};
+    std::vector<IntelliDesign_NS::Core::MemoryPool::Type_STLString> result {};
     result.reserve(requestedExtensions.size());
     for (auto& ext : requestedExtensions) {
         result.emplace_back(ext);

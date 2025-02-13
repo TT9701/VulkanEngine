@@ -155,8 +155,8 @@ void RenderResource::Resize(vk::Extent2D extent) {
         mResource);
 }
 
-std::string_view RenderResource::GetName() const {
-    return mName;
+const char* RenderResource::GetName() const {
+    return mName.c_str();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

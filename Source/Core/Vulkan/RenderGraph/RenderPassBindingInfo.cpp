@@ -69,7 +69,7 @@ RenderPassBindingInfo_PSO::operator[](RenderPassBinding::Type type) {
 
 namespace {
 
-auto isPrefix = [](std::string_view prefix, std::string_view full) {
+auto isPrefix = [](Type_STLString_View prefix, Type_STLString_View full) {
     return prefix == full.substr(0, prefix.size());
 };
 
@@ -331,7 +331,7 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
 void RenderPassBindingInfo_PSO::Update(
     const char* name, RenderPassBinding::BindlessDescBufInfo info) {
     for (auto& [n, _] : mBindlessDescInfos) {
-        if (isPrefix(name, n)) {
+        if (isPrefix(Type_STLString {name}, n)) {
             ::std::get<RenderPassBinding::BindlessDescBufInfo>(
                 mBindlessDescInfos.at(n).value) = info;
 
@@ -377,7 +377,7 @@ void RenderPassBindingInfo_PSO::InitBuiltInInfos() {
 }
 
 void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
-    ::std::string_view name) {
+    CMP_NS::Type_STLString_POD name) {
     Type_STLString pipelineName {name};
     if (!pipelineName.empty()) {
         if (mRenderSequence.mPipelineMgr.GetPipelines().contains(

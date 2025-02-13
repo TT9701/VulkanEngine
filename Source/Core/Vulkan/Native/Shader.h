@@ -84,12 +84,12 @@ public:
 private:
     vk::ShaderModule CreateShader(void* pNext) const;
 
-    void GLSLReflect(Type_STLString const& source);
+    void GLSLReflect(Type_ANSIString const& source);
     void GLSLReflect_DescriptorBindingName(
-        Type_STLVector<Type_STLString> const& layouts);
+        Type_STLVector<Type_ANSIString> const& layouts);
     void GLSLReflect_PushConstantName(
-        Type_STLVector<Type_STLString> const& layouts);
-    void GLSLReflect_OutVarName(Type_STLVector<Type_STLString> const& layouts);
+        Type_STLVector<Type_ANSIString> const& layouts);
+    void GLSLReflect_OutVarName(Type_STLVector<Type_ANSIString> const& layouts);
 
 private:
     VulkanContext& mContext;
