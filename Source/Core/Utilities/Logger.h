@@ -4,12 +4,12 @@
 
 inline IntelliDesign_NS::Core::AP_ErrorLogger* GetLogger() {
     static ::std::unique_ptr<IntelliDesign_NS::Core::AP_ErrorLogger>
-        pErrorLogger {new IntelliDesign_NS::Core::AP_ErrorLogger};
+        pErrorLogger {new IntelliDesign_NS::Core::AP_ErrorLogger {{}}};
     return pErrorLogger.get();
 }
 
 #ifndef NDEBUG
-#define DBG_LOG_INFO(...) GetLogger()->Log(__VA_ARGS__)
+#define DBG_LOG_INFO(...) GetLogger()->Log_Legacy(__VA_ARGS__)
 #else
 #define DBG_LOG_INFO(...)
 #endif

@@ -2,8 +2,6 @@ find_package(Vulkan REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_subdirectory(CISDIModel)
-
 set (UTILITIES_SRC 
     Utilities/Logger.h
     Utilities/VulkanUtilities.h
@@ -112,11 +110,18 @@ set (MODEL_SRC
 )
 set (MODEL_SRC_GROUP_NAME "Model")
 
+set (SCENE_GRAPH_SRC
+    SceneGraph/Scene.h
+    SceneGraph/Scene.cpp
+)
+set (SCENE_GRAPH_SRC_GROUP_NAME "SceneGraph")
+
 source_group(${UTILITIES_SRC_GROUP_NAME} FILES ${UTILITIES_SRC})
 source_group(${VULKAN_CORE_SRC_GROUP_NAME} FILES ${VULKAN_CORE_SRC})
 source_group(${PLATFORM_SRC_GROUP_NAME} FILES ${PLATFORM_SRC})
 source_group(${MODEL_SRC_GROUP_NAME} FILES ${MODEL_SRC})
 source_group(${APPLICATION_SRC_GROUP_NAME} FILES ${APPLICATION_SRC})
+source_group(${SCENE_GRAPH_SRC_GROUP_NAME} FILES ${SCENE_GRAPH_SRC})
 
 add_library(Core STATIC
     ${UTILITIES_SRC}
@@ -124,6 +129,7 @@ add_library(Core STATIC
     ${VULKAN_CORE_SRC}
     ${MODEL_SRC}
     ${APPLICATION_SRC}
+    ${SCENE_GRAPH_SRC}
 )
 
 set_target_properties(Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})
@@ -168,13 +174,12 @@ target_link_libraries(Core
     PUBLIC 
         SDL2::SDL2
         spirv-cross-c
-        ImGuiFileDialog
-        CISDI_ModelData)
+        ImGuiFileDialog)
 
 # include("../../External/Output/lib/cmake/assimp-5.4/assimpConfig.cmake")
 
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
-set (INTELLIGENDESIGN_LIB_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsLib/LibraryOutputs/x64")
+set (INTELLIGENDESIGN_LIB_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository/LibraryOutputs/x64")
 
 target_include_directories(Core
     PUBLIC
@@ -197,3 +202,9 @@ target_link_libraries(Core
     PUBLIC
         debug INTELLI_DS_MemoryPool_DEBUG
         optimized INTELLI_DS_MemoryPool_RELEASE)
+
+add_subdirectory(CISDIModel)
+
+target_link_libraries(Core
+    PUBLIC 
+        CISDI_ModelData)

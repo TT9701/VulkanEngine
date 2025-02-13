@@ -1,8 +1,5 @@
 #pragma once
 
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
-
 #include "Core/Model/Geometry.h"
 #include "Core/Platform/Window.h"
 #include "Core/Utilities/Camera.h"

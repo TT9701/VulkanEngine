@@ -82,13 +82,13 @@ layout(buffer_reference, std430) readonly buffer MeshletCountBuffer{
 	uint meshletCounts[];
 };
 
-struct Position {
+struct Vec3 {
 	float x, y, z;
 };
 
 struct BoundingBox {
-	Position min;
-	Position max;
+	Vec3 center;
+	Vec3 extent;
 };
 
 layout(buffer_reference, std430) readonly buffer BoundingBoxBuffer{ 
@@ -163,10 +163,11 @@ void main()
 		UInt16Pos encodedPos = constants.posBuffer.position[meshVertexOffset + verticesID];
 
 		BoundingBox box = constants.meshletBoundingBoxBuffer.boundingBoxes[meshletOffset + meshletID];
-		vec3 boxMin = vec3(box.min.x, box.min.y, box.min.z);
-		vec3 boxMax = vec3(box.max.x, box.max.y, box.max.z);
+		vec3 boxCenter = vec3(box.center.x, box.center.y, box.center.z);
+		vec3 boxExtent = vec3(box.extent.x, box.extent.y, box.extent.z);
+		vec3 boxMin = boxCenter - boxExtent;
 
-		vec3 pos = vec3(UnpackUnorm16(encodedPos.x), UnpackUnorm16(encodedPos.y), UnpackUnorm16(encodedPos.z)) * (boxMax - boxMin) + boxMin;
+		vec3 pos = vec3(UnpackUnorm16(encodedPos.x), UnpackUnorm16(encodedPos.y), UnpackUnorm16(encodedPos.z)) * boxExtent * 2.0 + boxMin;
 
 		vec4 wPos = constants.modelMatrix * vec4(pos, 1.0);
 

@@ -5,25 +5,28 @@
 
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
-namespace IDNS_VC = IntelliDesign_NS::Vulkan::Core;
-namespace IDNC_CMP = IntelliDesign_NS::Core::MemoryPool;
+namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
+namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
+
+namespace IDC_NS = IntelliDesign_NS::Core;
+namespace IDCMCore_NS = IntelliDesign_NS::CMCore_NS;
 
 struct SceneData {
-    glm::vec4 sunLightPos {0.6f, 1.0f, 0.8f, 1.0f};
-    glm::vec4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
-    glm::vec4 cameraPos {};
-    glm::mat4 view {};
-    glm::mat4 proj {};
-    glm::mat4 viewProj {};
+    IDCMCore_NS::XMFLOAT4 sunLightPos {0.6f, 1.0f, 0.8f, 1.0f};
+    IDCMCore_NS::XMFLOAT4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
+    IDCMCore_NS::XMFLOAT4 cameraPos {};
+    IDCMCore_NS::XMFLOAT4X4 view {};
+    IDCMCore_NS::XMFLOAT4X4 proj {};
+    IDCMCore_NS::XMFLOAT4X4 viewProj {};
 
-    glm::vec4 objColor {0.7f};
-    glm::vec4 metallicRoughness {0.5f};
+    IDCMCore_NS::XMFLOAT4 objColor {0.7f, 0.7f, 0.7f, 1.0f};
+    IDCMCore_NS::XMFLOAT4 metallicRoughness {0.5f, 0.0f, 0.0f, 0.0f};
     int32_t texIndex {0};
 };
 
-class MeshShaderDemo : public IDNS_VC::Application {
+class MeshShaderDemo : public IDVC_NS::Application {
 public:
-    MeshShaderDemo(IDNS_VC::ApplicationSpecification const& spec);
+    MeshShaderDemo(IDVC_NS::ApplicationSpecification const& spec);
 
     ~MeshShaderDemo() override;
 
@@ -35,9 +38,9 @@ private:
     virtual void UpdateScene() override;
     virtual void Prepare() override;
 
-    virtual void BeginFrame(IDNS_VC::RenderFrame& frame) override;
-    virtual void RenderFrame(IDNS_VC::RenderFrame& frame) override;
-    virtual void EndFrame(IDNS_VC::RenderFrame& frame) override;
+    virtual void BeginFrame(IDVC_NS::RenderFrame& frame) override;
+    virtual void RenderFrame(IDVC_NS::RenderFrame& frame) override;
+    virtual void EndFrame(IDVC_NS::RenderFrame& frame) override;
 
     virtual void RenderToSwapchainBindings(vk::CommandBuffer cmd) override;
 
@@ -54,24 +57,24 @@ private:
 
     void PrepareUIContext();
 
-    void RecordPasses(IDNS_VC::RenderSequence& sequence);
+    void RecordPasses(IDVC_NS::RenderSequence& sequence);
 
 private:
-    IDNS_VC::DescriptorSetPool mDescSetPool;
+    IDVC_NS::DescriptorSetPool mDescSetPool;
 
-    IDNS_VC::RenderSequence mRenderSequence;
+    IDVC_NS::RenderSequence mRenderSequence;
 
-    IDNS_VC::Semaphore mCopySem;
-    IDNS_VC::Semaphore mCmpSem;
+    IDVC_NS::Semaphore mCopySem;
+    IDVC_NS::Semaphore mCmpSem;
 
-    IDNS_VC::SharedPtr<IDNS_VC::Buffer> mDispatchIndirectCmdBuffer;
+    IDVC_NS::SharedPtr<IDVC_NS::Buffer> mDispatchIndirectCmdBuffer;
 
-    IDNS_VC::UniquePtr<Camera> mMainCamera;
+    IDVC_NS::UniquePtr<IDC_NS::Camera> mMainCamera;
     SceneData mSceneData {};
-    IDNS_VC::SharedPtr<IDNS_VC::Geometry> mFactoryModel {};
+    IDVC_NS::SharedPtr<IDVC_NS::Geometry> mFactoryModel {};
 
-    IDNS_VC::Type_STLString mImageName0;
-    IDNS_VC::Type_STLString mImageName1;
+    IDVC_NS::Type_STLString mImageName0;
+    IDVC_NS::Type_STLString mImageName1;
 };
 
 VE_CREATE_APPLICATION(MeshShaderDemo, 1600, 900);

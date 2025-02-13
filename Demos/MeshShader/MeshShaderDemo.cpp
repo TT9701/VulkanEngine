@@ -2,11 +2,9 @@
 
 #include <random>
 
-#include <glm/gtc/packing.hpp>
-
 #include "Core/System/GameTimer.h"
 
-using namespace IDNS_VC;
+using namespace IDVC_NS;
 
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
@@ -15,8 +13,9 @@ MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
                       mDescSetPool),
       mCopySem(GetVulkanContext()),
       mCmpSem(GetVulkanContext()) {
-    mMainCamera = MakeUnique<Camera>(PersperctiveInfo {
-        1000.0f, 0.01f, glm::radians(45.0f), (float)spec.width / spec.height});
+    mMainCamera = MakeUnique<IDC_NS::Camera>(IDC_NS::PersperctiveInfo {
+        1000.0f, 0.01f, IntelliDesign_NS::CMCore_NS::XMConvertToRadians(45.0f),
+        (float)spec.width / spec.height});
 }
 
 MeshShaderDemo::~MeshShaderDemo() = default;
@@ -47,18 +46,20 @@ void MeshShaderDemo::LoadShaders() {
 
     Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
-                   std::to_string(TASK_SHADER_INVOCATION_COUNT));
+                   std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
     shaderMgr.CreateShaderFromGLSL(
         "Mesh shader task", SHADER_PATH_CSTR("MeshShader.task"),
         vk::ShaderStageFlagBits::eTaskEXT, false, macros);
 
     macros.clear();
     macros.emplace("MESH_INVOCATION_COUNT",
-                   std::to_string(MESH_SHADER_INVOCATION_COUNT));
-    macros.emplace("MAX_VERTICES",
-                   std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES));
-    macros.emplace("MAX_PRIMITIVES",
-                   std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
+                   std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
+    macros.emplace(
+        "MAX_VERTICES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES).c_str());
+    macros.emplace(
+        "MAX_PRIMITIVES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
     shaderMgr.CreateShaderFromGLSL(
         "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
         vk::ShaderStageFlagBits::eMeshEXT, true, macros);
@@ -134,11 +135,11 @@ void MeshShaderDemo::Update_OnResize() {
 void MeshShaderDemo::UpdateScene() {
     Application::UpdateScene();
 
-    mSceneData.cameraPos = glm::vec4 {mMainCamera->mPosition, 1.0f};
+    mSceneData.cameraPos = {mMainCamera->mPosition.x, mMainCamera->mPosition.y,
+                            mMainCamera->mPosition.z, 1.0f};
     mSceneData.view = mMainCamera->GetViewMatrix();
     mSceneData.proj = mMainCamera->GetProjectionMatrix();
-    mSceneData.proj[1][1] *= -1;
-    mSceneData.viewProj = mSceneData.proj * mSceneData.view;
+    mSceneData.viewProj = mMainCamera->GetViewProjMatrix();
 
     UpdateSceneUBO();
 }
@@ -174,11 +175,11 @@ void MeshShaderDemo::Prepare() {
         Buffer::MemoryType::Staging);
 
     renderResMgr.CreateBuffer_ScreenSizeRelated(
-        "RWBuffer", sizeof(glm::vec4) * window.GetWidth() * window.GetHeight(),
+        "RWBuffer", sizeof(float) * 4 * window.GetWidth() * window.GetHeight(),
         vk::BufferUsageFlagBits::eStorageBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress
             | vk::BufferUsageFlagBits::eTransferDst,
-        Buffer::MemoryType::DeviceLocal, sizeof(glm::vec4));
+        Buffer::MemoryType::DeviceLocal, sizeof(float) * 4);
 
     {
         vk::DispatchIndirectCommand cmdBuffer {
@@ -224,24 +225,27 @@ void MeshShaderDemo::Prepare() {
         mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
     }
 
-    auto center = mFactoryModel->GetCISDIModelData().boundingBox.GetCenter();
-    auto extent = mFactoryModel->GetCISDIModelData().boundingBox.GetExtent();
-
-    mMainCamera->AdjustPosition(
-        glm::vec3 {center.x, center.y, center.z} * 0.01f,
-        glm::vec3 {extent.x, extent.y, extent.z} * 0.01f);
+    auto center = mFactoryModel->GetCISDIModelData().boundingBox.Center;
+    center.x *= 0.01f;
+    center.y *= 0.01f;
+    center.z *= 0.01f;
+    auto extent = mFactoryModel->GetCISDIModelData().boundingBox.Extents;
+    extent.x *= 0.01f;
+    extent.y *= 0.01f;
+    extent.z *= 0.01f;
+    mMainCamera->AdjustPosition(center, extent);
 
     PrepareUIContext();
 
     // RecordPasses(mRenderSequence);
 }
 
-void MeshShaderDemo::BeginFrame(IDNS_VC::RenderFrame& frame) {
+void MeshShaderDemo::BeginFrame(IDVC_NS::RenderFrame& frame) {
     Application::BeginFrame(frame);
     GetUILayer().BeginFrame();
 }
 
-void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
+void MeshShaderDemo::RenderFrame(IDVC_NS::RenderFrame& frame) {
     auto& vkCtx = GetVulkanContext();
     auto& timelineSem = vkCtx.GetTimelineSemphore();
     auto& cmdMgr = GetCmdMgr();
@@ -304,7 +308,7 @@ void MeshShaderDemo::RenderFrame(IDNS_VC::RenderFrame& frame) {
     }
 }
 
-void MeshShaderDemo::EndFrame(IDNS_VC::RenderFrame& frame) {
+void MeshShaderDemo::EndFrame(IDVC_NS::RenderFrame& frame) {
     Application::EndFrame(frame);
 }
 
@@ -470,18 +474,20 @@ void MeshShaderDemo::CreateMeshShaderPipeline() {
 
     Type_ShaderMacros macros {};
     macros.emplace("TASK_INVOCATION_COUNT",
-                   std::to_string(TASK_SHADER_INVOCATION_COUNT));
+                   std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
 
     auto task = shaderMgr.GetShader("Mesh shader task",
                                     vk::ShaderStageFlagBits::eTaskEXT, macros);
 
     macros.clear();
     macros.emplace("MESH_INVOCATION_COUNT",
-                   std::to_string(MESH_SHADER_INVOCATION_COUNT));
-    macros.emplace("MAX_VERTICES",
-                   std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES));
-    macros.emplace("MAX_PRIMITIVES",
-                   std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES));
+                   std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
+    macros.emplace(
+        "MAX_VERTICES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES).c_str());
+    macros.emplace(
+        "MAX_PRIMITIVES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
 
     auto mesh = shaderMgr.GetShader("Mesh shader mesh",
                                     vk::ShaderStageFlagBits::eMeshEXT, macros);
@@ -540,6 +546,59 @@ void MeshShaderDemo::UpdateSceneUBO() {
     memcpy(data, &mSceneData, sizeof(mSceneData));
 }
 
+namespace {
+
+void DisplayNode(const IntelliDesign_NS::ModelData::CISDI_Node& node,
+                 uint32_t idx,
+                 const IntelliDesign_NS::ModelData::CISDI_3DModel& model) {
+    if (ImGui::TreeNode(
+            (node.name + "##" + std::to_string(idx).c_str()).c_str())) {
+        if (node.meshIdx != -1) {
+            const auto& mesh = model.meshes[node.meshIdx];
+
+            // Display node
+            ImGui::Text("vertex count: %d", mesh.header.vertexCount);
+            ImGui::Text("meshlet count: %d", mesh.header.meshletCount);
+            ImGui::Text("meshlet triangle count: %d",
+                        mesh.header.meshletTriangleCount);
+        }
+
+        if (node.materialIdx != -1) {
+            ImGui::Text("material: %s",
+                        model.materials[node.materialIdx].name.c_str());
+        }
+
+        if (node.userPropertyCount > 0) {
+            if (ImGui::TreeNode("User Properties:")) {
+                for (const auto& [k, v] : node.userProperties) {
+                    ImGui::Text(
+                        "%s: %s", k.c_str(),
+                        std::visit(
+                            [](auto&& val) -> std::string {
+                                using T = std::decay_t<decltype(val)>;
+                                if constexpr (std::is_same_v<T,
+                                                             Type_STLString>) {
+                                    return {val.c_str()};
+                                } else {
+                                    return std::to_string(val);
+                                }
+                            },
+                            v)
+                            .c_str());
+                }
+                ImGui::TreePop();
+            }
+        }
+
+        for (const auto& childIdx : node.childrenIdx) {
+            DisplayNode(model.nodes[childIdx], childIdx, model);
+        }
+        ImGui::TreePop();
+    }
+}
+
+}  // namespace
+
 void MeshShaderDemo::PrepareUIContext() {
     mImageName0 = "RandomImage";
     mImageName1 = "RandomImage";
@@ -560,6 +619,7 @@ void MeshShaderDemo::PrepareUIContext() {
                 static char buf[1024] {};
                 static float loadTime {};
 
+                ImGui::SetNextItemWidth(200);
                 ImGui::InputText("模型文件名 -->", buf, 1024);
 
                 ::std::string buffName = buf;
@@ -586,13 +646,16 @@ void MeshShaderDemo::PrepareUIContext() {
                                                                  loadTime);
 
                         auto center = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.GetCenter();
+                                          .boundingBox.Center;
+                        center.x *= 0.01f;
+                        center.y *= 0.01f;
+                        center.z *= 0.01f;
                         auto extent = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.GetExtent();
-
-                        mMainCamera->AdjustPosition(
-                            glm::vec3 {center.x, center.y, center.z} * 0.01f,
-                            glm::vec3 {extent.x, extent.y, extent.z} * 0.01f);
+                                          .boundingBox.Extents;
+                        extent.x *= 0.01f;
+                        extent.y *= 0.01f;
+                        extent.z *= 0.01f;
+                        mMainCamera->AdjustPosition(center, extent);
                     }
                 }
 
@@ -626,13 +689,16 @@ void MeshShaderDemo::PrepareUIContext() {
                                                                  loadTime);
 
                         auto center = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.GetCenter();
+                                          .boundingBox.Center;
+                        center.x *= 0.01f;
+                        center.y *= 0.01f;
+                        center.z *= 0.01f;
                         auto extent = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.GetExtent();
-
-                        mMainCamera->AdjustPosition(
-                            glm::vec3 {center.x, center.y, center.z} * 0.01f,
-                            glm::vec3 {extent.x, extent.y, extent.z} * 0.01f);
+                                          .boundingBox.Extents;
+                        extent.x *= 0.01f;
+                        extent.y *= 0.01f;
+                        extent.z *= 0.01f;
+                        mMainCamera->AdjustPosition(center, extent);
                     }
 
                     // close
@@ -645,94 +711,39 @@ void MeshShaderDemo::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("场景信息")) {
-                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", mMainCamera->mPosition.x,
-                            mMainCamera->mPosition.y, mMainCamera->mPosition.z);
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]",
+                            mMainCamera->mPosition.x, mMainCamera->mPosition.y,
+                            mMainCamera->mPosition.z);
 
-                static auto polar = glm::vec2 {
-                    atan2(mSceneData.sunLightPos.x, mSceneData.sunLightPos.z),
-                    acos(mSceneData.sunLightPos.y)};
+                auto nLightPos = IDCMCore_NS::XMVECTOR {
+                    mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
+                    mSceneData.sunLightPos.z};
 
-                auto pi = glm::pi<float>();
+                nLightPos = IDCMCore_NS::XMVector3Normalize(nLightPos);
+                IDCMCore_NS::XMFLOAT3 lightPos {};
+                IDCMCore_NS::XMStoreFloat3(&lightPos, nLightPos);
 
-                ImGui::SliderFloat2("太阳光方向：", (float*)&polar, -pi, pi);
+                auto theta = acos(lightPos.y);
+                auto phi = atan2(lightPos.x, lightPos.z);
 
-                mSceneData.sunLightPos =
-                    glm::vec4 {polar.x * sin(polar.y), cos(polar.x),
-                               polar.x * cos(polar.y), 1.0f};
+                ImGui::SetNextItemWidth(100);
+                ImGui::SliderFloat("太阳光方向 θ", &theta, 0, MATH_PI_FLOAT);
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(100);
+                ImGui::SliderFloat("太阳光方向 φ", &phi, 0, MATH_2PI_FLOAT);
+
+                mSceneData.sunLightPos = {sin(theta) * sin(phi), cos(theta),
+                                          cos(phi) * sin(theta), 1.0f};
             }
             ImGui::End();
         })
         .AddContext([&]() {
             auto const& model = mFactoryModel->GetCISDIModelData();
 
-            auto displayNode =
-                [&,
-                 d = [&](auto&& self,
-                         IntelliDesign_NS::ModelData::CISDI_Node const& node,
-                         uint32_t idx) -> void {
-                     if (ImGui::TreeNode(
-                             (node.name + "##" + ::std::to_string(idx).c_str())
-                                 .c_str())) {
-
-                         if (node.meshIdx != -1) {
-                             auto const& mesh = model.meshes[node.meshIdx];
-
-                             // display node
-                             ImGui::Text("vertex count: %d",
-                                         mesh.header.vertexCount);
-                             ImGui::Text("meshlet count: %d",
-                                         mesh.header.meshletCount);
-
-                             ImGui::Text("meshlet triangle count: %d",
-                                         mesh.header.meshletTriangleCount);
-                         }
-
-                         if (node.materialIdx != -1) {
-                             ImGui::Text("material: %s",
-                                         model.materials[node.materialIdx]
-                                             .name.c_str());
-                         }
-
-                         if (node.userPropertyCount > 0) {
-                             if (ImGui::TreeNode("User Properties:")) {
-                                 for (auto const& [k, v] :
-                                      node.userProperties) {
-                                     ImGui::Text(
-                                         "%s: %s", k.c_str(),
-                                         ::std::visit(
-                                             [&](auto&& val) -> ::std::string {
-                                                 using T = std::decay_t<
-                                                     decltype(val)>;
-                                                 if constexpr (
-                                                     ::std::is_same_v<
-                                                         T, Type_STLString>) {
-                                                     return {val.c_str()};
-                                                 } else {
-                                                     return ::std::to_string(
-                                                         val);
-                                                 }
-                                             },
-                                             v)
-                                             .c_str());
-                                 }
-                                 ImGui::TreePop();
-                             }
-                         }
-
-                         for (auto const& childIdx : node.childrenIdx) {
-                             self(self, model.nodes[childIdx], childIdx);
-                         }
-                         ImGui::TreePop();
-                     }
-                 }](IntelliDesign_NS::ModelData::CISDI_Node const& node,
-                    uint32_t idx) {
-                    d(d, node, idx);
-                };
-
             if (ImGui::Begin(model.name.c_str())) {
                 if (ImGui::TreeNode("Hierarchy")) {
                     auto const& node = model.nodes[0];
-                    displayNode(node, 0);
+                    DisplayNode(node, 0, model);
                     ImGui::TreePop();
                 }
                 if (ImGui::TreeNode("Materials")) {
@@ -803,8 +814,14 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
         .SetExecuteInfo(RenderPassConfig::ExecuteType::Dispatch);
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
-    meshPushContants->mModelMatrix =
-        glm::scale(glm::mat4 {1.0f}, glm::vec3 {.01f});
+
+    IDCMCore_NS::XMFLOAT4X4 scale {IDC_NS::Identity4x4()};
+    DirectX::XMStoreFloat4x4(&scale,
+                             IDCMCore_NS::XMMatrixScaling(0.01f, 0.01f, 0.01f));
+    meshPushContants->mModelMatrix = scale;
+
+    // meshPushContants->mModelMatrix = glm::;
+
     // meshPushContants->mModelMatrix =
     //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(90.0f),
     //                 glm::vec3(-1.0f, 0.0f, 0.0f));

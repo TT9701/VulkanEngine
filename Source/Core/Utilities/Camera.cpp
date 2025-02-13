@@ -1,13 +1,14 @@
 #include "Camera.h"
 
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtx/transform.hpp>
+#include "Defines.h"
+#include "MemoryPool.h"
 
-Camera::Camera(PersperctiveInfo info, glm::vec3 position, glm::vec3 up,
-               float yaw, float pitch)
+namespace IntelliDesign_NS::Core {
+
+Camera::Camera(PersperctiveInfo info, CMCore_NS::XMFLOAT3 position,
+               CMCore_NS::XMFLOAT3 up, float yaw, float pitch)
     : mPosition(position),
-      mFront(glm::vec3(0.0f, 0.0f, -1.0f)),
+      mFront(CMCore_NS::XMFLOAT3(0.0f, 0.0f, -1.0f)),
       mWorldUp(up),
       mEulerAngles {yaw, pitch},
       mMovementSpeed(CameraSpeed),
@@ -20,8 +21,8 @@ Camera::Camera(PersperctiveInfo info, glm::vec3 position, glm::vec3 up,
 Camera::Camera(float posX, float posY, float posZ, float upX, float upY,
                float upZ, float yaw, float pitch)
     : mPosition(posX, posY, posZ),
-      mFront(glm::vec3(0.0f, 0.0f, -1.0f)),
-      mWorldUp(glm::vec3(upX, upY, upZ)),
+      mFront(CMCore_NS::XMFLOAT3(0.0f, 0.0f, -1.0f)),
+      mWorldUp(CMCore_NS::XMFLOAT3(upX, upY, upZ)),
       mEulerAngles {yaw, pitch},
       mMovementSpeed(CameraSpeed),
       mMouseSensitivity(CameraSensitivity),
@@ -33,13 +34,46 @@ void Camera::SetAspect(float aspect) {
     mPerspectiveInfo.mAspect = aspect;
 }
 
-glm::mat4 Camera::GetViewMatrix() {
-    return glm::lookAt(mPosition, mPosition + mFront, mUp);
+CMCore_NS::XMFLOAT4X4 Camera::GetViewMatrix() {
+    using namespace IntelliDesign_NS;
+
+    auto position = CMCore_NS::XMLoadFloat3(&mPosition);
+    auto front = CMCore_NS::XMLoadFloat3(&mFront);
+    auto up = CMCore_NS::XMLoadFloat3((CMCore_NS::XMFLOAT3*)&mUp);
+    auto focus = CMCore_NS::XMVectorAdd(position, front);
+
+    CMCore_NS::XMFLOAT4X4 ret {};
+    CMCore_NS::XMStoreFloat4x4(
+        &ret, CMCore_NS::XMMatrixLookAtRH(position, focus, up));
+
+    return ret;
 }
 
-glm::mat4 Camera::GetProjectionMatrix() {
-    return glm::perspective(mPerspectiveInfo.mFov, mPerspectiveInfo.mAspect,
-                            mPerspectiveInfo.mNear, mPerspectiveInfo.mFar);
+CMCore_NS::XMFLOAT4X4 Camera::GetProjectionMatrix() {
+    CMCore_NS::XMFLOAT4X4 mat {};
+
+    CMCore_NS::XMStoreFloat4x4(
+        &mat, CMCore_NS::XMMatrixPerspectiveFovRH(
+                  mPerspectiveInfo.mFov, mPerspectiveInfo.mAspect,
+                  mPerspectiveInfo.mNear, mPerspectiveInfo.mFar));
+
+    mat(1, 1) *= -1.0f;
+
+    return mat;
+}
+
+CMCore_NS::XMFLOAT4X4 Camera::GetViewProjMatrix() {
+    auto view = GetViewMatrix();
+    auto proj = GetProjectionMatrix();
+
+    auto viewMat = CMCore_NS::XMLoadFloat4x4(&view);
+    auto projMat = CMCore_NS::XMLoadFloat4x4(&proj);
+
+    CMCore_NS::XMFLOAT4X4 mat {};
+    CMCore_NS::XMStoreFloat4x4(&mat,
+                               CMCore_NS::XMMatrixMultiply(viewMat, projMat));
+
+    return mat;
 }
 
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
@@ -54,51 +88,90 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     ProcessMouseScroll(e);
 }
 
-void Camera::AdjustPosition(glm::vec3 lookAt, glm::vec3 extent) {
+void Camera::AdjustPosition(CMCore_NS::XMFLOAT3 lookAt,
+                            CMCore_NS::XMFLOAT3 extent) {
     mEulerAngles = {CameraYaw, CameraPitch};
 
     auto aspect = extent.x / extent.y > mPerspectiveInfo.mAspect
                     ? extent.x / mPerspectiveInfo.mAspect
                     : extent.y;
 
-    auto dist = aspect * 0.5f / tan(mPerspectiveInfo.mFov * 0.5f);
+    auto dist = aspect / tan(mPerspectiveInfo.mFov * 0.5f);
 
-    mPosition = lookAt + glm::vec3 {0.0f, 0.0f, extent.z * 0.5f + dist};
+    CMCore_NS::XMVECTOR displacement {0.0f, 0.0f, extent.z + dist};
+
+    auto l = CMCore_NS::XMLoadFloat3(&lookAt);
+
+    CMCore_NS::XMStoreFloat3(&mPosition,
+                             CMCore_NS::XMVectorAdd(l, displacement));
 
     Update();
 }
 
 void Camera::Update() {
-    glm::vec3 front;
-    front.x = cos(glm::radians(mEulerAngles.mYaw))
-            * cos(glm::radians(mEulerAngles.mPitch));
-    front.y = sin(glm::radians(mEulerAngles.mPitch));
-    front.z = sin(glm::radians(mEulerAngles.mYaw))
-            * cos(glm::radians(mEulerAngles.mPitch));
+    CMCore_NS::XMFLOAT3 front {};
 
-    mFront = glm::normalize(front);
-    mRight = glm::normalize(glm::cross(mFront, mWorldUp));
-    mUp = glm::normalize(glm::cross(mRight, mFront));
+    auto radYaw = CMCore_NS::XMConvertToRadians(mEulerAngles.mYaw);
+    auto radPitch = CMCore_NS::XMConvertToRadians(mEulerAngles.mPitch);
+
+    front.x = cos(radYaw) * cos(radPitch);
+    front.y = sin(radPitch);
+    front.z = sin(radYaw) * cos(radPitch);
+
+    auto frontVec = CMCore_NS::XMLoadFloat3(&front);
+    CMCore_NS::XMStoreFloat3(&mFront, CMCore_NS::XMVector3Normalize(frontVec));
+
+    auto worldUpVec = CMCore_NS::XMLoadFloat3(&mWorldUp);
+
+    auto rightVec = CMCore_NS::XMVector3Normalize(
+        CMCore_NS::XMVector3Cross(frontVec, worldUpVec));
+    CMCore_NS::XMStoreFloat3(&mRight, rightVec);
+
+    CMCore_NS::XMStoreFloat3(
+        &mUp, CMCore_NS::XMVector3Normalize(
+                  CMCore_NS::XMVector3Cross(rightVec, frontVec)));
 }
 
 void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
     if (e->type == SDL_KEYDOWN) {
         mMovementSpeed += mMovementSpeed * 0.05f;
+
         float velocity = mMovementSpeed * deltaTime;
+        CMCore_NS::XMVECTOR posVelocityVec {velocity, velocity, velocity};
+        CMCore_NS::XMVECTOR negVelocityVec {-velocity, -velocity, -velocity};
+
+        auto position = CMCore_NS::XMLoadFloat3(&mPosition);
+
+        auto pos = CMCore_NS::XMLoadFloat3(&mPosition);
         if (e->key.keysym.sym == SDLK_w) {
-            mPosition += mFront * velocity;
+            auto front = CMCore_NS::XMLoadFloat3(&mFront);
+            CMCore_NS::XMStoreFloat3(&mPosition,
+                                     CMCore_NS::XMVectorMultiplyAdd(
+                                         front, posVelocityVec, position));
         }
         if (e->key.keysym.sym == SDLK_s) {
-            mPosition -= mFront * velocity;
+            auto front = CMCore_NS::XMLoadFloat3(&mFront);
+            CMCore_NS::XMStoreFloat3(&mPosition,
+                                     CMCore_NS::XMVectorMultiplyAdd(
+                                         front, negVelocityVec, position));
         }
         if (e->key.keysym.sym == SDLK_a) {
-            mPosition -= mRight * velocity;
+            auto right = CMCore_NS::XMLoadFloat3(&mRight);
+            CMCore_NS::XMStoreFloat3(&mPosition,
+                                     CMCore_NS::XMVectorMultiplyAdd(
+                                         right, negVelocityVec, position));
         }
         if (e->key.keysym.sym == SDLK_d) {
-            mPosition += mRight * velocity;
+            auto right = CMCore_NS::XMLoadFloat3(&mRight);
+            CMCore_NS::XMStoreFloat3(&mPosition,
+                                     CMCore_NS::XMVectorMultiplyAdd(
+                                         right, posVelocityVec, position));
         }
         if (e->key.keysym.sym == SDLK_SPACE) {
-            mPosition += mUp * velocity;
+            auto up = CMCore_NS::XMLoadFloat3(&mUp);
+            CMCore_NS::XMStoreFloat3(
+                &mPosition,
+                CMCore_NS::XMVectorMultiplyAdd(up, posVelocityVec, position));
         }
     }
 
@@ -145,3 +218,5 @@ void Camera::ProcessMouseScroll(SDL_Event* e) {
             mZoom = 45.0f;
     }
 }
+
+}  // namespace IntelliDesign_NS::Core

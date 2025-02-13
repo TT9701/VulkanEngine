@@ -43,3 +43,8 @@
     CLASS_NAME& operator=(CLASS_NAME&&) noexcept = default
 
 #define VE_STRINGIFY_MACRO(x) #x
+
+#define MATH_PI_FLOAT 3.1415926535f
+#define MATH_2PI_FLOAT 6.2831853072f
+#define MATH_INV_PI_FLOAT 0.3183098862f
+#define MATH_INV_2PI_FLOAT 0.1591549431f

@@ -3,7 +3,6 @@
 #include <filesystem>
 
 #include <assimp/scene.h>
-#include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
 
 #include "Core/CISDIModel/CISDI_3DModelData.h"
@@ -16,7 +15,7 @@ class VulkanContext;
 class Application;
 
 struct MeshletPushConstants {
-    glm::mat4 mModelMatrix {glm::mat4(1.0f)};
+    CMCore_NS::XMFLOAT4X4 mModelMatrix {IntelliDesign_NS::Core::Identity4x4()};
 
     vk::DeviceAddress mVPBufAddr {};
     vk::DeviceAddress mVNBufAddr {};
