@@ -28,7 +28,13 @@ namespace IntelliDesign_NS::ModelData {
  * @brief CISDI_3DModel 的材质数据结构
  */
 struct CISDI_Material {
-    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(CISDI_Material, name);
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTOR(CISDI_Material, name);
+
+    INTELLI_DS_PMR_ELEMENT_COPY_CTOR(CISDI_Material, name), data(_other_.data) {
+    }
+
+    INTELLI_DS_PMR_ELEMENT_MOVE_CTOR(CISDI_Material, name),
+        data(::std::move(_other_.data)) {}
 
     enum class ShadingModel : uint32_t { Lambert = 0, Phong };
 
@@ -99,8 +105,22 @@ using Type_UserPropertyValue =
  * @brief CISDI_3DModel 的节点数据结构
  */
 struct CISDI_Node {
-    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTORS(CISDI_Node, name, childrenIdx,
-                                         userProperties);
+    INTELLI_DS_PMR_ELEMENT_DEFAULT_CTOR(CISDI_Node, name, childrenIdx,
+                                        userProperties);
+
+    INTELLI_DS_PMR_ELEMENT_COPY_CTOR(CISDI_Node, name, childrenIdx,
+                                     userProperties),
+        meshIdx(_other_.meshIdx), materialIdx(_other_.materialIdx),
+        parentIdx(_other_.parentIdx), childCount(_other_.childCount),
+        userPropertyCount(_other_.userPropertyCount) {}
+
+    INTELLI_DS_PMR_ELEMENT_MOVE_CTOR(CISDI_Node, name, childrenIdx,
+                                     userProperties),
+        meshIdx(::std::move(_other_.meshIdx)),
+        materialIdx(::std::move(_other_.materialIdx)),
+        parentIdx(::std::move(_other_.parentIdx)),
+        childCount(::std::move(_other_.childCount)),
+        userPropertyCount(::std::move(_other_.userPropertyCount)) {}
 
     Type_STLString name;
     uint32_t meshIdx {~0ui32};

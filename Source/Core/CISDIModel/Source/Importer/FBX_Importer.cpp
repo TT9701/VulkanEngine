@@ -293,7 +293,7 @@ int Importer::ProcessNode(CISDI_3DModel& data, FbxNode* pNode,
     // process user properties
     ProcessUserDefinedProperties(pNode, cisdiNode);
 
-    auto& ref = data.nodes.emplace_back(::std::move(cisdiNode));
+    auto& ref = data.nodes.emplace_back(cisdiNode);
 
     for (int i = 0; i < childCount; i++) {
         ref.childrenIdx.emplace_back(

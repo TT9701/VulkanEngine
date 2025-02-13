@@ -236,22 +236,34 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
             auto const& info = infos[j];
 
             AABoundingBox bb {};
+
             for (uint32_t k = 0; k < info.vertexCount; ++k) {
                 uint32_t vertIdx = info.vertexOffset + k;
-                UpdateAABB(bb, tmpPosVec[vertIdx]);
+                auto const& tmpPos = tmpPosVec[vertIdx];
+                if (bb.Contains({tmpPos.x, tmpPos.y, tmpPos.z})
+                    == Core::MathCore::DISJOINT) {
+                    constexpr size_t pointCount = 9;
+                    Core::MathCore::XMFLOAT3 tmp[pointCount];
+                    bb.GetCorners(tmp);
+                    tmp[8] = {tmpPos.x, tmpPos.y, tmpPos.z};
+                    Core::MathCore::BoundingBox::CreateFromPoints(
+                        bb, pointCount, tmp, sizeof(tmp[0]));
+                }
             }
             boundingBoxes[j] = bb;
         }
 
         // mesh bounding box
         for (auto const& meshletbb : boundingBoxes) {
-            UpdateAABB(mesh.boundingBox, meshletbb);
+            Core::MathCore::BoundingBox::CreateMerged(
+                mesh.boundingBox, mesh.boundingBox, meshletbb);
         }
     }
 
     // model bounding box
     for (auto const& meshbb : data.meshes) {
-        UpdateAABB(data.boundingBox, meshbb.boundingBox);
+        Core::MathCore::BoundingBox::CreateMerged(
+            data.boundingBox, data.boundingBox, meshbb.boundingBox);
     }
 }
 
@@ -301,15 +313,24 @@ void Generate_CISDIModel_PackedVertices(
                 // position
                 {
                     Float32_3 fPos = tmpMeshVertices.positions[vertIdx];
-                    Float32_3 bbLength {bb.mMax.x - bb.mMin.x,
-                                        bb.mMax.y - bb.mMin.y,
-                                        bb.mMax.z - bb.mMin.z};
+
+                    auto extent = bb.Extents;
+                    Float32_3 bbLength {extent.x * 2.0f, extent.y * 2.0f,
+                                        extent.z * 2.0f};
+
+                    auto bbMinVec = Core::MathCore::XMVectorSubtract(
+                        Core::MathCore::XMLoadFloat3(&bb.Center),
+                        Core::MathCore::XMLoadFloat3(&extent));
+
+                    Core::MathCore::XMFLOAT3 bbMin {};
+                    DirectX::XMStoreFloat3(&bbMin, bbMinVec);
+
                     Float32_3 encodedPos {
-                        bbLength.x > 0.0f ? (fPos.x - bb.mMin.x) / bbLength.x
+                        bbLength.x > 0.0f ? (fPos.x - bbMin.x) / bbLength.x
                                           : 0.0f,
-                        bbLength.y > 0.0f ? (fPos.y - bb.mMin.y) / bbLength.y
+                        bbLength.y > 0.0f ? (fPos.y - bbMin.y) / bbLength.y
                                           : 0.0f,
-                        bbLength.z > 0.0f ? (fPos.z - bb.mMin.z) / bbLength.z
+                        bbLength.z > 0.0f ? (fPos.z - bbMin.z) / bbLength.z
                                           : 0.0f};
                     UInt16_3 ui16Pos = {PackUnorm16(encodedPos.x),
                                         PackUnorm16(encodedPos.y),

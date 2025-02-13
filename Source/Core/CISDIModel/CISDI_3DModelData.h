@@ -26,7 +26,7 @@ namespace IntelliDesign_NS::ModelData {
 
 constexpr uint64_t CISDI_3DModel_HEADER_UINT64 = 0x1111111111111111ui64;
 
-constexpr Version CISDI_3DModel_VERSION = {0ui8, 4ui8, 1ui16};
+constexpr Version CISDI_3DModel_VERSION = {0ui8, 4ui8, 2ui16};
 
 /**
  * @brief CISDI_3DModel 包含渲染所需的所有数据，包括节点、网格、材质、各级包围盒等。

@@ -10,6 +10,7 @@
  */
 
 #pragma once
+
 #include <cstdint>
 
 #include <memory_resource>
@@ -18,6 +19,7 @@
 #include <variant>
 #include <vector>
 
+#include "Core/Math/MathCore.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
 #include "PMR_Def.h"
 
@@ -28,7 +30,8 @@ using Type_STLVector = Core::MemoryPool::Type_STLVector<T>;
 using Type_STLString = Core::MemoryPool::Type_STLString;
 
 template <class T>
-using Type_STLUnorderedMap_String = Core::MemoryPool::Type_STLUnorderedMap_String<T>;
+using Type_STLUnorderedMap_String =
+    Core::MemoryPool::Type_STLUnorderedMap_String<T>;
 
 template <class T, uint32_t Dim>
 struct Vec;
@@ -126,22 +129,7 @@ private:
 /**
  * @brief 包围盒
  */
-struct AABoundingBox {
-    AABoundingBox()
-        : mMin(FLT_MAX, FLT_MAX, FLT_MAX), mMax(-FLT_MAX, -FLT_MAX, -FLT_MAX) {}
-
-    Float32_3 GetCenter() const {
-        return Float32_3 {(mMin.x + mMax.x) * 0.5f, (mMin.y + mMax.y) * 0.5f,
-                          (mMin.z + mMax.z) * 0.5f};
-    }
-
-    Float32_3 GetExtent() const {
-        return Float32_3 {mMax.x - mMin.x, mMax.y - mMin.y, mMax.z - mMin.z};
-    }
-
-    Float32_3 mMin;
-    Float32_3 mMax;
-};
+using AABoundingBox = CMCore_NS::BoundingBox;
 
 /**
  * @brief Meshlet 信息
