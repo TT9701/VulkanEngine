@@ -61,17 +61,7 @@ MathCore::Mat4 Camera::GetProjectionMatrix() const {
 }
 
 MathCore::Mat4 Camera::GetViewProjMatrix() const {
-    using namespace IDCMCore_NS;
-
-    auto view = GetViewMatrix();
-    auto proj = GetProjectionMatrix();
-
-    auto viewMat = view.GetSIMD();
-    auto projMat = proj.GetSIMD();
-
-    Mat4 mat {viewMat * projMat};
-
-    return mat;
+    return GetViewMatrix().GetSIMD() * GetProjectionMatrix().GetSIMD();
 }
 
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
@@ -97,9 +87,7 @@ void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
 
     auto dist = aspect / tan(mPerspectiveInfo.mFov * 0.5f);
 
-    SIMD_Vec displacement {0.0f, 0.0f, extent.z + dist};
-
-    mPosition = VectorAdd(lookAt.GetSIMD(), displacement);
+    mPosition = VectorAdd(lookAt.GetSIMD(), {0.0f, 0.0f, extent.z + dist});
 
     Update();
 }
@@ -119,9 +107,9 @@ void Camera::Update() {
     auto frontVec = front.GetSIMD();
     mFront = Vector3Normalize(frontVec);
 
-    auto worldUpVec = mWorldUp.GetSIMD();
+    auto rightVec =
+        Vector3Normalize(Vector3Cross(frontVec, mWorldUp.GetSIMD()));
 
-    auto rightVec = Vector3Normalize(Vector3Cross(frontVec, worldUpVec));
     mRight = rightVec;
 
     mUp = Vector3Normalize(Vector3Cross(rightVec, frontVec));
@@ -140,24 +128,24 @@ void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
         auto position = mPosition.GetSIMD();
 
         if (e->key.keysym.sym == SDLK_w) {
-            auto front = mFront.GetSIMD();
-            mPosition = VectorMultiplyAdd(front, posVelocityVec, position);
+            mPosition =
+                VectorMultiplyAdd(mFront.GetSIMD(), posVelocityVec, position);
         }
         if (e->key.keysym.sym == SDLK_s) {
-            auto front = mFront.GetSIMD();
-            mPosition = VectorMultiplyAdd(front, negVelocityVec, position);
+            mPosition =
+                VectorMultiplyAdd(mFront.GetSIMD(), negVelocityVec, position);
         }
         if (e->key.keysym.sym == SDLK_a) {
-            auto right = mRight.GetSIMD();
-            mPosition = VectorMultiplyAdd(right, negVelocityVec, position);
+            mPosition =
+                VectorMultiplyAdd(mRight.GetSIMD(), negVelocityVec, position);
         }
         if (e->key.keysym.sym == SDLK_d) {
-            auto right = mRight.GetSIMD();
-            mPosition = VectorMultiplyAdd(right, posVelocityVec, position);
+            mPosition =
+                VectorMultiplyAdd(mRight.GetSIMD(), posVelocityVec, position);
         }
         if (e->key.keysym.sym == SDLK_SPACE) {
-            auto up = mUp.GetSIMD();
-            mPosition = VectorMultiplyAdd(up, posVelocityVec, position);
+            mPosition =
+                VectorMultiplyAdd(mUp.GetSIMD(), posVelocityVec, position);
         }
     }
 
