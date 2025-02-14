@@ -7,14 +7,16 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Geometry::Geometry(const char* path, ::std::pmr::memory_resource* pMemPool,
-                   bool flipYZ, const char* output)
+Geometry::Geometry(VulkanContext& context, const char* path,
+                   ::std::pmr::memory_resource* pMemPool, bool flipYZ,
+                   const char* output)
     : mFlipYZ(flipYZ),
       mPath(path),
       mDirectory(::std::filesystem::path {mPath}.remove_filename()),
       mName(mPath.stem().generic_string().c_str()),
       mModelData(LoadModel(output, pMemPool)) {
     GenerateStats();
+    GenerateMeshletBuffers(context);
 }
 
 namespace {

@@ -140,12 +140,6 @@ if(MSVC AND NOT USE_CLANG)
             "/MP")
 endif()
 
-target_compile_definitions(Core 
-    PUBLIC 
-        GLM_ENABLE_EXPERIMENTAL
-        GLM_FORCE_DEPTH_ZERO_TO_ONE
-        GLM_FORCE_RADIANS)
-
 # <TODO>
 target_compile_definitions(Core 
     PUBLIC 

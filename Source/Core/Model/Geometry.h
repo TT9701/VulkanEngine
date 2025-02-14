@@ -15,7 +15,7 @@ class VulkanContext;
 class Application;
 
 struct MeshletPushConstants {
-    CMCore_NS::XMFLOAT4X4 mModelMatrix {IntelliDesign_NS::Core::Identity4x4()};
+    IDCMCore_NS::Mat4 mModelMatrix {IDCMCore_NS::Identity4x4()};
 
     vk::DeviceAddress mVPBufAddr {};
     vk::DeviceAddress mVNBufAddr {};
@@ -39,8 +39,9 @@ struct FragmentPushConstants {
 
 class Geometry {
 public:
-    Geometry(const char* path, ::std::pmr::memory_resource* pMemPool,
-             bool flipYZ = false, const char* output = nullptr);
+    Geometry(VulkanContext& context, const char* path,
+             ::std::pmr::memory_resource* pMemPool, bool flipYZ = false,
+             const char* output = nullptr);
 
     void GenerateMeshletBuffers(VulkanContext& context);
 

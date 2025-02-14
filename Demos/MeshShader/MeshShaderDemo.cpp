@@ -14,7 +14,7 @@ MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
       mCopySem(GetVulkanContext()),
       mCmpSem(GetVulkanContext()) {
     mMainCamera = MakeUnique<IDC_NS::Camera>(IDC_NS::PersperctiveInfo {
-        1000.0f, 0.01f, IntelliDesign_NS::CMCore_NS::XMConvertToRadians(45.0f),
+        1000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
         (float)spec.width / spec.height});
 }
 
@@ -84,9 +84,8 @@ void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
 
             auto pMemPool = ::std::pmr::get_default_resource();
 
-            mFactoryModel =
-                MakeShared<Geometry>(path.string().c_str(), pMemPool);
-            mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
+            mFactoryModel = MakeShared<Geometry>(
+                GetVulkanContext(), path.string().c_str(), pMemPool);
 
             SDL_free(e->drop.file);
         } break;
@@ -216,13 +215,12 @@ void MeshShaderDemo::Prepare() {
 
         auto pMemPool = ::std::pmr::get_default_resource();
 
-        mFactoryModel = MakeShared<Geometry>(MODEL_PATH_CSTR(model), pMemPool);
+        mFactoryModel = MakeShared<Geometry>(GetVulkanContext(),
+                                             MODEL_PATH_CSTR(model), pMemPool);
 
         auto duration_LoadModel = timer.End();
         printf("Load Geometry: %s, Time consumed: %f s. \n", model,
                duration_LoadModel);
-
-        mFactoryModel->GenerateMeshletBuffers(GetVulkanContext());
     }
 
     auto center = mFactoryModel->GetCISDIModelData().boundingBox.Center;
@@ -638,9 +636,8 @@ void MeshShaderDemo::PrepareUIContext() {
 
                         GetVulkanContext().GetDevice()->waitIdle();
                         mFactoryModel = MakeShared<Geometry>(
+                            GetVulkanContext(),
                             MODEL_PATH_CSTR(buffName.c_str()), pMemPool);
-                        mFactoryModel->GenerateMeshletBuffers(
-                            GetVulkanContext());
 
                         INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
                                                                  loadTime);
@@ -681,9 +678,7 @@ void MeshShaderDemo::PrepareUIContext() {
 
                         GetVulkanContext().GetDevice()->waitIdle();
                         mFactoryModel = MakeShared<Geometry>(
-                            filePathName.c_str(), pMemPool);
-                        mFactoryModel->GenerateMeshletBuffers(
-                            GetVulkanContext());
+                            GetVulkanContext(), filePathName.c_str(), pMemPool);
 
                         INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
                                                                  loadTime);
@@ -715,13 +710,9 @@ void MeshShaderDemo::PrepareUIContext() {
                             mMainCamera->mPosition.x, mMainCamera->mPosition.y,
                             mMainCamera->mPosition.z);
 
-                auto nLightPos = IDCMCore_NS::XMVECTOR {
-                    mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
-                    mSceneData.sunLightPos.z};
-
-                nLightPos = IDCMCore_NS::XMVector3Normalize(nLightPos);
-                IDCMCore_NS::XMFLOAT3 lightPos {};
-                IDCMCore_NS::XMStoreFloat3(&lightPos, nLightPos);
+                IDCMCore_NS::Float3 lightPos {IDCMCore_NS::Vector3Normalize(
+                    {mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
+                     mSceneData.sunLightPos.z})};
 
                 auto theta = acos(lightPos.y);
                 auto phi = atan2(lightPos.x, lightPos.z);
@@ -815,16 +806,11 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
 
-    IDCMCore_NS::XMFLOAT4X4 scale {IDC_NS::Identity4x4()};
-    DirectX::XMStoreFloat4x4(&scale,
-                             IDCMCore_NS::XMMatrixScaling(0.01f, 0.01f, 0.01f));
-    meshPushContants->mModelMatrix = scale;
+    meshPushContants->mModelMatrix =
+        IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
 
-    // meshPushContants->mModelMatrix = glm::;
-
-    // meshPushContants->mModelMatrix =
-    //     glm::rotate(meshPushContants->mModelMatrix, glm::radians(90.0f),
-    //                 glm::vec3(-1.0f, 0.0f, 0.0f));
+    // meshPushContants->mModelMatrix = IDCMCore_NS::MatrixRotationAxis(
+    //     {-1.0f, 0.0f, 0.0f}, IDCMCore_NS::ConvertToRadians(90.0f));
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 

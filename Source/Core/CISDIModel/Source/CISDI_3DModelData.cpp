@@ -219,6 +219,8 @@ void Generate_CISDIModel_Meshlets(
 void Generate_CISDIModel_MeshletBoundingBoxes(
     CISDI_3DModel& data, Type_STLVector<InternalMeshData> const& tmpVertices,
     ::std::pmr::memory_resource* pMemPool) {
+    using namespace Core::MathCore;
+
     for (uint32_t i = 0; i < data.meshes.size(); ++i) {
         auto& mesh = data.meshes[i];
         auto const& tmpPosVec = tmpVertices[i].positions;
@@ -241,13 +243,13 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
                 uint32_t vertIdx = info.vertexOffset + k;
                 auto const& tmpPos = tmpPosVec[vertIdx];
                 if (bb.Contains({tmpPos.x, tmpPos.y, tmpPos.z})
-                    == Core::MathCore::DISJOINT) {
+                    == ContainmentType::DISJOINT) {
                     constexpr size_t pointCount = 9;
-                    Core::MathCore::XMFLOAT3 tmp[pointCount];
+                    Float3 tmp[pointCount];
                     bb.GetCorners(tmp);
                     tmp[8] = {tmpPos.x, tmpPos.y, tmpPos.z};
-                    Core::MathCore::BoundingBox::CreateFromPoints(
-                        bb, pointCount, tmp, sizeof(tmp[0]));
+                    AABoundingBox::CreateFromPoints(bb, pointCount, tmp,
+                                                    sizeof(tmp[0]));
                 }
             }
             boundingBoxes[j] = bb;
@@ -255,15 +257,15 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
 
         // mesh bounding box
         for (auto const& meshletbb : boundingBoxes) {
-            Core::MathCore::BoundingBox::CreateMerged(
-                mesh.boundingBox, mesh.boundingBox, meshletbb);
+            AABoundingBox::CreateMerged(mesh.boundingBox, mesh.boundingBox,
+                                        meshletbb);
         }
     }
 
     // model bounding box
     for (auto const& meshbb : data.meshes) {
-        Core::MathCore::BoundingBox::CreateMerged(
-            data.boundingBox, data.boundingBox, meshbb.boundingBox);
+        AABoundingBox::CreateMerged(data.boundingBox, data.boundingBox,
+                                    meshbb.boundingBox);
     }
 }
 
@@ -318,11 +320,10 @@ void Generate_CISDIModel_PackedVertices(
                     Float32_3 bbLength {extent.x * 2.0f, extent.y * 2.0f,
                                         extent.z * 2.0f};
 
-                    auto bbMinVec = Core::MathCore::XMVectorSubtract(
-                        Core::MathCore::XMLoadFloat3(&bb.Center),
-                        Core::MathCore::XMLoadFloat3(&extent));
+                    auto bbMinVec = Core::MathCore::VectorSubtract(
+                        bb.Center.GetSIMD(), extent.GetSIMD());
 
-                    Core::MathCore::XMFLOAT3 bbMin {};
+                    Core::MathCore::Float3 bbMin {};
                     DirectX::XMStoreFloat3(&bbMin, bbMinVec);
 
                     Float32_3 encodedPos {

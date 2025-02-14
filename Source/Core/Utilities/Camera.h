@@ -30,11 +30,11 @@ class Camera {
 public:
     // camera Attributes
 
-    CMCore_NS::XMFLOAT3 mPosition;
-    CMCore_NS::XMFLOAT3 mFront;
-    CMCore_NS::XMFLOAT3 mUp;
-    CMCore_NS::XMFLOAT3 mRight;
-    CMCore_NS::XMFLOAT3 mWorldUp;
+    MathCore::Float3 mPosition;
+    MathCore::Float3 mFront;
+    MathCore::Float3 mUp;
+    MathCore::Float3 mRight;
+    MathCore::Float3 mWorldUp;
 
     // euler Angles
     EulerAngles mEulerAngles;
@@ -48,23 +48,22 @@ public:
     bool mCaptureKeyboard {true};
 
     Camera(PersperctiveInfo info,
-           CMCore_NS::XMFLOAT3 position = CMCore_NS::XMFLOAT3(0.0f, 0.0f, 0.0f),
-           CMCore_NS::XMFLOAT3 up = CMCore_NS::XMFLOAT3(0.0f, 1.0f, 0.0f),
-           float yaw = CameraYaw,
-           float pitch = CameraPitch);
+           MathCore::Float3 position = MathCore::Float3(0.0f, 0.0f, 0.0f),
+           MathCore::Float3 up = MathCore::Float3(0.0f, 1.0f, 0.0f),
+           float yaw = CameraYaw, float pitch = CameraPitch);
 
     Camera(float posX, float posY, float posZ, float upX, float upY, float upZ,
            float yaw, float pitch);
 
     void SetAspect(float aspect);
 
-    CMCore_NS::XMFLOAT4X4 GetViewMatrix();
-    CMCore_NS::XMFLOAT4X4 GetProjectionMatrix();
-    CMCore_NS::XMFLOAT4X4 GetViewProjMatrix();
+    MathCore::Mat4 GetViewMatrix() const;
+    MathCore::Mat4 GetProjectionMatrix() const;
+    MathCore::Mat4 GetViewProjMatrix() const;
 
     void ProcessSDLEvent(SDL_Event* e, float deltaTime);
 
-    void AdjustPosition(CMCore_NS::XMFLOAT3 lookAt, CMCore_NS::XMFLOAT3 extent);
+    void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);
 
 private:
     void Update();

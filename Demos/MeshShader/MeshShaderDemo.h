@@ -9,18 +9,17 @@ namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 
 namespace IDC_NS = IntelliDesign_NS::Core;
-namespace IDCMCore_NS = IntelliDesign_NS::CMCore_NS;
 
 struct SceneData {
-    IDCMCore_NS::XMFLOAT4 sunLightPos {0.6f, 1.0f, 0.8f, 1.0f};
-    IDCMCore_NS::XMFLOAT4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
-    IDCMCore_NS::XMFLOAT4 cameraPos {};
-    IDCMCore_NS::XMFLOAT4X4 view {};
-    IDCMCore_NS::XMFLOAT4X4 proj {};
-    IDCMCore_NS::XMFLOAT4X4 viewProj {};
+    IDCMCore_NS::Float4 sunLightPos {0.6f, 1.0f, 0.8f, 1.0f};
+    IDCMCore_NS::Float4 sunLightColor {1.0f, 1.0f, 1.0f, 1.0f};
+    IDCMCore_NS::Float4 cameraPos {};
+    IDCMCore_NS::Mat4 view {};
+    IDCMCore_NS::Mat4 proj {};
+    IDCMCore_NS::Mat4 viewProj {};
 
-    IDCMCore_NS::XMFLOAT4 objColor {0.7f, 0.7f, 0.7f, 1.0f};
-    IDCMCore_NS::XMFLOAT4 metallicRoughness {0.5f, 0.0f, 0.0f, 0.0f};
+    IDCMCore_NS::Float4 objColor {0.7f, 0.7f, 0.7f, 1.0f};
+    IDCMCore_NS::Float4 metallicRoughness {0.5f, 0.0f, 0.0f, 0.0f};
     int32_t texIndex {0};
 };
 
