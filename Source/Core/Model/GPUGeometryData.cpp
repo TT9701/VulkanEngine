@@ -1,22 +1,16 @@
-#include "Geometry.h"
+#include "GPUGeometryData.h"
 
-#include "CISDI_3DModelData.h"
 #include "Core/Application/Application.h"
 #include "Core/Utilities/VulkanUtilities.h"
 #include "Core/Vulkan/Manager/VulkanContext.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Geometry::Geometry(VulkanContext& context, const char* path,
-                   ::std::pmr::memory_resource* pMemPool, bool flipYZ,
-                   const char* output)
-    : mFlipYZ(flipYZ),
-      mPath(path),
-      mDirectory(::std::filesystem::path {mPath}.remove_filename()),
-      mName(mPath.stem().generic_string().c_str()),
-      mModelData(LoadModel(output, pMemPool)) {
-    GenerateStats();
-    GenerateMeshletBuffers(context);
+GPUGeometryData::GPUGeometryData(VulkanContext& context,
+                   ModelData::CISDI_3DModel const& model)
+    : mName(model.name) {
+    GenerateStats(model);
+    GenerateMeshletBuffers(context, model);
 }
 
 namespace {
@@ -68,12 +62,13 @@ auto ExtractMeshletProperty(ModelData::CISDI_3DModel const& modelData,
 
 }  // namespace
 
-void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
+void GPUGeometryData::GenerateMeshletBuffers(VulkanContext& context,
+                                      ModelData::CISDI_3DModel const& model) {
     // positions buffer
     {
         auto tmp =
             ExtractVertexAttribute<ModelData::VertexAttributeEnum::Position>(
-                mModelData, mVertexCount);
+                model, mVertexCount);
 
         mBuffers.mVPBuf = CreateStorageBuffer_WithData(
             context, (mName + " Vertex Position").c_str(), mVertexCount,
@@ -86,7 +81,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     {
         auto tmp =
             ExtractVertexAttribute<ModelData::VertexAttributeEnum::Normal>(
-                mModelData, mVertexCount);
+                model, mVertexCount);
 
         mBuffers.mVNBuf = CreateStorageBuffer_WithData(
             context, (mName + " Vertex Normal").c_str(), mVertexCount,
@@ -98,7 +93,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     // texcoords buffer
     {
         auto tmp = ExtractVertexAttribute<ModelData::VertexAttributeEnum::UV>(
-            mModelData, mVertexCount);
+            model, mVertexCount);
 
         mBuffers.mVTBuf = CreateStorageBuffer_WithData(
             context, (mName + " Vertex Texcoords").c_str(), mVertexCount,
@@ -111,7 +106,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     {
         auto tmp =
             ExtractMeshletProperty<ModelData::MeshletPropertyTypeEnum::Info>(
-                mModelData, mMeshletCount);
+                model, mMeshletCount);
 
         mBuffers.mMeshletBuf = CreateStorageBuffer_WithData(
             context, (mName + " Meshlet").c_str(), mMeshletCount, tmp.data());
@@ -124,7 +119,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     {
         auto tmp = ExtractMeshletProperty<
             ModelData::MeshletPropertyTypeEnum::Triangle>(
-            mModelData, mMeshletTriangleCount);
+            model, mMeshletTriangleCount);
 
         mBuffers.mMeshletTriBuf = CreateStorageBuffer_WithData(
             context, (mName + " Meshlet triangles").c_str(),
@@ -136,19 +131,18 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
 
     // aabb data buffer
     {
-        uint32_t meshCount = mModelData.meshes.size();
+        mMeshCount = model.meshes.size();
 
         ::std::vector<ModelData::AABoundingBox> tmp;
-        tmp.reserve(1 + meshCount + mMeshletCount);
+        tmp.reserve(1 + mMeshCount + mMeshletCount);
 
-        tmp.push_back(mModelData.boundingBox);
-        for (uint32_t i = 0; i < meshCount; ++i) {
-            tmp.push_back(mModelData.meshes[i].boundingBox);
+        tmp.push_back(model.boundingBox);
+        for (uint32_t i = 0; i < mMeshCount; ++i) {
+            tmp.push_back(model.meshes[i].boundingBox);
         }
 
         auto meshletBB = ExtractMeshletProperty<
-            ModelData::MeshletPropertyTypeEnum::BoundingBox>(mModelData,
-                                                             meshCount);
+            ModelData::MeshletPropertyTypeEnum::BoundingBox>(model, mMeshCount);
         tmp.insert(tmp.end(), meshletBB.begin(), meshletBB.end());
 
         mBuffers.mBoundingBoxBuf = CreateStorageBuffer_WithData(
@@ -158,14 +152,14 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
             mBuffers.mBoundingBoxBuf->GetDeviceAddress();
         mMeshletConstants.mMeshletBoundingBoxBufAddr =
             mMeshletConstants.mBoundingBoxBufAddr
-            + sizeof(ModelData::AABoundingBox) * (meshCount + 1);
+            + sizeof(ModelData::AABoundingBox) * (mMeshCount + 1);
     }
 
     // material data buffer
     {
         ::std::vector<ModelData::CISDI_Material::Data> datas {};
-        datas.reserve(mModelData.materials.size());
-        for (auto const& material : mModelData.materials) {
+        datas.reserve(model.materials.size());
+        for (auto const& material : model.materials) {
             datas.push_back(material.data);
         }
 
@@ -179,15 +173,14 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
 
     // material indices buffer
     {
-        uint32_t meshCount = mModelData.meshes.size();
-        ::std::vector<uint32_t> meshMaterialIndices(meshCount);
-        for (auto const& node : mModelData.nodes) {
+        ::std::vector<uint32_t> meshMaterialIndices(mMeshCount);
+        for (auto const& node : model.nodes) {
             if (node.meshIdx == -1)
                 continue;
             meshMaterialIndices[node.meshIdx] = node.materialIdx;
         }
         mBuffers.mMeshMaterialIdxBuf = CreateStorageBuffer_WithData(
-            context, (mName + " Mesh Material Indices").c_str(), meshCount,
+            context, (mName + " Mesh Material Indices").c_str(), mMeshCount,
             meshMaterialIndices.data());
 
         mFragmentConstants.mMeshMaterialIdxBufAddr =
@@ -197,7 +190,7 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     // offsets buffer
     {
         ::std::vector<uint32_t> tmp {};
-        tmp.reserve(mModelData.meshes.size() * 4);
+        tmp.reserve(model.meshes.size() * 4);
         tmp.insert(tmp.end(), mMeshDatas.vertexOffsets.begin(),
                    mMeshDatas.vertexOffsets.end());
         tmp.insert(tmp.end(), mMeshDatas.meshletOffsets.begin(),
@@ -208,10 +201,10 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
                    mMeshDatas.meshletCounts.end());
 
         mBuffers.mMeshDataBuf = CreateStorageBuffer_WithData(
-            context, (mName + " Offsets data").c_str(),
-            mModelData.meshes.size() * 4, tmp.data());
+            context, (mName + " Offsets data").c_str(), model.meshes.size() * 4,
+            tmp.data());
 
-        uint32_t meshCountSize = mModelData.meshes.size() * sizeof(uint32_t);
+        uint32_t meshCountSize = mMeshCount * sizeof(uint32_t);
 
         mMeshletConstants.mVertOffsetBufAddr =
             mBuffers.mMeshDataBuf->GetDeviceAddress();
@@ -237,68 +230,55 @@ void Geometry::GenerateMeshletBuffers(VulkanContext& context) {
     }
 }
 
-uint32_t Geometry::GetMeshCount() {
-    return mModelData.meshes.size();
+Type_STLString const& GPUGeometryData::GetName() const {
+    return mName;
 }
 
-uint32_t Geometry::GetVertexCount() const {
+uint32_t GPUGeometryData::GetMeshCount() const {
+    return mMeshCount;
+}
+
+uint32_t GPUGeometryData::GetVertexCount() const {
     return mVertexCount;
 }
 
-uint32_t Geometry::GetMeshletCount() const {
+uint32_t GPUGeometryData::GetMeshletCount() const {
     return mMeshletCount;
 }
 
-uint32_t Geometry::GetMeshletTriangleCount() const {
+uint32_t GPUGeometryData::GetMeshletTriangleCount() const {
     return mMeshletTriangleCount;
 }
 
-ModelData::CISDI_3DModel const& Geometry::GetCISDIModelData() const {
-    return mModelData;
-}
-
-std::span<uint32_t> Geometry::GetVertexOffsets() {
+std::span<uint32_t> GPUGeometryData::GetVertexOffsets() {
     return mMeshDatas.vertexOffsets;
 }
 
-GPUMeshBuffers& Geometry::GetMeshBuffer() {
+GPUMeshBuffers& GPUGeometryData::GetMeshBuffer() {
     return mBuffers;
 }
 
-MeshletPushConstants Geometry::GetMeshletPushContants() const {
+MeshletPushConstants GPUGeometryData::GetMeshletPushContants() const {
     return mMeshletConstants;
 }
 
-MeshletPushConstants* Geometry::GetMeshletPushContantsPtr() {
+MeshletPushConstants* GPUGeometryData::GetMeshletPushContantsPtr() {
     return &mMeshletConstants;
 }
 
-FragmentPushConstants* Geometry::GetFragmentPushConstantsPtr() {
+FragmentPushConstants* GPUGeometryData::GetFragmentPushConstantsPtr() {
     return &mFragmentConstants;
 }
 
-Buffer* Geometry::GetMeshTaskIndirectCmdBuffer() const {
+Buffer* GPUGeometryData::GetMeshTaskIndirectCmdBuffer() const {
     return mMeshTaskIndirectCmdBuffer.get();
 }
 
-ModelData::CISDI_3DModel Geometry::LoadModel(
-    const char* output, ::std::pmr::memory_resource* pMemPool) {
-    auto modelPath = mPath.string();
-
-    if (mPath.extension() == CISDI_3DModel_Subfix_Str) {
-        return IntelliDesign_NS::ModelData::Load(mPath.string().c_str(),
-                                                 pMemPool);
-    }
-
-    return IntelliDesign_NS::ModelData::Convert(modelPath.c_str(), mFlipYZ,
-                                                pMemPool, output);
-}
-
-void Geometry::GenerateStats() {
-    const auto meshCount = mModelData.meshes.size();
+void GPUGeometryData::GenerateStats(ModelData::CISDI_3DModel const& model) {
+    const auto meshCount = model.meshes.size();
     mMeshDatas.vertexOffsets.reserve(meshCount);
     mMeshTaskIndirectCmds.reserve(meshCount);
-    for (auto& mesh : mModelData.meshes) {
+    for (auto& mesh : model.meshes) {
         vk::DrawMeshTasksIndirectCommandEXT meshTasksIndirectCmd {};
         auto const& infos =
             mesh.meshlets

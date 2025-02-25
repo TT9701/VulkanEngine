@@ -59,8 +59,6 @@ public:
     Self& SetBinding(const char* param,
                      RenderPassBinding::BindlessDescBufInfo bindless);
 
-    Self& SetBinding(Buffer* argumentBuffer);
-
     Self& SetRenderArea(vk::Rect2D const& area);
     Self& SetViewport(vk::Viewport const& viewport);
     Self& SetScissor(vk::Rect2D const& scissor);
@@ -73,9 +71,14 @@ public:
         None = -1
     };
 
-    void SetExecuteInfo(ExecuteType type,
-                        ::std::optional<uint32_t> startIdx = ::std::nullopt,
-                        ::std::optional<uint32_t> drawCount = ::std::nullopt);
+    struct ExecuteInfo {
+        Buffer* argumentBuffer {nullptr};
+        ExecuteType type {ExecuteType::None};
+        ::std::optional<uint32_t> startIdx {::std::nullopt};
+        ::std::optional<uint32_t> drawCount {::std::nullopt};
+    };
+
+    void SetExecuteInfo(Type_STLVector<ExecuteInfo> const& infos);
 
     friend RenderSequenceConfig;
 
@@ -91,15 +94,16 @@ private:
         ::std::pair<Type_STLString, RenderPassBinding::BindlessDescBufInfo>>
         mBindlessDesc;
 
-    Buffer* mArgumentBuffer;
+    // Buffer* mArgumentBuffer;
+    Type_STLVector<ExecuteInfo> mInfos;
 
     ::std::optional<vk::Rect2D> mRenderArea;
     ::std::optional<vk::Viewport> mViewport;
     ::std::optional<vk::Rect2D> mScissor;
 
-    ExecuteType mExecuteType {ExecuteType::None};
-    uint32_t mStartIdx {0};
-    uint32_t mDrawCount {0};
+    // ExecuteType mExecuteType {ExecuteType::None};
+    // uint32_t mStartIdx {0};
+    // uint32_t mDrawCount {0};
 };
 
 class CopyPassConfig : public IPassConfig {
@@ -168,8 +172,7 @@ template <class T>
 RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* name,
                                                      T* pPushConstants) {
     mPushConstants.emplace_back(::std::pair {
-        name,
-        RenderPassBinding::PushContants {sizeof(T), pPushConstants}});
+        name, RenderPassBinding::PushContants {sizeof(T), pPushConstants}});
     return *this;
 }
 

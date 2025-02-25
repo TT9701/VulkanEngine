@@ -51,11 +51,6 @@ RenderPassConfig::Self& RenderPassConfig::SetBinding(
     return *this;
 }
 
-RenderPassConfig::Self& RenderPassConfig::SetBinding(Buffer* argumentBuffer) {
-    mArgumentBuffer = argumentBuffer;
-    return *this;
-}
-
 RenderPassConfig::Self& RenderPassConfig::SetRenderArea(
     vk::Rect2D const& area) {
     mRenderArea = area;
@@ -74,15 +69,9 @@ RenderPassConfig::Self& RenderPassConfig::SetScissor(
     return *this;
 }
 
-void RenderPassConfig::SetExecuteInfo(ExecuteType type,
-                                      std::optional<uint32_t> startIdx,
-                                      std::optional<uint32_t> count) {
-    mExecuteType = type;
-    mStartIdx = startIdx ? *startIdx : 0;
-    mDrawCount = count ? *count
-               : mArgumentBuffer
-                   ? mArgumentBuffer->GetCount() - mStartIdx
-                   : throw ::std::runtime_error("No argument buffer provided");
+void RenderPassConfig::SetExecuteInfo(
+    Type_STLVector<ExecuteInfo> const& infos) {
+    mInfos = infos;
 }
 
 void RenderPassConfig::Compile(RenderSequence& result) {
@@ -138,32 +127,40 @@ void RenderPassConfig::Compile(RenderSequence& result) {
         dcMgr.AddArgument_Scissor(0, {*mScissor});
     }
 
-    switch (mExecuteType) {
-        case ExecuteType::Dispatch: {
-            dcMgr.AddArgument_DispatchIndirect(
-                mArgumentBuffer->GetHandle(),
-                mStartIdx * mArgumentBuffer->GetStride());
-            break;
-            case ExecuteType::Draw: {
-                dcMgr.AddArgument_DrawIndirect(
-                    mArgumentBuffer->GetHandle(),
-                    mStartIdx * mArgumentBuffer->GetStride(), mDrawCount,
-                    mArgumentBuffer->GetStride());
+    for (auto const& info : mInfos) {
+        auto startIdx = info.startIdx ? *info.startIdx : 0;
+        auto drawCount =
+            info.drawCount ? *info.drawCount
+            : info.argumentBuffer
+                ? info.argumentBuffer->GetCount() - startIdx
+                : throw ::std::runtime_error("No argument buffer provided");
+        switch (info.type) {
+            case ExecuteType::Dispatch: {
+                dcMgr.AddArgument_DispatchIndirect(
+                    info.argumentBuffer->GetHandle(),
+                    startIdx * info.argumentBuffer->GetStride());
                 break;
-            }
-            case ExecuteType::DrawIndexed: {
-                dcMgr.AddArgument_DrawIndexedIndirect(
-                    mArgumentBuffer->GetHandle(),
-                    mStartIdx * mArgumentBuffer->GetStride(), mDrawCount,
-                    mArgumentBuffer->GetStride());
-                break;
-            }
-            case ExecuteType::DrawMeshTask: {
-                dcMgr.AddArgument_DrawMeshTasksIndirect(
-                    mArgumentBuffer->GetHandle(),
-                    mStartIdx * mArgumentBuffer->GetStride(), mDrawCount,
-                    mArgumentBuffer->GetStride());
-                break;
+                case ExecuteType::Draw: {
+                    dcMgr.AddArgument_DrawIndirect(
+                        info.argumentBuffer->GetHandle(),
+                        startIdx * info.argumentBuffer->GetStride(), drawCount,
+                        info.argumentBuffer->GetStride());
+                    break;
+                }
+                case ExecuteType::DrawIndexed: {
+                    dcMgr.AddArgument_DrawIndexedIndirect(
+                        info.argumentBuffer->GetHandle(),
+                        startIdx * info.argumentBuffer->GetStride(), drawCount,
+                        info.argumentBuffer->GetStride());
+                    break;
+                }
+                case ExecuteType::DrawMeshTask: {
+                    dcMgr.AddArgument_DrawMeshTasksIndirect(
+                        info.argumentBuffer->GetHandle(),
+                        startIdx * info.argumentBuffer->GetStride(), drawCount,
+                        info.argumentBuffer->GetStride());
+                    break;
+                }
             }
         }
     }

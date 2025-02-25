@@ -87,14 +87,15 @@ UniquePtr<VulkanContext> Application::CreateContext() {
     enabledDeivceExtensions.emplace_back(vk::KHRSwapchainExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTDescriptorBufferExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTMeshShaderExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::KHRMaintenance5ExtensionName);
     enabledDeivceExtensions.emplace_back(vk::KHRMaintenance6ExtensionName);
     enabledDeivceExtensions.emplace_back(
         vk::KHRBufferDeviceAddressExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTMemoryBudgetExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTMemoryPriorityExtensionName);
     enabledDeivceExtensions.emplace_back(vk::KHRBindMemory2ExtensionName);
-    // enabledDeivceExtensions.emplace_back(
-    //     vk::EXTDeviceGeneratedCommandsExtensionName);
+    enabledDeivceExtensions.emplace_back(
+        vk::EXTDeviceGeneratedCommandsExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(

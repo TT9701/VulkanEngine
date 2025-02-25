@@ -1,10 +1,25 @@
-﻿#include "MeshShaderDemo.h"
+#include "MeshShaderDemo.h"
 
 #include <random>
 
 #include "Core/System/GameTimer.h"
 
 using namespace IDVC_NS;
+
+namespace {
+::std::pmr::memory_resource* gMemPool = ::std::pmr::get_default_resource();
+
+void AdjustCameraPosition(
+    IDC_NS::Camera& camera,
+    IntelliDesign_NS::ModelData::AABoundingBox const& bb) {
+    auto center = bb.Center.GetSIMD();
+    center = IDCMCore_NS::VectorMultiply(center, {0.01f, 0.01f, 0.01f});
+    auto extent = bb.Extents.GetSIMD();
+    extent = IDCMCore_NS::VectorMultiply(extent, {0.01f, 0.01f, 0.01f});
+    camera.AdjustPosition(center, extent);
+}
+
+}  // namespace
 
 MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     : Application(spec),
@@ -16,6 +31,13 @@ MeshShaderDemo::MeshShaderDemo(ApplicationSpecification const& spec)
     mMainCamera = MakeUnique<IDC_NS::Camera>(IDC_NS::PersperctiveInfo {
         1000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
         (float)spec.width / spec.height});
+
+    mScene = MakeShared<IDCSG_NS::Scene>(gMemPool);
+
+    mModelMgr =
+        MakeUnique<IntelliDesign_NS::ModelData::ModelDataManager>(gMemPool);
+
+    mGeoMgr = MakeUnique<GPUGeometryDataManager>(GetVulkanContext(), gMemPool);
 }
 
 MeshShaderDemo::~MeshShaderDemo() = default;
@@ -82,10 +104,11 @@ void MeshShaderDemo::PollEvents(SDL_Event* e, float deltaTime) {
 
             GetVulkanContext().GetDevice()->waitIdle();
 
-            auto pMemPool = ::std::pmr::get_default_resource();
+            auto& node = mScene->AddNode(path.stem().string().c_str());
+            auto const& modelData =
+                node.SetModel(path.string().c_str(), *mGeoMgr, *mModelMgr);
 
-            mFactoryModel = MakeShared<Geometry>(
-                GetVulkanContext(), path.string().c_str(), pMemPool);
+            AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
 
             SDL_free(e->drop.file);
         } break;
@@ -207,31 +230,13 @@ void MeshShaderDemo::Prepare() {
         }
     }
 
-    // cisdi model data converter
-    {
-        IntelliDesign_NS::Core::Utils::Timer timer;
+    const char* modelPath = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
 
-        const char* model = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
+    auto& node = mScene->AddNode("cisdi");
+    auto const& modelData =
+        node.SetModel(MODEL_PATH_CSTR(modelPath), *mGeoMgr, *mModelMgr);
 
-        auto pMemPool = ::std::pmr::get_default_resource();
-
-        mFactoryModel = MakeShared<Geometry>(GetVulkanContext(),
-                                             MODEL_PATH_CSTR(model), pMemPool);
-
-        auto duration_LoadModel = timer.End();
-        printf("Load Geometry: %s, Time consumed: %f s. \n", model,
-               duration_LoadModel);
-    }
-
-    auto center = mFactoryModel->GetCISDIModelData().boundingBox.Center;
-    center.x *= 0.01f;
-    center.y *= 0.01f;
-    center.z *= 0.01f;
-    auto extent = mFactoryModel->GetCISDIModelData().boundingBox.Extents;
-    extent.x *= 0.01f;
-    extent.y *= 0.01f;
-    extent.z *= 0.01f;
-    mMainCamera->AdjustPosition(center, extent);
+    AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
 
     PrepareUIContext();
 
@@ -629,30 +634,21 @@ void MeshShaderDemo::PrepareUIContext() {
                             MODEL_PATH_CSTR(buffName.c_str()))) {
                         MessageBoxW(nullptr, L"模型文件不存在", L"错误", MB_OK);
                     } else {
-                        auto pMemPool = ::std::pmr::get_default_resource();
-
                         GameTimer timer;
                         INTELLI_DS_MEASURE_DURATION_MS_START(timer);
 
                         GetVulkanContext().GetDevice()->waitIdle();
-                        mFactoryModel = MakeShared<Geometry>(
-                            GetVulkanContext(),
-                            MODEL_PATH_CSTR(buffName.c_str()), pMemPool);
+
+                        auto& node = mScene->GetNode("cisdi");
+                        auto const& modelData =
+                            node.SetModel(MODEL_PATH_CSTR(buffName.c_str()),
+                                          *mGeoMgr, *mModelMgr);
+
+                        AdjustCameraPosition(*mMainCamera,
+                                             modelData.boundingBox);
 
                         INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
                                                                  loadTime);
-
-                        auto center = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.Center;
-                        center.x *= 0.01f;
-                        center.y *= 0.01f;
-                        center.z *= 0.01f;
-                        auto extent = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.Extents;
-                        extent.x *= 0.01f;
-                        extent.y *= 0.01f;
-                        extent.z *= 0.01f;
-                        mMainCamera->AdjustPosition(center, extent);
                     }
                 }
 
@@ -671,29 +667,20 @@ void MeshShaderDemo::PrepareUIContext() {
                         std::string filePath =
                             ImGuiFileDialog::Instance()->GetCurrentPath();
 
-                        auto pMemPool = ::std::pmr::get_default_resource();
-
                         GameTimer timer;
                         INTELLI_DS_MEASURE_DURATION_MS_START(timer);
 
                         GetVulkanContext().GetDevice()->waitIdle();
-                        mFactoryModel = MakeShared<Geometry>(
-                            GetVulkanContext(), filePathName.c_str(), pMemPool);
+
+                        auto& node = mScene->GetNode("cisdi");
+                        auto const& modelData = node.SetModel(
+                            filePathName.c_str(), *mGeoMgr, *mModelMgr);
+
+                        AdjustCameraPosition(*mMainCamera,
+                                             modelData.boundingBox);
 
                         INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
                                                                  loadTime);
-
-                        auto center = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.Center;
-                        center.x *= 0.01f;
-                        center.y *= 0.01f;
-                        center.z *= 0.01f;
-                        auto extent = mFactoryModel->GetCISDIModelData()
-                                          .boundingBox.Extents;
-                        extent.x *= 0.01f;
-                        extent.y *= 0.01f;
-                        extent.z *= 0.01f;
-                        mMainCamera->AdjustPosition(center, extent);
                     }
 
                     // close
@@ -706,9 +693,8 @@ void MeshShaderDemo::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("场景信息")) {
-                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]",
-                            mMainCamera->mPosition.x, mMainCamera->mPosition.y,
-                            mMainCamera->mPosition.z);
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", mMainCamera->mPosition.x,
+                            mMainCamera->mPosition.y, mMainCamera->mPosition.z);
 
                 IDCMCore_NS::Float3 lightPos {IDCMCore_NS::Vector3Normalize(
                     {mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
@@ -729,7 +715,7 @@ void MeshShaderDemo::PrepareUIContext() {
             ImGui::End();
         })
         .AddContext([&]() {
-            auto const& model = mFactoryModel->GetCISDIModelData();
+            auto& model = mScene->GetNode("cisdi").GetModel();
 
             if (ImGui::Begin(model.name.c_str())) {
                 if (ImGui::TreeNode("Hierarchy")) {
@@ -801,10 +787,26 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
     cfg.AddRenderPass("DrawBackground", "Background")
         .SetBinding("image", "DrawImage")
         .SetBinding("StorageBuffer", "RWBuffer")
-        .SetBinding(mDispatchIndirectCmdBuffer.get())
-        .SetExecuteInfo(RenderPassConfig::ExecuteType::Dispatch);
+        .SetExecuteInfo({{mDispatchIndirectCmdBuffer.get(),
+                          RenderPassConfig::ExecuteType::Dispatch}});
 
-    auto meshPushContants = mFactoryModel->GetMeshletPushContantsPtr();
+    Type_STLVector<RenderPassConfig::ExecuteInfo> executeInfos {};
+
+    for (auto const& [name, node] : mScene->GetAllNodes()) {
+        auto const& modelName = node->GetModel().name;
+        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
+        auto pPushConstant = geo.GetMeshletPushContantsPtr();
+
+        pPushConstant->mModelMatrix =
+            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
+
+        executeInfos.emplace_back(geo.GetMeshTaskIndirectCmdBuffer(),
+                                  RenderPassConfig::ExecuteType::DrawMeshTask);
+    }
+
+    auto const& name = mScene->GetNode("cisdi").GetModel().name;
+    auto& geo = mGeoMgr->GetGPUGeometryData(name.c_str());
+    auto meshPushContants = geo.GetMeshletPushContantsPtr();
 
     meshPushContants->mModelMatrix =
         IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
@@ -816,17 +818,15 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     cfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
         .SetBinding("PushConstants", meshPushContants)
-        .SetBinding("PushConstantsFrag",
-                    mFactoryModel->GetFragmentPushConstantsPtr())
+        .SetBinding("PushConstantsFrag", geo.GetFragmentPushConstantsPtr())
         .SetBinding("UBO", "SceneUniformBuffer")
         // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
         .SetBinding("_Depth_", "DepthImage")
-        .SetBinding(mFactoryModel->GetMeshTaskIndirectCmdBuffer())
         .SetViewport({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f})
         .SetScissor({{0, 0}, {width, height}})
         .SetRenderArea({{0, 0}, {width, height}})
-        .SetExecuteInfo(RenderPassConfig::ExecuteType::DrawMeshTask);
+        .SetExecuteInfo(executeInfos);
 
     // cfg.AddCopyPass("Copytest")
     //     .SetBinding(

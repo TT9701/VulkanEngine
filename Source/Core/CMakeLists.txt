@@ -105,14 +105,20 @@ set (PLATFORM_SRC_GROUP_NAME "Platform")
 set (MODEL_SRC
     Model/Mesh.h
     Model/Mesh.cpp
-    Model/Geometry.cpp
-    Model/Geometry.h
+    Model/GPUGeometryData.cpp
+    Model/GPUGeometryData.h
+    Model/GPUGeometryDataManager.cpp
+    Model/GPUGeometryDataManager.h
+    Model/ModelDataManager.h
+    Model/ModelDataManager.cpp
 )
 set (MODEL_SRC_GROUP_NAME "Model")
 
 set (SCENE_GRAPH_SRC
     SceneGraph/Scene.h
     SceneGraph/Scene.cpp
+    SceneGraph/Node.h
+    SceneGraph/Node.cpp
 )
 set (SCENE_GRAPH_SRC_GROUP_NAME "SceneGraph")
 

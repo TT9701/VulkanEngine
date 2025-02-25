@@ -242,7 +242,7 @@ void Generate_CISDIModel_MeshletBoundingBoxes(
             for (uint32_t k = 0; k < info.vertexCount; ++k) {
                 uint32_t vertIdx = info.vertexOffset + k;
                 auto const& tmpPos = tmpPosVec[vertIdx];
-                if (bb.Contains({tmpPos.x, tmpPos.y, tmpPos.z})
+                if (bb.Contains(SIMD_Vec {tmpPos.x, tmpPos.y, tmpPos.z})
                     == ContainmentType::DISJOINT) {
                     constexpr size_t pointCount = 9;
                     Float3 tmp[pointCount];
@@ -373,12 +373,11 @@ void Generate_CISDIModel_PackedVertices(
 CISDI_3DModel::CISDI_3DModel(std::pmr::memory_resource* pMemPool)
     : name(pMemPool), nodes(pMemPool), meshes(pMemPool), materials(pMemPool) {}
 
-CISDI_3DModel Convert(const char* path, bool flipYZ,
-                      ::std::pmr::memory_resource* pMemPool,
-                      const char* output) {
+void Convert(CISDI_3DModel* model, const char* path, bool flipYZ,
+             ::std::pmr::memory_resource* pMemPool, const char* output) {
     auto outputPath = ProcessOutputPath(path, output);
 
-    CISDI_3DModel data {pMemPool};
+    auto& data = *model;
 
     // process input model file
     {
@@ -417,12 +416,11 @@ CISDI_3DModel Convert(const char* path, bool flipYZ,
     }
 
     Write_CISDI_File(outputPath.c_str(), data);
-
-    return data;
 }
 
-CISDI_3DModel Load(const char* path, ::std::pmr::memory_resource* pMemPool) {
-    return Read_CISDI_File(path, pMemPool);
+void Load(CISDI_3DModel* model, const char* path,
+          ::std::pmr::memory_resource* pMemPool) {
+    Read_CISDI_File(model, path, pMemPool);
 }
 
 }  // namespace IntelliDesign_NS::ModelData

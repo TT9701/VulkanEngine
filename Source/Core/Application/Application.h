@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Model/Geometry.h"
+#include "Core/Model/GPUGeometryData.h"
 #include "Core/Platform/Window.h"
 #include "Core/Utilities/Camera.h"
 #include "Core/Utilities/Defines.h"

@@ -5,10 +5,17 @@
 
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
+#include "Core/SceneGraph/Node.h"
+#include "Core/SceneGraph/Scene.h"
+
+#include "Core/Model/GPUGeometryDataManager.h"
+#include "Core/Model/ModelDataManager.h"
+
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 
 namespace IDC_NS = IntelliDesign_NS::Core;
+namespace IDCSG_NS = IDC_NS::SceneGraph;
 
 struct SceneData {
     IDCMCore_NS::Float4 sunLightPos {0.6f, 1.0f, 0.8f, 1.0f};
@@ -66,14 +73,19 @@ private:
     IDVC_NS::Semaphore mCopySem;
     IDVC_NS::Semaphore mCmpSem;
 
-    IDVC_NS::SharedPtr<IDVC_NS::Buffer> mDispatchIndirectCmdBuffer;
+    IDVC_NS::SharedPtr<IDVC_NS::Buffer> mDispatchIndirectCmdBuffer {};
 
-    IDVC_NS::UniquePtr<IDC_NS::Camera> mMainCamera;
+    IDVC_NS::UniquePtr<IDC_NS::Camera> mMainCamera {};
     SceneData mSceneData {};
-    IDVC_NS::SharedPtr<IDVC_NS::Geometry> mFactoryModel {};
 
-    IDVC_NS::Type_STLString mImageName0;
-    IDVC_NS::Type_STLString mImageName1;
+    IDVC_NS::UniquePtr<IntelliDesign_NS::ModelData::ModelDataManager>
+        mModelMgr {};
+    IDVC_NS::UniquePtr<IDVC_NS::GPUGeometryDataManager> mGeoMgr {};
+
+    IDVC_NS::SharedPtr<IDCSG_NS::Scene> mScene {};
+
+    IDVC_NS::Type_STLString mImageName0 {};
+    IDVC_NS::Type_STLString mImageName1 {};
 };
 
 VE_CREATE_APPLICATION(MeshShaderDemo, 1600, 900);

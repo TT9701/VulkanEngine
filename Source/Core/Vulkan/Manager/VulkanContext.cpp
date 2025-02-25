@@ -89,6 +89,16 @@ SharedPtr<Buffer> VulkanContext::CreateStagingBuffer(const char* name,
     return ptr;
 }
 
+SharedPtr<Buffer> VulkanContext::CreateReadBackBuffer(
+    const char* name, size_t allocByteSize, vk::BufferUsageFlags usage,
+    size_t stride) {
+    auto ptr = MakeShared<Buffer>(*this, allocByteSize,
+                                  usage | vk::BufferUsageFlagBits::eTransferDst,
+                                  Buffer::MemoryType::ReadBack, stride);
+    ptr->SetName(name);
+    return ptr;
+}
+
 SharedPtr<Buffer> VulkanContext::CreateStorageBuffer(const char* name,
                                                      size_t allocByteSize,
                                                      vk::BufferUsageFlags usage,
@@ -365,9 +375,9 @@ void VulkanContext::EnableFeatures() {
                              vk::PhysicalDevice16BitStorageFeatures,
                              storageBuffer16BitAccess);
 
-    // REQUEST_REQUIRED_FEATURE(
-    //     mPhysicalDevice, vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT,
-    //     deviceGeneratedCommands);
+    REQUEST_REQUIRED_FEATURE(
+        mPhysicalDevice, vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT,
+        deviceGeneratedCommands);
 }
 
 VulkanContext::CmdToBegin VulkanContext::CreateCmdBufToBegin(

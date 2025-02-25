@@ -34,11 +34,12 @@ void Write_CISDI_File(const char* outputPath, CISDI_3DModel const& data);
 
 /**
  * @brief 读取文件至 CISDI_3DModel 对象
+ * @param model 输出 CISDI_3DModel 对象指针
  * @param path 文件路径
  * @param pMemPool pmr memory resource 指针
  * @return CISDI_3DModel 对象
  */
-CISDI_3DModel Read_CISDI_File(const char* path,
-                              ::std::pmr::memory_resource* pMemPool);
+void Read_CISDI_File(CISDI_3DModel* model, const char* path,
+                     ::std::pmr::memory_resource* pMemPool);
 
 }  // namespace IntelliDesign_NS::ModelData

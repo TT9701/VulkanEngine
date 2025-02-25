@@ -15,7 +15,9 @@ void GenerateModel(std::pmr::memory_resource* pMemPool,
             continue;
         }
 
-        IntelliDesign_NS::ModelData::Convert(modelPathes[i], false, pMemPool);
+        IntelliDesign_NS::ModelData::CISDI_3DModel model {pMemPool};
+
+        Convert(&model, modelPathes[i], false, pMemPool);
 
         DWORD pid = GetCurrentProcessId();
 

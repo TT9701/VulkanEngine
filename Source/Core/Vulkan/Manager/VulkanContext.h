@@ -120,6 +120,11 @@ public:
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0,
         size_t stride = 1);
 
+    SharedPtr<Buffer> CreateReadBackBuffer(
+        const char* name, size_t allocByteSize,
+        vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0,
+        size_t stride = 1);
+
     SharedPtr<Buffer> CreateStorageBuffer(
         const char* name, size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0,
@@ -313,7 +318,8 @@ SharedPtr<StructuredBuffer<T>> VulkanContext::CreateIndirectCmdBuffer(
     auto ptr = MakeShared<StructuredBuffer<T>>(
         *this, count,
         vk::BufferUsageFlagBits::eIndirectBuffer
-            | vk::BufferUsageFlagBits::eTransferDst,
+            | vk::BufferUsageFlagBits::eTransferDst
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
         Buffer::MemoryType::DeviceLocal);
 
     ptr->SetName(name);

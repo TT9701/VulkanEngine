@@ -6,3 +6,5 @@ Output/
 *.spv
 .idea/
 .vs/
+.cache/
+.vscode/

@@ -36,7 +36,7 @@ struct CISDI_3DModel {
      * @brief 使用 pmr allocator 构造 CISDI_3DModel 对象
      * @param pMemPool pmr memory resource 指针
      */
-    CISDI_3DModel(::std::pmr::memory_resource* pMemPool);
+    CISDI_MODEL_DATA_API CISDI_3DModel(::std::pmr::memory_resource* pMemPool);
 
     /**
      * @brief CISDI_3DModel::Header 包含模型的基本信息，包括版本号、节点总数、网格总数、材质总数。
@@ -58,9 +58,10 @@ struct CISDI_3DModel {
          * @brief CISDI_Mesh::MeshHeader 包含网格的头部信息，包括顶点总数、meshlet 总数、meshlet 三角形总数。
          */
         struct MeshHeader {
-            uint32_t vertexCount {0};           ///<- 该mesh的顶点总数
-            uint32_t meshletCount {0};          ///<- 该mesh的 meshlet 总数
-            uint32_t meshletTriangleCount {0};  ///<- 该mesh的 meshlet 三角形总数
+            uint32_t vertexCount {0};   ///<- 该mesh的顶点总数
+            uint32_t meshletCount {0};  ///<- 该mesh的 meshlet 总数
+            uint32_t meshletTriangleCount {
+                0};  ///<- 该mesh的 meshlet 三角形总数
         };
 
         MeshHeader header {};  ///<- 网格头部信息
@@ -85,23 +86,24 @@ struct CISDI_3DModel {
 
 /**
  * @brief 将任意 3D 模型文件转换为 CISDI_3DModel 对象，支持的文件格式包括 FBX、OBJ、GLTF、STL 等。FBX 文件使用 FBXSDK 与 Assimp 结合的方式导入，其余文件使用 Assimp 导入。
+ * @param model 输出 CISDI_3DModel 对象指针
  * @param path 输入文件路径
  * @param flipYZ 是否翻转 YZ 轴
  * @param pMemPool pmr memory resource 指针
  * @param output 输出文件路径
- * @return CISDI_3DModel 对象
  */
-CISDI_MODEL_DATA_API CISDI_3DModel
-Convert(const char* path, bool flipYZ, ::std::pmr::memory_resource* pMemPool,
-        const char* output = nullptr);
+CISDI_MODEL_DATA_API void Convert(CISDI_3DModel* model, const char* path,
+                                  bool flipYZ,
+                                  ::std::pmr::memory_resource* pMemPool,
+                                  const char* output = nullptr);
 
 /**
  * @brief 加载 .cisdi 文件，返回 CISDI_3DModel 对象
+ * #@param model 输出 CISDI_3DModel 对象指针
  * @param path .cisdi 文件路径
  * @param pMemPool pmr memory resource 指针
- * @return CISDI_3DModel 对象
  */
-CISDI_MODEL_DATA_API CISDI_3DModel Load(const char* path,
-                                        ::std::pmr::memory_resource* pMemPool);
+CISDI_MODEL_DATA_API void Load(CISDI_3DModel* model, const char* path,
+                               ::std::pmr::memory_resource* pMemPool);
 
 }  // namespace IntelliDesign_NS::ModelData

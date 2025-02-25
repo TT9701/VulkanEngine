@@ -346,19 +346,19 @@ void ReadMaterial(std::ifstream& in, uint32_t materialCount,
     }
 }
 
-CISDI_3DModel Read_CISDI_File(const char* path,
-                              std::pmr::memory_resource* pMemPool) {
+void Read_CISDI_File(CISDI_3DModel* model, const char* path,
+                     std::pmr::memory_resource* pMemPool) {
     ::std::ifstream in(path, ::std::ios::binary);
     if (!in.is_open()) {
         throw ::std::runtime_error(
             (Type_STLString("fail to open file: ") + path).c_str());
     }
 
-    CISDI_3DModel data {pMemPool};
+    auto& data = *model;
 
     ReadDataHeader(in, data.header);
 
-    // version check 
+    // version check
     if (CISDI_3DModel_VERSION != data.header.version) {
         throw ::std::runtime_error("ERROR::CISDI_3DModel::Convert");
     }
@@ -368,8 +368,6 @@ CISDI_3DModel Read_CISDI_File(const char* path,
     ReadMesh(in, data.header.meshCount, data.meshes, pMemPool);
     ReadMaterial(in, data.header.materialCount, data.materials, pMemPool);
     ReadBoundingBox(in, data.boundingBox);
-
-    return data;
 }
 
 }  // namespace IntelliDesign_NS::ModelData
