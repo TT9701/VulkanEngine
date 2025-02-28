@@ -16,6 +16,7 @@ namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 
 namespace IDC_NS = IntelliDesign_NS::Core;
 namespace IDCSG_NS = IDC_NS::SceneGraph;
+namespace IDCMCore_NS = IntelliDesign_NS::CMCore_NS;
 
 struct SceneData {
     IDCMCore_NS::Float4 sunLightPos {0.6f, 1.0f, 0.8f, 1.0f};

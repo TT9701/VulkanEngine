@@ -11,6 +11,8 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+namespace IDCMCore_NS = CMCore_NS;
+
 class VulkanContext;
 
 struct MeshletPushConstants {

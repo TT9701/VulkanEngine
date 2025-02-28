@@ -6,6 +6,8 @@
 
 namespace IntelliDesign_NS::Core {
 
+namespace IDCMCore_NS = CMCore_NS;
+
 Camera::Camera(PersperctiveInfo info, MathCore::Float3 position,
                MathCore::Float3 up, float yaw, float pitch)
     : mPosition(position),
