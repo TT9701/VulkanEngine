@@ -93,6 +93,10 @@ set (VULKAN_CORE_SRC
     Vulkan/RenderGraph/RenderSequence.cpp
     Vulkan/RenderGraph/RenderSequenceConfig.h
     Vulkan/RenderGraph/RenderSequenceConfig.cpp
+        Vulkan/Native/DGCSequenceLayout.h
+        Vulkan/Native/DGCSequenceLayout.cpp
+        Vulkan/Native/DGCSequence.cpp
+        Vulkan/Native/DGCSequence.h
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 

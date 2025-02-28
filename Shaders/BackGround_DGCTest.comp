@@ -23,9 +23,8 @@ void main()
     float r = constants.baseColorFactor.z;
 
     float oldc =  storageBuffer[index].x;
-    if (oldc > 0.9999)
-        oldc = 0.0;
-    float newc = oldc + r;
+
+    float newc = oldc - r;
 
     storageBuffer[index] = vec4(newc, newc, newc, 1.0);
 

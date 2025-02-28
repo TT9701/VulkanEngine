@@ -89,8 +89,8 @@ PipelineBuilder<PipelineType::Graphics>& PipelineBuilder<
     PipelineType::Graphics>::SetShaderProgram(ShaderProgram* program) {
     mShaderStages.clear();
     pProgram = program;
-    for (uint32_t i = 0; i < Utils::EnumCast(ShaderStage::Count); ++i) {
-        if (auto shader = (*pProgram)[static_cast<ShaderStage>(i)]) {
+    for (uint32_t i = 0; i < Utils::EnumCast(ShaderStageFlag::Count); ++i) {
+        if (auto shader = (*pProgram)[static_cast<ShaderStageFlag>(i)]) {
             shader->GetMutex().lock();
             mShaderStages.push_back(shader->GetStageInfo());
         }
@@ -278,7 +278,7 @@ PipelineBuilder<PipelineType::Compute>::PipelineBuilder(
 PipelineBuilder<PipelineType::Compute>& PipelineBuilder<
     PipelineType::Compute>::SetShaderProgram(ShaderProgram* program) {
     pProgram = program;
-    auto shader = (*pProgram)[ShaderStage::Compute];
+    auto shader = (*pProgram)[ShaderStageFlag::Compute];
     shader->GetMutex().lock();
     mStageInfo = shader->GetStageInfo();
     return *this;
@@ -328,7 +328,7 @@ SharedPtr<Pipeline> PipelineBuilder<PipelineType::Compute>::Build(
 
     auto pipeline = MakeShared<Pipeline>(mManager.mContext, info, cache);
 
-    (*pProgram)[ShaderStage::Compute]->GetMutex().unlock();
+    (*pProgram)[ShaderStageFlag::Compute]->GetMutex().unlock();
     mManager.mContext.SetName(pipeline->GetHandle(), pipelineName.c_str());
     mManager.mPipelines.emplace(pipelineName.c_str(), pipeline);
 

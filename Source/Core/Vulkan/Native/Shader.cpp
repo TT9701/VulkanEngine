@@ -324,14 +324,14 @@ void Shader::GLSLReflect_OutVarName(
 
 ShaderProgram::ShaderProgram(Shader* comp, void* layoutPNext)
     : mContext(comp->mContext) {
-    SetShader(ShaderStage::Compute, comp);
+    SetShader(ShaderStageFlag::Compute, comp);
     GenerateProgram(layoutPNext);
 }
 
 ShaderProgram::ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext)
     : mContext(vert->mContext) {
-    SetShader(ShaderStage::Vertex, vert);
-    SetShader(ShaderStage::Fragment, frag);
+    SetShader(ShaderStageFlag::Vertex, vert);
+    SetShader(ShaderStageFlag::Fragment, frag);
     GenerateProgram(layoutPNext);
 }
 
@@ -339,21 +339,21 @@ ShaderProgram::ShaderProgram(Shader* task, Shader* mesh, Shader* frag,
                              void* layoutPNext)
     : mContext(mesh->mContext) {
     if (task)
-        SetShader(ShaderStage::Task, task);
-    SetShader(ShaderStage::Mesh, mesh);
-    SetShader(ShaderStage::Fragment, frag);
+        SetShader(ShaderStageFlag::Task, task);
+    SetShader(ShaderStageFlag::Mesh, mesh);
+    SetShader(ShaderStageFlag::Fragment, frag);
     GenerateProgram(layoutPNext);
 }
 
-const Shader* ShaderProgram::operator[](ShaderStage stage) const {
+const Shader* ShaderProgram::operator[](ShaderStageFlag stage) const {
     return pShaders[Utils::EnumCast(stage)];
 }
 
-Shader* ShaderProgram::operator[](ShaderStage stage) {
+Shader* ShaderProgram::operator[](ShaderStageFlag stage) {
     return pShaders[Utils::EnumCast(stage)];
 }
 
-::std::array<Shader*, Utils::EnumCast(ShaderStage::Count)>
+::std::array<Shader*, Utils::EnumCast(ShaderStageFlag::Count)>
 ShaderProgram::GetShaderArray() const {
     return pShaders;
 }
@@ -391,7 +391,7 @@ ShaderProgram::GetCombinedDescLayoutHandles() const {
     return layouts;
 }
 
-void ShaderProgram::SetShader(ShaderStage stage, Shader* shader) {
+void ShaderProgram::SetShader(ShaderStageFlag stage, Shader* shader) {
     pShaders[Utils::EnumCast(stage)] = shader;
 }
 
@@ -399,7 +399,7 @@ void ShaderProgram::GenerateProgram(void* layoutPNext) {
     MergeDescLayoutDatas(layoutPNext);
     MergePushContantDatas();
 
-    if (auto frag = pShaders[Utils::EnumCast(ShaderStage::Fragment)]) {
+    if (auto frag = pShaders[Utils::EnumCast(ShaderStageFlag::Fragment)]) {
         mRtvNames = frag->mGLSL_OutVarNames;
     }
 }

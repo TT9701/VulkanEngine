@@ -13,12 +13,12 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
 
-enum class ShaderStage {
-    Vertex = 0,
-    Fragment = 1,
-    Compute = 2,
-    Task = 3,
-    Mesh = 4,
+enum class ShaderStageFlag {
+    Vertex = 1 << 0,
+    Fragment = 1 << 1,
+    Compute = 1 << 2,
+    Task = 1 << 3,
+    Mesh = 1 << 4,
     Count
 };
 
@@ -120,7 +120,7 @@ public:
     using Type_CombinedPushContant =
         Type_STLVector<::std::pair<Type_STLString, vk::PushConstantRange>>;
     using Type_ShaderArray =
-        ::std::array<Shader*, Utils::EnumCast(ShaderStage::Count)>;
+        ::std::array<Shader*, Utils::EnumCast(ShaderStageFlag::Count)>;
 
 public:
     ShaderProgram(Shader* comp, void* layoutPNext = nullptr);
@@ -131,8 +131,8 @@ public:
     ~ShaderProgram() = default;
     CLASS_MOVABLE_ONLY(ShaderProgram);
 
-    const Shader* operator[](ShaderStage stage) const;
-    Shader* operator[](ShaderStage stage);
+    const Shader* operator[](ShaderStageFlag stage) const;
+    Shader* operator[](ShaderStageFlag stage);
 
     Type_ShaderArray GetShaderArray() const;
 
@@ -144,7 +144,7 @@ public:
         const;
 
 private:
-    void SetShader(ShaderStage stage, Shader* shader);
+    void SetShader(ShaderStageFlag stage, Shader* shader);
     void GenerateProgram(void* layoutPNext);
 
     void MergeDescLayoutDatas(void* pNext);
