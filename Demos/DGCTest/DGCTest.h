@@ -33,7 +33,9 @@ namespace IDCMCore_NS = IntelliDesign_NS::CMCore_NS;
 //     vk::DrawIndirectCountIndirectCommandEXT drawCommand;
 // };
 
-struct DispatchSequence2 : SequenceTemplate<true, true, IDCMCore_NS::Float3> {};
+struct DispatchSequence2
+    : DGCSequenceTemplate<true, DGCExecutionSetType::Pipeline,
+                          IDCMCore_NS::Float3> {};
 
 struct DispatchSequence3 : DispatchSequence2 {};
 
@@ -151,16 +153,35 @@ private:
     /**
      * DGCSequenceLayout struct test
      */
-    using DispatchSequence =
-        IDVC_NS::DGCSequence<true, true, IDCMCore_NS::Float3>;
-    using DrawSequence =
-        IDVC_NS::DGCSequence<false, true, IDVC_NS::MeshletPushConstants>;
+    using DispatchSequence = IDVC_NS::DGCSequence<DGCSequenceTemplate<
+        true, DGCExecutionSetType::Pipeline, IDCMCore_NS::Float3>>;
+
+    using DrawSequence = IDVC_NS::DGCSequence<DGCSequenceTemplate<
+        false, DGCExecutionSetType::Pipeline, IDVC_NS::MeshletPushConstants>>;
 
     IDVC_NS::UniquePtr<DispatchSequence> mDispatchSequence {};
 
     IDVC_NS::UniquePtr<DrawSequence> mDrawSequence {};
 
-    IDVC_NS::UniquePtr<IDVC_NS::SequenceLayout> mLayout;
+    /**
+     * ShaderEXT compute test
+     */
+    using DispatchSequence_Shader = IDVC_NS::DGCSequence<DGCSequenceTemplate<
+        true, DGCExecutionSetType::Shader_Dispatch, IDCMCore_NS::Float3>>;
+
+    IDVC_NS::UniquePtr<IDVC_NS::ShaderObject> mComputeShader1;
+    IDVC_NS::UniquePtr<IDVC_NS::ShaderObject> mComputeShader2;
+
+    void prepare_compute_sequence_shader();
+    vk::IndirectExecutionSetEXT _compute_shader_executionSet;
+    uint32_t _preprocess_shader_Size;
+    vk::Buffer _preprocess_shader_Buffer;
+    vk::DeviceMemory _preprocess_shader_BufferMem;
+    vk::DeviceAddress _preprocess_shader_BufAddr;
+
+    void dgc_dispatch_shader(vk::CommandBuffer cmd);
+
+    IDVC_NS::UniquePtr<DispatchSequence_Shader> mDispatchSequenceShader {};
 };
 
 VE_CREATE_APPLICATION(DGCTest, 1600, 900);

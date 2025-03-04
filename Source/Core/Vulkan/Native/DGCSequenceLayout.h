@@ -165,24 +165,25 @@ struct ExecutionSetInfo<false, ShaderCount> {
     using _Type_ES_ = ::std::array<uint32_t, ShaderCount>;
 };
 
+#define DECL_INTERNAL_INFO2(IsCompute, UseES, TPushConstant) \
+    static constexpr bool _IsCompute_ = IsCompute;           \
+    static constexpr bool _UseExecutionSet_ = UseES;         \
+    using _Type_PushConstant_ = TPushConstant
+
 template <bool IsCompute, class ExecutionSetInfo = void,
           class TPushConstant = void>
 struct SequenceTemplate2;
 
 template <bool IsCompute>
 struct SequenceTemplate2<IsCompute, void, void> {
-    static constexpr bool _IsCompute_ = IsCompute;
-    static constexpr bool _UseExecutionSet_ = false;
-    using _Type_PushConstant_ = void;
+    DECL_INTERNAL_INFO2(IsCompute, false, void);
 
     DrawCommandContainer_t<IsCompute> command;
 };
 
 template <bool IsCompute, class TPushConstant>
 struct SequenceTemplate2<IsCompute, void, TPushConstant> {
-    static constexpr bool _IsCompute_ = IsCompute;
-    static constexpr bool _UseExecutionSet_ = false;
-    using _Type_PushConstant_ = TPushConstant;
+    DECL_INTERNAL_INFO2(IsCompute, false, TPushConstant);
 
     TPushConstant pushConstant;
     DrawCommandContainer_t<IsCompute> command;
@@ -190,10 +191,8 @@ struct SequenceTemplate2<IsCompute, void, TPushConstant> {
 
 template <bool IsCompute, class ExecutionSetInfo>
 struct SequenceTemplate2<IsCompute, ExecutionSetInfo, void> {
-    static constexpr bool _IsCompute_ = IsCompute;
-    static constexpr bool _UseExecutionSet_ = true;
+    DECL_INTERNAL_INFO2(IsCompute, true, void);
     static constexpr bool _UsePipeline_ = ExecutionSetInfo::_UsePipeline_;
-    using _Type_PushConstant_ = void;
 
     typename ExecutionSetInfo::_Type_ES_ index;
     DrawCommandContainer_t<IsCompute> command;
@@ -221,10 +220,8 @@ concept ValidExecutionSetInfo =
 template <bool IsCompute, class ExecutionSetInfo, class TPushConstant>
     requires ValidExecutionSetInfo<IsCompute, ExecutionSetInfo>
 struct SequenceTemplate2<IsCompute, ExecutionSetInfo, TPushConstant> {
-    static constexpr bool _IsCompute_ = IsCompute;
-    static constexpr bool _UseExecutionSet_ = true;
+    DECL_INTERNAL_INFO2(IsCompute, true, TPushConstant);
     static constexpr bool _UsePipeline_ = ExecutionSetInfo::_UsePipeline_;
-    using _Type_PushConstant_ = TPushConstant;
 
     typename ExecutionSetInfo::_Type_ES_ index;
     TPushConstant pushConstant;
@@ -256,50 +253,6 @@ struct DGCSequenceTemplate<false, DGCExecutionSetType::Shader_Draw,
                            TPushConstant>
     : SequenceTemplate2<false, ExecutionSetInfo<false, 3>, TPushConstant> {};
 
-#define DECL_INTERNAL_INFO(IsCompute, UsePipeline, TPushConstant) \
-    static constexpr bool _IsCompute_ = IsCompute;                \
-    static constexpr bool _UsePipeline_ = UsePipeline;            \
-    using _Type_PushConstant_ = TPushConstant
-
-template <bool IsCompute, bool UsePipeline, class TPushConstant = void>
-struct SequenceTemplate;
-
-template <bool IsCompute, class TPushConstant>
-    requires std::is_same_v<TPushConstant, void>
-struct SequenceTemplate<IsCompute, true, TPushConstant> {
-    DECL_INTERNAL_INFO(IsCompute, true, void);
-
-    uint32_t pipelineIdx;
-    DrawCommandContainer_t<IsCompute> command;
-};
-
-template <bool IsCompute, class TPushConstant>
-    requires(!std::is_same_v<TPushConstant, void>)
-struct SequenceTemplate<IsCompute, true, TPushConstant> {
-    DECL_INTERNAL_INFO(IsCompute, true, TPushConstant);
-
-    uint32_t pipelineIdx;
-    TPushConstant pushConstant;
-    DrawCommandContainer_t<IsCompute> command;
-};
-
-template <bool IsCompute, class TPushConstant>
-    requires std::is_same_v<TPushConstant, void>
-struct SequenceTemplate<IsCompute, false, TPushConstant> {
-    DECL_INTERNAL_INFO(IsCompute, false, void);
-
-    DrawCommandContainer_t<IsCompute> command;
-};
-
-template <bool IsCompute, class TPushConstant>
-    requires(!std::is_same_v<TPushConstant, void>)
-struct SequenceTemplate<IsCompute, false, TPushConstant> {
-    DECL_INTERNAL_INFO(IsCompute, false, TPushConstant);
-
-    TPushConstant pushConstant;
-    DrawCommandContainer_t<IsCompute> command;
-};
-
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class SequenceLayout {
@@ -310,7 +263,7 @@ public:
     vk::IndirectCommandsLayoutEXT GetHandle() const;
 
 private:
-    template <bool IsCompute, bool UsePipeline, class TPushConstant = void>
+    template <class TDGCSequenceTemplate>
     friend Type_UniquePtr<SequenceLayout> CreateLayout(
         VulkanContext& context, vk::PipelineLayout pipelineLayout,
         bool unorderedSequence, bool explicitPreprocess);
@@ -321,20 +274,21 @@ private:
     vk::IndirectCommandsLayoutEXT mHandle;
 };
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
+template <class TDGCSequenceTemplate>
 Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
                                             vk::PipelineLayout pipelineLayout,
-                                            bool unorderedSequence,
-                                            bool explicitPreprocess) {
-    using Type_SeqTemplate =
-        SequenceTemplate<IsCompute, UsePipeline, TPushConstant>;
+                                            bool unorderedSequence = false,
+                                            bool explicitPreprocess = false) {
+    constexpr bool hasPushConstant =
+        !::std::is_same_v<typename TDGCSequenceTemplate::_Type_PushConstant_,
+                          void>;
+    constexpr bool isCompute = TDGCSequenceTemplate::_IsCompute_;
+    constexpr bool useES = TDGCSequenceTemplate::_UseExecutionSet_;
 
     auto layout = MakeUnique<SequenceLayout>(context);
 
-    constexpr bool hasPushConstant = !::std::is_same_v<TPushConstant, void>;
-
     constexpr vk::ShaderStageFlags stages =
-        IsCompute ? vk::ShaderStageFlagBits::eCompute
+        isCompute ? vk::ShaderStageFlagBits::eCompute
                   : vk::ShaderStageFlagBits::eTaskEXT
                         | vk::ShaderStageFlagBits::eMeshEXT
                         | vk::ShaderStageFlagBits::eFragment;
@@ -342,16 +296,21 @@ Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
     Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> tokenDatas {};
 
     vk::IndirectCommandsExecutionSetTokenEXT esToken {};
-    if constexpr (UsePipeline) {
-        esToken.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
-            .setShaderStages(stages);
+    if constexpr (useES) {
+        if constexpr (TDGCSequenceTemplate::_UsePipeline_) {
+            esToken.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines);
+        } else {
+            esToken.setType(
+                vk::IndirectExecutionSetInfoTypeEXT::eShaderObjects);
+        }
+        esToken.setShaderStages(stages);
 
         vk::IndirectCommandsTokenDataEXT esTokenData {};
         esTokenData.setPExecutionSet(&esToken);
 
         vk::IndirectCommandsLayoutTokenEXT token {};
         token.setType(vk::IndirectCommandsTokenTypeEXT::eExecutionSet)
-            .setOffset(offsetof(Type_SeqTemplate, pipelineIdx))
+            .setOffset(offsetof(TDGCSequenceTemplate, index))
             .setData(esTokenData);
 
         tokenDatas.push_back(token);
@@ -359,14 +318,16 @@ Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
 
     vk::IndirectCommandsPushConstantTokenEXT pcToken {};
     if constexpr (hasPushConstant) {
-        pcToken.setUpdateRange({stages, 0, sizeof(TPushConstant)});
+        pcToken.setUpdateRange(
+            {stages, 0,
+             sizeof(typename TDGCSequenceTemplate::_Type_PushConstant_)});
 
         vk::IndirectCommandsTokenDataEXT pcTokenData {};
         pcTokenData.setPPushConstant(&pcToken);
 
         vk::IndirectCommandsLayoutTokenEXT token {};
         token.setType(vk::IndirectCommandsTokenTypeEXT::ePushConstant)
-            .setOffset(offsetof(Type_SeqTemplate, pushConstant))
+            .setOffset(offsetof(TDGCSequenceTemplate, pushConstant))
             .setData(pcTokenData);
 
         tokenDatas.push_back(token);
@@ -374,10 +335,10 @@ Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
 
     vk::IndirectCommandsLayoutTokenEXT idCmdtoken {};
     idCmdtoken
-        .setType(IsCompute
+        .setType(isCompute
                      ? vk::IndirectCommandsTokenTypeEXT::eDispatch
                      : vk::IndirectCommandsTokenTypeEXT::eDrawMeshTasksCount)
-        .setOffset(offsetof(Type_SeqTemplate, command));
+        .setOffset(offsetof(TDGCSequenceTemplate, command));
     tokenDatas.push_back(idCmdtoken);
 
     vk::IndirectCommandsLayoutCreateInfoEXT info {};
@@ -392,135 +353,12 @@ Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
         .setTokens(tokenDatas)
         .setShaderStages(stages)
         .setPipelineLayout(pipelineLayout)
-        .setIndirectStride(sizeof(Type_SeqTemplate));
+        .setIndirectStride(sizeof(TDGCSequenceTemplate));
 
     layout->mHandle =
         context.GetDevice()->createIndirectCommandsLayoutEXT(info);
 
     return layout;
-}
-
-template <class TSequenceTemplate>
-Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
-                                            vk::PipelineLayout pipelineLayout,
-                                            bool unorderedSequence = false,
-                                            bool explicitPreprocess = false) {
-    return CreateLayout<TSequenceTemplate::_IsCompute_,
-                        TSequenceTemplate::_UsePipeline_,
-                        typename TSequenceTemplate::_Type_PushConstant_>(
-        context, pipelineLayout, unorderedSequence, explicitPreprocess);
-}
-
-template <bool IsCompute, bool UsePipeline, class TPushConstant = void>
-class DGCSequenceLayout {
-public:
-    using Type_SequenceTemplate =
-        SequenceTemplate<IsCompute, UsePipeline, TPushConstant>;
-
-    DGCSequenceLayout(VulkanContext& context, vk::PipelineLayout pipelineLayout,
-                      bool unorderedSequence = false,
-                      bool explicitPreprocess = false);
-
-    ~DGCSequenceLayout();
-
-    vk::IndirectCommandsLayoutEXT GetHandle() const;
-
-private:
-    void MakeLayout(vk::PipelineLayout pipelineLayout, bool unorderedSequence,
-                    bool explicitPreprocess);
-
-private:
-    VulkanContext& mContext;
-
-    vk::IndirectCommandsLayoutEXT mLayout;
-};
-
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-DGCSequenceLayout<IsCompute, UsePipeline, TPushConstant>::DGCSequenceLayout(
-    VulkanContext& context, vk::PipelineLayout pipelineLayout,
-    bool unorderedSequence, bool explicitPreprocess)
-    : mContext(context) {
-    MakeLayout(pipelineLayout, unorderedSequence, explicitPreprocess);
-}
-
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-DGCSequenceLayout<IsCompute, UsePipeline, TPushConstant>::~DGCSequenceLayout() {
-}
-
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-vk::IndirectCommandsLayoutEXT
-DGCSequenceLayout<IsCompute, UsePipeline, TPushConstant>::GetHandle() const {
-    return mLayout;
-}
-
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-void DGCSequenceLayout<IsCompute, UsePipeline, TPushConstant>::MakeLayout(
-    vk::PipelineLayout pipelineLayout, bool unorderedSequence,
-    bool explicitPreprocess) {
-    constexpr bool hasPushConstant = !::std::is_same_v<TPushConstant, void>;
-
-    constexpr vk::ShaderStageFlags stages =
-        IsCompute ? vk::ShaderStageFlagBits::eCompute
-                  : vk::ShaderStageFlagBits::eTaskEXT
-                        | vk::ShaderStageFlagBits::eMeshEXT
-                        | vk::ShaderStageFlagBits::eFragment;
-
-    Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> tokenDatas {};
-
-    vk::IndirectCommandsExecutionSetTokenEXT esToken {};
-    if constexpr (UsePipeline) {
-        esToken.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
-            .setShaderStages(stages);
-
-        vk::IndirectCommandsTokenDataEXT esTokenData {};
-        esTokenData.setPExecutionSet(&esToken);
-
-        vk::IndirectCommandsLayoutTokenEXT token {};
-        token.setType(vk::IndirectCommandsTokenTypeEXT::eExecutionSet)
-            .setOffset(offsetof(Type_SequenceTemplate, pipelineIdx))
-            .setData(esTokenData);
-
-        tokenDatas.push_back(token);
-    }
-
-    vk::IndirectCommandsPushConstantTokenEXT pcToken {};
-    if constexpr (hasPushConstant) {
-        pcToken.setUpdateRange({stages, 0, sizeof(TPushConstant)});
-
-        vk::IndirectCommandsTokenDataEXT pcTokenData {};
-        pcTokenData.setPPushConstant(&pcToken);
-
-        vk::IndirectCommandsLayoutTokenEXT token {};
-        token.setType(vk::IndirectCommandsTokenTypeEXT::ePushConstant)
-            .setOffset(offsetof(Type_SequenceTemplate, pushConstant))
-            .setData(pcTokenData);
-
-        tokenDatas.push_back(token);
-    }
-
-    vk::IndirectCommandsLayoutTokenEXT idCmdtoken {};
-    idCmdtoken
-        .setType(IsCompute
-                     ? vk::IndirectCommandsTokenTypeEXT::eDispatch
-                     : vk::IndirectCommandsTokenTypeEXT::eDrawMeshTasksCount)
-        .setOffset(offsetof(Type_SequenceTemplate, command));
-    tokenDatas.push_back(idCmdtoken);
-
-    vk::IndirectCommandsLayoutCreateInfoEXT info {};
-    info.setFlags((explicitPreprocess
-                       ? vk::IndirectCommandsLayoutUsageFlagBitsEXT::
-                             eExplicitPreprocess
-                       : vk::IndirectCommandsLayoutUsageFlagBitsEXT {0})
-                  | (unorderedSequence
-                         ? vk::IndirectCommandsLayoutUsageFlagBitsEXT::
-                               eUnorderedSequences
-                         : vk::IndirectCommandsLayoutUsageFlagBitsEXT {0}))
-        .setTokens(tokenDatas)
-        .setShaderStages(stages)
-        .setPipelineLayout(pipelineLayout)
-        .setIndirectStride(sizeof(Type_SequenceTemplate));
-
-    mLayout = mContext.GetDevice()->createIndirectCommandsLayoutEXT(info);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

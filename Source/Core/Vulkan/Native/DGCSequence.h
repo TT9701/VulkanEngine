@@ -8,14 +8,10 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant = void>
+template <class TDGCSequenceTemplate>
 class DGCSequence {
 public:
-    using Type_SequenceLayout =
-        DGCSequenceLayout<IsCompute, UsePipeline, TPushConstant>;
-
-    using Type_SequenceTemplate =
-        typename Type_SequenceLayout::Type_SequenceTemplate;
+    using Type_SequenceTemplate = TDGCSequenceTemplate;
 
     DGCSequence(VulkanContext& context, PipelineManager& pipelineMgr,
                 uint32_t sequenceCount, uint32_t maxDrawCount,
@@ -23,19 +19,21 @@ public:
 
     ~DGCSequence();
 
-    DGCSequence& AddPipeline(const char* name);
+    DGCSequence& AddESObject(const char* name);
 
     void MakeSequenceLayout(const char* pipelineLayoutName,
                             bool unorderedSequence = false,
                             bool explicitPreprocess = false);
 
-    Type_SequenceLayout& GetLayout() const;
+    SequenceLayout& GetLayout() const;
 
-    void MakeExecutionSet(const char* initialPipelineName);
+    void MakeExecutionSet(const char* initialESObjectName);
+
+    void MakeExecutionSet(vk::ShaderEXT initialShader);
 
     vk::IndirectExecutionSetEXT GetExecutionSet() const;
 
-    Type_STLVector<Type_SequenceTemplate>& GetSequenceData();
+    Type_STLVector<TDGCSequenceTemplate>& GetSequenceData();
 
     vk::DeviceAddress GetSequenceDataBufferAddress() const;
 
@@ -52,84 +50,83 @@ private:
     uint32_t mSequenceCount;
     uint32_t mMaxDrawCount;
 
-    Type_STLUnorderedMap_String<uint32_t> mPipelineNamesIdxMap;
+    Type_STLUnorderedMap_String<uint32_t> mObjectNamesIdxMap;
 
     vk::IndirectExecutionSetEXT mExecutionSet;
 
-    Type_UniquePtr<Type_SequenceLayout> mLayout;
+    Type_UniquePtr<SequenceLayout> mLayout;
 
-    Type_STLVector<Type_SequenceTemplate> mSequenceData;
+    Type_STLVector<TDGCSequenceTemplate> mSequenceData;
     Type_SharedPtr<Buffer> mSequenceDataBuffer;
 };
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-DGCSequence<IsCompute, UsePipeline, TPushConstant>::DGCSequence(
-    VulkanContext& context, PipelineManager& pipelineMgr,
-    uint32_t sequenceCount, uint32_t maxDrawCount, uint32_t maxPipelineCount)
+template <class TDGCSequenceTemplate>
+DGCSequence<TDGCSequenceTemplate>::DGCSequence(VulkanContext& context,
+                                               PipelineManager& pipelineMgr,
+                                               uint32_t sequenceCount,
+                                               uint32_t maxDrawCount,
+                                               uint32_t maxPipelineCount)
     : mContext(context),
       mPipelineMgr(pipelineMgr),
       mMaxPipelineCount(maxPipelineCount),
       mSequenceCount(sequenceCount),
       mMaxDrawCount(maxDrawCount) {
-    mPipelineNamesIdxMap.reserve(maxPipelineCount);
+    mObjectNamesIdxMap.reserve(maxPipelineCount);
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-DGCSequence<IsCompute, UsePipeline, TPushConstant>::~DGCSequence() {
+template <class TDGCSequenceTemplate>
+DGCSequence<TDGCSequenceTemplate>::~DGCSequence() {
     if (mExecutionSet)
         mContext.GetDevice()->destroy(mExecutionSet);
 }
 
-template <bool UsePipeline, bool IsCompute, class TPushConstant>
-DGCSequence<UsePipeline, IsCompute, TPushConstant>&
-DGCSequence<UsePipeline, IsCompute, TPushConstant>::AddPipeline(
-    const char* name) {
-    uint32_t idx = mPipelineNamesIdxMap.size();
-    mPipelineNamesIdxMap.emplace(name, idx);
+template <class TDGCSequenceTemplate>
+DGCSequence<TDGCSequenceTemplate>&
+DGCSequence<TDGCSequenceTemplate>::AddESObject(const char* name) {
+    uint32_t idx = mObjectNamesIdxMap.size();
+    mObjectNamesIdxMap.emplace(name, idx);
     return *this;
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-void DGCSequence<IsCompute, UsePipeline, TPushConstant>::MakeSequenceLayout(
+template <class TDGCSequenceTemplate>
+void DGCSequence<TDGCSequenceTemplate>::MakeSequenceLayout(
     const char* pipelineLayoutName, bool unorderedSequence,
     bool explicitPreprocess) {
     auto pipelineLayout = mPipelineMgr.GetLayoutHandle(pipelineLayoutName);
 
-    mLayout = MakeUnique<Type_SequenceLayout>(
+    mLayout = CreateLayout<TDGCSequenceTemplate>(
         mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-typename DGCSequence<IsCompute, UsePipeline,
-                     TPushConstant>::Type_SequenceLayout&
-DGCSequence<IsCompute, UsePipeline, TPushConstant>::GetLayout() const {
+template <class TDGCSequenceTemplate>
+SequenceLayout& DGCSequence<TDGCSequenceTemplate>::GetLayout() const {
     return *mLayout;
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-void DGCSequence<IsCompute, UsePipeline, TPushConstant>::MakeExecutionSet(
-    const char* initialPipelineName) {
-    static_assert(UsePipeline);
+template <class TDGCSequenceTemplate>
+void DGCSequence<TDGCSequenceTemplate>::MakeExecutionSet(
+    const char* initialESObjectName) {
+    static_assert(TDGCSequenceTemplate::_UseExecutionSet_,
+                  "This sequence does not use execution set.");
 
-    if (mPipelineNamesIdxMap.contains(initialPipelineName)) {
-        if (mPipelineNamesIdxMap.at(initialPipelineName) != 0) {
+    if (mObjectNamesIdxMap.contains(initialESObjectName)) {
+        if (mObjectNamesIdxMap.at(initialESObjectName) != 0) {
             auto it = ::std::find_if(
-                mPipelineNamesIdxMap.begin(), mPipelineNamesIdxMap.end(),
+                mObjectNamesIdxMap.begin(), mObjectNamesIdxMap.end(),
                 [&](const auto& pair) { return pair.second == 0; });
 
-            ::std::swap(it->second,
-                        mPipelineNamesIdxMap.at(initialPipelineName));
+            ::std::swap(it->second, mObjectNamesIdxMap.at(initialESObjectName));
         }
     } else {
-        for (auto& [name, idx] : mPipelineNamesIdxMap) {
+        for (auto& [name, idx] : mObjectNamesIdxMap) {
             idx += 1;
         }
-        mPipelineNamesIdxMap.emplace(initialPipelineName, 0);
+        mObjectNamesIdxMap.emplace(initialESObjectName, 0);
     }
 
     vk::IndirectExecutionSetPipelineInfoEXT esPipelineInfo {};
     esPipelineInfo
-        .setInitialPipeline(mPipelineMgr.GetPipelineHandle(initialPipelineName))
+        .setInitialPipeline(mPipelineMgr.GetPipelineHandle(initialESObjectName))
         .setMaxPipelineCount(mMaxPipelineCount);
 
     vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
@@ -140,9 +137,9 @@ void DGCSequence<IsCompute, UsePipeline, TPushConstant>::MakeExecutionSet(
         mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
 
     Type_STLVector<vk::WriteIndirectExecutionSetPipelineEXT> writeIES {};
-    writeIES.reserve(mPipelineNamesIdxMap.size());
+    writeIES.reserve(mObjectNamesIdxMap.size());
 
-    for (const auto& [name, idx] : mPipelineNamesIdxMap) {
+    for (const auto& [name, idx] : mObjectNamesIdxMap) {
         vk::WriteIndirectExecutionSetPipelineEXT write {};
         write.setPipeline(mPipelineMgr.GetPipelineHandle(name.c_str()))
             .setIndex(idx);
@@ -153,43 +150,75 @@ void DGCSequence<IsCompute, UsePipeline, TPushConstant>::MakeExecutionSet(
                                                                 writeIES);
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-vk::IndirectExecutionSetEXT
-DGCSequence<IsCompute, UsePipeline, TPushConstant>::GetExecutionSet() const {
+template <class TDGCSequenceTemplate>
+void DGCSequence<TDGCSequenceTemplate>::MakeExecutionSet(
+    vk::ShaderEXT initialShader) {
+    static_assert(TDGCSequenceTemplate::_UseExecutionSet_,
+                  "This sequence does not use execution set.");
+
+    vk::IndirectExecutionSetShaderInfoEXT esPipelineInfo {};
+    // esPipelineInfo
+    //     .setInitialPipeline(mPipelineMgr.GetPipelineHandle(initialESObjectName))
+    //     .setMaxPipelineCount(mMaxPipelineCount);
+
+    vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
+    esCreateInfo.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
+        .setInfo(&esPipelineInfo);
+
+    mExecutionSet =
+        mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
+
+    Type_STLVector<vk::WriteIndirectExecutionSetPipelineEXT> writeIES {};
+    writeIES.reserve(mObjectNamesIdxMap.size());
+
+    for (const auto& [name, idx] : mObjectNamesIdxMap) {
+        vk::WriteIndirectExecutionSetPipelineEXT write {};
+        write.setPipeline(mPipelineMgr.GetPipelineHandle(name.c_str()))
+            .setIndex(idx);
+        writeIES.push_back(write);
+    }
+
+    mContext.GetDevice()->updateIndirectExecutionSetPipelineEXT(mExecutionSet,
+                                                                writeIES);
+}
+
+template <class TDGCSequenceTemplate>
+vk::IndirectExecutionSetEXT DGCSequence<TDGCSequenceTemplate>::GetExecutionSet()
+    const {
+    VE_ASSERT(mExecutionSet != VK_NULL_HANDLE, "Execution Set is not created.");
     return mExecutionSet;
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-Type_STLVector<typename DGCSequence<IsCompute, UsePipeline,
-                                    TPushConstant>::Type_SequenceTemplate>&
-DGCSequence<IsCompute, UsePipeline, TPushConstant>::GetSequenceData() {
-    VE_ASSERT((UsePipeline && mExecutionSet != VK_NULL_HANDLE) || !UsePipeline,
-              "Sequence Data should be set after MakeExecutionSet");
+template <class TDGCSequenceTemplate>
+Type_STLVector<TDGCSequenceTemplate>&
+DGCSequence<TDGCSequenceTemplate>::GetSequenceData() {
+    // VE_ASSERT((TDGCSequenceTemplate::_UseExecutionSet_
+    //            && mExecutionSet != VK_NULL_HANDLE)
+    //               || !TDGCSequenceTemplate::_UseExecutionSet_,
+    //           "Sequence Data should be set after MakeExecutionSet");
 
     if (mSequenceData.empty())
         mSequenceData.resize(mSequenceCount);
     return mSequenceData;
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-vk::DeviceAddress DGCSequence<IsCompute, UsePipeline,
-                              TPushConstant>::GetSequenceDataBufferAddress()
-    const {
+template <class TDGCSequenceTemplate>
+vk::DeviceAddress
+DGCSequence<TDGCSequenceTemplate>::GetSequenceDataBufferAddress() const {
+    VE_ASSERT(mSequenceDataBuffer, "Sequence Data Buffer is not created.");
     return mSequenceDataBuffer->GetDeviceAddress();
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-void DGCSequence<IsCompute, UsePipeline, TPushConstant>::Finalize() {
+template <class TDGCSequenceTemplate>
+void DGCSequence<TDGCSequenceTemplate>::Finalize() {
     GenerateSequenceDataBuffer();
 }
 
-template <bool IsCompute, bool UsePipeline, class TPushConstant>
-void DGCSequence<IsCompute, UsePipeline,
-                 TPushConstant>::GenerateSequenceDataBuffer() {
+template <class TDGCSequenceTemplate>
+void DGCSequence<TDGCSequenceTemplate>::GenerateSequenceDataBuffer() {
     VE_ASSERT(!mSequenceData.empty(), "No sequence data was set.")
 
-    auto const sequenceDataSize =
-        sizeof(Type_SequenceTemplate) * mSequenceCount;
+    auto const sequenceDataSize = sizeof(TDGCSequenceTemplate) * mSequenceCount;
 
     mSequenceDataBuffer = mContext.CreateDeviceLocalBuffer(
         "DGC sequence data", sequenceDataSize,

@@ -240,6 +240,8 @@ void DGCTest::Prepare() {
 
     prepare_compute_sequence();
 
+    prepare_compute_sequence_shader();
+
     const char* modelPath = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
 
     auto& node = mScene->AddNode("cisdi");
@@ -269,14 +271,14 @@ void DGCTest::prepare_compute_sequence() {
     sequence.MakeSequenceLayout("Background");
 
     // execution set
-    sequence.AddPipeline("Background-dgctest")
-        .AddPipeline("Background")
+    sequence.AddESObject("Background-dgctest")
+        .AddESObject("Background")
         .MakeExecutionSet("Background");
 
     // buffers
     auto& sequenceData = sequence.GetSequenceData();
     for (uint32_t i = 0; i < sequenceCount; ++i) {
-        sequenceData[i].pipelineIdx = i;
+        sequenceData[i].index = i;
         sequenceData[i].pushConstant = _baseColorFactor;
         sequenceData[i]
             .command.setX((uint32_t)std::ceil(1600 / 16.0))
@@ -344,9 +346,6 @@ void DGCTest::prepare_compute_sequence() {
     }
 
     sequence.Finalize();
-
-    mLayout = CreateLayout<DispatchSequence3>(
-        GetVulkanContext(), GetPipelineMgr().GetLayoutHandle("Background"));
 }
 
 void DGCTest::dgc_dispatch(vk::CommandBuffer cmd) {
@@ -419,7 +418,7 @@ void DGCTest::prepare_draw_mesh_task() {
         auto const& cmdBuffer = *geo.GetMeshTaskIndirectCmdBuffer();
 
         for (uint32_t i = 0; i < sequenceCount; ++i) {
-            data[i].pipelineIdx = 0;
+            data[i].index = 0;
             data[i].pushConstant = meshletConstants[i];
             data[i].command = vk::DrawIndirectCountIndirectCommandEXT {
                 cmdBuffer.GetDeviceAddress(), (uint32_t)cmdBuffer.GetStride(),
@@ -440,7 +439,7 @@ void DGCTest::prepare_draw_mesh_task() {
     sequence.MakeSequenceLayout("MeshShaderDraw", true);
 
     // execution set
-    sequence.AddPipeline("MeshShaderDraw").MakeExecutionSet("MeshShaderDraw");
+    sequence.AddESObject("MeshShaderDraw").MakeExecutionSet("MeshShaderDraw");
 
     // init preprocess
     {
@@ -527,6 +526,167 @@ void DGCTest::dgc_draw_mesh_task(vk::CommandBuffer cmd) {
     cmd.executeGeneratedCommandsEXT(false, info);
 }
 
+void DGCTest::prepare_compute_sequence_shader() {
+    mComputeShader1 = MakeUnique<ShaderObject>(
+        GetVulkanContext(), "computeDraw", SHADER_PATH_CSTR("BackGround.comp"),
+        vk::ShaderStageFlagBits::eCompute, false, Type_ShaderMacros {},
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable);
+
+    mComputeShader2 = MakeUnique<ShaderObject>(
+        GetVulkanContext(), "computeDraw-dgc-test",
+        SHADER_PATH_CSTR("BackGround_DGCTest.comp"),
+        vk::ShaderStageFlagBits::eCompute, false, Type_ShaderMacros {},
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable);
+
+    auto descLayouts = mComputeShader1->GetDescLayoutHandles();
+    auto pcRanges = mComputeShader1->GetPushContantData().value();
+
+    const uint32_t sequenceCount = 2;
+    const uint32_t maxShaderCount = 2;
+    const uint32_t maxDrawCount = 1;
+    mDispatchSequenceShader = MakeUnique<DispatchSequence_Shader>(
+        GetVulkanContext(), GetPipelineMgr(), sequenceCount, maxDrawCount,
+        maxShaderCount);
+
+    auto& sequence = *mDispatchSequenceShader;
+
+    // layouts
+    sequence.MakeSequenceLayout("Background");
+
+    // execution set
+    {
+        auto shaderHandle1 = mComputeShader1->GetHandle();
+        auto shaderHandle2 = mComputeShader2->GetHandle();
+
+        vk::IndirectExecutionSetShaderLayoutInfoEXT layoutInfo {};
+        layoutInfo.setSetLayouts(descLayouts);
+
+        vk::IndirectExecutionSetShaderInfoEXT esShaderInfo {};
+        esShaderInfo.setPushConstantRanges(pcRanges)
+            .setMaxShaderCount(maxShaderCount)
+            .setShaderCount(1)
+            .setInitialShaders(shaderHandle1)
+            .setSetLayoutInfos(layoutInfo);
+
+        vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
+        esCreateInfo
+            .setType(vk::IndirectExecutionSetInfoTypeEXT::eShaderObjects)
+            .setInfo(&esShaderInfo);
+
+        _compute_shader_executionSet =
+            GetVulkanContext().GetDevice()->createIndirectExecutionSetEXT(
+                esCreateInfo);
+
+        ::std::array<vk::WriteIndirectExecutionSetShaderEXT, 2> writeIES {};
+        writeIES[0].setIndex(0).setShader(shaderHandle1);
+        writeIES[1].setIndex(1).setShader(shaderHandle2);
+
+        GetVulkanContext().GetDevice()->updateIndirectExecutionSetShaderEXT(
+            _compute_shader_executionSet, writeIES);
+    }
+
+    // buffers
+    auto& sequenceData = sequence.GetSequenceData();
+    for (uint32_t i = 0; i < sequenceCount; ++i) {
+        sequenceData[i].index = {i};
+        sequenceData[i].pushConstant = _baseColorFactor;
+        sequenceData[i]
+            .command.setX((uint32_t)std::ceil(1600 / 16.0))
+            .setY((uint32_t)std::ceil(900 / 16.0))
+            .setZ(1);
+    }
+
+    // init preprocess
+    {
+        vk::GeneratedCommandsMemoryRequirementsInfoEXT memInfo {};
+        memInfo.setMaxSequenceCount(sequenceCount)
+            .setMaxDrawCount(maxDrawCount)
+            .setIndirectExecutionSet(_compute_shader_executionSet)
+            .setIndirectCommandsLayout(sequence.GetLayout().GetHandle());
+
+        auto memReqs = GetVulkanContext()
+                           .GetDevice()
+                           ->getGeneratedCommandsMemoryRequirementsEXT(memInfo);
+
+        _preprocess_shader_Size = memReqs.memoryRequirements.size;
+
+        vk::BufferCreateInfo bufferCreateInfo {};
+        vk::BufferUsageFlags2CreateInfoKHR bufferFlags2 {};
+        bufferCreateInfo.size = _preprocess_shader_Size;
+        bufferFlags2.usage = vk::BufferUsageFlagBits2::ePreprocessBufferEXT
+                           | vk::BufferUsageFlagBits2::eIndirectBuffer
+                           | vk::BufferUsageFlagBits2::eShaderDeviceAddress;
+        bufferCreateInfo.pNext = &bufferFlags2;
+
+        _preprocess_shader_Buffer =
+            GetVulkanContext().GetDevice()->createBuffer(bufferCreateInfo);
+
+        auto const& memProps =
+            GetVulkanContext().GetPhysicalDevice().GetMemoryProperties();
+
+        uint32_t memTypeIndex {~0ui32};
+
+        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+            if (((memReqs.memoryRequirements.memoryTypeBits & (1 << i)) > 0)
+                && (memProps.memoryTypes[i].propertyFlags
+                    & vk::MemoryPropertyFlagBits::eDeviceLocal)
+                       == vk::MemoryPropertyFlagBits::eDeviceLocal) {
+                memTypeIndex = i;
+                break;
+            }
+        }
+
+        vk::MemoryAllocateFlagsInfo flagsInfo {
+            vk::MemoryAllocateFlagBits::eDeviceAddress};
+
+        auto req = GetVulkanContext().GetDevice()->getBufferMemoryRequirements(
+            _preprocess_shader_Buffer);
+
+        vk::MemoryAllocateInfo allocInfo {req.size, memTypeIndex, &flagsInfo};
+
+        _preprocess_shader_BufferMem =
+            GetVulkanContext().GetDevice()->allocateMemory(allocInfo);
+
+        GetVulkanContext().GetDevice()->bindBufferMemory(
+            _preprocess_shader_Buffer, _preprocess_shader_BufferMem, 0);
+
+        vk::BufferDeviceAddressInfo deviceAdressInfo {
+            _preprocess_shader_Buffer};
+        _preprocess_shader_BufAddr =
+            GetVulkanContext().GetDevice()->getBufferAddress(deviceAdressInfo);
+    }
+
+    sequence.Finalize();
+}
+
+void DGCTest::dgc_dispatch_shader(vk::CommandBuffer cmd) {
+    const uint32_t sequenceCount = 2;
+    const uint32_t maxDrawCount = 1;
+    const auto seqLayoutStructSize =
+        sizeof(DispatchSequence_Shader::Type_SequenceTemplate);
+
+    constexpr auto stage = vk::ShaderStageFlagBits::eCompute;
+
+    const auto shaderHandle1 = mComputeShader1->GetHandle();
+
+    cmd.bindShadersEXT(1, &stage, &shaderHandle1);
+
+    vk::GeneratedCommandsInfoEXT info {};
+    info.indirectExecutionSet = _compute_shader_executionSet;
+    info.indirectCommandsLayout =
+        mDispatchSequenceShader->GetLayout().GetHandle();
+    info.maxSequenceCount = sequenceCount;
+    info.maxDrawCount = maxDrawCount;
+    info.preprocessAddress = _preprocess_shader_BufAddr;
+    info.preprocessSize = _preprocess_shader_Size;
+    info.indirectAddress =
+        mDispatchSequenceShader->GetSequenceDataBufferAddress();
+    info.indirectAddressSize = seqLayoutStructSize;
+    info.shaderStages = vk::ShaderStageFlagBits::eCompute;
+
+    cmd.executeGeneratedCommandsEXT(false, info);
+}
+
 void DGCTest::BeginFrame(IDVC_NS::RenderFrame& frame) {
     Application::BeginFrame(frame);
     GetUILayer().BeginFrame();
@@ -549,7 +709,8 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         mRenderSequence.RecordPass("DrawBackground", cmd.GetHandle());
 
-        dgc_dispatch(cmd.GetHandle());
+        // dgc_dispatch(cmd.GetHandle());
+        dgc_dispatch_shader(cmd.GetHandle());
 
         cmd.End();
 
