@@ -170,75 +170,300 @@ Type_STLVector<uint32_t> CompileGLSLSource(
     return CompileGLSLSource(name, buffer, stage, hasInclude, defines, entry);
 }
 
+using namespace IntelliDesign_NS::Vulkan::Core;
+
+Type_STLVector<ShaderBase::DescriptorSetLayoutData> MergeDescLayoutData(
+    Type_STLVector<ShaderBase*> const& shaders) {
+    Type_STLVector<ShaderBase::DescriptorSetLayoutData> datas {};
+
+    for (auto const& shader : shaders) {
+        if (shader)
+            datas.insert(datas.end(),
+                         ::std::make_move_iterator(
+                             shader->GetDescSetLayoutDatas().begin()),
+                         ::std::make_move_iterator(
+                             shader->GetDescSetLayoutDatas().end()));
+    }
+
+    std::ranges::sort(datas, [](ShaderBase::DescriptorSetLayoutData const& l,
+                                ShaderBase::DescriptorSetLayoutData const& r) {
+        if (l.setIdx != r.setIdx) {
+            return l.setIdx < r.setIdx;
+        }
+        return l.bindingIdx < r.bindingIdx;
+    });
+
+    auto makeUniqueSet =
+        [&](const Type_STLVector<ShaderBase::DescriptorSetLayoutData>::iterator&
+                prev,
+            const Type_STLVector<ShaderBase::DescriptorSetLayoutData>::iterator&
+                last) {
+            Type_STLVector<ShaderBase::DescriptorSetLayoutData> uniqueSet {};
+            for (auto it = prev; it != last; ++it) {
+                uniqueSet.push_back(*it);
+            }
+            return uniqueSet;
+        };
+
+    Type_STLVector<Type_STLVector<ShaderBase::DescriptorSetLayoutData>>
+        uniqueSets {};
+    {
+        auto prev = datas.begin();
+        auto last = ++datas.begin();
+
+        while (prev != datas.end()) {
+            if (last == datas.end()) {
+                uniqueSets.push_back(makeUniqueSet(prev, last));
+                break;
+            }
+            if (last->setIdx == prev->setIdx) {
+                ++last;
+                continue;
+            }
+            uniqueSets.push_back(makeUniqueSet(prev, last));
+            prev = last;
+        }
+    }
+
+    auto mergeBinding =
+        [&](Type_STLVector<ShaderBase::DescriptorSetLayoutData> const&
+                bindings) {
+            ShaderBase::DescriptorSetLayoutData data {bindings[0]};
+            Type_STLString prefix {};
+            for (uint32_t i = 1; i < bindings.size(); ++i) {
+                data.stage |= bindings[i].stage;
+            }
+            return data;
+        };
+
+    Type_STLVector<Type_STLVector<ShaderBase::DescriptorSetLayoutData>>
+        uniqueBindingSets {};
+    for (auto& set : uniqueSets) {
+        auto prev = set.begin();
+        auto last = ++set.begin();
+        Type_STLVector<ShaderBase::DescriptorSetLayoutData> uniqueBindingSet {};
+        while (prev != set.end()) {
+            if (last == set.end()) {
+                uniqueBindingSet.push_back(
+                    mergeBinding(makeUniqueSet(prev, last)));
+
+                break;
+            }
+            if (last->bindingIdx == prev->bindingIdx) {
+                ++last;
+                continue;
+            }
+            uniqueBindingSet.push_back(mergeBinding(makeUniqueSet(prev, last)));
+
+            prev = last;
+        }
+        uniqueBindingSets.push_back(uniqueBindingSet);
+    }
+
+    datas.clear();
+    for (auto& set : uniqueBindingSets) {
+        for (auto& data : set) {
+            datas.emplace_back(data);
+        }
+    }
+    return datas;
+}
+
+Type_STLVector<SharedPtr<DescriptorSetLayout>> CreateDescLayout(
+    VulkanContext& context,
+    Type_STLVector<ShaderBase::DescriptorSetLayoutData> const& datas,
+    void* pNext) {
+    Type_STLVector<SharedPtr<DescriptorSetLayout>> descLayouts {};
+
+    auto descBufProps =
+        context.GetPhysicalDevice()
+            .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
+
+    auto CreateDescLayout =
+        [&](const char* name,
+            Type_STLVector<Type_STLString> const& bindingNames,
+            Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings) {
+            auto ptr = MakeShared<DescriptorSetLayout>(
+                context, bindingNames, bindings, descBufProps, pNext);
+
+            context.SetName(ptr->GetHandle(), name);
+
+            descLayouts.push_back(ptr);
+        };
+
+    auto it = datas.begin();
+    for (uint32_t setIdx = 0; setIdx <= datas.rbegin()->setIdx; ++setIdx) {
+        Type_STLString setName {};
+        Type_STLVector<Type_STLString> bindingNames;
+        Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
+        auto stage = vk::to_string(it->stage);
+        std::erase(stage, ' ');
+        setName = setName + "@" + stage.c_str();
+        for (; it != datas.end() && it->setIdx == setIdx; ++it) {
+            Type_STLString bindingName {it->name};
+            bindingName = bindingName + "@" + stage.c_str();
+            bindingNames.emplace_back(bindingName);
+            bindings.emplace_back(it->bindingIdx, it->type, it->descCount,
+                                  it->stage, nullptr);
+        }
+        setName = setName + "@Set" + ::std::to_string(setIdx).c_str();
+        CreateDescLayout(setName.c_str(), bindingNames, bindings);
+    }
+
+    return descLayouts;
+}
+
 }  // namespace
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-Shader::Shader(VulkanContext& context, const char* name, const char* path,
-               vk::ShaderStageFlagBits stage, const char* entry, void* pNext)
+ShaderBase::ShaderBase(VulkanContext& context, const char* name,
+                       const char* spirvPath, vk::ShaderStageFlagBits stage,
+                       const char* entry)
     : mContext(context), mName(name), mEntry(entry), mStage(stage) {
-    mSPIRVBinaryCode = LoadSPIRVCode(path);
-    mShader = CreateShader(pNext);
+    mSPIRVBinaryCode = LoadSPIRVCode(spirvPath);
     SPIRVReflect_DescSetLayouts();
     SPIRVReflect_PushContants();
 }
 
-Shader::Shader(VulkanContext& context, const char* name, const char* sourcePath,
-               vk::ShaderStageFlagBits stage, bool hasIncludes,
-               Type_ShaderMacros const& defines, const char* entry, void* pNext)
+ShaderBase::ShaderBase(VulkanContext& context, const char* name,
+                       const char* sourcePath, vk::ShaderStageFlagBits stage,
+                       bool hasIncludes, Type_ShaderMacros const& defines,
+                       const char* entry)
     : mContext(context), mName(name), mEntry(entry), mStage(stage) {
     auto source = LoadShaderSource(sourcePath);
     GLSLReflect(source);
     mSPIRVBinaryCode = CompileGLSLSource("", source, stage, hasIncludes,
                                          defines, mEntry.c_str());
-    mShader = CreateShader(pNext);
     SPIRVReflect_DescSetLayouts();
     SPIRVReflect_PushContants();
 }
 
-Shader::~Shader() {
-    mContext.GetDevice()->destroy(mShader);
+Type_STLVector<ShaderBase::DescriptorSetLayoutData>
+ShaderBase::SPIRVReflect_DescSetLayouts() {
+    spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
+                                        mSPIRVBinaryCode.size()};
+
+    auto resources = compiler.get_shader_resources();
+
+    Type_STLVector<DescriptorSetLayoutData> datas {};
+
+    auto parseFunc = [&](spirv_cross::Resource const& resource,
+                         vk::DescriptorType type) {
+        uint32_t setIdx =
+            compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+        uint32_t binding =
+            compiler.get_decoration(resource.id, spv::DecorationBinding);
+        uint32_t descCount = 1;
+
+        Type_STLString name {};
+        for (auto const& [setBinding, v] : mGLSL_SetBindingNameMap) {
+            if (setBinding.set == setIdx && setBinding.binding == binding) {
+                name = v;
+            }
+        }
+
+        const spirv_cross::SPIRType& spirtype =
+            compiler.get_type(resource.type_id);
+
+        // array
+        if (!spirtype.array.empty()) {
+            descCount = spirtype.array[0];
+
+            // uniform sampler2D tex[], size == 0;
+            if (descCount == 0) {
+                descCount = 128;
+                // descCount = ::std::min(
+                //     MAX_BINDLESS_DESCRIPTOR_COUNT,
+                //     mContext->GetDescIndexingProps()
+                //         .maxDescriptorSetUpdateAfterBindSampledImages);
+            }
+        }
+
+        datas.emplace_back(name, setIdx, binding, type, mStage, descCount);
+    };
+
+    // Uniform buffers
+    for (auto& resource : resources.uniform_buffers) {
+        parseFunc(resource, vk::DescriptorType::eUniformBuffer);
+    }
+
+    // Storage buffers
+    for (auto& resource : resources.storage_buffers) {
+        parseFunc(resource, vk::DescriptorType::eStorageBuffer);
+    }
+
+    // Storage images
+    for (auto& resource : resources.storage_images) {
+        parseFunc(resource, vk::DescriptorType::eStorageImage);
+    }
+
+    // combined image sampler
+    for (auto& resource : resources.sampled_images) {
+        parseFunc(resource, vk::DescriptorType::eCombinedImageSampler);
+    }
+
+    mDescSetLayoutDatas = datas;
+
+    return datas;
 }
 
-vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
-    vk::PipelineShaderStageCreateInfo info;
-    info.setModule(mShader)
-        .setStage(mStage)
-        .setPName(mEntry.c_str())
-        .setPNext(pNext);
+std::optional<vk::PushConstantRange> ShaderBase::SPIRVReflect_PushContants() {
+    spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
+                                        mSPIRVBinaryCode.size()};
 
-    return info;
+    auto resources = compiler.get_shader_resources();
+
+    ::std::optional<vk::PushConstantRange> data;
+
+    // only one push contant
+    for (auto& resource : resources.push_constant_buffers) {
+        const spirv_cross::SPIRType& type =
+            compiler.get_type(resource.base_type_id);
+        vk::PushConstantRange pushConstant;
+        pushConstant.size = compiler.get_declared_struct_size(type);
+        pushConstant.stageFlags = mStage;
+        auto ranges = compiler.get_active_buffer_ranges(resource.id);
+        for (auto const& range : ranges) {
+            auto index = range.index;
+            auto offset = range.offset;
+            auto size = range.range;
+            if (index == 0) {
+                pushConstant.offset = offset;
+            }
+        }
+        pushConstant.size -= pushConstant.offset;
+        data = pushConstant;
+    }
+
+    mPushContantData = data;
+
+    return data;
 }
 
-std::span<uint32_t> Shader::GetBinaryCode() {
+std::span<uint32_t> ShaderBase::GetBinaryCode() {
     return mSPIRVBinaryCode;
 }
 
-std::span<Shader::DescriptorSetLayoutData> Shader::GetDescSetLayoutDatas() {
+std::span<ShaderBase::DescriptorSetLayoutData>
+ShaderBase::GetDescSetLayoutDatas() {
     return mDescSetLayoutDatas;
 }
 
-::std::optional<vk::PushConstantRange> const& Shader::GetPushContantData()
+std::optional<vk::PushConstantRange> const& ShaderBase::GetPushContantData()
     const {
     return mPushContantData;
 }
 
-Type_STLString const& Shader::GetName() const {
+Type_STLString const& ShaderBase::GetName() const {
     return mName;
 }
 
-std::mutex& Shader::GetMutex() {
+std::mutex& ShaderBase::GetMutex() {
     return mMutex;
 }
 
-vk::ShaderModule Shader::CreateShader(void* pNext) const {
-    vk::ShaderModuleCreateInfo createInfo {};
-    createInfo.setCode(mSPIRVBinaryCode).setPNext(pNext);
-
-    return mContext.GetDevice()->createShaderModule(createInfo);
-}
-
-void Shader::GLSLReflect(Type_ANSIString const& source) {
+void ShaderBase::GLSLReflect(Type_ANSIString const& source) {
     ::std::regex reg(R"(layout.*)");
     ::std::smatch m;
     auto pos = source.cbegin();
@@ -259,7 +484,7 @@ void Shader::GLSLReflect(Type_ANSIString const& source) {
     GLSLReflect_OutVarName(layouts);
 }
 
-void Shader::GLSLReflect_DescriptorBindingName(
+void ShaderBase::GLSLReflect_DescriptorBindingName(
     Type_STLVector<Type_ANSIString> const& layouts) {
     ::std::regex reg(
         R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*\)\s*(buffer|uniform)\s*(image2D|sampler2D)*\s+(.*)\s*[;|{|\s])");
@@ -286,7 +511,7 @@ void Shader::GLSLReflect_DescriptorBindingName(
     }
 }
 
-void Shader::GLSLReflect_PushConstantName(
+void ShaderBase::GLSLReflect_PushConstantName(
     Type_STLVector<Type_ANSIString> const& layouts) {
     ::std::smatch m;
     ::std::regex pcReg(
@@ -301,7 +526,7 @@ void Shader::GLSLReflect_PushConstantName(
     }
 }
 
-void Shader::GLSLReflect_OutVarName(
+void ShaderBase::GLSLReflect_OutVarName(
     Type_STLVector<Type_ANSIString> const& layouts) {
     Type_STLMap<uint32_t, Type_STLString> tempMap;
 
@@ -320,6 +545,120 @@ void Shader::GLSLReflect_OutVarName(
     for (auto const& [_, name] : tempMap) {
         mGLSL_OutVarNames.push_back(name);
     }
+}
+
+Shader::Shader(VulkanContext& context, const char* name, const char* path,
+               vk::ShaderStageFlagBits stage, const char* entry, void* pNext)
+    : ShaderBase(context, name, path, stage, entry) {
+    mHandle = CreateShader(pNext);
+}
+
+Shader::Shader(VulkanContext& context, const char* name, const char* sourcePath,
+               vk::ShaderStageFlagBits stage, bool hasIncludes,
+               Type_ShaderMacros const& defines, const char* entry, void* pNext)
+    : ShaderBase(context, name, sourcePath, stage, hasIncludes, defines,
+                 entry) {
+    mHandle = CreateShader(pNext);
+}
+
+Shader::~Shader() {
+    mContext.GetDevice()->destroy(mHandle);
+}
+
+vk::PipelineShaderStageCreateInfo Shader::GetStageInfo(void* pNext) const {
+    vk::PipelineShaderStageCreateInfo info;
+    info.setModule(mHandle)
+        .setStage(mStage)
+        .setPName(mEntry.c_str())
+        .setPNext(pNext);
+
+    return info;
+}
+
+vk::ShaderModule Shader::GetHandle() const {
+    return mHandle;
+}
+
+vk::ShaderModule Shader::CreateShader(void* pNext) const {
+    vk::ShaderModuleCreateInfo createInfo {};
+    createInfo.setCode(mSPIRVBinaryCode).setPNext(pNext);
+
+    return mContext.GetDevice()->createShaderModule(createInfo);
+}
+
+ShaderObject::ShaderObject(VulkanContext& context, const char* name,
+                           const char* spirvPath, vk::ShaderStageFlagBits stage,
+                           vk::ShaderCreateFlagBitsEXT flags, const char* entry,
+                           void* pNext)
+    : ShaderBase(context, name, spirvPath, stage, entry) {
+    mHandle = CreateShader(flags, pNext);
+}
+
+ShaderObject::ShaderObject(VulkanContext& context, const char* name,
+                           const char* sourcePath,
+                           vk::ShaderStageFlagBits stage, bool hasIncludes,
+                           Type_ShaderMacros const& defines,
+                           vk::ShaderCreateFlagBitsEXT flags, const char* entry,
+                           void* pNext)
+    : ShaderBase(context, name, sourcePath, stage, hasIncludes, defines,
+                 entry) {
+    mHandle = CreateShader(flags, pNext);
+}
+
+ShaderObject::~ShaderObject() {
+    mContext.GetDevice()->destroy(mHandle);
+}
+
+vk::ShaderEXT ShaderObject::GetHandle() const {
+    return mHandle;
+}
+
+Type_STLVector<vk::DescriptorSetLayout> ShaderObject::GetDescLayoutHandles()
+    const {
+    Type_STLVector<vk::DescriptorSetLayout> layouts {};
+    layouts.reserve(mDescLayouts.size());
+    for (auto const& layout : mDescLayouts) {
+        layouts.push_back(layout->GetHandle());
+    }
+    return layouts;
+}
+
+vk::ShaderEXT ShaderObject::CreateShader(vk::ShaderCreateFlagBitsEXT flags,
+                                         void* pNext) {
+
+    const auto datas =
+        MergeDescLayoutData(Type_STLVector<ShaderBase*> {(ShaderBase*)this});
+
+    mDescLayouts = CreateDescLayout(mContext, datas, nullptr);
+
+    Type_STLVector<vk::DescriptorSetLayout> layouts {};
+    layouts.reserve(mDescLayouts.size());
+    for (auto const& layout : mDescLayouts) {
+        layouts.push_back(layout->GetHandle());
+    }
+
+    auto pushConstant = GetPushContantData();
+
+    vk::ShaderCreateInfoEXT shaderCreateInfo {};
+    shaderCreateInfo.setFlags(flags)
+        .setStage(mStage)
+        .setCodeType(vk::ShaderCodeTypeEXT::eSpirv)
+        .setPCode(mSPIRVBinaryCode.data())
+        .setCodeSize(sizeof(mSPIRVBinaryCode[0]) * mSPIRVBinaryCode.size())
+        .setPName("main")
+        .setPNext(pNext);
+
+    if (!layouts.empty())
+        shaderCreateInfo.setSetLayouts(layouts);
+
+    if (pushConstant)
+        shaderCreateInfo.setPushConstantRanges(pushConstant.value());
+
+    const auto res = mContext.GetDevice()->createShaderEXT(shaderCreateInfo);
+
+    VK_CHECK(res.result);
+
+    return res.value;
 }
 
 ShaderProgram::ShaderProgram(Shader* comp, void* layoutPNext)
@@ -405,96 +744,15 @@ void ShaderProgram::GenerateProgram(void* layoutPNext) {
 }
 
 void ShaderProgram::MergeDescLayoutDatas(void* pNext) {
-    Type_STLVector<Shader::DescriptorSetLayoutData> datas {};
+    Type_STLVector<ShaderBase::DescriptorSetLayoutData> datas {};
 
+    Type_STLVector<ShaderBase*> shaders {};
     for (auto const& shader : pShaders) {
         if (shader)
-            datas.insert(
-                datas.end(),
-                ::std::make_move_iterator(shader->mDescSetLayoutDatas.begin()),
-                ::std::make_move_iterator(shader->mDescSetLayoutDatas.end()));
+            shaders.push_back(shader);
     }
 
-    std::ranges::sort(datas, [](Shader::DescriptorSetLayoutData const& l,
-                                Shader::DescriptorSetLayoutData const& r) {
-        if (l.setIdx != r.setIdx) {
-            return l.setIdx < r.setIdx;
-        }
-        return l.bindingIdx < r.bindingIdx;
-    });
-
-    auto makeUniqueSet =
-        [&](const Type_STLVector<Shader::DescriptorSetLayoutData>::iterator&
-                prev,
-            const Type_STLVector<Shader::DescriptorSetLayoutData>::iterator&
-                last) {
-            Type_STLVector<Shader::DescriptorSetLayoutData> uniqueSet {};
-            for (auto it = prev; it != last; ++it) {
-                uniqueSet.push_back(*it);
-            }
-            return uniqueSet;
-        };
-
-    Type_STLVector<Type_STLVector<Shader::DescriptorSetLayoutData>>
-        uniqueSets {};
-    {
-        auto prev = datas.begin();
-        auto last = ++datas.begin();
-
-        while (prev != datas.end()) {
-            if (last == datas.end()) {
-                uniqueSets.push_back(makeUniqueSet(prev, last));
-                break;
-            }
-            if (last->setIdx == prev->setIdx) {
-                ++last;
-                continue;
-            }
-            uniqueSets.push_back(makeUniqueSet(prev, last));
-            prev = last;
-        }
-    }
-
-    auto mergeBinding =
-        [&](Type_STLVector<Shader::DescriptorSetLayoutData> const& bindings) {
-            Shader::DescriptorSetLayoutData data {bindings[0]};
-            Type_STLString prefix {};
-            for (uint32_t i = 1; i < bindings.size(); ++i) {
-                data.stage |= bindings[i].stage;
-            }
-            return data;
-        };
-
-    Type_STLVector<Type_STLVector<Shader::DescriptorSetLayoutData>>
-        uniqueBindingSets {};
-    for (auto& set : uniqueSets) {
-        auto prev = set.begin();
-        auto last = ++set.begin();
-        Type_STLVector<Shader::DescriptorSetLayoutData> uniqueBindingSet {};
-        while (prev != set.end()) {
-            if (last == set.end()) {
-                uniqueBindingSet.push_back(
-                    mergeBinding(makeUniqueSet(prev, last)));
-
-                break;
-            }
-            if (last->bindingIdx == prev->bindingIdx) {
-                ++last;
-                continue;
-            }
-            uniqueBindingSet.push_back(mergeBinding(makeUniqueSet(prev, last)));
-
-            prev = last;
-        }
-        uniqueBindingSets.push_back(uniqueBindingSet);
-    }
-
-    datas.clear();
-    for (auto& set : uniqueBindingSets) {
-        for (auto& data : set) {
-            datas.emplace_back(data);
-        }
-    }
+    datas = MergeDescLayoutData(shaders);
 
     CreateDescLayouts(datas, pNext);
 }
@@ -509,142 +767,7 @@ void ShaderProgram::MergePushContantDatas() {
 
 void ShaderProgram::CreateDescLayouts(
     Type_STLVector<Shader::DescriptorSetLayoutData> const& datas, void* pNext) {
-    auto descBufProps =
-        mContext.GetPhysicalDevice()
-            .GetProperties<vk::PhysicalDeviceDescriptorBufferPropertiesEXT>();
-
-    auto CreateDescLayout =
-        [&](const char* name,
-            Type_STLVector<Type_STLString> const& bindingNames,
-            Type_STLVector<vk::DescriptorSetLayoutBinding> const& bindings) {
-            auto ptr = MakeShared<DescriptorSetLayout>(
-                mContext, bindingNames, bindings, descBufProps, pNext);
-
-            mContext.SetName(ptr->GetHandle(), name);
-
-            mDescLayouts.push_back(ptr);
-        };
-
-    auto it = datas.begin();
-    for (uint32_t setIdx = 0; setIdx <= datas.rbegin()->setIdx; ++setIdx) {
-        Type_STLString setName {};
-        Type_STLVector<Type_STLString> bindingNames;
-        Type_STLVector<vk::DescriptorSetLayoutBinding> bindings;
-        auto stage = vk::to_string(it->stage);
-        std::erase(stage, ' ');
-        setName = setName + "@" + stage.c_str();
-        for (; it != datas.end() && it->setIdx == setIdx; ++it) {
-            Type_STLString bindingName {it->name};
-            bindingName = bindingName + "@" + stage.c_str();
-            bindingNames.emplace_back(bindingName);
-            bindings.emplace_back(it->bindingIdx, it->type, it->descCount,
-                                  it->stage, nullptr);
-        }
-        setName = setName + "@Set" + ::std::to_string(setIdx).c_str();
-        CreateDescLayout(setName.c_str(), bindingNames, bindings);
-    }
-}
-
-Type_STLVector<Shader::DescriptorSetLayoutData>
-Shader::SPIRVReflect_DescSetLayouts() {
-    spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
-                                        mSPIRVBinaryCode.size()};
-
-    auto resources = compiler.get_shader_resources();
-
-    Type_STLVector<DescriptorSetLayoutData> datas {};
-
-    auto parseFunc = [&](spirv_cross::Resource const& resource,
-                         vk::DescriptorType type) {
-        uint32_t setIdx =
-            compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
-        uint32_t binding =
-            compiler.get_decoration(resource.id, spv::DecorationBinding);
-        uint32_t descCount = 1;
-
-        Type_STLString name {};
-        for (auto const& [setBinding, v] : mGLSL_SetBindingNameMap) {
-            if (setBinding.set == setIdx && setBinding.binding == binding) {
-                name = v;
-            }
-        }
-
-        const spirv_cross::SPIRType& spirtype =
-            compiler.get_type(resource.type_id);
-
-        // array
-        if (!spirtype.array.empty()) {
-            descCount = spirtype.array[0];
-
-            // uniform sampler2D tex[], size == 0;
-            if (descCount == 0) {
-                descCount = 128;
-                // descCount = ::std::min(
-                //     MAX_BINDLESS_DESCRIPTOR_COUNT,
-                //     mContext->GetDescIndexingProps()
-                //         .maxDescriptorSetUpdateAfterBindSampledImages);
-            }
-        }
-
-        datas.emplace_back(name, setIdx, binding, type, mStage, descCount);
-    };
-
-    // Uniform buffers
-    for (auto& resource : resources.uniform_buffers) {
-        parseFunc(resource, vk::DescriptorType::eUniformBuffer);
-    }
-
-    // Storage buffers
-    for (auto& resource : resources.storage_buffers) {
-        parseFunc(resource, vk::DescriptorType::eStorageBuffer);
-    }
-
-    // Storage images
-    for (auto& resource : resources.storage_images) {
-        parseFunc(resource, vk::DescriptorType::eStorageImage);
-    }
-
-    // combined image sampler
-    for (auto& resource : resources.sampled_images) {
-        parseFunc(resource, vk::DescriptorType::eCombinedImageSampler);
-    }
-
-    mDescSetLayoutDatas = datas;
-
-    return datas;
-}
-
-::std::optional<vk::PushConstantRange> Shader::SPIRVReflect_PushContants() {
-    spirv_cross::CompilerGLSL compiler {mSPIRVBinaryCode.data(),
-                                        mSPIRVBinaryCode.size()};
-
-    auto resources = compiler.get_shader_resources();
-
-    ::std::optional<vk::PushConstantRange> data;
-
-    // only one push contant
-    for (auto& resource : resources.push_constant_buffers) {
-        const spirv_cross::SPIRType& type =
-            compiler.get_type(resource.base_type_id);
-        vk::PushConstantRange pushConstant;
-        pushConstant.size = compiler.get_declared_struct_size(type);
-        pushConstant.stageFlags = mStage;
-        auto ranges = compiler.get_active_buffer_ranges(resource.id);
-        for (auto const& range : ranges) {
-            auto index = range.index;
-            auto offset = range.offset;
-            auto size = range.range;
-            if (index == 0) {
-                pushConstant.offset = offset;
-            }
-        }
-        pushConstant.size -= pushConstant.offset;
-        data = pushConstant;
-    }
-
-    mPushContantData = data;
-
-    return data;
+    mDescLayouts = CreateDescLayout(mContext, datas, pNext);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

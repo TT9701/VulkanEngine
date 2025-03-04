@@ -96,10 +96,12 @@ UniquePtr<VulkanContext> Application::CreateContext() {
     enabledDeivceExtensions.emplace_back(vk::KHRBindMemory2ExtensionName);
     enabledDeivceExtensions.emplace_back(
         vk::EXTDeviceGeneratedCommandsExtensionName);
+    enabledDeivceExtensions
+        .emplace_back(vk::EXTShaderObjectExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
-    enabledDeivceExtensions.emplace_back(
-        vk::KHRExternalMemoryWin32ExtensionName);
+            enabledDeivceExtensions.emplace_back(
+                vk::KHRExternalMemoryWin32ExtensionName);
     enabledDeivceExtensions.emplace_back(
         vk::KHRExternalSemaphoreWin32ExtensionName);
 #endif

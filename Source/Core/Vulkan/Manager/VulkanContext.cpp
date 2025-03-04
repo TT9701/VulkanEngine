@@ -378,6 +378,14 @@ void VulkanContext::EnableFeatures() {
     REQUEST_REQUIRED_FEATURE(
         mPhysicalDevice, vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT,
         deviceGeneratedCommands);
+
+    REQUEST_REQUIRED_FEATURE(
+        mPhysicalDevice, vk::PhysicalDeviceDeviceGeneratedCommandsFeaturesEXT,
+        dynamicGeneratedPipelineLayout);
+
+    REQUEST_REQUIRED_FEATURE(mPhysicalDevice,
+                             vk::PhysicalDeviceShaderObjectFeaturesEXT,
+                             shaderObject);
 }
 
 VulkanContext::CmdToBegin VulkanContext::CreateCmdBufToBegin(

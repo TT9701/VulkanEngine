@@ -26,8 +26,8 @@ using Type_ShaderMacros = Type_STLUnorderedMap_String<Type_STLString>;
 
 class ShaderProgram;
 
-// TODO: Specialization parameters
-class Shader {
+class ShaderBase {
+public:
     struct DescriptorSetLayoutData {
         Type_STLString name;
         uint32_t setIdx;
@@ -46,6 +46,62 @@ class Shader {
         Type_STLVector<::std::pair<GLSL_SetBindingInfo, Type_STLString>>;
 
 public:
+    // from spirv
+    ShaderBase(VulkanContext& context, const char* name, const char* spirvPath,
+               vk::ShaderStageFlagBits stage, const char* entry = "main");
+
+    // from glsl source code
+    ShaderBase(VulkanContext& context, const char* name, const char* sourcePath,
+               vk::ShaderStageFlagBits stage, bool hasIncludes,
+               Type_ShaderMacros const& defines, const char* entry = "main");
+
+    CLASS_NO_COPY_MOVE(ShaderBase);
+
+    Type_STLVector<DescriptorSetLayoutData> SPIRVReflect_DescSetLayouts();
+
+    ::std::optional<vk::PushConstantRange> SPIRVReflect_PushContants();
+
+    ::std::span<uint32_t> GetBinaryCode();
+
+    ::std::span<DescriptorSetLayoutData> GetDescSetLayoutDatas();
+
+    ::std::optional<vk::PushConstantRange> const& GetPushContantData() const;
+
+    Type_STLString const& GetName() const;
+
+    ::std::mutex& GetMutex();
+
+protected:
+    void GLSLReflect(Type_ANSIString const& source);
+    void GLSLReflect_DescriptorBindingName(
+        Type_STLVector<Type_ANSIString> const& layouts);
+    void GLSLReflect_PushConstantName(
+        Type_STLVector<Type_ANSIString> const& layouts);
+    void GLSLReflect_OutVarName(Type_STLVector<Type_ANSIString> const& layouts);
+
+protected:
+    VulkanContext& mContext;
+    Type_STLString mName;
+
+    Type_STLString mEntry;
+    vk::ShaderStageFlagBits mStage;
+
+    Type_STLVector<uint32_t> mSPIRVBinaryCode {};
+
+    Type_GLSL_SetBindingName_Map mGLSL_SetBindingNameMap {};
+    Type_STLString mGLSL_PushContantName {};
+    Type_STLVector<Type_STLString> mGLSL_OutVarNames {};
+
+    Type_STLVector<DescriptorSetLayoutData> mDescSetLayoutDatas {};
+
+    ::std::optional<vk::PushConstantRange> mPushContantData {};
+
+    ::std::mutex mMutex {};
+};
+
+// TODO: Specialization parameters
+class Shader : public ShaderBase {
+public:
     friend class ShaderProgram;
 
     // from spirv
@@ -62,55 +118,46 @@ public:
     ~Shader();
     CLASS_NO_COPY_MOVE(Shader);
 
-public:
-    Type_STLVector<DescriptorSetLayoutData> SPIRVReflect_DescSetLayouts();
-
-    ::std::optional<vk::PushConstantRange> SPIRVReflect_PushContants();
-
-    vk::ShaderModule GetHandle() const { return mShader; }
-
     vk::PipelineShaderStageCreateInfo GetStageInfo(void* pNext = nullptr) const;
 
-    ::std::span<uint32_t> GetBinaryCode();
-
-    ::std::span<DescriptorSetLayoutData> GetDescSetLayoutDatas();
-
-    ::std::optional<vk::PushConstantRange> const& GetPushContantData() const;
-
-    Type_STLString const& GetName() const;
-
-    ::std::mutex& GetMutex();
+    vk::ShaderModule GetHandle() const;
 
 private:
     vk::ShaderModule CreateShader(void* pNext) const;
 
-    void GLSLReflect(Type_ANSIString const& source);
-    void GLSLReflect_DescriptorBindingName(
-        Type_STLVector<Type_ANSIString> const& layouts);
-    void GLSLReflect_PushConstantName(
-        Type_STLVector<Type_ANSIString> const& layouts);
-    void GLSLReflect_OutVarName(Type_STLVector<Type_ANSIString> const& layouts);
+    vk::ShaderModule mHandle {};
+};
+
+class ShaderObject : public ShaderBase {
+public:
+    // from spirv
+    ShaderObject(VulkanContext& context, const char* name,
+                 const char* spirvPath, vk::ShaderStageFlagBits stage,
+                 vk::ShaderCreateFlagBitsEXT flags =
+                     vk::ShaderCreateFlagBitsEXT::eIndirectBindable,
+                 const char* entry = "main", void* pNext = nullptr);
+
+    // from glsl source code
+    ShaderObject(VulkanContext& context, const char* name,
+                 const char* sourcePath, vk::ShaderStageFlagBits stage,
+                 bool hasIncludes, Type_ShaderMacros const& defines,
+                 vk::ShaderCreateFlagBitsEXT flags =
+                     vk::ShaderCreateFlagBitsEXT::eIndirectBindable,
+                 const char* entry = "main", void* pNext = nullptr);
+
+    ~ShaderObject();
+    CLASS_NO_COPY_MOVE(ShaderObject);
+
+    vk::ShaderEXT GetHandle() const;
+
+    Type_STLVector<vk::DescriptorSetLayout> GetDescLayoutHandles() const;
 
 private:
-    VulkanContext& mContext;
-    Type_STLString mName;
+    vk::ShaderEXT CreateShader(vk::ShaderCreateFlagBitsEXT flags, void* pNext);
 
-    Type_STLString mEntry;
-    vk::ShaderStageFlagBits mStage;
+    Type_STLVector<SharedPtr<DescriptorSetLayout>> mDescLayouts {};
 
-    Type_STLVector<uint32_t> mSPIRVBinaryCode {};
-
-    Type_GLSL_SetBindingName_Map mGLSL_SetBindingNameMap {};
-    Type_STLString mGLSL_PushContantName {};
-    Type_STLVector<Type_STLString> mGLSL_OutVarNames {};
-
-    vk::ShaderModule mShader {};
-
-    Type_STLVector<DescriptorSetLayoutData> mDescSetLayoutDatas {};
-
-    ::std::optional<vk::PushConstantRange> mPushContantData {};
-
-    ::std::mutex mMutex {};
+    vk::ShaderEXT mHandle {};
 };
 
 class ShaderProgram {
