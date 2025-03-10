@@ -1,6 +1,447 @@
 #include "DGCSequence.h"
 
+#include "Buffer.h"
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
+DGCSequenceBase::DGCSequenceBase(VulkanContext& context, uint32_t sequenceCount,
+                                 uint32_t maxDrawCount,
+                                 uint32_t maxESObjectCount)
+    : mContext(context),
+      mMaxESObjectCount(maxESObjectCount),
+      mMaxSequenceCount(sequenceCount),
+      mMaxDrawCount(maxDrawCount) {}
+
+DGCSequenceBase::~DGCSequenceBase() {
+    if (mExecutionSet != VK_NULL_HANDLE)
+        mContext.GetDevice()->destroy(mExecutionSet);
+
+    if (mPreprocessBuffer.handle != VK_NULL_HANDLE)
+        mContext.GetDevice()->destroy(mPreprocessBuffer.handle);
+
+    if (mPreprocessBuffer.memory != VK_NULL_HANDLE)
+        mContext.GetDevice()->freeMemory(mPreprocessBuffer.memory);
+}
+
+uint32_t DGCSequenceBase::GetSequenceCount() const {
+    return mMaxSequenceCount;
+}
+
+void DGCSequenceBase::InsertInitialObjectToMap(const char* name, uint32_t idx) {
+    if (mObjectNamesIdxMap.contains(name)) {
+        if (mObjectNamesIdxMap.at(name) != idx) {
+            auto it = ::std::find_if(
+                mObjectNamesIdxMap.begin(), mObjectNamesIdxMap.end(),
+                [&](const auto& pair) { return pair.second == idx; });
+
+            ::std::swap(it->second, mObjectNamesIdxMap.at(name));
+        }
+    } else {
+        for (auto& [name, i] : mObjectNamesIdxMap) {
+            if (i >= idx)
+                i += 1;
+        }
+        mObjectNamesIdxMap.emplace(name, idx);
+    }
+}
+
+void DGCSequenceBase::Preprocess(
+    ::std::variant<vk::Pipeline, Type_STLVector<vk::ShaderEXT>> initialObjs) {
+    vk::GeneratedCommandsMemoryRequirementsInfoEXT memInfo {};
+    memInfo.setMaxSequenceCount(mMaxSequenceCount)
+        .setMaxDrawCount(mMaxDrawCount)
+        .setIndirectCommandsLayout(mLayout->GetHandle());
+
+    vk::GeneratedCommandsPipelineInfoEXT pipelineInfo {};
+    vk::GeneratedCommandsShaderInfoEXT shaderInfo {};
+
+    if (!mUseExecutionSet) {
+        if (const auto pPipeline = ::std::get_if<vk::Pipeline>(&initialObjs)) {
+            pipelineInfo.setPipeline(*pPipeline);
+            memInfo.setPNext(&pipelineInfo);
+
+        } else {
+            const auto pShaders =
+                ::std::get_if<Type_STLVector<vk::ShaderEXT>>(&initialObjs);
+            shaderInfo.setShaders(*pShaders);
+            memInfo.setPNext(&shaderInfo);
+        }
+    }
+
+    if (mExecutionSet != VK_NULL_HANDLE) {
+        memInfo.setIndirectExecutionSet(mExecutionSet);
+    }
+
+    auto memReqs =
+        mContext.GetDevice()->getGeneratedCommandsMemoryRequirementsEXT(
+            memInfo);
+
+    mPreprocessBuffer.size = memReqs.memoryRequirements.size;
+
+    vk::BufferCreateInfo bufferCreateInfo {};
+    vk::BufferUsageFlags2CreateInfoKHR bufferFlags2 {};
+    bufferCreateInfo.size = mPreprocessBuffer.size;
+    bufferFlags2.usage = vk::BufferUsageFlagBits2::ePreprocessBufferEXT
+                       | vk::BufferUsageFlagBits2::eIndirectBuffer
+                       | vk::BufferUsageFlagBits2::eShaderDeviceAddress;
+    bufferCreateInfo.pNext = &bufferFlags2;
+
+    mPreprocessBuffer.handle =
+        mContext.GetDevice()->createBuffer(bufferCreateInfo);
+
+    auto const& memProps = mContext.GetPhysicalDevice().GetMemoryProperties();
+
+    uint32_t memTypeIndex {~0ui32};
+
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+        if (((memReqs.memoryRequirements.memoryTypeBits & (1 << i)) > 0)
+            && (memProps.memoryTypes[i].propertyFlags
+                & vk::MemoryPropertyFlagBits::eDeviceLocal)
+                   == vk::MemoryPropertyFlagBits::eDeviceLocal) {
+            memTypeIndex = i;
+            break;
+        }
+    }
+
+    vk::MemoryAllocateFlagsInfo flagsInfo {
+        vk::MemoryAllocateFlagBits::eDeviceAddress};
+
+    auto req = mContext.GetDevice()->getBufferMemoryRequirements(
+        mPreprocessBuffer.handle);
+
+    vk::MemoryAllocateInfo allocInfo {req.size, memTypeIndex, &flagsInfo};
+
+    mPreprocessBuffer.memory = mContext.GetDevice()->allocateMemory(allocInfo);
+
+    mContext.GetDevice()->bindBufferMemory(mPreprocessBuffer.handle,
+                                           mPreprocessBuffer.memory, 0);
+
+    vk::BufferDeviceAddressInfo deviceAdressInfo {mPreprocessBuffer.handle};
+    mPreprocessBuffer.address =
+        mContext.GetDevice()->getBufferAddress(deviceAdressInfo);
+}
+
+DGCSequence_ESPipeline::DGCSequence_ESPipeline(VulkanContext& context,
+                                               PipelineManager& pipelineMgr,
+                                               uint32_t maxSequenceCount,
+                                               uint32_t maxDrawCount,
+                                               uint32_t maxPipelineCount)
+    : DGCSequenceBase(context, maxSequenceCount, maxDrawCount,
+                      maxPipelineCount),
+      mPipelineMgr(pipelineMgr) {}
+
+DGCSequence_ESPipeline& DGCSequence_ESPipeline::AddPipeline(const char* name) {
+    uint32_t size = mObjectNamesIdxMap.size();
+    VE_ASSERT(size < mMaxESObjectCount,
+              "The number of pipelines exceeds the maximum limit.");
+
+    mObjectNamesIdxMap.emplace(name, size);
+    return *this;
+}
+
+void DGCSequence_ESPipeline::MakeExecutionSet(const char* initialPipelineName) {
+    mInitialPipeline = mPipelineMgr.GetPipelineHandle(initialPipelineName);
+
+    if (!mUseExecutionSet)
+        return;
+
+    InsertInitialObjectToMap(initialPipelineName, 0);
+
+    vk::IndirectExecutionSetPipelineInfoEXT esPipelineInfo {};
+    esPipelineInfo.setInitialPipeline(mInitialPipeline)
+        .setMaxPipelineCount(mMaxESObjectCount);
+
+    vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
+    esCreateInfo.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
+        .setInfo(&esPipelineInfo);
+
+    mExecutionSet =
+        mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
+
+    Type_STLVector<vk::WriteIndirectExecutionSetPipelineEXT> writeIES {};
+    writeIES.reserve(mObjectNamesIdxMap.size());
+
+    for (const auto& [name, idx] : mObjectNamesIdxMap) {
+        vk::WriteIndirectExecutionSetPipelineEXT write {};
+        write.setPipeline(mPipelineMgr.GetPipelineHandle(name.c_str()))
+            .setIndex(idx);
+        writeIES.push_back(write);
+    }
+
+    mContext.GetDevice()->updateIndirectExecutionSetPipelineEXT(mExecutionSet,
+                                                                writeIES);
+}
+
+void DGCSequence_ESPipeline::Finalize() {
+    Preprocess(mInitialPipeline);
+}
+
+void DGCSequence_ESPipeline::Execute(vk::CommandBuffer cmd,
+                                     Buffer const& buffer) {
+    if (mUseExecutionSet) {
+        cmd.bindPipeline(GetPipelineBindPoint(), mInitialPipeline);
+    }
+
+    vk::GeneratedCommandsPipelineInfoEXT pipelineInfo {};
+
+    vk::GeneratedCommandsInfoEXT info {};
+    info.setIndirectCommandsLayout(mLayout->GetHandle())
+        .setMaxSequenceCount(mMaxSequenceCount)
+        .setMaxDrawCount(mMaxDrawCount)
+        .setPreprocessAddress(mPreprocessBuffer.address)
+        .setPreprocessSize(mPreprocessBuffer.size)
+        .setIndirectAddress(buffer.GetDeviceAddress())
+        .setIndirectAddressSize(buffer.GetStride())
+        .setShaderStages(GetStageFlags());
+
+    if (!mUseExecutionSet) {
+        pipelineInfo.setPipeline(mInitialPipeline);
+        info.setPNext(&pipelineInfo);
+    }
+
+    if (mExecutionSet != VK_NULL_HANDLE) {
+        info.setIndirectExecutionSet(mExecutionSet);
+    }
+
+    cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, info);
+}
+
+DGCSequence_ESShader::DGCSequence_ESShader(VulkanContext& context,
+                                           ShaderManager& shaderMgr,
+                                           uint32_t maxSequenceCount,
+                                           uint32_t maxDrawCount,
+                                           uint32_t maxPipelineCount)
+    : DGCSequenceBase(context, maxSequenceCount, maxDrawCount,
+                      maxPipelineCount),
+      mShaderMgr(shaderMgr) {}
+
+DGCSequence_ESShader& DGCSequence_ESShader::AddShader(
+    ShaderIDInfo const& idInfo) {
+    uint32_t size = mObjectNamesIdxMap.size();
+    VE_ASSERT(size < mMaxESObjectCount,
+              "The number of pipelines exceeds the maximum limit.");
+
+    auto name = ShaderManager::ParseShaderName(idInfo.name, idInfo.stage,
+                                               idInfo.macros, idInfo.entry);
+
+    mObjectNamesIdxMap.emplace(name, size);
+    return *this;
+}
+
+void DGCSequence_ESShader::MakeExecutionSet(
+    Type_STLVector<ShaderIDInfo> const& initialShaderIdInfos) {
+    VE_ASSERT(mShaderCount == initialShaderIdInfos.size(),
+              "Invalid number of shaders for the sequence.");
+
+    if (initialShaderIdInfos.size() == 1) {
+        MakeExecutionSet(initialShaderIdInfos[0]);
+        return;
+    }
+
+    Type_STLVector<ShaderObject*> shaderObjects(3, nullptr);
+    for (uint32_t i = 0; i < initialShaderIdInfos.size(); ++i) {
+        auto idx = ShaderStageToIdx(initialShaderIdInfos[i].stage);
+        if (shaderObjects[idx] != nullptr) {
+            throw std::runtime_error(
+                "Shader stage already assigned to another shader.");
+        } else {
+            shaderObjects[idx] = mShaderMgr.GetShaderObject(
+                initialShaderIdInfos[i].name, initialShaderIdInfos[i].stage,
+                initialShaderIdInfos[i].macros, initialShaderIdInfos[i].entry);
+        }
+    }
+
+    auto program = ShaderManager::MakeTempProgram(
+        shaderObjects[TaskShaderIdx], shaderObjects[MeshShaderIdx],
+        shaderObjects[FragmentShaderIdx]);
+
+    Type_STLVector<Type_STLVector<vk::DescriptorSetLayout>> descLayouts(3);
+    for (auto const& shaderObjcet : shaderObjects) {
+        if (shaderObjcet) {
+            descLayouts.push_back(shaderObjcet->GetDescLayoutHandles());
+        } else {
+            throw std::runtime_error(
+                "Shader is not assigned to the shader stage.");
+        }
+    }
+
+    Type_STLVector<vk::IndirectExecutionSetShaderLayoutInfoEXT> layoutInfos(3);
+    for (uint32_t i = 0; i < layoutInfos.size(); ++i) {
+        layoutInfos[i].setSetLayouts(descLayouts[i]);
+    }
+
+    auto pcRange = program.GetPCRanges()[0];
+
+    for (uint32_t i = 0; i < shaderObjects.size(); ++i) {
+        if (shaderObjects[i]) {
+            mInitialShaders[i] = shaderObjects[i]->GetHandle();
+        } else {
+            throw std::runtime_error(
+                "Shader is not assigned to the shader stage.");
+        }
+    }
+
+    for (uint32_t i = 0; i < initialShaderIdInfos.size(); ++i) {
+        const auto name = ShaderManager::ParseShaderName(
+            initialShaderIdInfos[i].name, initialShaderIdInfos[i].stage,
+            initialShaderIdInfos[i].macros, initialShaderIdInfos[i].entry);
+        const auto idx = ShaderStageToIdx(initialShaderIdInfos[i].stage);
+        InsertInitialObjectToMap(name.c_str(), idx);
+    }
+
+    if (!mUseExecutionSet)
+        return;
+
+    vk::IndirectExecutionSetShaderInfoEXT esShaderInfo {};
+    esShaderInfo.setPushConstantRanges(pcRange)
+        .setMaxShaderCount(mMaxESObjectCount)
+        .setShaderCount(3)
+        .setInitialShaders(mInitialShaders)
+        .setSetLayoutInfos(layoutInfos);
+
+    vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
+    esCreateInfo.setType(vk::IndirectExecutionSetInfoTypeEXT::eShaderObjects)
+        .setInfo(&esShaderInfo);
+
+    mExecutionSet =
+        mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
+
+    Type_STLVector<vk::WriteIndirectExecutionSetShaderEXT> writeIES {};
+    writeIES.reserve(mObjectNamesIdxMap.size());
+
+    for (const auto& [name, idx] : mObjectNamesIdxMap) {
+        vk::WriteIndirectExecutionSetShaderEXT write {};
+        write.setShader(mShaderMgr.GetShaderObject(name.c_str())->GetHandle())
+            .setIndex(idx);
+        writeIES.push_back(write);
+    }
+
+    mContext.GetDevice()->updateIndirectExecutionSetShaderEXT(mExecutionSet,
+                                                              writeIES);
+}
+
+void DGCSequence_ESShader::Finalize() {
+    Preprocess(mInitialShaders);
+}
+
+void DGCSequence_ESShader::Execute(vk::CommandBuffer cmd,
+                                   Buffer const& buffer) {
+    if (mUseExecutionSet) {
+        cmd.bindShadersEXT(GetStageFlagBitArray(), mInitialShaders);
+    }
+
+    vk::GeneratedCommandsShaderInfoEXT shaderInfo {};
+
+    vk::GeneratedCommandsInfoEXT info {};
+    info.setIndirectCommandsLayout(mLayout->GetHandle())
+        .setMaxSequenceCount(mMaxSequenceCount)
+        .setMaxDrawCount(mMaxDrawCount)
+        .setPreprocessAddress(mPreprocessBuffer.address)
+        .setPreprocessSize(mPreprocessBuffer.size)
+        .setIndirectAddress(buffer.GetDeviceAddress())
+        .setIndirectAddressSize(buffer.GetStride())
+        .setShaderStages(GetStageFlags());
+
+    if (!mUseExecutionSet) {
+        shaderInfo.setShaders(mInitialShaders);
+        info.setPNext(&shaderInfo);
+    }
+
+    if (mExecutionSet != VK_NULL_HANDLE) {
+        info.setIndirectExecutionSet(mExecutionSet);
+    }
+
+    cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, info);
+}
+
+uint32_t DGCSequence_ESShader::ShaderStageToIdx(
+    vk::ShaderStageFlagBits stage) const {
+    switch (stage) {
+        case vk::ShaderStageFlagBits::eTaskEXT: return TaskShaderIdx;
+        case vk::ShaderStageFlagBits::eMeshEXT: return MeshShaderIdx;
+        case vk::ShaderStageFlagBits::eFragment: return FragmentShaderIdx;
+        default: VE_ASSERT(false, "Invalid shader stage."); return 0;
+    }
+}
+
+void DGCSequence_ESShader::MakeExecutionSet(
+    ShaderIDInfo const& initialShaderIdInfo) {
+    const auto name = ShaderManager::ParseShaderName(
+        initialShaderIdInfo.name, initialShaderIdInfo.stage,
+        initialShaderIdInfo.macros, initialShaderIdInfo.entry);
+    InsertInitialObjectToMap(name.c_str(), 0);
+
+    auto initialShaderObject = mShaderMgr.GetShaderObject(
+        initialShaderIdInfo.name, initialShaderIdInfo.stage,
+        initialShaderIdInfo.macros, initialShaderIdInfo.entry);
+
+    mInitialShaders[0] = initialShaderObject->GetHandle();
+
+    if (!mUseExecutionSet)
+        return;
+
+    const auto descLayouts = initialShaderObject->GetDescLayoutHandles();
+    const auto pcRange = initialShaderObject->GetPushContantData();
+
+    vk::IndirectExecutionSetShaderLayoutInfoEXT layoutInfo {};
+    layoutInfo.setSetLayouts(descLayouts);
+
+    vk::IndirectExecutionSetShaderInfoEXT esShaderInfo {};
+    esShaderInfo.setInitialShaders(mInitialShaders)
+        .setMaxShaderCount(mMaxESObjectCount)
+        .setShaderCount(1)
+        .setSetLayoutInfos(layoutInfo);
+
+    if (pcRange)
+        esShaderInfo.setPushConstantRanges(*pcRange);
+
+    vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
+    esCreateInfo.setType(vk::IndirectExecutionSetInfoTypeEXT::eShaderObjects)
+        .setInfo(&esShaderInfo);
+
+    mExecutionSet =
+        mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
+
+    Type_STLVector<vk::WriteIndirectExecutionSetShaderEXT> writeIES {};
+    writeIES.reserve(mObjectNamesIdxMap.size());
+
+    for (const auto& [name, idx] : mObjectNamesIdxMap) {
+        vk::WriteIndirectExecutionSetShaderEXT write {};
+        write.setShader(mShaderMgr.GetShaderObject(name.c_str())->GetHandle())
+            .setIndex(idx);
+        writeIES.push_back(write);
+    }
+
+    mContext.GetDevice()->updateIndirectExecutionSetShaderEXT(mExecutionSet,
+                                                              writeIES);
+}
+
+void DGCSequenceBase::Finalize() {}
+
+vk::PipelineBindPoint DGCSequenceBase::GetPipelineBindPoint() {
+    if (mIsCompute)
+        return vk::PipelineBindPoint::eCompute;
+    else
+        return vk::PipelineBindPoint::eGraphics;
+}
+
+Type_STLVector<vk::ShaderStageFlagBits>
+DGCSequenceBase::GetStageFlagBitArray() {
+    if (mIsCompute)
+        return {vk::ShaderStageFlagBits::eCompute};
+    else
+        return {vk::ShaderStageFlagBits::eTaskEXT,
+                vk::ShaderStageFlagBits::eMeshEXT,
+                vk::ShaderStageFlagBits::eFragment};
+}
+
+vk::ShaderStageFlags DGCSequenceBase::GetStageFlags() {
+    if (mIsCompute)
+        return vk::ShaderStageFlagBits::eCompute;
+    else
+        return vk::ShaderStageFlagBits::eTaskEXT
+             | vk::ShaderStageFlagBits::eMeshEXT
+             | vk::ShaderStageFlagBits::eFragment;
+}
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

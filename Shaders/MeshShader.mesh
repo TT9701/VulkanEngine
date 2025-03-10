@@ -1,10 +1,6 @@
 #version 460
 #extension GL_EXT_mesh_shader : require
 #extension GL_ARB_shading_language_include : require
-#extension GL_EXT_buffer_reference : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
-#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_control_flow_attributes: require
 
 #define UNROLL_LOOP [[unroll]]
@@ -13,6 +9,7 @@ const uint MESHLET_VERTEX_ITERATIONS    = ((MAX_VERTICES   + MESH_INVOCATION_COU
 const uint MESHLET_PRIMITIVE_ITERATIONS = ((MAX_PRIMITIVES + MESH_INVOCATION_COUNT - 1) / MESH_INVOCATION_COUNT);
 
 #include "Include/Structures.glsl"
+#include "MeshShaderPushConstant.h"
 
 layout (set = 0, binding = 0) uniform UBO 
 {
@@ -21,97 +18,6 @@ layout (set = 0, binding = 0) uniform UBO
 
 layout(local_size_x = MESH_INVOCATION_COUNT) in;
 layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_PRIMITIVES) out;
-
-struct UInt16Pos {
-	uint16_t x, y, z;
-};
-
-struct Norm {
-	int16_t x, y;
-};
-
-struct Tex {
-	uint16_t x, y;
-};
-
-// **IMPORTANT**
-// use vec3 will round up to vec4
-// see https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf setion 7.6.2.2, page 146
-// use struct to bypass this. (page 147)
-layout(buffer_reference, std430) readonly buffer VertexPosBuffer{ 
-	// vec3 position[];
-	UInt16Pos position[];
-};
-
-layout(buffer_reference, std430) readonly buffer VertexNormBuffer{ 
-	Norm normal[];
-};
-
-layout(buffer_reference, std430) readonly buffer VertexTexBuffer{ 
-	Tex texcoords[];
-};
-
-struct Meshlet {
-	uint vertexOffset;
-	uint triangleOffset;
-	uint vertexCount;
-	uint triangleCount;
-};
-
-layout(buffer_reference, std430) readonly buffer MeshletBuffer{ 
-	Meshlet meshlets[];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshletTriangleBuffer{ 
-	uint8_t meshletTriangles[];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshOffsetBuffer{ 
-	uint meshOffsets[];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshletOffsetBuffer{ 
-	uint meshletOffsets[];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshletTriangleOffsetBuffer{ 
-	uint meshletTriangleOffsets[];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshletCountBuffer{ 
-	uint meshletCounts[];
-};
-
-struct Vec3 {
-	float x, y, z;
-};
-
-struct BoundingBox {
-	Vec3 center;
-	Vec3 extent;
-};
-
-layout(buffer_reference, std430) readonly buffer BoundingBoxBuffer{ 
-	BoundingBox boundingBoxes[];
-};
-
-layout( push_constant ) uniform PushConstants
-{	
-	mat4 modelMatrix;
-
-	VertexPosBuffer posBuffer;
-	VertexNormBuffer normBuffer;
-	VertexTexBuffer texBuffer;
-
-	MeshletBuffer meshletBuffer;
-	MeshletTriangleBuffer meshletTriangleBuffer;
-	MeshOffsetBuffer meshOffsetBuffer;
-	MeshletOffsetBuffer meshletOffsetBuffer;
-	MeshletTriangleOffsetBuffer meshletTriangleOffsetBuffer;
-	MeshletCountBuffer meshletCountBuffer;
-	BoundingBoxBuffer boundingBoxBuffer;
-	BoundingBoxBuffer meshletBoundingBoxBuffer;
-} constants;
 
 layout (location = 0) out vec4 OutColor[];
 layout (location = 1) out vec3 OutNormal[];

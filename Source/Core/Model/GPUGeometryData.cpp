@@ -7,7 +7,7 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 GPUGeometryData::GPUGeometryData(VulkanContext& context,
-                   ModelData::CISDI_3DModel const& model)
+                                 ModelData::CISDI_3DModel const& model)
     : mName(model.name) {
     GenerateStats(model);
     GenerateMeshletBuffers(context, model);
@@ -62,8 +62,8 @@ auto ExtractMeshletProperty(ModelData::CISDI_3DModel const& modelData,
 
 }  // namespace
 
-void GPUGeometryData::GenerateMeshletBuffers(VulkanContext& context,
-                                      ModelData::CISDI_3DModel const& model) {
+void GPUGeometryData::GenerateMeshletBuffers(
+    VulkanContext& context, ModelData::CISDI_3DModel const& model) {
     // positions buffer
     {
         auto tmp =
@@ -167,7 +167,7 @@ void GPUGeometryData::GenerateMeshletBuffers(VulkanContext& context,
             context, (mName + " Materials").c_str(), datas.size(),
             datas.data());
 
-        mFragmentConstants.mMaterialBufAddr =
+        mMeshletConstants.mMaterialBufAddr =
             mBuffers.mMaterialBuf->GetDeviceAddress();
     }
 
@@ -183,7 +183,7 @@ void GPUGeometryData::GenerateMeshletBuffers(VulkanContext& context,
             context, (mName + " Mesh Material Indices").c_str(), mMeshCount,
             meshMaterialIndices.data());
 
-        mFragmentConstants.mMeshMaterialIdxBufAddr =
+        mMeshletConstants.mMeshMaterialIdxBufAddr =
             mBuffers.mMeshMaterialIdxBuf->GetDeviceAddress();
     }
 
@@ -264,10 +264,6 @@ MeshletPushConstants GPUGeometryData::GetMeshletPushContants() const {
 
 MeshletPushConstants* GPUGeometryData::GetMeshletPushContantsPtr() {
     return &mMeshletConstants;
-}
-
-FragmentPushConstants* GPUGeometryData::GetFragmentPushConstantsPtr() {
-    return &mFragmentConstants;
 }
 
 Buffer* GPUGeometryData::GetMeshTaskIndirectCmdBuffer() const {

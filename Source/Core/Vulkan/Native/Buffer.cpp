@@ -2,6 +2,7 @@
 
 #include "Core/Utilities/VulkanUtilities.h"
 #include "Core/Vulkan/Manager/VulkanContext.h"
+#include "DGCSequence.h"
 #include "Device.h"
 #include "MemoryAllocator.h"
 
@@ -43,6 +44,10 @@ void* Buffer::GetMapPtr() const {
     return nullptr;
 }
 
+void Buffer::SetDGCSequence(SharedPtr<DGCSequenceBase> const& dgcSeq) {
+    mDGCSequence = dgcSeq;
+}
+
 void Buffer::SetName(const char* name) const {
     mContext.GetDevice().SetObjectName(mHandle, name);
     if (mAllocationInfo.deviceMemory != VK_NULL_HANDLE)
@@ -74,6 +79,13 @@ void Buffer::CopyData(const void* data, size_t size, size_t offset) {
         cmdBufCopy.setSize(size).setDstOffset(offset);
         cmd->copyBuffer(staging->GetHandle(), mHandle, cmdBufCopy);
     }
+}
+
+void Buffer::Execute(vk::CommandBuffer cmd) const {
+    VE_ASSERT(mDGCSequence != nullptr,
+              "DGCSequence is not set for this buffer.");
+
+    mDGCSequence->Execute(cmd, *this);
 }
 
 vk::Buffer Buffer::CreateBufferResource() {

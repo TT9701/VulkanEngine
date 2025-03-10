@@ -424,8 +424,8 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
         }
     }
 
-    for (auto const& pc : layout->GetCombinedPushContant()) {
-        auto pcName = pc.first;
+    if (auto pc = layout->GetCombinedPushContant()) {
+        auto pcName = pc.value().first;
         mPCInfos.emplace(pcName, RenderPassBinding::PushContants {});
     }
 
@@ -439,35 +439,18 @@ void RenderPassBindingInfo_PSO::GeneratePushContantMetaData() {
         mRenderSequence.mPipelineMgr.GetLayout(mPipelineName.c_str())
             ->GetCombinedPushContant();
 
-    for (auto const& [pcName, range] : ranges) {
+    if (ranges) {
         auto pcData = ::std::get<RenderPassBinding::PushContants>(
-            mPCInfos.at(pcName).value);
+            mPCInfos.at(ranges->first).value);
 
-        assert(pcData.size == range.size);
+        assert(pcData.size == ranges->second.size);
 
         mDrawCallMgr.AddArgument_PushConstant(
             mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str()),
-            range.stageFlags, range.offset, range.size, pcData.pData);
+            ranges->second.stageFlags, ranges->second.offset,
+            ranges->second.size,
+            pcData.pData);
     }
-    //
-    // auto const& ranges =
-    //     mRenderSequence.mPipelineMgr.GetLayout(mPipelineName.c_str())
-    //         ->GetPCRanges();
-    // uint32_t count = ranges.size();
-    // assert(count == data.size());
-    //
-    // auto layout =
-    //     mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str());
-    //
-    // for (uint32_t i = 0; i < count; ++i) {
-    //     auto layoutRangeSize = ranges[i].size;
-    //     auto dataRangeSize = data[i].size;
-    //     assert(layoutRangeSize == dataRangeSize);
-    //
-    //     mDrawCallMgr.AddArgument_PushConstant(layout, ranges[i].stageFlags,
-    //                                           ranges[i].offset, layoutRangeSize,
-    //                                           data[i].pData);
-    // }
 }
 
 void RenderPassBindingInfo_PSO::GenerateRTVMetaData(

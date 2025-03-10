@@ -14,6 +14,8 @@ class VulkanContext;
 
 class ShaderManager {
     using Type_Shaders = Type_STLUnorderedMap_String<SharedPtr<Shader>>;
+    using Type_ShaderObjects =
+        Type_STLUnorderedMap_String<SharedPtr<ShaderObject>>;
     using Type_Programs = Type_STLUnorderedMap_String<SharedPtr<ShaderProgram>>;
 
 public:
@@ -32,6 +34,21 @@ public:
         bool hasIncludes = false, Type_ShaderMacros const& defines = {},
         const char* entry = "main", void* pNext = nullptr);
 
+    // persist shader object from spir-v binary code
+    SharedPtr<ShaderObject> CreateShaderObjectFromSPIRV(
+        const char* name, const char* spirvPath, vk::ShaderStageFlagBits stage,
+        vk::ShaderCreateFlagBitsEXT flags =
+            vk::ShaderCreateFlagBitsEXT::eIndirectBindable,
+        const char* entry = "main", void* pNext = nullptr);
+
+    // persist shader object from glsl source code
+    SharedPtr<ShaderObject> CreateShaderObjectFromGLSL(
+        const char* name, const char* sourcePath, vk::ShaderStageFlagBits stage,
+        vk::ShaderCreateFlagBitsEXT flags =
+            vk::ShaderCreateFlagBitsEXT::eIndirectBindable,
+        bool hasIncludes = false, Type_ShaderMacros const& defines = {},
+        const char* entry = "main", void* pNext = nullptr);
+
     void ReleaseShader(const char* name, vk::ShaderStageFlagBits stage,
                        Type_ShaderMacros const& defines = {},
                        const char* entry = "main");
@@ -40,10 +57,21 @@ public:
                       Type_ShaderMacros const& defines = {},
                       const char* entry = "main");
 
-    Type_STLString ParseShaderName(const char* name,
-                                   vk::ShaderStageFlagBits stage,
-                                   Type_ShaderMacros const& defines = {},
-                                   const char* entry = "main") const;
+    void ReleaseShaderObject(const char* name, vk::ShaderStageFlagBits stage,
+                             Type_ShaderMacros const& defines = {},
+                             const char* entry = "main");
+
+    ShaderObject* GetShaderObject(const char* name,
+                                  vk::ShaderStageFlagBits stage,
+                                  Type_ShaderMacros const& defines = {},
+                                  const char* entry = "main");
+
+    ShaderObject* GetShaderObject(const char* fullname);
+
+    static Type_STLString ParseShaderName(const char* name,
+                                          vk::ShaderStageFlagBits stage,
+                                          Type_ShaderMacros const& defines = {},
+                                          const char* entry = "main");
 
     ShaderProgram* CreateProgram(const char* name, Shader* comp);
     ShaderProgram* CreateProgram(const char* name, Shader* vert, Shader* frag);
@@ -52,10 +80,15 @@ public:
 
     ShaderProgram* GetProgram(const char* name) const;
 
+    static ShaderProgram MakeTempProgram(ShaderObject* comp);
+    static ShaderProgram MakeTempProgram(ShaderObject* task, ShaderObject* mesh,
+                                         ShaderObject* frag);
+
 private:
     VulkanContext& mContext;
 
     Type_Shaders mShaders {};
+    Type_ShaderObjects mShaderObjects {};
     Type_Programs mPrograms {};
     ::std::mutex mMutex;
 };

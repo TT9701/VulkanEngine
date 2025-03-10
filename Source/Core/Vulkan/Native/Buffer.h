@@ -3,10 +3,13 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
+#include "Core/Utilities/MemoryPool.h"
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class VulkanContext;
 class DescriptorManager;
+class DGCSequenceBase;
 
 class Buffer {
 public:
@@ -37,11 +40,15 @@ public:
     // for mapped buffers, non mapped buffers return nullptr
     void* GetMapPtr() const;
 
+    void SetDGCSequence(SharedPtr<DGCSequenceBase> const& dgcSeq);
+
     void SetName(const char* name) const;
 
     void Resize(size_t newSize);
 
     void CopyData(const void* data, size_t size, size_t offset = 0);
+
+    void Execute(vk::CommandBuffer cmd) const;
 
 protected:
     vk::Buffer CreateBufferResource();
@@ -63,8 +70,12 @@ protected:
     VmaAllocation mAllocation {};
     VmaAllocationInfo mAllocationInfo {};
 
+    SharedPtr<DGCSequenceBase> mDGCSequence {};
+
     vk::Buffer mHandle;
 };
+
+class InstructionBuffer : public Buffer {};
 
 template <class T>
 class StructuredBuffer : public Buffer {

@@ -1,54 +1,56 @@
 #pragma once
 
-#include "Buffer.h"
 #include "Core/Utilities/Defines.h"
 #include "DGCSequenceLayout.h"
 
 #include "Core/Vulkan/Manager/PipelineManager.h"
+#include "Core/Vulkan/Manager/ShaderManager.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-template <class TDGCSequenceTemplate>
-class DGCSequence {
+class Buffer;
+
+class DGCSequenceBase {
+    struct PreprocessBuffer {
+        uint32_t size;
+        vk::Buffer handle;
+        vk::DeviceMemory memory;
+        vk::DeviceAddress address;
+    };
+
 public:
-    using Type_SequenceTemplate = TDGCSequenceTemplate;
+    DGCSequenceBase(VulkanContext& context, uint32_t sequenceCount,
+                    uint32_t maxDrawCount, uint32_t maxESObjectCount);
 
-    DGCSequence(VulkanContext& context, PipelineManager& pipelineMgr,
-                uint32_t sequenceCount, uint32_t maxDrawCount,
-                uint32_t maxPipelineCount);
+    virtual ~DGCSequenceBase();
 
-    ~DGCSequence();
+    uint32_t GetSequenceCount() const;
 
-    DGCSequence& AddESObject(const char* name);
+    virtual void Finalize();
 
-    void MakeSequenceLayout(const char* pipelineLayoutName,
-                            bool unorderedSequence = false,
-                            bool explicitPreprocess = false);
+    virtual void Execute(vk::CommandBuffer cmd, Buffer const& buffer) = 0;
 
-    SequenceLayout& GetLayout() const;
+protected:
+    vk::PipelineBindPoint GetPipelineBindPoint();
 
-    void MakeExecutionSet(const char* initialESObjectName);
+    Type_STLVector<vk::ShaderStageFlagBits> GetStageFlagBitArray();
 
-    void MakeExecutionSet(vk::ShaderEXT initialShader);
+    vk::ShaderStageFlags GetStageFlags();
 
-    vk::IndirectExecutionSetEXT GetExecutionSet() const;
+    void InsertInitialObjectToMap(const char* name, uint32_t idx);
 
-    Type_STLVector<TDGCSequenceTemplate>& GetSequenceData();
+    void Preprocess(::std::variant<vk::Pipeline, Type_STLVector<vk::ShaderEXT>>
+                        initialObjs);
 
-    vk::DeviceAddress GetSequenceDataBufferAddress() const;
-
-    void Finalize();
-
-private:
-    void GenerateSequenceDataBuffer();
-
-private:
+protected:
     VulkanContext& mContext;
-    PipelineManager& mPipelineMgr;
 
-    uint32_t mMaxPipelineCount;
-    uint32_t mSequenceCount;
+    uint32_t mMaxSequenceCount;
+    uint32_t mMaxESObjectCount;
     uint32_t mMaxDrawCount;
+
+    bool mIsCompute;
+    bool mUseExecutionSet;
 
     Type_STLUnorderedMap_String<uint32_t> mObjectNamesIdxMap;
 
@@ -56,188 +58,143 @@ private:
 
     Type_UniquePtr<SequenceLayout> mLayout;
 
-    Type_STLVector<TDGCSequenceTemplate> mSequenceData;
-    Type_SharedPtr<Buffer> mSequenceDataBuffer;
+    PreprocessBuffer mPreprocessBuffer {};
+
+    bool mExplicitPreprocess {false};
+};
+
+class DGCSequence_ESPipeline : public DGCSequenceBase {
+public:
+    DGCSequence_ESPipeline(VulkanContext& context, PipelineManager& pipelineMgr,
+                           uint32_t maxSequenceCount, uint32_t maxDrawCount,
+                           uint32_t maxPipelineCount);
+
+    DGCSequence_ESPipeline& AddPipeline(const char* name);
+
+    template <class TDGCSequenceTemplate>
+    void MakeSequenceLayout(const char* pipelineLayoutName,
+                            bool unorderedSequence = false,
+                            bool explicitPreprocess = false);
+
+    void MakeExecutionSet(const char* initialPipelineName);
+
+    void Finalize() override;
+
+    void Execute(vk::CommandBuffer cmd, Buffer const& buffer) override;
+
+private:
+    PipelineManager& mPipelineMgr;
+
+    vk::Pipeline mInitialPipeline;
+};
+
+class DGCSequence_ESShader : public DGCSequenceBase {
+public:
+    DGCSequence_ESShader(VulkanContext& context, ShaderManager& shaderMgr,
+                         uint32_t maxSequenceCount, uint32_t maxDrawCount,
+                         uint32_t maxPipelineCount);
+
+    DGCSequence_ESShader& AddShader(ShaderIDInfo const& idInfo);
+
+    template <class TDGCSequenceTemplate>
+    void MakeSequenceLayout(Type_STLVector<ShaderIDInfo> const& idInfos,
+                            bool unorderedSequence = false,
+                            bool explicitPreprocess = false);
+
+    void MakeExecutionSet(
+        Type_STLVector<ShaderIDInfo> const& initialShaderIdInfos);
+
+    void Finalize() override;
+
+    void Execute(vk::CommandBuffer cmd, Buffer const& buffer) override;
+
+private:
+    enum { TaskShaderIdx = 0, MeshShaderIdx = 1, FragmentShaderIdx = 2 };
+
+    uint32_t ShaderStageToIdx(vk::ShaderStageFlagBits stage) const;
+
+    template <class TDGCSequenceTemplate>
+    void MakeSequenceLayout(ShaderIDInfo const& idInfo,
+                            bool unorderedSequence = false,
+                            bool explicitPreprocess = false);
+
+    void MakeExecutionSet(ShaderIDInfo const& initialShaderIdInfo);
+
+private:
+    ShaderManager& mShaderMgr;
+
+    uint32_t mShaderCount;
+
+    Type_STLVector<vk::ShaderEXT> mInitialShaders {};
 };
 
 template <class TDGCSequenceTemplate>
-DGCSequence<TDGCSequenceTemplate>::DGCSequence(VulkanContext& context,
-                                               PipelineManager& pipelineMgr,
-                                               uint32_t sequenceCount,
-                                               uint32_t maxDrawCount,
-                                               uint32_t maxPipelineCount)
-    : mContext(context),
-      mPipelineMgr(pipelineMgr),
-      mMaxPipelineCount(maxPipelineCount),
-      mSequenceCount(sequenceCount),
-      mMaxDrawCount(maxDrawCount) {
-    mObjectNamesIdxMap.reserve(maxPipelineCount);
-}
-
-template <class TDGCSequenceTemplate>
-DGCSequence<TDGCSequenceTemplate>::~DGCSequence() {
-    if (mExecutionSet)
-        mContext.GetDevice()->destroy(mExecutionSet);
-}
-
-template <class TDGCSequenceTemplate>
-DGCSequence<TDGCSequenceTemplate>&
-DGCSequence<TDGCSequenceTemplate>::AddESObject(const char* name) {
-    uint32_t idx = mObjectNamesIdxMap.size();
-    mObjectNamesIdxMap.emplace(name, idx);
-    return *this;
-}
-
-template <class TDGCSequenceTemplate>
-void DGCSequence<TDGCSequenceTemplate>::MakeSequenceLayout(
-    const char* pipelineLayoutName, bool unorderedSequence,
-    bool explicitPreprocess) {
+void DGCSequence_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
+                                                bool unorderedSequence,
+                                                bool explicitPreprocess) {
     auto pipelineLayout = mPipelineMgr.GetLayoutHandle(pipelineLayoutName);
 
     mLayout = CreateLayout<TDGCSequenceTemplate>(
         mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
+
+    mExplicitPreprocess = explicitPreprocess;
+    mIsCompute = TDGCSequenceTemplate::_IsCompute_;
+    mUseExecutionSet = TDGCSequenceTemplate::_UseExecutionSet_;
 }
 
 template <class TDGCSequenceTemplate>
-SequenceLayout& DGCSequence<TDGCSequenceTemplate>::GetLayout() const {
-    return *mLayout;
-}
+void DGCSequence_ESShader::MakeSequenceLayout(
+    Type_STLVector<ShaderIDInfo> const& idInfos, bool unorderedSequence,
+    bool explicitPreprocess) {
+    mUseExecutionSet = TDGCSequenceTemplate::_UseExecutionSet_ ? true : false;
+    mIsCompute = TDGCSequenceTemplate::_IsCompute_ ? true : false;
+    mShaderCount = TDGCSequenceTemplate::_IsCompute_ ? 1 : 3;
+    mInitialShaders.resize(mShaderCount);
 
-template <class TDGCSequenceTemplate>
-void DGCSequence<TDGCSequenceTemplate>::MakeExecutionSet(
-    const char* initialESObjectName) {
-    static_assert(TDGCSequenceTemplate::_UseExecutionSet_,
-                  "This sequence does not use execution set.");
+    VE_ASSERT(mShaderCount == idInfos.size(),
+              "Invalid number of shaders for the sequence.");
 
-    if (mObjectNamesIdxMap.contains(initialESObjectName)) {
-        if (mObjectNamesIdxMap.at(initialESObjectName) != 0) {
-            auto it = ::std::find_if(
-                mObjectNamesIdxMap.begin(), mObjectNamesIdxMap.end(),
-                [&](const auto& pair) { return pair.second == 0; });
+    if (idInfos.size() == 1) {
+        MakeSequenceLayout<TDGCSequenceTemplate>(idInfos[0], unorderedSequence,
+                                                 explicitPreprocess);
+        return;
+    }
 
-            ::std::swap(it->second, mObjectNamesIdxMap.at(initialESObjectName));
+    Type_STLVector<ShaderObject*> shaderObjects(3, nullptr);
+    for (uint32_t i = 0; i < idInfos.size(); ++i) {
+        auto idx = ShaderStageToIdx(idInfos[i].stage);
+        if (shaderObjects[idx] != nullptr) {
+            throw std::runtime_error(
+                "Shader stage already assigned to another shader.");
+        } else {
+            shaderObjects[idx] =
+                mShaderMgr.GetShaderObject(idInfos[i].name, idInfos[i].stage,
+                                           idInfos[i].macros, idInfos[i].entry);
         }
-    } else {
-        for (auto& [name, idx] : mObjectNamesIdxMap) {
-            idx += 1;
-        }
-        mObjectNamesIdxMap.emplace(initialESObjectName, 0);
     }
 
-    vk::IndirectExecutionSetPipelineInfoEXT esPipelineInfo {};
-    esPipelineInfo
-        .setInitialPipeline(mPipelineMgr.GetPipelineHandle(initialESObjectName))
-        .setMaxPipelineCount(mMaxPipelineCount);
+    auto program = ShaderManager::MakeTempProgram(
+        shaderObjects[TaskShaderIdx], shaderObjects[MeshShaderIdx],
+        shaderObjects[FragmentShaderIdx]);
 
-    vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
-    esCreateInfo.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
-        .setInfo(&esPipelineInfo);
+    auto descLayout = program.GetCombinedDescLayoutHandles();
+    auto pcRange = program.GetPCRanges()[0];
 
-    mExecutionSet =
-        mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
-
-    Type_STLVector<vk::WriteIndirectExecutionSetPipelineEXT> writeIES {};
-    writeIES.reserve(mObjectNamesIdxMap.size());
-
-    for (const auto& [name, idx] : mObjectNamesIdxMap) {
-        vk::WriteIndirectExecutionSetPipelineEXT write {};
-        write.setPipeline(mPipelineMgr.GetPipelineHandle(name.c_str()))
-            .setIndex(idx);
-        writeIES.push_back(write);
-    }
-
-    mContext.GetDevice()->updateIndirectExecutionSetPipelineEXT(mExecutionSet,
-                                                                writeIES);
+    mLayout = CreateLayout<TDGCSequenceTemplate>(
+        mContext, descLayout, pcRange, unorderedSequence, explicitPreprocess);
 }
 
 template <class TDGCSequenceTemplate>
-void DGCSequence<TDGCSequenceTemplate>::MakeExecutionSet(
-    vk::ShaderEXT initialShader) {
-    static_assert(TDGCSequenceTemplate::_UseExecutionSet_,
-                  "This sequence does not use execution set.");
+void DGCSequence_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
+                                              bool unorderedSequence,
+                                              bool explicitPreprocess) {
+    auto shader = mShaderMgr.GetShaderObject(idInfo.name, idInfo.stage,
+                                             idInfo.macros, idInfo.entry);
+    const auto descLayout = shader->GetDescLayoutHandles();
+    const auto pcRange = shader->GetPushContantData();
 
-    vk::IndirectExecutionSetShaderInfoEXT esPipelineInfo {};
-    // esPipelineInfo
-    //     .setInitialPipeline(mPipelineMgr.GetPipelineHandle(initialESObjectName))
-    //     .setMaxPipelineCount(mMaxPipelineCount);
-
-    vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
-    esCreateInfo.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines)
-        .setInfo(&esPipelineInfo);
-
-    mExecutionSet =
-        mContext.GetDevice()->createIndirectExecutionSetEXT(esCreateInfo);
-
-    Type_STLVector<vk::WriteIndirectExecutionSetPipelineEXT> writeIES {};
-    writeIES.reserve(mObjectNamesIdxMap.size());
-
-    for (const auto& [name, idx] : mObjectNamesIdxMap) {
-        vk::WriteIndirectExecutionSetPipelineEXT write {};
-        write.setPipeline(mPipelineMgr.GetPipelineHandle(name.c_str()))
-            .setIndex(idx);
-        writeIES.push_back(write);
-    }
-
-    mContext.GetDevice()->updateIndirectExecutionSetPipelineEXT(mExecutionSet,
-                                                                writeIES);
-}
-
-template <class TDGCSequenceTemplate>
-vk::IndirectExecutionSetEXT DGCSequence<TDGCSequenceTemplate>::GetExecutionSet()
-    const {
-    VE_ASSERT(mExecutionSet != VK_NULL_HANDLE, "Execution Set is not created.");
-    return mExecutionSet;
-}
-
-template <class TDGCSequenceTemplate>
-Type_STLVector<TDGCSequenceTemplate>&
-DGCSequence<TDGCSequenceTemplate>::GetSequenceData() {
-    // VE_ASSERT((TDGCSequenceTemplate::_UseExecutionSet_
-    //            && mExecutionSet != VK_NULL_HANDLE)
-    //               || !TDGCSequenceTemplate::_UseExecutionSet_,
-    //           "Sequence Data should be set after MakeExecutionSet");
-
-    if (mSequenceData.empty())
-        mSequenceData.resize(mSequenceCount);
-    return mSequenceData;
-}
-
-template <class TDGCSequenceTemplate>
-vk::DeviceAddress
-DGCSequence<TDGCSequenceTemplate>::GetSequenceDataBufferAddress() const {
-    VE_ASSERT(mSequenceDataBuffer, "Sequence Data Buffer is not created.");
-    return mSequenceDataBuffer->GetDeviceAddress();
-}
-
-template <class TDGCSequenceTemplate>
-void DGCSequence<TDGCSequenceTemplate>::Finalize() {
-    GenerateSequenceDataBuffer();
-}
-
-template <class TDGCSequenceTemplate>
-void DGCSequence<TDGCSequenceTemplate>::GenerateSequenceDataBuffer() {
-    VE_ASSERT(!mSequenceData.empty(), "No sequence data was set.")
-
-    auto const sequenceDataSize = sizeof(TDGCSequenceTemplate) * mSequenceCount;
-
-    mSequenceDataBuffer = mContext.CreateDeviceLocalBuffer(
-        "DGC sequence data", sequenceDataSize,
-        vk::BufferUsageFlagBits::eIndirectBuffer
-            | vk::BufferUsageFlagBits::eShaderDeviceAddress
-            | vk::BufferUsageFlagBits::eTransferDst);
-
-    auto staging = mContext.CreateStagingBuffer("", sequenceDataSize);
-
-    memcpy(staging->GetMapPtr(), mSequenceData.data(), sequenceDataSize);
-
-    {
-        auto cmd = mContext.CreateCmdBufToBegin(
-            mContext.GetQueue(QueueType::Transfer));
-        vk::BufferCopy cmdBufCopy {};
-        cmdBufCopy.setSize(sequenceDataSize);
-        cmd->copyBuffer(staging->GetHandle(), mSequenceDataBuffer->GetHandle(),
-                        cmdBufCopy);
-    }
+    mLayout = CreateLayout<TDGCSequenceTemplate>(
+        mContext, descLayout, pcRange, unorderedSequence, explicitPreprocess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

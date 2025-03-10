@@ -97,6 +97,8 @@ set (VULKAN_CORE_SRC
         Vulkan/Native/DGCSequenceLayout.cpp
         Vulkan/Native/DGCSequence.cpp
         Vulkan/Native/DGCSequence.h
+        Vulkan/Manager/DGCSequenceManager.cpp
+        Vulkan/Manager/DGCSequenceManager.h
 )
 set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 

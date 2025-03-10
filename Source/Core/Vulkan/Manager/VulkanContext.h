@@ -115,6 +115,11 @@ public:
                                               vk::BufferUsageFlags usage,
                                               size_t stride = 1);
 
+    template <class T>
+    SharedPtr<Buffer> CreateDeviceLocalBuffer_WithData(
+        const char* name, vk::BufferUsageFlags usage,
+        Type_STLVector<T> const& data);
+
     SharedPtr<Buffer> CreateStagingBuffer(
         const char* name, size_t allocByteSize,
         vk::BufferUsageFlags usage = (vk::BufferUsageFlagBits)0,
@@ -311,6 +316,30 @@ private:
 }  // namespace IntelliDesign_NS::Vulkan::Core
 
 namespace IntelliDesign_NS::Vulkan::Core {
+
+template <class T>
+SharedPtr<Buffer> VulkanContext::CreateDeviceLocalBuffer_WithData(
+    const char* name, vk::BufferUsageFlags usage,
+    Type_STLVector<T> const& data) {
+    VE_ASSERT(!data.empty(), "No data was set.")
+
+    size_t const dataSize = sizeof(T) * data.size();
+
+    auto ptr = CreateDeviceLocalBuffer(name, dataSize, usage, sizeof(T));
+
+    auto staging = CreateStagingBuffer("", dataSize);
+
+    memcpy(staging->GetMapPtr(), data.data(), dataSize);
+
+    {
+        auto cmd = CreateCmdBufToBegin(GetQueue(QueueType::Transfer));
+        vk::BufferCopy cmdBufCopy {};
+        cmdBufCopy.setSize(dataSize);
+        cmd->copyBuffer(staging->GetHandle(), ptr->GetHandle(), cmdBufCopy);
+    }
+
+    return ptr;
+}
 
 template <class T>
 SharedPtr<StructuredBuffer<T>> VulkanContext::CreateIndirectCmdBuffer(

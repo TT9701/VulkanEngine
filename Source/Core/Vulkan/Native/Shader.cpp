@@ -185,6 +185,9 @@ Type_STLVector<ShaderBase::DescriptorSetLayoutData> MergeDescLayoutData(
                              shader->GetDescSetLayoutDatas().end()));
     }
 
+    if (datas.empty())
+        return datas;
+
     std::ranges::sort(datas, [](ShaderBase::DescriptorSetLayoutData const& l,
                                 ShaderBase::DescriptorSetLayoutData const& r) {
         if (l.setIdx != r.setIdx) {
@@ -274,6 +277,9 @@ Type_STLVector<SharedPtr<DescriptorSetLayout>> CreateDescLayout(
     Type_STLVector<ShaderBase::DescriptorSetLayoutData> const& datas,
     void* pNext) {
     Type_STLVector<SharedPtr<DescriptorSetLayout>> descLayouts {};
+
+    if (datas.empty())
+        return descLayouts;
 
     auto descBufProps =
         context.GetPhysicalDevice()
@@ -464,10 +470,29 @@ std::mutex& ShaderBase::GetMutex() {
 }
 
 void ShaderBase::GLSLReflect(Type_ANSIString const& source) {
+    auto fullsource = source;
+    {
+        Type_STLVector<Type_ANSIString> includeFileNames {};
+        std::regex includePattern("#include\\s+\"([^\"]*)\"");
+
+        auto includesBegin =
+            std::sregex_iterator(source.begin(), source.end(), includePattern);
+        auto includesEnd = std::sregex_iterator();
+
+        for (std::sregex_iterator i = includesBegin; i != includesEnd; ++i) {
+            std::smatch match = *i;
+            includeFileNames.push_back(match.str(1).c_str());
+        }
+
+        for (auto const& name : includeFileNames) {
+            fullsource += LoadShaderSource(SHADER_PATH_CSTR(name.c_str()));
+        }
+    }
+
     ::std::regex reg(R"(layout.*)");
     ::std::smatch m;
-    auto pos = source.cbegin();
-    auto end = source.cend();
+    auto pos = fullsource.cbegin();
+    auto end = fullsource.cend();
 
     Type_STLVector<Type_ANSIString> layouts;
     for (; ::std::regex_search(pos, end, m, reg); pos = m.suffix().first) {
@@ -487,7 +512,7 @@ void ShaderBase::GLSLReflect(Type_ANSIString const& source) {
 void ShaderBase::GLSLReflect_DescriptorBindingName(
     Type_STLVector<Type_ANSIString> const& layouts) {
     ::std::regex reg(
-        R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*\)\s*(buffer|uniform)\s*(image2D|sampler2D)*\s+(.*)\s*[;|{|\s])");
+        R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*\)\s*(buffer|uniform)\s*(image2D|sampler2D)*\s+(\w*)[;|{|\s]*)");
     ::std::smatch m;
     for (auto const& layout : layouts) {
         auto pos = layout.cbegin();
@@ -625,7 +650,6 @@ Type_STLVector<vk::DescriptorSetLayout> ShaderObject::GetDescLayoutHandles()
 
 vk::ShaderEXT ShaderObject::CreateShader(vk::ShaderCreateFlagBitsEXT flags,
                                          void* pNext) {
-
     const auto datas =
         MergeDescLayoutData(Type_STLVector<ShaderBase*> {(ShaderBase*)this});
 
@@ -639,12 +663,20 @@ vk::ShaderEXT ShaderObject::CreateShader(vk::ShaderCreateFlagBitsEXT flags,
 
     auto pushConstant = GetPushContantData();
 
+    vk::ShaderStageFlagBits nextStage {};
+    if (mStage == vk::ShaderStageFlagBits::eTaskEXT) {
+        nextStage = vk::ShaderStageFlagBits::eMeshEXT;
+    } else if (mStage == vk::ShaderStageFlagBits::eMeshEXT) {
+        nextStage = vk::ShaderStageFlagBits::eFragment;
+    }
+
     vk::ShaderCreateInfoEXT shaderCreateInfo {};
     shaderCreateInfo.setFlags(flags)
         .setStage(mStage)
         .setCodeType(vk::ShaderCodeTypeEXT::eSpirv)
         .setPCode(mSPIRVBinaryCode.data())
         .setCodeSize(sizeof(mSPIRVBinaryCode[0]) * mSPIRVBinaryCode.size())
+        .setNextStage(nextStage)
         .setPName("main")
         .setPNext(pNext);
 
@@ -661,46 +693,47 @@ vk::ShaderEXT ShaderObject::CreateShader(vk::ShaderCreateFlagBitsEXT flags,
     return res.value;
 }
 
-ShaderProgram::ShaderProgram(Shader* comp, void* layoutPNext)
+ShaderProgram::ShaderProgram(ShaderBase* comp, void* layoutPNext)
     : mContext(comp->mContext) {
-    SetShader(ShaderStageFlag::Compute, comp);
+    SetShader(ShaderStage::Compute, comp);
     GenerateProgram(layoutPNext);
 }
 
-ShaderProgram::ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext)
-    : mContext(vert->mContext) {
-    SetShader(ShaderStageFlag::Vertex, vert);
-    SetShader(ShaderStageFlag::Fragment, frag);
-    GenerateProgram(layoutPNext);
-}
-
-ShaderProgram::ShaderProgram(Shader* task, Shader* mesh, Shader* frag,
+ShaderProgram::ShaderProgram(ShaderBase* vert, ShaderBase* frag,
                              void* layoutPNext)
+    : mContext(vert->mContext) {
+    SetShader(ShaderStage::Vertex, vert);
+    SetShader(ShaderStage::Fragment, frag);
+    GenerateProgram(layoutPNext);
+}
+
+ShaderProgram::ShaderProgram(ShaderBase* task, ShaderBase* mesh,
+                             ShaderBase* frag, void* layoutPNext)
     : mContext(mesh->mContext) {
     if (task)
-        SetShader(ShaderStageFlag::Task, task);
-    SetShader(ShaderStageFlag::Mesh, mesh);
-    SetShader(ShaderStageFlag::Fragment, frag);
+        SetShader(ShaderStage::Task, task);
+    SetShader(ShaderStage::Mesh, mesh);
+    SetShader(ShaderStage::Fragment, frag);
     GenerateProgram(layoutPNext);
 }
 
-const Shader* ShaderProgram::operator[](ShaderStageFlag stage) const {
+const ShaderBase* ShaderProgram::operator[](ShaderStage stage) const {
     return pShaders[Utils::EnumCast(stage)];
 }
 
-Shader* ShaderProgram::operator[](ShaderStageFlag stage) {
+ShaderBase* ShaderProgram::operator[](ShaderStage stage) {
     return pShaders[Utils::EnumCast(stage)];
 }
 
-::std::array<Shader*, Utils::EnumCast(ShaderStageFlag::Count)>
+::std::array<ShaderBase*, Utils::EnumCast(ShaderStage::Count)>
 ShaderProgram::GetShaderArray() const {
     return pShaders;
 }
 
 Type_STLVector<vk::PushConstantRange> ShaderProgram::GetPCRanges() const {
     Type_STLVector<vk::PushConstantRange> temp;
-    for (auto const& pc : mCombinedPushContants) {
-        temp.push_back(pc.second);
+    if (mCombinedPushContants) {
+        temp.push_back(mCombinedPushContants->second);
     }
     return temp;
 }
@@ -730,7 +763,7 @@ ShaderProgram::GetCombinedDescLayoutHandles() const {
     return layouts;
 }
 
-void ShaderProgram::SetShader(ShaderStageFlag stage, Shader* shader) {
+void ShaderProgram::SetShader(ShaderStage stage, ShaderBase* shader) {
     pShaders[Utils::EnumCast(stage)] = shader;
 }
 
@@ -738,7 +771,7 @@ void ShaderProgram::GenerateProgram(void* layoutPNext) {
     MergeDescLayoutDatas(layoutPNext);
     MergePushContantDatas();
 
-    if (auto frag = pShaders[Utils::EnumCast(ShaderStageFlag::Fragment)]) {
+    if (auto frag = pShaders[Utils::EnumCast(ShaderStage::Fragment)]) {
         mRtvNames = frag->mGLSL_OutVarNames;
     }
 }
@@ -759,10 +792,26 @@ void ShaderProgram::MergeDescLayoutDatas(void* pNext) {
 
 void ShaderProgram::MergePushContantDatas() {
     for (auto const& shader : pShaders)
-        if (shader)
-            if (auto data = shader->mPushContantData)
-                mCombinedPushContants.emplace_back(
-                    shader->mGLSL_PushContantName, *data);
+        if (shader) {
+            if (auto data = shader->mPushContantData) {
+                if (mCombinedPushContants) {
+                    auto& [name, range] = *mCombinedPushContants;
+                    if (range.size != data->size
+                        || range.offset != data->offset) {
+                        throw ::std::runtime_error(
+                            "all stages in pipeline share one unique push "
+                            "constant");
+                    } else {
+                        range.stageFlags |= data->stageFlags;
+                    }
+                } else {
+                    mCombinedPushContants = ::std::make_optional<
+                        ::std::pair<Type_STLString, vk::PushConstantRange>>();
+                    mCombinedPushContants.emplace(
+                        shader->mGLSL_PushContantName.c_str(), data.value());
+                }
+            }
+        }
 }
 
 void ShaderProgram::CreateDescLayouts(

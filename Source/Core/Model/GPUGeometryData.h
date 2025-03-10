@@ -31,16 +31,15 @@ struct MeshletPushConstants {
 
     vk::DeviceAddress mBoundingBoxBufAddr {};
     vk::DeviceAddress mMeshletBoundingBoxBufAddr {};
-};
 
-struct FragmentPushConstants {
     vk::DeviceAddress mMeshMaterialIdxBufAddr {};
     vk::DeviceAddress mMaterialBufAddr {};
 };
 
 class GPUGeometryData {
 public:
-    GPUGeometryData(VulkanContext& context, ModelData::CISDI_3DModel const& model);
+    GPUGeometryData(VulkanContext& context,
+                    ModelData::CISDI_3DModel const& model);
 
     void GenerateMeshletBuffers(VulkanContext& context,
                                 ModelData::CISDI_3DModel const& model);
@@ -57,7 +56,6 @@ public:
     GPUMeshBuffers& GetMeshBuffer();
     MeshletPushConstants GetMeshletPushContants() const;
     MeshletPushConstants* GetMeshletPushContantsPtr();
-    FragmentPushConstants* GetFragmentPushConstantsPtr();
 
     Buffer* GetMeshTaskIndirectCmdBuffer() const;
 
@@ -87,7 +85,6 @@ private:
     GPUMeshBuffers mBuffers {};
 
     MeshletPushConstants mMeshletConstants {};
-    FragmentPushConstants mFragmentConstants {};
 
     Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
     SharedPtr<Buffer> mMeshTaskIndirectCmdBuffer;

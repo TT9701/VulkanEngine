@@ -38,6 +38,10 @@ DGCTest::DGCTest(ApplicationSpecification const& spec)
         MakeUnique<IntelliDesign_NS::ModelData::ModelDataManager>(gMemPool);
 
     mGeoMgr = MakeUnique<GPUGeometryDataManager>(GetVulkanContext(), gMemPool);
+
+    mDGCSequenceMgr =
+        MakeUnique<DGCSequenceManager>(GetVulkanContext(), GetPipelineMgr(),
+                                       GetShaderMgr(), GetRenderResMgr());
 }
 
 DGCTest::~DGCTest() = default;
@@ -70,25 +74,25 @@ void DGCTest::LoadShaders() {
                                    SHADER_PATH_CSTR("MeshShader.frag"),
                                    vk::ShaderStageFlagBits::eFragment, true);
 
-    Type_ShaderMacros macros {};
-    macros.emplace("TASK_INVOCATION_COUNT",
-                   std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
+    Type_ShaderMacros taskMacros {};
+    taskMacros.emplace("TASK_INVOCATION_COUNT",
+                       std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
     shaderMgr.CreateShaderFromGLSL(
         "Mesh shader task", SHADER_PATH_CSTR("MeshShader.task"),
-        vk::ShaderStageFlagBits::eTaskEXT, false, macros);
+        vk::ShaderStageFlagBits::eTaskEXT, false, taskMacros);
 
-    macros.clear();
-    macros.emplace("MESH_INVOCATION_COUNT",
-                   std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
-    macros.emplace(
+    Type_ShaderMacros meshMacros {};
+    meshMacros.emplace("MESH_INVOCATION_COUNT",
+                       std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
+    meshMacros.emplace(
         "MAX_VERTICES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES).c_str());
-    macros.emplace(
+    meshMacros.emplace(
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
     shaderMgr.CreateShaderFromGLSL(
         "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
-        vk::ShaderStageFlagBits::eMeshEXT, true, macros);
+        vk::ShaderStageFlagBits::eMeshEXT, true, meshMacros);
 
     shaderMgr.CreateShaderFromGLSL("Quad vertex", SHADER_PATH_CSTR("Quad.vert"),
                                    vk::ShaderStageFlagBits::eVertex);
@@ -96,6 +100,32 @@ void DGCTest::LoadShaders() {
     shaderMgr.CreateShaderFromGLSL("Quad fragment",
                                    SHADER_PATH_CSTR("Quad.frag"),
                                    vk::ShaderStageFlagBits::eFragment);
+
+    /**
+     * shader objects
+     */
+    shaderMgr.CreateShaderObjectFromGLSL("computeDraw",
+                                         SHADER_PATH_CSTR("BackGround.comp"),
+                                         vk::ShaderStageFlagBits::eCompute);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "computeDraw-dgc-test", SHADER_PATH_CSTR("BackGround_DGCTest.comp"),
+        vk::ShaderStageFlagBits::eCompute);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "Mesh shader task", SHADER_PATH_CSTR("MeshShader.task"),
+        vk::ShaderStageFlagBits::eTaskEXT,
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable, false, taskMacros);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
+        vk::ShaderStageFlagBits::eMeshEXT,
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable, true, meshMacros);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "Mesh shader fragment", SHADER_PATH_CSTR("MeshShader.frag"),
+        vk::ShaderStageFlagBits::eFragment,
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable, true);
 }
 
 void DGCTest::PollEvents(SDL_Event* e, float deltaTime) {
@@ -208,9 +238,6 @@ void DGCTest::Prepare() {
             | vk::BufferUsageFlagBits::eTransferSrc,
         Buffer::MemoryType::DeviceLocal, sizeof(float) * 4);
 
-    _readbackBuf = GetVulkanContext().CreateReadBackBuffer(
-        "", sizeof(float) * 4 * 1600 * 900);
-
     {
         vk::DispatchIndirectCommand cmdBuffer {
             (uint32_t)::std::ceil(window.GetWidth() / 16.0),
@@ -238,7 +265,7 @@ void DGCTest::Prepare() {
         }
     }
 
-    prepare_compute_sequence();
+    // prepare_compute_sequence();
 
     prepare_compute_sequence_shader();
 
@@ -250,7 +277,9 @@ void DGCTest::Prepare() {
 
     AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
 
-    prepare_draw_mesh_task();
+    // prepare_draw_mesh_task();
+
+    prepare_draw_mesh_task_shader();
 
     PrepareUIContext();
 
@@ -261,142 +290,42 @@ void DGCTest::prepare_compute_sequence() {
     const uint32_t sequenceCount = 2;
     const uint32_t maxPipelineCount = 2;
     const uint32_t maxDrawCount = 1;
-    mDispatchSequence = MakeUnique<DispatchSequence>(
-        GetVulkanContext(), GetPipelineMgr(), sequenceCount, maxDrawCount,
-        maxPipelineCount);
 
-    auto& sequence = *mDispatchSequence;
-
-    // layouts
-    sequence.MakeSequenceLayout("Background");
-
-    // execution set
-    sequence.AddESObject("Background-dgctest")
-        .AddESObject("Background")
-        .MakeExecutionSet("Background");
+    auto& sequence = mDGCSequenceMgr->CreateSequence<DispatchSequenceTemp>(
+        {sequenceCount, maxDrawCount, maxPipelineCount, "Background"},
+        {"Background-dgctest"});
 
     // buffers
-    auto& sequenceData = sequence.GetSequenceData();
-    for (uint32_t i = 0; i < sequenceCount; ++i) {
-        sequenceData[i].index = i;
-        sequenceData[i].pushConstant = _baseColorFactor;
-        sequenceData[i]
-            .command.setX((uint32_t)std::ceil(1600 / 16.0))
-            .setY((uint32_t)std::ceil(900 / 16.0))
-            .setZ(1);
-    }
-
-    // init preprocess
     {
-        vk::GeneratedCommandsMemoryRequirementsInfoEXT memInfo {};
-        memInfo.setMaxSequenceCount(sequenceCount)
-            .setMaxDrawCount(maxDrawCount)
-            .setIndirectExecutionSet(mDispatchSequence->GetExecutionSet())
-            .setIndirectCommandsLayout(sequence.GetLayout().GetHandle());
+        auto data = mDGCSequenceMgr->CreateDataBuffer<DispatchSequenceTemp>(
+            "dgc_pipe_dispatch_test");
 
-        auto memReqs = GetVulkanContext()
-                           .GetDevice()
-                           ->getGeneratedCommandsMemoryRequirementsEXT(memInfo);
-
-        _preprocessSize = memReqs.memoryRequirements.size;
-
-        vk::BufferCreateInfo bufferCreateInfo {};
-        vk::BufferUsageFlags2CreateInfoKHR bufferFlags2 {};
-        bufferCreateInfo.size = _preprocessSize;
-        bufferFlags2.usage = vk::BufferUsageFlagBits2::ePreprocessBufferEXT
-                           | vk::BufferUsageFlagBits2::eIndirectBuffer
-                           | vk::BufferUsageFlagBits2::eShaderDeviceAddress;
-        bufferCreateInfo.pNext = &bufferFlags2;
-
-        _preprocessBuffer =
-            GetVulkanContext().GetDevice()->createBuffer(bufferCreateInfo);
-
-        auto const& memProps =
-            GetVulkanContext().GetPhysicalDevice().GetMemoryProperties();
-
-        uint32_t memTypeIndex {~0ui32};
-
-        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-            if (((memReqs.memoryRequirements.memoryTypeBits & (1 << i)) > 0)
-                && (memProps.memoryTypes[i].propertyFlags
-                    & vk::MemoryPropertyFlagBits::eDeviceLocal)
-                       == vk::MemoryPropertyFlagBits::eDeviceLocal) {
-                memTypeIndex = i;
-                break;
-            }
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].index = i;
+            data.data[i].pushConstant = _baseColorFactor;
+            data.data[i]
+                .command.setX((uint32_t)std::ceil(1600 / 16.0))
+                .setY((uint32_t)std::ceil(900 / 16.0))
+                .setZ(1);
         }
-
-        vk::MemoryAllocateFlagsInfo flagsInfo {
-            vk::MemoryAllocateFlagBits::eDeviceAddress};
-
-        auto req = GetVulkanContext().GetDevice()->getBufferMemoryRequirements(
-            _preprocessBuffer);
-
-        vk::MemoryAllocateInfo allocInfo {req.size, memTypeIndex, &flagsInfo};
-
-        _preprocessBufferMem =
-            GetVulkanContext().GetDevice()->allocateMemory(allocInfo);
-
-        GetVulkanContext().GetDevice()->bindBufferMemory(
-            _preprocessBuffer, _preprocessBufferMem, 0);
-
-        vk::BufferDeviceAddressInfo deviceAdressInfo {_preprocessBuffer};
-        _preprocessBufAddr =
-            GetVulkanContext().GetDevice()->getBufferAddress(deviceAdressInfo);
     }
-
-    sequence.Finalize();
 }
 
 void DGCTest::dgc_dispatch(vk::CommandBuffer cmd) {
-    const uint32_t sequenceCount = 2;
-    const uint32_t maxDrawCount = 1;
-    const auto seqLayoutStructSize =
-        sizeof(DispatchSequence::Type_SequenceTemplate);
-
-    cmd.bindPipeline(vk::PipelineBindPoint::eCompute,
-                     GetPipelineMgr().GetPipelineHandle("Background"));
-
-    vk::GeneratedCommandsInfoEXT info {};
-    info.indirectExecutionSet = mDispatchSequence->GetExecutionSet();
-    info.indirectCommandsLayout = mDispatchSequence->GetLayout().GetHandle();
-    info.maxSequenceCount = sequenceCount;
-    info.maxDrawCount = maxDrawCount;
-    info.preprocessAddress = _preprocessBufAddr;
-    info.preprocessSize = _preprocessSize;
-    info.indirectAddress = mDispatchSequence->GetSequenceDataBufferAddress();
-    info.indirectAddressSize = seqLayoutStructSize;
-    info.shaderStages = vk::ShaderStageFlagBits::eCompute;
-
-    cmd.executeGeneratedCommandsEXT(false, info);
+    GetRenderResMgr()["dgc_pipe_dispatch_test"].Execute(cmd);
 }
 
 void DGCTest::prepare_draw_mesh_task() {
     const uint32_t sequenceCount = 2;
     const uint32_t maxPipelineCount = 2;
     const uint32_t maxDrawCount = 2000;
-    mDrawSequence =
-        MakeUnique<DrawSequence>(GetVulkanContext(), GetPipelineMgr(),
-                                 sequenceCount, maxDrawCount, maxPipelineCount);
 
-    auto& sequence = *mDrawSequence;
-
-    const auto seqLayoutStructSize =
-        sizeof(DrawSequence::Type_SequenceTemplate);
+    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequenceTemp>(
+        {sequenceCount, maxDrawCount, maxPipelineCount, "MeshShaderDraw",
+         true});
 
     // buffers
     {
-        _draw_mesh_task_cmds = GetVulkanContext().CreateDeviceLocalBuffer(
-            "", seqLayoutStructSize * sequenceCount,
-            vk::BufferUsageFlagBits::eIndirectBuffer
-                | vk::BufferUsageFlagBits::eShaderDeviceAddress
-                | vk::BufferUsageFlagBits::eTransferDst);
-
-        auto staging = GetVulkanContext().CreateStagingBuffer(
-            "", seqLayoutStructSize * sequenceCount);
-
-        auto data = (DrawSequence::Type_SequenceTemplate*)staging->GetMapPtr();
-
         auto const& node = mScene->GetNode("cisdi");
         auto const& modelName = node.GetModel().name;
         auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
@@ -413,278 +342,122 @@ void DGCTest::prepare_draw_mesh_task() {
             IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
             * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
 
-        auto fragPc = *geo.GetFragmentPushConstantsPtr();
-
         auto const& cmdBuffer = *geo.GetMeshTaskIndirectCmdBuffer();
 
-        for (uint32_t i = 0; i < sequenceCount; ++i) {
-            data[i].index = 0;
-            data[i].pushConstant = meshletConstants[i];
-            data[i].command = vk::DrawIndirectCountIndirectCommandEXT {
+        auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequenceTemp>(
+            "dgc_pipe_draw_test");
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].index = i;
+            data.data[i].pushConstant = meshletConstants[i];
+            data.data[i].command = vk::DrawIndirectCountIndirectCommandEXT {
                 cmdBuffer.GetDeviceAddress(), (uint32_t)cmdBuffer.GetStride(),
                 cmdBuffer.GetCount()};
         }
-
-        {
-            auto cmd = GetVulkanContext().CreateCmdBufToBegin(
-                GetVulkanContext().GetQueue(QueueType::Transfer));
-            vk::BufferCopy cmdBufCopy {};
-            cmdBufCopy.setSize(seqLayoutStructSize * sequenceCount);
-            cmd->copyBuffer(staging->GetHandle(),
-                            _draw_mesh_task_cmds->GetHandle(), cmdBufCopy);
-        }
-    }
-
-    // layouts
-    sequence.MakeSequenceLayout("MeshShaderDraw", true);
-
-    // execution set
-    sequence.AddESObject("MeshShaderDraw").MakeExecutionSet("MeshShaderDraw");
-
-    // init preprocess
-    {
-        vk::GeneratedCommandsMemoryRequirementsInfoEXT memInfo {};
-        memInfo.setMaxSequenceCount(sequenceCount)
-            .setMaxDrawCount(maxDrawCount)
-            .setIndirectExecutionSet(sequence.GetExecutionSet())
-            .setIndirectCommandsLayout(sequence.GetLayout().GetHandle());
-
-        auto memReqs = GetVulkanContext()
-                           .GetDevice()
-                           ->getGeneratedCommandsMemoryRequirementsEXT(memInfo);
-
-        _draw_preprocessSize = memReqs.memoryRequirements.size;
-
-        vk::BufferCreateInfo bufferCreateInfo {};
-        vk::BufferUsageFlags2CreateInfoKHR bufferFlags2 {};
-        bufferCreateInfo.size = _draw_preprocessSize;
-        bufferFlags2.usage = vk::BufferUsageFlagBits2::ePreprocessBufferEXT
-                           | vk::BufferUsageFlagBits2::eIndirectBuffer
-                           | vk::BufferUsageFlagBits2::eShaderDeviceAddress;
-        bufferCreateInfo.pNext = &bufferFlags2;
-
-        _draw_preprocessBuffer =
-            GetVulkanContext().GetDevice()->createBuffer(bufferCreateInfo);
-
-        auto const& memProps =
-            GetVulkanContext().GetPhysicalDevice().GetMemoryProperties();
-
-        uint32_t memTypeIndex {~0ui32};
-
-        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-            if (((memReqs.memoryRequirements.memoryTypeBits & (1 << i)) > 0)
-                && (memProps.memoryTypes[i].propertyFlags
-                    & vk::MemoryPropertyFlagBits::eDeviceLocal)
-                       == vk::MemoryPropertyFlagBits::eDeviceLocal) {
-                memTypeIndex = i;
-                break;
-            }
-        }
-
-        auto req = GetVulkanContext().GetDevice()->getBufferMemoryRequirements(
-            _draw_preprocessBuffer);
-
-        vk::MemoryAllocateFlagsInfo flagsInfo {
-            vk::MemoryAllocateFlagBits::eDeviceAddress};
-
-        vk::MemoryAllocateInfo allocInfo {req.size, memTypeIndex, &flagsInfo};
-
-        _draw_preprocessBufferMem =
-            GetVulkanContext().GetDevice()->allocateMemory(allocInfo);
-
-        GetVulkanContext().GetDevice()->bindBufferMemory(
-            _draw_preprocessBuffer, _draw_preprocessBufferMem, 0);
-
-        vk::BufferDeviceAddressInfo deviceAdressInfo {_draw_preprocessBuffer};
-        _draw_preprocessBufAddr =
-            GetVulkanContext().GetDevice()->getBufferAddress(deviceAdressInfo);
     }
 }
 
 void DGCTest::dgc_draw_mesh_task(vk::CommandBuffer cmd) {
-    const uint32_t sequenceCount = 2;
-    const uint32_t maxDrawCount = 2000;
-    const auto seqLayoutStructSize =
-        sizeof(DrawSequence::Type_SequenceTemplate);
-
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics,
-                     GetPipelineMgr().GetPipelineHandle("MeshShaderDraw"));
-
-    vk::GeneratedCommandsInfoEXT info {};
-    info.indirectExecutionSet = mDrawSequence->GetExecutionSet();
-    info.indirectCommandsLayout = mDrawSequence->GetLayout().GetHandle();
-    info.maxSequenceCount = sequenceCount;
-    info.maxDrawCount = maxDrawCount;
-    info.preprocessAddress = _draw_preprocessBufAddr;
-    info.preprocessSize = _draw_preprocessSize;
-    info.indirectAddress = _draw_mesh_task_cmds->GetDeviceAddress();
-    info.indirectAddressSize = seqLayoutStructSize;
-    info.shaderStages = vk::ShaderStageFlagBits::eTaskEXT
-                      | vk::ShaderStageFlagBits::eMeshEXT
-                      | vk::ShaderStageFlagBits::eFragment;
-
-    cmd.executeGeneratedCommandsEXT(false, info);
+    GetRenderResMgr()["dgc_pipe_draw_test"].Execute(cmd);
 }
 
 void DGCTest::prepare_compute_sequence_shader() {
-    mComputeShader1 = MakeUnique<ShaderObject>(
-        GetVulkanContext(), "computeDraw", SHADER_PATH_CSTR("BackGround.comp"),
-        vk::ShaderStageFlagBits::eCompute, false, Type_ShaderMacros {},
-        vk::ShaderCreateFlagBitsEXT::eIndirectBindable);
-
-    mComputeShader2 = MakeUnique<ShaderObject>(
-        GetVulkanContext(), "computeDraw-dgc-test",
-        SHADER_PATH_CSTR("BackGround_DGCTest.comp"),
-        vk::ShaderStageFlagBits::eCompute, false, Type_ShaderMacros {},
-        vk::ShaderCreateFlagBitsEXT::eIndirectBindable);
-
-    auto descLayouts = mComputeShader1->GetDescLayoutHandles();
-    auto pcRanges = mComputeShader1->GetPushContantData().value();
-
     const uint32_t sequenceCount = 2;
     const uint32_t maxShaderCount = 2;
     const uint32_t maxDrawCount = 1;
-    mDispatchSequenceShader = MakeUnique<DispatchSequence_Shader>(
-        GetVulkanContext(), GetPipelineMgr(), sequenceCount, maxDrawCount,
-        maxShaderCount);
 
-    auto& sequence = *mDispatchSequenceShader;
-
-    // layouts
-    sequence.MakeSequenceLayout("Background");
-
-    // execution set
-    {
-        auto shaderHandle1 = mComputeShader1->GetHandle();
-        auto shaderHandle2 = mComputeShader2->GetHandle();
-
-        vk::IndirectExecutionSetShaderLayoutInfoEXT layoutInfo {};
-        layoutInfo.setSetLayouts(descLayouts);
-
-        vk::IndirectExecutionSetShaderInfoEXT esShaderInfo {};
-        esShaderInfo.setPushConstantRanges(pcRanges)
-            .setMaxShaderCount(maxShaderCount)
-            .setShaderCount(1)
-            .setInitialShaders(shaderHandle1)
-            .setSetLayoutInfos(layoutInfo);
-
-        vk::IndirectExecutionSetCreateInfoEXT esCreateInfo {};
-        esCreateInfo
-            .setType(vk::IndirectExecutionSetInfoTypeEXT::eShaderObjects)
-            .setInfo(&esShaderInfo);
-
-        _compute_shader_executionSet =
-            GetVulkanContext().GetDevice()->createIndirectExecutionSetEXT(
-                esCreateInfo);
-
-        ::std::array<vk::WriteIndirectExecutionSetShaderEXT, 2> writeIES {};
-        writeIES[0].setIndex(0).setShader(shaderHandle1);
-        writeIES[1].setIndex(1).setShader(shaderHandle2);
-
-        GetVulkanContext().GetDevice()->updateIndirectExecutionSetShaderEXT(
-            _compute_shader_executionSet, writeIES);
-    }
+    auto& sequence =
+        mDGCSequenceMgr->CreateSequence<DispatchSequence_ShaderTemp>(
+            {sequenceCount,
+             maxDrawCount,
+             maxShaderCount,
+             {{"computeDraw", vk::ShaderStageFlagBits::eCompute}}},
+            {{"computeDraw-dgc-test", vk::ShaderStageFlagBits::eCompute}});
 
     // buffers
-    auto& sequenceData = sequence.GetSequenceData();
-    for (uint32_t i = 0; i < sequenceCount; ++i) {
-        sequenceData[i].index = {i};
-        sequenceData[i].pushConstant = _baseColorFactor;
-        sequenceData[i]
-            .command.setX((uint32_t)std::ceil(1600 / 16.0))
-            .setY((uint32_t)std::ceil(900 / 16.0))
-            .setZ(1);
-    }
-
-    // init preprocess
     {
-        vk::GeneratedCommandsMemoryRequirementsInfoEXT memInfo {};
-        memInfo.setMaxSequenceCount(sequenceCount)
-            .setMaxDrawCount(maxDrawCount)
-            .setIndirectExecutionSet(_compute_shader_executionSet)
-            .setIndirectCommandsLayout(sequence.GetLayout().GetHandle());
+        auto data =
+            mDGCSequenceMgr->CreateDataBuffer<DispatchSequence_ShaderTemp>(
+                "dgc_shader_dispatch_test");
 
-        auto memReqs = GetVulkanContext()
-                           .GetDevice()
-                           ->getGeneratedCommandsMemoryRequirementsEXT(memInfo);
-
-        _preprocess_shader_Size = memReqs.memoryRequirements.size;
-
-        vk::BufferCreateInfo bufferCreateInfo {};
-        vk::BufferUsageFlags2CreateInfoKHR bufferFlags2 {};
-        bufferCreateInfo.size = _preprocess_shader_Size;
-        bufferFlags2.usage = vk::BufferUsageFlagBits2::ePreprocessBufferEXT
-                           | vk::BufferUsageFlagBits2::eIndirectBuffer
-                           | vk::BufferUsageFlagBits2::eShaderDeviceAddress;
-        bufferCreateInfo.pNext = &bufferFlags2;
-
-        _preprocess_shader_Buffer =
-            GetVulkanContext().GetDevice()->createBuffer(bufferCreateInfo);
-
-        auto const& memProps =
-            GetVulkanContext().GetPhysicalDevice().GetMemoryProperties();
-
-        uint32_t memTypeIndex {~0ui32};
-
-        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-            if (((memReqs.memoryRequirements.memoryTypeBits & (1 << i)) > 0)
-                && (memProps.memoryTypes[i].propertyFlags
-                    & vk::MemoryPropertyFlagBits::eDeviceLocal)
-                       == vk::MemoryPropertyFlagBits::eDeviceLocal) {
-                memTypeIndex = i;
-                break;
-            }
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].index = {i};
+            data.data[i].pushConstant = _baseColorFactor;
+            data.data[i]
+                .command.setX((uint32_t)std::ceil(1600 / 16.0))
+                .setY((uint32_t)std::ceil(900 / 16.0))
+                .setZ(1);
         }
-
-        vk::MemoryAllocateFlagsInfo flagsInfo {
-            vk::MemoryAllocateFlagBits::eDeviceAddress};
-
-        auto req = GetVulkanContext().GetDevice()->getBufferMemoryRequirements(
-            _preprocess_shader_Buffer);
-
-        vk::MemoryAllocateInfo allocInfo {req.size, memTypeIndex, &flagsInfo};
-
-        _preprocess_shader_BufferMem =
-            GetVulkanContext().GetDevice()->allocateMemory(allocInfo);
-
-        GetVulkanContext().GetDevice()->bindBufferMemory(
-            _preprocess_shader_Buffer, _preprocess_shader_BufferMem, 0);
-
-        vk::BufferDeviceAddressInfo deviceAdressInfo {
-            _preprocess_shader_Buffer};
-        _preprocess_shader_BufAddr =
-            GetVulkanContext().GetDevice()->getBufferAddress(deviceAdressInfo);
     }
-
-    sequence.Finalize();
 }
 
 void DGCTest::dgc_dispatch_shader(vk::CommandBuffer cmd) {
+    GetRenderResMgr()["dgc_shader_dispatch_test"].Execute(cmd);
+}
+
+void DGCTest::prepare_draw_mesh_task_shader() {
+    Type_ShaderMacros taskMacros {};
+    taskMacros.emplace("TASK_INVOCATION_COUNT",
+                       std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
+
+    Type_ShaderMacros meshMacros {};
+    meshMacros.emplace("MESH_INVOCATION_COUNT",
+                       std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
+    meshMacros.emplace(
+        "MAX_VERTICES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES).c_str());
+    meshMacros.emplace(
+        "MAX_PRIMITIVES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
+
     const uint32_t sequenceCount = 2;
-    const uint32_t maxDrawCount = 1;
-    const auto seqLayoutStructSize =
-        sizeof(DispatchSequence_Shader::Type_SequenceTemplate);
+    const uint32_t maxShaderCount = 3;
+    const uint32_t maxDrawCount = 2000;
 
-    constexpr auto stage = vk::ShaderStageFlagBits::eCompute;
+    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequence_ShaderTemp>(
+        {sequenceCount,
+         maxDrawCount,
+         maxShaderCount,
+         {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
+          {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
+          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}},
+         true});
 
-    const auto shaderHandle1 = mComputeShader1->GetHandle();
+    // buffers
+    {
+        auto const& node = mScene->GetNode("cisdi");
+        auto const& modelName = node.GetModel().name;
+        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
+        auto pushConstant = *geo.GetMeshletPushContantsPtr();
 
-    cmd.bindShadersEXT(1, &stage, &shaderHandle1);
+        ::std::array<MeshletPushConstants, 2> meshletConstants {};
 
-    vk::GeneratedCommandsInfoEXT info {};
-    info.indirectExecutionSet = _compute_shader_executionSet;
-    info.indirectCommandsLayout =
-        mDispatchSequenceShader->GetLayout().GetHandle();
-    info.maxSequenceCount = sequenceCount;
-    info.maxDrawCount = maxDrawCount;
-    info.preprocessAddress = _preprocess_shader_BufAddr;
-    info.preprocessSize = _preprocess_shader_Size;
-    info.indirectAddress =
-        mDispatchSequenceShader->GetSequenceDataBufferAddress();
-    info.indirectAddressSize = seqLayoutStructSize;
-    info.shaderStages = vk::ShaderStageFlagBits::eCompute;
+        meshletConstants[0] = pushConstant;
+        meshletConstants[0].mModelMatrix =
+            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
 
-    cmd.executeGeneratedCommandsEXT(false, info);
+        meshletConstants[1] = pushConstant;
+        meshletConstants[1].mModelMatrix =
+            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
+            * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
+
+        auto const& cmdBuffer = *geo.GetMeshTaskIndirectCmdBuffer();
+
+        auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequence_ShaderTemp>(
+            "dgc_shader_draw_test");
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].index = {i};
+            data.data[i].pushConstant = meshletConstants[i];
+            data.data[i].command = vk::DrawIndirectCountIndirectCommandEXT {
+                cmdBuffer.GetDeviceAddress(), (uint32_t)cmdBuffer.GetStride(),
+                cmdBuffer.GetCount()};
+        }
+    }
+}
+
+void DGCTest::dgc_draw_mesh_task_shader(vk::CommandBuffer cmd) {
+    GetRenderResMgr()["dgc_shader_draw_test"].Execute(cmd);
 }
 
 void DGCTest::BeginFrame(IDVC_NS::RenderFrame& frame) {
@@ -734,18 +507,10 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
-        // vk::BufferCopy cmdBufCopy {};
-        // cmdBufCopy.setSize(sizeof(float) * 1600 * 900);
-        // cmd.GetHandle().copyBuffer(
-        //     GetRenderResMgr()["RWBuffer"].GetBufferHandle(),
-        //     _readbackBuf->GetHandle(), cmdBufCopy);
-
         mRenderSequence.RecordPass("DrawMeshShader", cmd.GetHandle());
 
-        dgc_draw_mesh_task(cmd.GetHandle());
-
-        // mRenderSequence.RecordPass("Copytest", cmd.GetHandle());
-        // mRenderSequence.RecordPass("executortest", cmd.GetHandle());
+        // dgc_draw_mesh_task(cmd.GetHandle());
+        dgc_draw_mesh_task_shader(cmd.GetHandle());
 
         cmd.End();
 
@@ -768,12 +533,6 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
 void DGCTest::EndFrame(IDVC_NS::RenderFrame& frame) {
     Application::EndFrame(frame);
-
-    // printf("output data %f, %f, %f, %f. \n",
-    //        *((float*)_readbackBuf->GetMapPtr() + 4),
-    //        *((float*)_readbackBuf->GetMapPtr() + 5),
-    //        *((float*)_readbackBuf->GetMapPtr() + 6),
-    //        *((float*)_readbackBuf->GetMapPtr() + 7));
 }
 
 void DGCTest::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
@@ -1171,8 +930,9 @@ void DGCTest::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("场景信息")) {
-                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", mMainCamera->mPosition.x,
-                            mMainCamera->mPosition.y, mMainCamera->mPosition.z);
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]",
+                            mMainCamera->mPosition.x, mMainCamera->mPosition.y,
+                            mMainCamera->mPosition.z);
 
                 IDCMCore_NS::Float3 lightPos {IDCMCore_NS::Vector3Normalize(
                     {mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
@@ -1297,7 +1057,6 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
 
     cfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
         .SetBinding("PushConstants", meshPushContants)
-        .SetBinding("PushConstantsFrag", geo.GetFragmentPushConstantsPtr())
         .SetBinding("UBO", "SceneUniformBuffer")
         // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
@@ -1306,29 +1065,6 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
         .SetScissor({{0, 0}, {width, height}})
         .SetRenderArea({{0, 0}, {width, height}});
     // .SetExecuteInfo(executeInfos);
-
-    // cfg.AddCopyPass("Copytest")
-    //     .SetBinding(
-    //         {"SceneUniformBuffer", "RWBuffer", vk::BufferCopy2 {0, 0, 16}});
-
-    // cfg.AddExecutor("executortest")
-    //     .SetBinding({{"SceneUniformBuffer", vk::ImageLayout::eUndefined,
-    //                   vk::AccessFlagBits2::eTransferRead,
-    //                   vk::PipelineStageFlagBits2::eTransfer},
-    //                  {"RWBuffer", vk::ImageLayout::eUndefined,
-    //                   vk::AccessFlagBits2::eTransferWrite,
-    //                   vk::PipelineStageFlagBits2::eTransfer}})
-    //     .SetExecution([this](vk::CommandBuffer cmd,
-    //                          ExecutorConfig::ResourceStateInfos const& infos) {
-    //         vk::BufferCopy2 copyRegion {};
-    //         copyRegion.setSize(16);
-    //
-    //         vk::CopyBufferInfo2 info {
-    //             GetRenderResMgr()[infos[0].name].GetBufferHandle(),
-    //             GetRenderResMgr()[infos[1].name].GetBufferHandle(), copyRegion};
-    //
-    //         cmd.copyBuffer2(info);
-    //     });
 
     cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")

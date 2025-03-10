@@ -23,15 +23,15 @@ public:
     };
 
     // buffer
-    RenderResource(VulkanContext& context, Type type,
-                   size_t size, vk::BufferUsageFlags usage,
-                   Buffer::MemoryType memType, size_t texelSize = 1);
+    RenderResource(VulkanContext& context, Type type, size_t size,
+                   vk::BufferUsageFlags usage, Buffer::MemoryType memType,
+                   size_t texelSize = 1);
 
     // texture
-    RenderResource(VulkanContext& context, Type type,
-                   vk::Format format, vk::Extent3D extent,
-                   vk::ImageUsageFlags usage, uint32_t mipLevels,
-                   uint32_t arraySize, uint32_t sampleCount);
+    RenderResource(VulkanContext& context, Type type, vk::Format format,
+                   vk::Extent3D extent, vk::ImageUsageFlags usage,
+                   uint32_t mipLevels, uint32_t arraySize,
+                   uint32_t sampleCount);
 
     // texture for existing vk::image (swapchain images)
     RenderResource(VulkanContext& context, vk::Image handle, Type type,
@@ -49,8 +49,6 @@ public:
 
     void SetName(const char* name);
 
-    ::std::variant<Buffer, Texture> const& GetResource() const;
-
     // buffer
     vk::Buffer GetBufferHandle() const;
     void* GetBufferMappedPtr() const;
@@ -58,6 +56,9 @@ public:
     vk::BufferUsageFlags GetBufferUsageFlags() const;
     size_t GetBufferSize() const;
     Buffer::MemoryType GetBufferMemType() const;
+    uint32_t GetBufferStride() const;
+    void SetBufferDGCSequence(SharedPtr<DGCSequenceBase> const& dgcSeq);
+    void Execute(vk::CommandBuffer cmd) const;
 
     // texture
     void CreateTexView(const char* name, vk::ImageAspectFlags aspect,

@@ -2,28 +2,26 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderResource::RenderResource(VulkanContext& context,
-                               Type type, size_t size,
+RenderResource::RenderResource(VulkanContext& context, Type type, size_t size,
                                vk::BufferUsageFlags usage,
                                Buffer::MemoryType memType, size_t texelSize)
-    : mResource(std::in_place_type<Buffer>, context, size, usage,
-                memType, texelSize),
+    : mResource(std::in_place_type<Buffer>, context, size, usage, memType,
+                texelSize),
       mType(type) {}
 
-RenderResource::RenderResource(VulkanContext& context,
-                               Type type, vk::Format format,
-                               vk::Extent3D extent, vk::ImageUsageFlags usage,
-                               uint32_t mipLevels, uint32_t arraySize,
-                               uint32_t sampleCount)
+RenderResource::RenderResource(VulkanContext& context, Type type,
+                               vk::Format format, vk::Extent3D extent,
+                               vk::ImageUsageFlags usage, uint32_t mipLevels,
+                               uint32_t arraySize, uint32_t sampleCount)
     : mResource(std::in_place_type<Texture>, context,
                 static_cast<Texture::Type>(type), format, extent, usage,
                 mipLevels, arraySize, sampleCount),
       mType(type) {}
 
 RenderResource::RenderResource(VulkanContext& context, vk::Image handle,
-                               Type type,
-                               vk::Format format, vk::Extent3D extent,
-                               uint32_t arraySize, uint32_t sampleCount)
+                               Type type, vk::Format format,
+                               vk::Extent3D extent, uint32_t arraySize,
+                               uint32_t sampleCount)
     : mResource(std::in_place_type<Texture>, context, handle,
                 static_cast<Texture::Type>(type), format, extent, arraySize,
                 sampleCount),
@@ -58,10 +56,6 @@ void RenderResource::SetName(const char* name) {
     mName = name;
 }
 
-std::variant<Buffer, Texture> const& RenderResource::GetResource() const {
-    return mResource;
-}
-
 vk::Buffer RenderResource::GetBufferHandle() const {
     return ::std::get<Buffer>(mResource).GetHandle();
 }
@@ -84,6 +78,19 @@ size_t RenderResource::GetBufferSize() const {
 
 Buffer::MemoryType RenderResource::GetBufferMemType() const {
     return ::std::get<Buffer>(mResource).GetMemoryType();
+}
+
+uint32_t RenderResource::GetBufferStride() const {
+    return ::std::get<Buffer>(mResource).GetStride();
+}
+
+void RenderResource::SetBufferDGCSequence(
+    SharedPtr<DGCSequenceBase> const& dgcSeq) {
+    return ::std::get<Buffer>(mResource).SetDGCSequence(dgcSeq);
+}
+
+void RenderResource::Execute(vk::CommandBuffer cmd) const {
+    ::std::get<Buffer>(mResource).Execute(cmd);
 }
 
 void RenderResource::CreateTexView(const char* name,

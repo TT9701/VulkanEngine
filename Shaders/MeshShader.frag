@@ -1,8 +1,7 @@
 #version 460
- 
+
 #extension GL_ARB_shading_language_include : require
 #extension GL_EXT_nonuniform_qualifier : require
-#extension GL_EXT_buffer_reference : require
 
 layout (location = 0) in vec4 InColor;
 layout (location = 1) in vec3 InNormal;
@@ -13,30 +12,16 @@ layout (location = 4) in MeshIndex {
 } InMeshIdx;
 
 layout(location = 0) out vec4 outFragColor;
- 
-#include "Include/Structures.glsl"
 
-layout (set = 0, binding = 0) uniform UBO 
+#include "Include/Structures.glsl"
+#include "MeshShaderPushConstant.h"
+
+layout (set = 0, binding = 0) uniform UBO
 {
     SceneData data;
 } ubo;
 
 layout (set = 1, binding = 0) uniform sampler2D sceneTexs[];
-
-layout(buffer_reference, std430) readonly buffer MeshMaterialIndexBuffer{ 
-	uint materialIndices[];
-};
-
-layout(buffer_reference, std430) readonly buffer MaterialBuffer
-{ 
-	Material materials[];
-};
-
-layout( push_constant ) uniform PushConstantsFrag 
-{
-	layout(offset=152) MeshMaterialIndexBuffer meshMaterialIndexBuffer;
-	MaterialBuffer materialBuffer;
-} constants;
 
 void main()
 {
@@ -55,12 +40,12 @@ void main()
     if (dot(N, V) < 0.0){
         N = -N;
     }
-        
+
     // float metallic = ubo.data.metallicRoughness.x;
     // float roughness = ubo.data.metallicRoughness.y;
     // float ao = 1.0;
 
-    // vec3 F0 = vec3(0.04); 
+    // vec3 F0 = vec3(0.04);
     // F0 = mix(F0, albedo, metallic);
 
     // vec3 Lo = vec3(0.0);
@@ -70,19 +55,19 @@ void main()
     // float attenuation = 1.0;
     // vec3 radiance = ubo.data.sunLightColor.xyz * attenuation;
 
-    // float NDF = DistributionGGX(N, H, roughness);   
-    // float G   = GeometrySmith(N, V, L, roughness);      
+    // float NDF = DistributionGGX(N, H, roughness);
+    // float G   = GeometrySmith(N, V, L, roughness);
     // vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
-        
-    // vec3 numerator    = NDF * G * F; 
+
+    // vec3 numerator    = NDF * G * F;
     // float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // + 0.0001 to prevent divide by zero
     // vec3 specular = numerator / denominator;
-    
+
     // vec3 kS = F;
     // vec3 kD = vec3(1.0) - kS;
-    // kD *= 1.0 - metallic;	  
+    // kD *= 1.0 - metallic;
 
-    // float NdotL = max(dot(N, L), 0.0);        
+    // float NdotL = max(dot(N, L), 0.0);
 
     // Lo += (kD * albedo / PI + specular) * radiance * NdotL;
 
@@ -90,13 +75,13 @@ void main()
     // vec3 color = ambient + Lo;
 
     // color = color / (color + vec3(1.0));
-    // color = pow(color, vec3(1.0/2.2)); 
+    // color = pow(color, vec3(1.0/2.2));
 
-    vec4 color = CalculateLight(material, 
-                                normalize(ubo.data.sunLightPos.xyz), 
-                                ubo.data.cameraPos.xyz, 
-                                InPos.xyz, N, 
-                                ubo.data.sunLightColor.xyz);
+    vec4 color = CalculateLight(material,
+    normalize(ubo.data.sunLightPos.xyz),
+    ubo.data.cameraPos.xyz,
+    InPos.xyz, N,
+    ubo.data.sunLightColor.xyz);
 
     outFragColor = color;
 }

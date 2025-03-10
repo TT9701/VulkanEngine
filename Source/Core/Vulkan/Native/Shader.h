@@ -13,18 +13,18 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class Context;
 
-enum class ShaderStageFlag {
-    Vertex = 1 << 0,
-    Fragment = 1 << 1,
-    Compute = 1 << 2,
-    Task = 1 << 3,
-    Mesh = 1 << 4,
-    Count
-};
+enum class ShaderStage { Vertex, Fragment, Compute, Task, Mesh, Count };
 
 using Type_ShaderMacros = Type_STLUnorderedMap_String<Type_STLString>;
 
 class ShaderProgram;
+
+struct ShaderIDInfo {
+    const char* name;
+    vk::ShaderStageFlagBits stage;
+    Type_ShaderMacros macros {};
+    const char* entry {"main"};
+};
 
 class ShaderBase {
 public:
@@ -72,6 +72,8 @@ public:
     ::std::mutex& GetMutex();
 
 protected:
+    friend class ShaderProgram;
+
     void GLSLReflect(Type_ANSIString const& source);
     void GLSLReflect_DescriptorBindingName(
         Type_STLVector<Type_ANSIString> const& layouts);
@@ -102,8 +104,6 @@ protected:
 // TODO: Specialization parameters
 class Shader : public ShaderBase {
 public:
-    friend class ShaderProgram;
-
     // from spirv
     Shader(VulkanContext& context, const char* name, const char* spirvPath,
            vk::ShaderStageFlagBits stage, const char* entry = "main",
@@ -165,21 +165,22 @@ class ShaderProgram {
 
 public:
     using Type_CombinedPushContant =
-        Type_STLVector<::std::pair<Type_STLString, vk::PushConstantRange>>;
+        ::std::optional<::std::pair<Type_STLString, vk::PushConstantRange>>;
     using Type_ShaderArray =
-        ::std::array<Shader*, Utils::EnumCast(ShaderStageFlag::Count)>;
+        ::std::array<ShaderBase*, Utils::EnumCast(ShaderStage::Count)>;
 
 public:
-    ShaderProgram(Shader* comp, void* layoutPNext = nullptr);
-    ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext = nullptr);
-    ShaderProgram(Shader* task, Shader* mesh, Shader* frag,
+    ShaderProgram(ShaderBase* comp, void* layoutPNext = nullptr);
+    ShaderProgram(ShaderBase* vert, ShaderBase* frag,
+                  void* layoutPNext = nullptr);
+    ShaderProgram(ShaderBase* task, ShaderBase* mesh, ShaderBase* frag,
                   void* layoutPNext = nullptr);
 
     ~ShaderProgram() = default;
     CLASS_MOVABLE_ONLY(ShaderProgram);
 
-    const Shader* operator[](ShaderStageFlag stage) const;
-    Shader* operator[](ShaderStageFlag stage);
+    const ShaderBase* operator[](ShaderStage stage) const;
+    ShaderBase* operator[](ShaderStage stage);
 
     Type_ShaderArray GetShaderArray() const;
 
@@ -191,7 +192,7 @@ public:
         const;
 
 private:
-    void SetShader(ShaderStageFlag stage, Shader* shader);
+    void SetShader(ShaderStage stage, ShaderBase* shader);
     void GenerateProgram(void* layoutPNext);
 
     void MergeDescLayoutDatas(void* pNext);
