@@ -11,7 +11,7 @@
 #include "Core/Model/GPUGeometryDataManager.h"
 #include "Core/Model/ModelDataManager.h"
 
-#include "Core/Vulkan/Manager/DGCSequenceManager.h"
+#include "Core/Vulkan/Manager/DGCSeqManager.h"
 // #include "Core/Vulkan/Native/DGCSequence.h"
 
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
@@ -91,7 +91,7 @@ private:
     IDVC_NS::Type_STLString mImageName0 {};
     IDVC_NS::Type_STLString mImageName1 {};
 
-    IDVC_NS::UniquePtr<IDVC_NS::DGCSequenceManager> mDGCSequenceMgr {};
+    IDVC_NS::UniquePtr<IDVC_NS::DGCSeqManager> mDGCSequenceMgr {};
 
     /**
      *  dgc dispath
@@ -102,8 +102,8 @@ private:
     IDCMCore_NS::Float3 _baseColorFactor {0.0f, 0.0f, 0.01f};
 
     using DispatchSequenceTemp =
-        DGCSequenceTemplate<true, DGCExecutionSetType::Pipeline,
-                            IDCMCore_NS::Float3>;
+        DGCSeqTemplate<true, DGCExecutionSetType::Pipeline,
+                       IDCMCore_NS::Float3>;
 
     /**
      *  dgc draw mesh task
@@ -112,15 +112,15 @@ private:
     void dgc_draw_mesh_task(vk::CommandBuffer cmd);
 
     using DrawSequenceTemp =
-        DGCSequenceTemplate<false, DGCExecutionSetType::Pipeline,
-                            IDVC_NS::MeshletPushConstants>;
+        DGCSeqTemplate<false, DGCExecutionSetType::Pipeline,
+                       IDVC_NS::MeshletPushConstants>;
 
     /**
      * ShaderEXT compute test
      */
     using DispatchSequence_ShaderTemp =
-        DGCSequenceTemplate<true, DGCExecutionSetType::Shader_Dispatch,
-                            IDCMCore_NS::Float3>;
+        DGCSeqTemplate<true, DGCExecutionSetType::Shader_Dispatch,
+                       IDCMCore_NS::Float3>;
 
     void prepare_compute_sequence_shader();
     void dgc_dispatch_shader(vk::CommandBuffer cmd);
@@ -129,11 +129,13 @@ private:
      * ShaderEXT draw test
      */
     using DrawSequence_ShaderTemp =
-        DGCSequenceTemplate<false, DGCExecutionSetType::Shader_Draw,
-                            IDVC_NS::MeshletPushConstants>;
+        DGCSeqTemplate<false, DGCExecutionSetType::Shader_Draw,
+                       IDVC_NS::MeshletPushConstants>;
 
     void prepare_draw_mesh_task_shader();
     void dgc_draw_mesh_task_shader(vk::CommandBuffer cmd);
+
+    IDVC_NS::UniquePtr<IDVC_NS::DrawCallManager> mDrawCallMgr;
 };
 
 VE_CREATE_APPLICATION(DGCTest, 1600, 900);

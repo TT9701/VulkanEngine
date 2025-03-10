@@ -17,6 +17,10 @@ PipelineLayout::~PipelineLayout() {
     mContext.GetDevice()->destroy(mLayout);
 }
 
+ShaderProgram& PipelineLayout::GetShaderProgram() const {
+    return mProgram;
+}
+
 Type_STLVector<DescriptorSetLayout*> PipelineLayout::GetDescSetLayoutDatas()
     const {
     return mProgram.GetCombinedDescLayouts();

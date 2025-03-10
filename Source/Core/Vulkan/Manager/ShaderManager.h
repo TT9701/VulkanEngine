@@ -73,10 +73,11 @@ public:
                                           Type_ShaderMacros const& defines = {},
                                           const char* entry = "main");
 
-    ShaderProgram* CreateProgram(const char* name, Shader* comp);
-    ShaderProgram* CreateProgram(const char* name, Shader* vert, Shader* frag);
-    ShaderProgram* CreateProgram(const char* name, Shader* task, Shader* mesh,
-                                 Shader* frag);
+    ShaderProgram* CreateProgram(const char* name, ShaderBase* comp);
+    ShaderProgram* CreateProgram(const char* name, ShaderBase* vert,
+                                 ShaderBase* frag);
+    ShaderProgram* CreateProgram(const char* name, ShaderBase* task,
+                                 ShaderBase* mesh, ShaderBase* frag);
 
     ShaderProgram* GetProgram(const char* name) const;
 

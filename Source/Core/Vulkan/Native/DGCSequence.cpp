@@ -4,15 +4,14 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-DGCSequenceBase::DGCSequenceBase(VulkanContext& context, uint32_t sequenceCount,
-                                 uint32_t maxDrawCount,
-                                 uint32_t maxESObjectCount)
+DGCSeqBase::DGCSeqBase(VulkanContext& context, uint32_t sequenceCount,
+                       uint32_t maxDrawCount, uint32_t maxESObjectCount)
     : mContext(context),
       mMaxESObjectCount(maxESObjectCount),
       mMaxSequenceCount(sequenceCount),
       mMaxDrawCount(maxDrawCount) {}
 
-DGCSequenceBase::~DGCSequenceBase() {
+DGCSeqBase::~DGCSeqBase() {
     if (mExecutionSet != VK_NULL_HANDLE)
         mContext.GetDevice()->destroy(mExecutionSet);
 
@@ -23,11 +22,11 @@ DGCSequenceBase::~DGCSequenceBase() {
         mContext.GetDevice()->freeMemory(mPreprocessBuffer.memory);
 }
 
-uint32_t DGCSequenceBase::GetSequenceCount() const {
+uint32_t DGCSeqBase::GetSequenceCount() const {
     return mMaxSequenceCount;
 }
 
-void DGCSequenceBase::InsertInitialObjectToMap(const char* name, uint32_t idx) {
+void DGCSeqBase::InsertInitialObjectToMap(const char* name, uint32_t idx) {
     if (mObjectNamesIdxMap.contains(name)) {
         if (mObjectNamesIdxMap.at(name) != idx) {
             auto it = ::std::find_if(
@@ -45,12 +44,12 @@ void DGCSequenceBase::InsertInitialObjectToMap(const char* name, uint32_t idx) {
     }
 }
 
-void DGCSequenceBase::Preprocess(
+void DGCSeqBase::Preprocess(
     ::std::variant<vk::Pipeline, Type_STLVector<vk::ShaderEXT>> initialObjs) {
     vk::GeneratedCommandsMemoryRequirementsInfoEXT memInfo {};
     memInfo.setMaxSequenceCount(mMaxSequenceCount)
         .setMaxDrawCount(mMaxDrawCount)
-        .setIndirectCommandsLayout(mLayout->GetHandle());
+        .setIndirectCommandsLayout(mLayout.GetHandle());
 
     vk::GeneratedCommandsPipelineInfoEXT pipelineInfo {};
     vk::GeneratedCommandsShaderInfoEXT shaderInfo {};
@@ -121,16 +120,15 @@ void DGCSequenceBase::Preprocess(
         mContext.GetDevice()->getBufferAddress(deviceAdressInfo);
 }
 
-DGCSequence_ESPipeline::DGCSequence_ESPipeline(VulkanContext& context,
-                                               PipelineManager& pipelineMgr,
-                                               uint32_t maxSequenceCount,
-                                               uint32_t maxDrawCount,
-                                               uint32_t maxPipelineCount)
-    : DGCSequenceBase(context, maxSequenceCount, maxDrawCount,
-                      maxPipelineCount),
+DGCSeq_ESPipeline::DGCSeq_ESPipeline(VulkanContext& context,
+                                     PipelineManager& pipelineMgr,
+                                     uint32_t maxSequenceCount,
+                                     uint32_t maxDrawCount,
+                                     uint32_t maxPipelineCount)
+    : DGCSeqBase(context, maxSequenceCount, maxDrawCount, maxPipelineCount),
       mPipelineMgr(pipelineMgr) {}
 
-DGCSequence_ESPipeline& DGCSequence_ESPipeline::AddPipeline(const char* name) {
+DGCSeq_ESPipeline& DGCSeq_ESPipeline::AddPipeline(const char* name) {
     uint32_t size = mObjectNamesIdxMap.size();
     VE_ASSERT(size < mMaxESObjectCount,
               "The number of pipelines exceeds the maximum limit.");
@@ -139,7 +137,7 @@ DGCSequence_ESPipeline& DGCSequence_ESPipeline::AddPipeline(const char* name) {
     return *this;
 }
 
-void DGCSequence_ESPipeline::MakeExecutionSet(const char* initialPipelineName) {
+void DGCSeq_ESPipeline::MakeExecutionSet(const char* initialPipelineName) {
     mInitialPipeline = mPipelineMgr.GetPipelineHandle(initialPipelineName);
 
     if (!mUseExecutionSet)
@@ -172,12 +170,11 @@ void DGCSequence_ESPipeline::MakeExecutionSet(const char* initialPipelineName) {
                                                                 writeIES);
 }
 
-void DGCSequence_ESPipeline::Finalize() {
+void DGCSeq_ESPipeline::Finalize() {
     Preprocess(mInitialPipeline);
 }
 
-void DGCSequence_ESPipeline::Execute(vk::CommandBuffer cmd,
-                                     Buffer const& buffer) {
+void DGCSeq_ESPipeline::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
     if (mUseExecutionSet) {
         cmd.bindPipeline(GetPipelineBindPoint(), mInitialPipeline);
     }
@@ -185,7 +182,7 @@ void DGCSequence_ESPipeline::Execute(vk::CommandBuffer cmd,
     vk::GeneratedCommandsPipelineInfoEXT pipelineInfo {};
 
     vk::GeneratedCommandsInfoEXT info {};
-    info.setIndirectCommandsLayout(mLayout->GetHandle())
+    info.setIndirectCommandsLayout(mLayout.GetHandle())
         .setMaxSequenceCount(mMaxSequenceCount)
         .setMaxDrawCount(mMaxDrawCount)
         .setPreprocessAddress(mPreprocessBuffer.address)
@@ -206,17 +203,15 @@ void DGCSequence_ESPipeline::Execute(vk::CommandBuffer cmd,
     cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, info);
 }
 
-DGCSequence_ESShader::DGCSequence_ESShader(VulkanContext& context,
-                                           ShaderManager& shaderMgr,
-                                           uint32_t maxSequenceCount,
-                                           uint32_t maxDrawCount,
-                                           uint32_t maxPipelineCount)
-    : DGCSequenceBase(context, maxSequenceCount, maxDrawCount,
-                      maxPipelineCount),
+DGCSeq_ESShader::DGCSeq_ESShader(VulkanContext& context,
+                                 ShaderManager& shaderMgr,
+                                 uint32_t maxSequenceCount,
+                                 uint32_t maxDrawCount,
+                                 uint32_t maxPipelineCount)
+    : DGCSeqBase(context, maxSequenceCount, maxDrawCount, maxPipelineCount),
       mShaderMgr(shaderMgr) {}
 
-DGCSequence_ESShader& DGCSequence_ESShader::AddShader(
-    ShaderIDInfo const& idInfo) {
+DGCSeq_ESShader& DGCSeq_ESShader::AddShader(ShaderIDInfo const& idInfo) {
     uint32_t size = mObjectNamesIdxMap.size();
     VE_ASSERT(size < mMaxESObjectCount,
               "The number of pipelines exceeds the maximum limit.");
@@ -228,7 +223,7 @@ DGCSequence_ESShader& DGCSequence_ESShader::AddShader(
     return *this;
 }
 
-void DGCSequence_ESShader::MakeExecutionSet(
+void DGCSeq_ESShader::MakeExecutionSet(
     Type_STLVector<ShaderIDInfo> const& initialShaderIdInfos) {
     VE_ASSERT(mShaderCount == initialShaderIdInfos.size(),
               "Invalid number of shaders for the sequence.");
@@ -320,12 +315,11 @@ void DGCSequence_ESShader::MakeExecutionSet(
                                                               writeIES);
 }
 
-void DGCSequence_ESShader::Finalize() {
+void DGCSeq_ESShader::Finalize() {
     Preprocess(mInitialShaders);
 }
 
-void DGCSequence_ESShader::Execute(vk::CommandBuffer cmd,
-                                   Buffer const& buffer) {
+void DGCSeq_ESShader::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
     if (mUseExecutionSet) {
         cmd.bindShadersEXT(GetStageFlagBitArray(), mInitialShaders);
     }
@@ -333,7 +327,7 @@ void DGCSequence_ESShader::Execute(vk::CommandBuffer cmd,
     vk::GeneratedCommandsShaderInfoEXT shaderInfo {};
 
     vk::GeneratedCommandsInfoEXT info {};
-    info.setIndirectCommandsLayout(mLayout->GetHandle())
+    info.setIndirectCommandsLayout(mLayout.GetHandle())
         .setMaxSequenceCount(mMaxSequenceCount)
         .setMaxDrawCount(mMaxDrawCount)
         .setPreprocessAddress(mPreprocessBuffer.address)
@@ -354,7 +348,7 @@ void DGCSequence_ESShader::Execute(vk::CommandBuffer cmd,
     cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, info);
 }
 
-uint32_t DGCSequence_ESShader::ShaderStageToIdx(
+uint32_t DGCSeq_ESShader::ShaderStageToIdx(
     vk::ShaderStageFlagBits stage) const {
     switch (stage) {
         case vk::ShaderStageFlagBits::eTaskEXT: return TaskShaderIdx;
@@ -364,7 +358,7 @@ uint32_t DGCSequence_ESShader::ShaderStageToIdx(
     }
 }
 
-void DGCSequence_ESShader::MakeExecutionSet(
+void DGCSeq_ESShader::MakeExecutionSet(
     ShaderIDInfo const& initialShaderIdInfo) {
     const auto name = ShaderManager::ParseShaderName(
         initialShaderIdInfo.name, initialShaderIdInfo.stage,
@@ -416,17 +410,16 @@ void DGCSequence_ESShader::MakeExecutionSet(
                                                               writeIES);
 }
 
-void DGCSequenceBase::Finalize() {}
+void DGCSeqBase::Finalize() {}
 
-vk::PipelineBindPoint DGCSequenceBase::GetPipelineBindPoint() {
+vk::PipelineBindPoint DGCSeqBase::GetPipelineBindPoint() {
     if (mIsCompute)
         return vk::PipelineBindPoint::eCompute;
     else
         return vk::PipelineBindPoint::eGraphics;
 }
 
-Type_STLVector<vk::ShaderStageFlagBits>
-DGCSequenceBase::GetStageFlagBitArray() {
+Type_STLVector<vk::ShaderStageFlagBits> DGCSeqBase::GetStageFlagBitArray() {
     if (mIsCompute)
         return {vk::ShaderStageFlagBits::eCompute};
     else
@@ -435,7 +428,7 @@ DGCSequenceBase::GetStageFlagBitArray() {
                 vk::ShaderStageFlagBits::eFragment};
 }
 
-vk::ShaderStageFlags DGCSequenceBase::GetStageFlags() {
+vk::ShaderStageFlags DGCSeqBase::GetStageFlags() {
     if (mIsCompute)
         return vk::ShaderStageFlagBits::eCompute;
     else

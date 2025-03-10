@@ -9,7 +9,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class VulkanContext;
 class DescriptorManager;
-class DGCSequenceBase;
+class DGCSeqBase;
 
 class Buffer {
 public:
@@ -40,7 +40,7 @@ public:
     // for mapped buffers, non mapped buffers return nullptr
     void* GetMapPtr() const;
 
-    void SetDGCSequence(SharedPtr<DGCSequenceBase> const& dgcSeq);
+    void SetDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq);
 
     void SetName(const char* name) const;
 
@@ -70,7 +70,7 @@ protected:
     VmaAllocation mAllocation {};
     VmaAllocationInfo mAllocationInfo {};
 
-    SharedPtr<DGCSequenceBase> mDGCSequence {};
+    SharedPtr<DGCSeqBase> mDGCSequence {};
 
     vk::Buffer mHandle;
 };

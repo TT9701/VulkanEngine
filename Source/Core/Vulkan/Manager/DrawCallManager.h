@@ -86,6 +86,8 @@ public:
 
     void AddArgument_DrawMeshTask(uint32_t x, uint32_t y, uint32_t z);
 
+    void AddArgument_DGCSequence(RenderResource const* sequenceBuffer);
+
     void AddArgument_CopyBufferToBuffer(const char* src, const char* dst,
                                         const vk::BufferCopy2* region);
 

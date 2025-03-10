@@ -120,6 +120,11 @@ void DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask>::RecordCmds(
     cmd.drawMeshTasksEXT(x, y, z);
 }
 
+void DrawCallMetaData<DrawCallMetaDataType::DGCSequence>::RecordCmds(
+    vk::CommandBuffer cmd) const {
+    sequenceBuffer->Execute(cmd);
+}
+
 void DrawCallMetaData<DrawCallMetaDataType::Copy>::RecordCmds(
     vk::CommandBuffer cmd) const {
     if (auto buffer2Buffer = ::std::get_if<vk::CopyBufferInfo2>(&info)) {

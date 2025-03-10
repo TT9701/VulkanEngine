@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Utilities/Defines.h"
-#include "DGCSequenceLayout.h"
+#include "DGCSeqRenderLayout.h"
 
 #include "Core/Vulkan/Manager/PipelineManager.h"
 #include "Core/Vulkan/Manager/ShaderManager.h"
@@ -10,7 +10,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class Buffer;
 
-class DGCSequenceBase {
+class DGCSeqBase {
     struct PreprocessBuffer {
         uint32_t size;
         vk::Buffer handle;
@@ -19,10 +19,10 @@ class DGCSequenceBase {
     };
 
 public:
-    DGCSequenceBase(VulkanContext& context, uint32_t sequenceCount,
-                    uint32_t maxDrawCount, uint32_t maxESObjectCount);
+    DGCSeqBase(VulkanContext& context, uint32_t sequenceCount,
+               uint32_t maxDrawCount, uint32_t maxESObjectCount);
 
-    virtual ~DGCSequenceBase();
+    virtual ~DGCSeqBase();
 
     uint32_t GetSequenceCount() const;
 
@@ -56,22 +56,22 @@ protected:
 
     vk::IndirectExecutionSetEXT mExecutionSet;
 
-    Type_UniquePtr<SequenceLayout> mLayout;
+    DGCSeqRenderLayout mLayout {};
 
     PreprocessBuffer mPreprocessBuffer {};
 
     bool mExplicitPreprocess {false};
 };
 
-class DGCSequence_ESPipeline : public DGCSequenceBase {
+class DGCSeq_ESPipeline : public DGCSeqBase {
 public:
-    DGCSequence_ESPipeline(VulkanContext& context, PipelineManager& pipelineMgr,
-                           uint32_t maxSequenceCount, uint32_t maxDrawCount,
-                           uint32_t maxPipelineCount);
+    DGCSeq_ESPipeline(VulkanContext& context, PipelineManager& pipelineMgr,
+                      uint32_t maxSequenceCount, uint32_t maxDrawCount,
+                      uint32_t maxPipelineCount);
 
-    DGCSequence_ESPipeline& AddPipeline(const char* name);
+    DGCSeq_ESPipeline& AddPipeline(const char* name);
 
-    template <class TDGCSequenceTemplate>
+    template <class TDGCSeqTemplate>
     void MakeSequenceLayout(const char* pipelineLayoutName,
                             bool unorderedSequence = false,
                             bool explicitPreprocess = false);
@@ -88,15 +88,15 @@ private:
     vk::Pipeline mInitialPipeline;
 };
 
-class DGCSequence_ESShader : public DGCSequenceBase {
+class DGCSeq_ESShader : public DGCSeqBase {
 public:
-    DGCSequence_ESShader(VulkanContext& context, ShaderManager& shaderMgr,
-                         uint32_t maxSequenceCount, uint32_t maxDrawCount,
-                         uint32_t maxPipelineCount);
+    DGCSeq_ESShader(VulkanContext& context, ShaderManager& shaderMgr,
+                    uint32_t maxSequenceCount, uint32_t maxDrawCount,
+                    uint32_t maxPipelineCount);
 
-    DGCSequence_ESShader& AddShader(ShaderIDInfo const& idInfo);
+    DGCSeq_ESShader& AddShader(ShaderIDInfo const& idInfo);
 
-    template <class TDGCSequenceTemplate>
+    template <class TDGCSeqTemplate>
     void MakeSequenceLayout(Type_STLVector<ShaderIDInfo> const& idInfos,
                             bool unorderedSequence = false,
                             bool explicitPreprocess = false);
@@ -113,7 +113,7 @@ private:
 
     uint32_t ShaderStageToIdx(vk::ShaderStageFlagBits stage) const;
 
-    template <class TDGCSequenceTemplate>
+    template <class TDGCSeqTemplate>
     void MakeSequenceLayout(ShaderIDInfo const& idInfo,
                             bool unorderedSequence = false,
                             bool explicitPreprocess = false);
@@ -128,35 +128,39 @@ private:
     Type_STLVector<vk::ShaderEXT> mInitialShaders {};
 };
 
-template <class TDGCSequenceTemplate>
-void DGCSequence_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
-                                                bool unorderedSequence,
-                                                bool explicitPreprocess) {
+template <class TDGCSeqTemplate>
+void DGCSeq_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
+                                           bool unorderedSequence,
+                                           bool explicitPreprocess) {
     auto pipelineLayout = mPipelineMgr.GetLayoutHandle(pipelineLayoutName);
 
-    mLayout = CreateLayout<TDGCSequenceTemplate>(
-        mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
+    mLayout.CreateLayout<TDGCSeqTemplate>(
+        mContext, mPipelineMgr.GetLayout(pipelineLayoutName), unorderedSequence,
+        explicitPreprocess);
+
+    // mLayout = CreateLayout<TDGCSeqTemplate>(
+    //     mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
 
     mExplicitPreprocess = explicitPreprocess;
-    mIsCompute = TDGCSequenceTemplate::_IsCompute_;
-    mUseExecutionSet = TDGCSequenceTemplate::_UseExecutionSet_;
+    mIsCompute = TDGCSeqTemplate::_IsCompute_;
+    mUseExecutionSet = TDGCSeqTemplate::_UseExecutionSet_;
 }
 
-template <class TDGCSequenceTemplate>
-void DGCSequence_ESShader::MakeSequenceLayout(
+template <class TDGCSeqTemplate>
+void DGCSeq_ESShader::MakeSequenceLayout(
     Type_STLVector<ShaderIDInfo> const& idInfos, bool unorderedSequence,
     bool explicitPreprocess) {
-    mUseExecutionSet = TDGCSequenceTemplate::_UseExecutionSet_ ? true : false;
-    mIsCompute = TDGCSequenceTemplate::_IsCompute_ ? true : false;
-    mShaderCount = TDGCSequenceTemplate::_IsCompute_ ? 1 : 3;
+    mUseExecutionSet = TDGCSeqTemplate::_UseExecutionSet_ ? true : false;
+    mIsCompute = TDGCSeqTemplate::_IsCompute_ ? true : false;
+    mShaderCount = TDGCSeqTemplate::_IsCompute_ ? 1 : 3;
     mInitialShaders.resize(mShaderCount);
 
     VE_ASSERT(mShaderCount == idInfos.size(),
               "Invalid number of shaders for the sequence.");
 
     if (idInfos.size() == 1) {
-        MakeSequenceLayout<TDGCSequenceTemplate>(idInfos[0], unorderedSequence,
-                                                 explicitPreprocess);
+        MakeSequenceLayout<TDGCSeqTemplate>(idInfos[0], unorderedSequence,
+                                            explicitPreprocess);
         return;
     }
 
@@ -173,28 +177,29 @@ void DGCSequence_ESShader::MakeSequenceLayout(
         }
     }
 
-    auto program = ShaderManager::MakeTempProgram(
-        shaderObjects[TaskShaderIdx], shaderObjects[MeshShaderIdx],
-        shaderObjects[FragmentShaderIdx]);
+    auto program = mShaderMgr.CreateProgram(
+        typeid(TDGCSeqTemplate).name(), shaderObjects[TaskShaderIdx],
+        shaderObjects[MeshShaderIdx], shaderObjects[FragmentShaderIdx]);
 
-    auto descLayout = program.GetCombinedDescLayoutHandles();
-    auto pcRange = program.GetPCRanges()[0];
-
-    mLayout = CreateLayout<TDGCSequenceTemplate>(
-        mContext, descLayout, pcRange, unorderedSequence, explicitPreprocess);
+    mLayout.CreateLayout<TDGCSeqTemplate>(mContext, program, unorderedSequence,
+                                          explicitPreprocess);
 }
 
-template <class TDGCSequenceTemplate>
-void DGCSequence_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
-                                              bool unorderedSequence,
-                                              bool explicitPreprocess) {
+template <class TDGCSeqTemplate>
+void DGCSeq_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
+                                         bool unorderedSequence,
+                                         bool explicitPreprocess) {
+    VE_ASSERT(idInfo.stage == vk::ShaderStageFlagBits::eCompute,
+              "Invalid shader stage for the sequence.");
+
     auto shader = mShaderMgr.GetShaderObject(idInfo.name, idInfo.stage,
                                              idInfo.macros, idInfo.entry);
-    const auto descLayout = shader->GetDescLayoutHandles();
-    const auto pcRange = shader->GetPushContantData();
 
-    mLayout = CreateLayout<TDGCSequenceTemplate>(
-        mContext, descLayout, pcRange, unorderedSequence, explicitPreprocess);
+    auto program =
+        mShaderMgr.CreateProgram(typeid(TDGCSeqTemplate).name(), shader);
+
+    mLayout.CreateLayout<TDGCSeqTemplate>(mContext, program, unorderedSequence,
+                                          explicitPreprocess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

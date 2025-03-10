@@ -232,44 +232,41 @@ enum class DGCExecutionSetType { None, Pipeline, Shader_Dispatch, Shader_Draw };
 
 template <bool IsCompute, DGCExecutionSetType ESType,
           class TPushConstant = void>
-struct DGCSequenceTemplate;
+struct DGCSeqTemplate;
 
 template <bool IsCompute, class TPushConstant>
-struct DGCSequenceTemplate<IsCompute, DGCExecutionSetType::None, TPushConstant>
+struct DGCSeqTemplate<IsCompute, DGCExecutionSetType::None, TPushConstant>
     : SequenceTemplate<IsCompute, void, TPushConstant> {};
 
 template <bool IsCompute, class TPushConstant>
-struct DGCSequenceTemplate<IsCompute, DGCExecutionSetType::Pipeline,
-                           TPushConstant>
+struct DGCSeqTemplate<IsCompute, DGCExecutionSetType::Pipeline, TPushConstant>
     : SequenceTemplate<IsCompute, ExecutionSetInfo<true>, TPushConstant> {};
 
 template <class TPushConstant>
-struct DGCSequenceTemplate<true, DGCExecutionSetType::Shader_Dispatch,
-                           TPushConstant>
+struct DGCSeqTemplate<true, DGCExecutionSetType::Shader_Dispatch, TPushConstant>
     : SequenceTemplate<true, ExecutionSetInfo<false>, TPushConstant> {};
 
 template <class TPushConstant>
-struct DGCSequenceTemplate<false, DGCExecutionSetType::Shader_Draw,
-                           TPushConstant>
+struct DGCSeqTemplate<false, DGCExecutionSetType::Shader_Draw, TPushConstant>
     : SequenceTemplate<false, ExecutionSetInfo<false, 3>, TPushConstant> {};
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-class SequenceLayout {
+class DGCSeqLayout {
 public:
-    explicit SequenceLayout(VulkanContext& context);
-    ~SequenceLayout();
+    explicit DGCSeqLayout(VulkanContext& context);
+    ~DGCSeqLayout();
 
     vk::IndirectCommandsLayoutEXT GetHandle() const;
 
 private:
-    template <class TDGCSequenceTemplate>
-    friend Type_UniquePtr<SequenceLayout> CreateLayout(
+    template <class TDGCSeqTemplate>
+    friend Type_UniquePtr<DGCSeqLayout> CreateLayout(
         VulkanContext& context, vk::PipelineLayout pipelineLayout,
         bool unorderedSequence, bool explicitPreprocess);
 
-    template <class TDGCSequenceTemplate>
-    friend Type_UniquePtr<SequenceLayout> CreateLayout(
+    template <class TDGCSeqTemplate>
+    friend Type_UniquePtr<DGCSeqLayout> CreateLayout(
         VulkanContext& context,
         Type_STLVector<vk::DescriptorSetLayout> const& descSetLayouts,
         ::std::optional<vk::PushConstantRange> const& pcRange,
@@ -281,17 +278,17 @@ private:
     vk::IndirectCommandsLayoutEXT mHandle;
 };
 
-template <class TDGCSequenceTemplate>
+template <class TDGCSeqTemplate>
 Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> MakeTokenDatas(
     vk::ShaderStageFlags stages,
     vk::IndirectCommandsExecutionSetTokenEXT& esToken,
     vk::IndirectCommandsPushConstantTokenEXT& pcToken) {
-    constexpr bool isCompute = TDGCSequenceTemplate::_IsCompute_;
+    constexpr bool isCompute = TDGCSeqTemplate::_IsCompute_;
 
     Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> tokenDatas {};
 
-    if constexpr (TDGCSequenceTemplate::_UseExecutionSet_) {
-        if constexpr (TDGCSequenceTemplate::_UsePipeline_) {
+    if constexpr (TDGCSeqTemplate::_UseExecutionSet_) {
+        if constexpr (TDGCSeqTemplate::_UsePipeline_) {
             esToken.setType(vk::IndirectExecutionSetInfoTypeEXT::ePipelines);
         } else {
             esToken.setType(
@@ -304,25 +301,23 @@ Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> MakeTokenDatas(
 
         vk::IndirectCommandsLayoutTokenEXT token {};
         token.setType(vk::IndirectCommandsTokenTypeEXT::eExecutionSet)
-            .setOffset(offsetof(TDGCSequenceTemplate, index))
+            .setOffset(offsetof(TDGCSeqTemplate, index))
             .setData(esTokenData);
 
         tokenDatas.push_back(token);
     }
 
     if constexpr (!::std::is_same_v<
-                      typename TDGCSequenceTemplate::_Type_PushConstant_,
-                      void>) {
+                      typename TDGCSeqTemplate::_Type_PushConstant_, void>) {
         pcToken.setUpdateRange(
-            {stages, 0,
-             sizeof(typename TDGCSequenceTemplate::_Type_PushConstant_)});
+            {stages, 0, sizeof(typename TDGCSeqTemplate::_Type_PushConstant_)});
 
         vk::IndirectCommandsTokenDataEXT pcTokenData {};
         pcTokenData.setPPushConstant(&pcToken);
 
         vk::IndirectCommandsLayoutTokenEXT token {};
         token.setType(vk::IndirectCommandsTokenTypeEXT::ePushConstant)
-            .setOffset(offsetof(TDGCSequenceTemplate, pushConstant))
+            .setOffset(offsetof(TDGCSeqTemplate, pushConstant))
             .setData(pcTokenData);
 
         tokenDatas.push_back(token);
@@ -333,7 +328,7 @@ Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> MakeTokenDatas(
         .setType(isCompute
                      ? vk::IndirectCommandsTokenTypeEXT::eDispatch
                      : vk::IndirectCommandsTokenTypeEXT::eDrawMeshTasksCount)
-        .setOffset(offsetof(TDGCSequenceTemplate, command));
+        .setOffset(offsetof(TDGCSeqTemplate, command));
     tokenDatas.push_back(idCmdtoken);
 
     return tokenDatas;
@@ -358,29 +353,27 @@ inline vk::IndirectCommandsLayoutCreateInfoEXT MakeDGCLayoutCreateInfo(
     return info;
 }
 
-template <class TDGCSequenceTemplate>
-Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
-                                            vk::PipelineLayout pipelineLayout,
-                                            bool unorderedSequence = false,
-                                            bool explicitPreprocess = false) {
-    auto layout = MakeUnique<SequenceLayout>(context);
+template <class TDGCSeqTemplate>
+Type_UniquePtr<DGCSeqLayout> CreateLayout(VulkanContext& context,
+                                          vk::PipelineLayout pipelineLayout,
+                                          bool unorderedSequence = false,
+                                          bool explicitPreprocess = false) {
+    auto layout = MakeUnique<DGCSeqLayout>(context);
 
     constexpr vk::ShaderStageFlags stages =
-        TDGCSequenceTemplate::_IsCompute_
-            ? vk::ShaderStageFlagBits::eCompute
-            : vk::ShaderStageFlagBits::eTaskEXT
-                  | vk::ShaderStageFlagBits::eMeshEXT
-                  | vk::ShaderStageFlagBits::eFragment;
+        TDGCSeqTemplate::_IsCompute_ ? vk::ShaderStageFlagBits::eCompute
+                                     : vk::ShaderStageFlagBits::eTaskEXT
+                                           | vk::ShaderStageFlagBits::eMeshEXT
+                                           | vk::ShaderStageFlagBits::eFragment;
 
     vk::IndirectCommandsExecutionSetTokenEXT esToken {};
     vk::IndirectCommandsPushConstantTokenEXT pcToken {};
 
-    auto tokenDatas =
-        MakeTokenDatas<TDGCSequenceTemplate>(stages, esToken, pcToken);
+    auto tokenDatas = MakeTokenDatas<TDGCSeqTemplate>(stages, esToken, pcToken);
 
     auto info = MakeDGCLayoutCreateInfo(tokenDatas, unorderedSequence,
                                         explicitPreprocess, stages,
-                                        sizeof(TDGCSequenceTemplate));
+                                        sizeof(TDGCSeqTemplate));
     info.setPipelineLayout(pipelineLayout);
 
     layout->mHandle =
@@ -389,35 +382,32 @@ Type_UniquePtr<SequenceLayout> CreateLayout(VulkanContext& context,
     return layout;
 }
 
-template <class TDGCSequenceTemplate>
-Type_UniquePtr<SequenceLayout> CreateLayout(
+template <class TDGCSeqTemplate>
+Type_UniquePtr<DGCSeqLayout> CreateLayout(
     VulkanContext& context,
     Type_STLVector<vk::DescriptorSetLayout> const& descSetLayouts,
     ::std::optional<vk::PushConstantRange> const& pcRange,
     bool unorderedSequence = false, bool explicitPreprocess = false) {
-    auto layout = MakeUnique<SequenceLayout>(context);
+    auto layout = MakeUnique<DGCSeqLayout>(context);
 
     constexpr vk::ShaderStageFlags stages =
-        TDGCSequenceTemplate::_IsCompute_
-            ? vk::ShaderStageFlagBits::eCompute
-            : vk::ShaderStageFlagBits::eTaskEXT
-                  | vk::ShaderStageFlagBits::eMeshEXT
-                  | vk::ShaderStageFlagBits::eFragment;
+        TDGCSeqTemplate::_IsCompute_ ? vk::ShaderStageFlagBits::eCompute
+                                     : vk::ShaderStageFlagBits::eTaskEXT
+                                           | vk::ShaderStageFlagBits::eMeshEXT
+                                           | vk::ShaderStageFlagBits::eFragment;
 
     vk::IndirectCommandsExecutionSetTokenEXT esToken {};
     vk::IndirectCommandsPushConstantTokenEXT pcToken {};
 
-    auto tokenDatas =
-        MakeTokenDatas<TDGCSequenceTemplate>(stages, esToken, pcToken);
+    auto tokenDatas = MakeTokenDatas<TDGCSeqTemplate>(stages, esToken, pcToken);
 
     auto info = MakeDGCLayoutCreateInfo(tokenDatas, unorderedSequence,
                                         explicitPreprocess, stages,
-                                        sizeof(TDGCSequenceTemplate));
+                                        sizeof(TDGCSeqTemplate));
 
     vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo {};
     if constexpr (!::std::is_same_v<
-                      typename TDGCSequenceTemplate::_Type_PushConstant_,
-                      void>) {
+                      typename TDGCSeqTemplate::_Type_PushConstant_, void>) {
         if (!descSetLayouts.empty())
             pipelineLayoutCreateInfo.setSetLayouts(descSetLayouts);
         if (pcRange)

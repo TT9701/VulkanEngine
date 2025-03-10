@@ -40,8 +40,10 @@ DGCTest::DGCTest(ApplicationSpecification const& spec)
     mGeoMgr = MakeUnique<GPUGeometryDataManager>(GetVulkanContext(), gMemPool);
 
     mDGCSequenceMgr =
-        MakeUnique<DGCSequenceManager>(GetVulkanContext(), GetPipelineMgr(),
-                                       GetShaderMgr(), GetRenderResMgr());
+        MakeUnique<DGCSeqManager>(GetVulkanContext(), GetPipelineMgr(),
+                                  GetShaderMgr(), GetRenderResMgr());
+
+    mDrawCallMgr = MakeUnique<DrawCallManager>(GetRenderResMgr());
 }
 
 DGCTest::~DGCTest() = default;
@@ -265,9 +267,9 @@ void DGCTest::Prepare() {
         }
     }
 
-    // prepare_compute_sequence();
+    prepare_compute_sequence();
 
-    prepare_compute_sequence_shader();
+    // prepare_compute_sequence_shader();
 
     const char* modelPath = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
 
@@ -284,6 +286,9 @@ void DGCTest::Prepare() {
     PrepareUIContext();
 
     // RecordPasses(mRenderSequence);
+
+    mDrawCallMgr->AddArgument_DGCSequence(
+        &GetRenderResMgr()["dgc_pipe_dispatch_test"]);
 }
 
 void DGCTest::prepare_compute_sequence() {
@@ -483,7 +488,8 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
         mRenderSequence.RecordPass("DrawBackground", cmd.GetHandle());
 
         // dgc_dispatch(cmd.GetHandle());
-        dgc_dispatch_shader(cmd.GetHandle());
+        // dgc_dispatch_shader(cmd.GetHandle());
+        mDrawCallMgr->RecordCmd(cmd.GetHandle());
 
         cmd.End();
 
@@ -930,9 +936,8 @@ void DGCTest::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("场景信息")) {
-                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]",
-                            mMainCamera->mPosition.x, mMainCamera->mPosition.y,
-                            mMainCamera->mPosition.z);
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", mMainCamera->mPosition.x,
+                            mMainCamera->mPosition.y, mMainCamera->mPosition.z);
 
                 IDCMCore_NS::Float3 lightPos {IDCMCore_NS::Vector3Normalize(
                     {mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,

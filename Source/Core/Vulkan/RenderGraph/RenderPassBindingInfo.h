@@ -17,7 +17,7 @@ class RenderResourceManager;
 
 namespace RenderPassBinding {
 
-enum class Type { DSV, ArgumentBuffer, RenderInfo, Count };
+enum class Type { DSV, ArgumentBuffer, RenderInfo, DGCSequence, Count };
 
 template <Type Type>
 struct TypeTraits;
@@ -35,6 +35,11 @@ struct TypeTraits<Type::ArgumentBuffer> {
 template <>
 struct TypeTraits<Type::RenderInfo> {
     using value = RenderInfo;
+};
+
+template <>
+struct TypeTraits<Type::DGCSequence> {
+    using value = RenderResource const*;
 };
 
 template <Type Type>
@@ -61,10 +66,12 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
         using Type_RenderInfo = RenderPassBinding::RenderInfo;
         using Type_BindlessDescInfo = RenderPassBinding::BindlessDescBufInfo;
         using Type_ArgumentBuf = RenderPassBinding::ArgumentBufferInfo;
+        using Type_DGCSequence = RenderResource const*;
         using Type_Value =
             ::std::variant<Type_STLString, Type_PC,
                            Type_STLVector<Type_STLString>, Type_RenderInfo,
-                           Type_BindlessDescInfo, Type_ArgumentBuf>;
+                           Type_BindlessDescInfo, Type_ArgumentBuf,
+                           Type_DGCSequence>;
 
     public:
         Type_BindingValue(const char* str);
@@ -86,6 +93,9 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
         // argument buffer
         Type_BindingValue(Type_ArgumentBuf const& info);
 
+        // DGC sequence
+        Type_BindingValue(Type_DGCSequence info);
+
         Type_Value value;
     };
 
@@ -104,13 +114,13 @@ public:
     Type_BindingValue& operator[](const char* name);
     // auto& operator[](EnumType shaderStage);
 
-    void OnResize(vk::Extent2D extent);
+    void OnResize(vk::Extent2D extent) override;
 
     virtual void RecordCmd(vk::CommandBuffer cmd) override;
     virtual void GenerateMetaData(void* descriptorPNext = nullptr) override;
     virtual void Update(const char* resName) override;
     void Update(const char* name, RenderPassBinding::BindlessDescBufInfo info);
-    void Update(Type_STLVector<Type_STLString> const& names);
+    void Update(Type_STLVector<Type_STLString> const& names) override;
 
     DrawCallManager& GetDrawCallManager();
 

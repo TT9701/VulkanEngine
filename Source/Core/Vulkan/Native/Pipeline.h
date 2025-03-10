@@ -23,6 +23,8 @@ public:
 public:
     vk::PipelineLayout GetHandle() const { return mLayout; }
 
+    ShaderProgram& GetShaderProgram() const;
+
     Type_STLVector<DescriptorSetLayout*> GetDescSetLayoutDatas() const;
 
     Type_STLVector<vk::PushConstantRange> GetPCRanges() const;

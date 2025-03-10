@@ -38,6 +38,10 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_ArgumentBuf const& info)
     : value(info) {}
 
+RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
+    Type_DGCSequence info)
+    : value(info) {}
+
 RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderSequence& rs,
                                                      uint32_t index,
                                                      RenderQueueType type)
@@ -448,8 +452,7 @@ void RenderPassBindingInfo_PSO::GeneratePushContantMetaData() {
         mDrawCallMgr.AddArgument_PushConstant(
             mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str()),
             ranges->second.stageFlags, ranges->second.offset,
-            ranges->second.size,
-            pcData.pData);
+            ranges->second.size, pcData.pData);
     }
 }
 

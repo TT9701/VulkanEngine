@@ -33,6 +33,8 @@ enum class DrawCallMetaDataType {
     DrawMeshTasksIndirect,
     DrawMeshTask,
 
+    DGCSequence,
+
     Copy,
 
     NumTypes
@@ -44,6 +46,7 @@ struct RenderingAttachmentInfo {
     vk::RenderingAttachmentInfo info {};
 };
 
+class RenderResource;
 class RenderResourceManager;
 
 struct IDrawCallMetaData {
@@ -238,6 +241,14 @@ template <>
 struct DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask>
     : IDrawCallMetaData {
     uint32_t x, y, z;
+
+    void RecordCmds(vk::CommandBuffer cmd) const override;
+};
+
+template <>
+struct DrawCallMetaData<DrawCallMetaDataType::DGCSequence>
+    : IDrawCallMetaData {
+    RenderResource const* sequenceBuffer;
 
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

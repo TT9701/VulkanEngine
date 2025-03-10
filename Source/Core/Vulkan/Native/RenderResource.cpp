@@ -84,8 +84,7 @@ uint32_t RenderResource::GetBufferStride() const {
     return ::std::get<Buffer>(mResource).GetStride();
 }
 
-void RenderResource::SetBufferDGCSequence(
-    SharedPtr<DGCSequenceBase> const& dgcSeq) {
+void RenderResource::SetBufferDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq) {
     return ::std::get<Buffer>(mResource).SetDGCSequence(dgcSeq);
 }
 

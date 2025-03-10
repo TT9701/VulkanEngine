@@ -44,7 +44,7 @@ void* Buffer::GetMapPtr() const {
     return nullptr;
 }
 
-void Buffer::SetDGCSequence(SharedPtr<DGCSequenceBase> const& dgcSeq) {
+void Buffer::SetDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq) {
     mDGCSequence = dgcSeq;
 }
 

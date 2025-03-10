@@ -143,21 +143,23 @@ Type_STLString ShaderManager::ParseShaderName(const char* name,
     return res;
 }
 
-ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* comp) {
+ShaderProgram* ShaderManager::CreateProgram(const char* name,
+                                            ShaderBase* comp) {
     auto ptr = MakeShared<ShaderProgram>(comp);
     mPrograms.emplace(name, ptr);
     return ptr.get();
 }
 
-ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* vert,
-                                            Shader* frag) {
+ShaderProgram* ShaderManager::CreateProgram(const char* name, ShaderBase* vert,
+                                            ShaderBase* frag) {
     auto ptr = MakeShared<ShaderProgram>(vert, frag);
     mPrograms.emplace(name, ptr);
     return ptr.get();
 }
 
-ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* task,
-                                            Shader* mesh, Shader* frag) {
+ShaderProgram* ShaderManager::CreateProgram(const char* name, ShaderBase* task,
+                                            ShaderBase* mesh,
+                                            ShaderBase* frag) {
     auto ptr = MakeShared<ShaderProgram>(task, mesh, frag);
     mPrograms.emplace(name, ptr);
     return ptr.get();

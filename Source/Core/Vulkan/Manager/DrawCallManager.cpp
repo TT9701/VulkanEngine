@@ -329,6 +329,14 @@ void DrawCallManager::AddArgument_DrawMeshTask(uint32_t x, uint32_t y,
     mMetaDatas.emplace_back(metaData);
 }
 
+void DrawCallManager::AddArgument_DGCSequence(
+    RenderResource const* sequenceBuffer) {
+    DrawCallMetaData<DrawCallMetaDataType::DGCSequence> metaData;
+    metaData.sequenceBuffer = sequenceBuffer;
+
+    mMetaDatas.emplace_back(metaData);
+}
+
 void DrawCallManager::AddArgument_CopyBufferToBuffer(
     const char* src, const char* dst, const vk::BufferCopy2* region) {
     mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
