@@ -4,9 +4,11 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-DGCSeqBase::DGCSeqBase(VulkanContext& context, uint32_t sequenceCount,
-                       uint32_t maxDrawCount, uint32_t maxESObjectCount)
+DGCSeqBase::DGCSeqBase(VulkanContext& context, PipelineManager& pipelineMgr,
+                       uint32_t sequenceCount, uint32_t maxDrawCount,
+                       uint32_t maxESObjectCount)
     : mContext(context),
+      mPipelineMgr(pipelineMgr),
       mMaxESObjectCount(maxESObjectCount),
       mMaxSequenceCount(sequenceCount),
       mMaxDrawCount(maxDrawCount) {}
@@ -24,6 +26,14 @@ DGCSeqBase::~DGCSeqBase() {
 
 uint32_t DGCSeqBase::GetSequenceCount() const {
     return mMaxSequenceCount;
+}
+
+PipelineLayout* DGCSeqBase::GetPipelineLayout() const {
+    return mLayout.GetPipelineLayout();
+}
+
+bool DGCSeqBase::IsCompute() const {
+    return mIsCompute;
 }
 
 void DGCSeqBase::InsertInitialObjectToMap(const char* name, uint32_t idx) {
@@ -125,8 +135,8 @@ DGCSeq_ESPipeline::DGCSeq_ESPipeline(VulkanContext& context,
                                      uint32_t maxSequenceCount,
                                      uint32_t maxDrawCount,
                                      uint32_t maxPipelineCount)
-    : DGCSeqBase(context, maxSequenceCount, maxDrawCount, maxPipelineCount),
-      mPipelineMgr(pipelineMgr) {}
+    : DGCSeqBase(context, pipelineMgr, maxSequenceCount, maxDrawCount,
+                 maxPipelineCount) {}
 
 DGCSeq_ESPipeline& DGCSeq_ESPipeline::AddPipeline(const char* name) {
     uint32_t size = mObjectNamesIdxMap.size();
@@ -175,9 +185,7 @@ void DGCSeq_ESPipeline::Finalize() {
 }
 
 void DGCSeq_ESPipeline::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
-    if (mUseExecutionSet) {
-        cmd.bindPipeline(GetPipelineBindPoint(), mInitialPipeline);
-    }
+    cmd.bindPipeline(GetPipelineBindPoint(), mInitialPipeline);
 
     vk::GeneratedCommandsPipelineInfoEXT pipelineInfo {};
 
@@ -204,11 +212,13 @@ void DGCSeq_ESPipeline::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
 }
 
 DGCSeq_ESShader::DGCSeq_ESShader(VulkanContext& context,
+                                 PipelineManager& pipelineMgr,
                                  ShaderManager& shaderMgr,
                                  uint32_t maxSequenceCount,
                                  uint32_t maxDrawCount,
                                  uint32_t maxPipelineCount)
-    : DGCSeqBase(context, maxSequenceCount, maxDrawCount, maxPipelineCount),
+    : DGCSeqBase(context, pipelineMgr, maxSequenceCount, maxDrawCount,
+                 maxPipelineCount),
       mShaderMgr(shaderMgr) {}
 
 DGCSeq_ESShader& DGCSeq_ESShader::AddShader(ShaderIDInfo const& idInfo) {
@@ -320,9 +330,7 @@ void DGCSeq_ESShader::Finalize() {
 }
 
 void DGCSeq_ESShader::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
-    if (mUseExecutionSet) {
-        cmd.bindShadersEXT(GetStageFlagBitArray(), mInitialShaders);
-    }
+    cmd.bindShadersEXT(GetStageFlagBitArray(), mInitialShaders);
 
     vk::GeneratedCommandsShaderInfoEXT shaderInfo {};
 

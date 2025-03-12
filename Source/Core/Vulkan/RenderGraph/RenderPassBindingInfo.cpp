@@ -3,6 +3,7 @@
 #include "Core/Vulkan/Manager/DrawCallManager.h"
 #include "Core/Vulkan/Manager/PipelineManager.h"
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
+#include "Core/Vulkan/Native/DGCSequence.h"
 #include "Core/Vulkan/Native/Swapchain.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
@@ -23,10 +24,6 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     : value(str) {}
 
 RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
-    Type_PC const& data)
-    : value(data) {}
-
-RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_RenderInfo const& info)
     : value(info) {}
 
@@ -34,21 +31,18 @@ RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
     Type_BindlessDescInfo const& info)
     : value(info) {}
 
-RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
-    Type_ArgumentBuf const& info)
-    : value(info) {}
-
-RenderPassBindingInfo_PSO::Type_BindingValue::Type_BindingValue(
-    Type_DGCSequence info)
-    : value(info) {}
-
 RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(RenderSequence& rs,
-                                                     uint32_t index,
-                                                     RenderQueueType type)
+                                                     uint32_t index)
+    : mRenderSequence(rs), mIndex(index), mDrawCallMgr(rs.mResMgr) {
+    InitBuiltInInfos();
+}
+
+RenderPassBindingInfo_PSO::RenderPassBindingInfo_PSO(
+    RenderSequence& rs, uint32_t index, RenderResource const* dgcSeqBuf)
     : mRenderSequence(rs),
       mIndex(index),
-      mType(type),
-      mDrawCallMgr(rs.mResMgr) {
+      mDrawCallMgr(rs.mResMgr),
+      mDGCSeqBuf(dgcSeqBuf) {
     InitBuiltInInfos();
 }
 
@@ -64,6 +58,41 @@ void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
     else
         mPipelineLayoutName = pipelineName;
     GeneratePipelineMetaData(mPipelineName);
+}
+
+void RenderPassBindingInfo_PSO::GenerateLayoutData() {
+    auto pSeq = mDGCSeqBuf->GetBufferDGCSequence();
+
+    mBindPoint = pSeq->IsCompute() ? vk::PipelineBindPoint::eCompute
+                                   : vk::PipelineBindPoint::eGraphics;
+
+    auto pipeLayout = pSeq->GetPipelineLayout();
+
+    const auto layoutDatas = pipeLayout->GetDescSetLayoutDatas();
+
+    for (auto const& layoutData : layoutDatas) {
+        auto data = layoutData->GetData();
+        for (uint32_t i = 0; i < data.bindings.size(); ++i) {
+            auto descCount = data.bindings[i].descriptorCount;
+            if (descCount == 1) {
+                mDescInfos.emplace(data.bindingNames[i], Type_STLString {});
+            } else if (descCount > 1) {
+                // for (uint32_t j = 0; j < descCount; ++j) {
+                //     auto bindingName = data.bindingNames[i];
+                //     auto idx = bindingName.find("@");
+                //     bindingName.insert(idx, ::std::to_string(j));
+                //     mDescInfos.emplace(bindingName, Type_STLString {});
+                // }
+                mBindlessDescInfos.emplace(
+                    data.bindingNames[i],
+                    RenderPassBinding::BindlessDescBufInfo {});
+            }
+        }
+    }
+
+    for (auto const& rtv : pipeLayout->GetRTVNames()) {
+        mRTVInfos.emplace_back(rtv, Type_STLVector<Type_STLString> {});
+    }
 }
 
 RenderPassBindingInfo_PSO::Type_BindingValue&
@@ -111,12 +140,6 @@ RenderPassBindingInfo_PSO::operator[](const char* name) {
         }
     }
 
-    // push constant resources
-    for (auto& pc : mPCInfos) {
-        if (pc.first == name)
-            return pc.second;
-    }
-
     // rtv resources
     for (auto& rtv : mRTVInfos) {
         if (rtv.first == name) {
@@ -142,8 +165,6 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
     // descriptor sets
     CreateDescriptorSets(descriptorPNext);
     BindDescriptorSets();
-
-    GeneratePushContantMetaData();
 
     // render infos
     Type_STLVector<RenderingAttachmentInfo> colors {};
@@ -428,31 +449,8 @@ void RenderPassBindingInfo_PSO::GeneratePipelineMetaData(
         }
     }
 
-    if (auto pc = layout->GetCombinedPushContant()) {
-        auto pcName = pc.value().first;
-        mPCInfos.emplace(pcName, RenderPassBinding::PushContants {});
-    }
-
     for (auto const& rtv : layout->GetRTVNames()) {
         mRTVInfos.emplace_back(rtv, Type_STLVector<Type_STLString> {});
-    }
-}
-
-void RenderPassBindingInfo_PSO::GeneratePushContantMetaData() {
-    auto const& ranges =
-        mRenderSequence.mPipelineMgr.GetLayout(mPipelineName.c_str())
-            ->GetCombinedPushContant();
-
-    if (ranges) {
-        auto pcData = ::std::get<RenderPassBinding::PushContants>(
-            mPCInfos.at(ranges->first).value);
-
-        assert(pcData.size == ranges->second.size);
-
-        mDrawCallMgr.AddArgument_PushConstant(
-            mRenderSequence.mPipelineMgr.GetLayoutHandle(mPipelineName.c_str()),
-            ranges->second.stageFlags, ranges->second.offset,
-            ranges->second.size, pcData.pData);
     }
 }
 
@@ -462,9 +460,16 @@ void RenderPassBindingInfo_PSO::GenerateRTVMetaData(
 void RenderPassBindingInfo_PSO::CreateDescriptorSets(void* descriptorPNext) {
     mDescSets.clear();
 
-    auto pipelineLayout =
-        mRenderSequence.mPipelineMgr.GetLayout(mPipelineLayoutName.c_str());
-    const auto& descLayouts = pipelineLayout->GetDescSetLayoutDatas();
+    Type_STLVector<DescriptorSetLayout*> descLayouts {};
+    if (mDGCSeqBuf) {
+        descLayouts = mDGCSeqBuf->GetBufferDGCSequence()
+                          ->GetPipelineLayout()
+                          ->GetDescSetLayoutDatas();
+    } else {
+        descLayouts =
+            mRenderSequence.mPipelineMgr.GetLayout(mPipelineName.c_str())
+                ->GetDescSetLayoutDatas();
+    }
 
     // Create descriptor sets
     for (auto const& descLayout : descLayouts) {
@@ -527,11 +532,18 @@ void RenderPassBindingInfo_PSO::BindDescriptorSets() {
 
     mDrawCallMgr.AddArgument_DescriptorBuffer(bufAddrs);
 
-    mDrawCallMgr.AddArgument_DescriptorSet(
-        mBindPoint,
-        mRenderSequence.mPipelineMgr.GetLayoutHandle(
-            mPipelineLayoutName.c_str()),
-        0, bufIndices, offsets);
+    vk::PipelineLayout layoutHandle {};
+    if (mDGCSeqBuf) {
+        layoutHandle = mDGCSeqBuf->GetBufferDGCSequence()
+                           ->GetPipelineLayout()
+                           ->GetHandle();
+    } else {
+        layoutHandle = mRenderSequence.mPipelineMgr.GetLayoutHandle(
+            mPipelineLayoutName.c_str());
+    }
+
+    mDrawCallMgr.AddArgument_DescriptorSet(mBindPoint, layoutHandle, 0,
+                                           bufIndices, offsets);
 }
 
 void RenderPassBindingInfo_PSO::AllocateDescriptor(
@@ -693,48 +705,6 @@ void RenderPassBindingInfo_Barrier::GenerateMetaData(void*) {
     Type_STLVector<vk::ImageMemoryBarrier2> imgBarriers;
     Type_STLVector<vk::BufferMemoryBarrier2> bufBarriers;
     Type_STLVector<vk::MemoryBarrier2> memBarriers;
-
-    // for (auto const& [name, v] : mBarriers) {
-    //     if (auto barrier = ::std::get_if<ImageBarrier>(&v)) {
-    //         vk::ImageMemoryBarrier2 barrierInfo {};
-    //         barrierInfo.setSrcStageMask(barrier->srcStageMask)
-    //             .setSrcAccessMask(barrier->srcAccessMask)
-    //             .setDstStageMask(barrier->dstStageMask)
-    //             .setDstAccessMask(barrier->dstAccessMask)
-    //             .setOldLayout(barrier->oldLayout)
-    //             .setNewLayout(barrier->newLayout)
-    //             .setSrcQueueFamilyIndex(barrier->srcQueueFamilyIndex)
-    //             .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
-    //             .setSubresourceRange(
-    //                 Utils::GetWholeImageSubresource(barrier->aspect));
-    //         barrierInfo.setImage(mResMgr[name.c_str()].GetTexHandle());
-    //
-    //         bNames.push_back(name);
-    //         imgBarriers.push_back(barrierInfo);
-    //
-    //     } else if (auto barrier = ::std::get_if<BufferBarrier>(&v)) {
-    //         vk::BufferMemoryBarrier2 barrierInfo {};
-    //         barrierInfo.setSrcStageMask(barrier->srcStageMask)
-    //             .setSrcAccessMask(barrier->srcAccessMask)
-    //             .setDstStageMask(barrier->dstStageMask)
-    //             .setDstAccessMask(barrier->dstAccessMask)
-    //             .setSrcQueueFamilyIndex(barrier->srcQueueFamilyIndex)
-    //             .setDstQueueFamilyIndex(barrier->dstQueueFamilyIndex)
-    //             .setBuffer(mResMgr[name.c_str()].GetBufferHandle())
-    //             .setOffset(0)
-    //             .setSize(VK_WHOLE_SIZE);
-    //
-    //         bNames.push_back(name);
-    //         bufBarriers.push_back(barrierInfo);
-    //     } else if (auto barrier = ::std::get_if<MemoryBarrier>(&v)) {
-    //         vk::MemoryBarrier2 barrierInfo {};
-    //
-    //         // TODO: memory barrier
-    //
-    //         bNames.push_back(name);
-    //         memBarriers.push_back(barrierInfo);
-    //     }
-    // }
 
     for (auto const& [name, v] : mBarriers) {
         if (auto barrier = ::std::get_if<ImageBarrier>(&v)) {

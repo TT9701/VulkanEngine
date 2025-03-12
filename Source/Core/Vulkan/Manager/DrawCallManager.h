@@ -51,10 +51,6 @@ public:
     void AddArgument_Pipeline(vk::PipelineBindPoint bindPoint,
                               vk::Pipeline pipeline);
 
-    void AddArgument_PushConstant(vk::PipelineLayout layout,
-                                  vk::ShaderStageFlags stage, uint32_t offset,
-                                  uint32_t size, const void* pValues);
-
     void AddArgument_DescriptorBuffer(
         Type_STLVector<vk::DeviceAddress> const& addresses);
 
@@ -63,30 +59,9 @@ public:
         uint32_t firstSet, Type_STLVector<uint32_t> const& bufferIndices,
         Type_STLVector<vk::DeviceSize> const& offsets);
 
-    void AddArgument_IndexBuffer(vk::Buffer buffer, vk::DeviceSize offset,
-                                 vk::IndexType type);
-
-    void AddArgument_DrawIndexedIndirect(vk::Buffer buffer,
-                                        vk::DeviceSize offset,
-                                        uint32_t drawCount, uint32_t stride);
-
-    void AddArgument_DrawIndirect(vk::Buffer buffer, vk::DeviceSize offset,
-                                 uint32_t drawCount, uint32_t stride);
-
-    void AddArgument_Draw(uint32_t vertexCount, uint32_t instanceCount,
-                          uint32_t firstVertex, uint32_t firstInstance);
-
-    void AddArgument_DispatchIndirect(vk::Buffer buffer, vk::DeviceSize offset);
-
-    void AddArgument_Dispatch(uint32_t x, uint32_t y, uint32_t z);
-
-    void AddArgument_DrawMeshTasksIndirect(vk::Buffer buffer,
-                                           vk::DeviceSize offset,
-                                           uint32_t drawCount, uint32_t stride);
-
-    void AddArgument_DrawMeshTask(uint32_t x, uint32_t y, uint32_t z);
-
     void AddArgument_DGCSequence(RenderResource const* sequenceBuffer);
+
+    void AddArgument_DGCPipelineInfo(DGCPipelineInfo const& info);
 
     void AddArgument_CopyBufferToBuffer(const char* src, const char* dst,
                                         const vk::BufferCopy2* region);
@@ -116,39 +91,6 @@ public:
     void UpdateArgument_Pipeline(vk::PipelineBindPoint bindPoint,
                                  vk::Pipeline pipeline, uint32_t index = 0);
 
-    void UpdateArgument_PushConstant(vk::PipelineLayout layout,
-                                     vk::ShaderStageFlags stage,
-                                     uint32_t offset, uint32_t size,
-                                     const void* pValues, uint32_t index = 0);
-
-    void UpdateArgument_IndexBuffer(vk::Buffer buffer, vk::DeviceSize offset,
-                                    vk::IndexType type, uint32_t index = 0);
-
-    void UpdateArgument_DrawIndexedIndiret(vk::Buffer buffer,
-                                           vk::DeviceSize offset,
-                                           uint32_t drawCount, uint32_t stride,
-                                           uint32_t index = 0);
-
-    void UpdateArgument_Draw(uint32_t vertexCount, uint32_t instanceCount,
-                             uint32_t firstVertex, uint32_t firstInstance,
-                             uint32_t index = 0);
-
-    void UpdateArgument_DispatchIndirect(vk::Buffer buffer,
-                                         vk::DeviceSize offset,
-                                         uint32_t index = 0);
-
-    void UpdateArgument_Dispatch(uint32_t x, uint32_t y, uint32_t z,
-                                 uint32_t index = 0);
-
-    void UpdateArgument_DrawMeshTasksIndirect(vk::Buffer buffer,
-                                              vk::DeviceSize offset,
-                                              uint32_t drawCount,
-                                              uint32_t stride,
-                                              uint32_t index = 0);
-
-    void UpdateArgument_DrawMeshTask(uint32_t x, uint32_t y, uint32_t z,
-                                     uint32_t index = 0);
-
     void UpdateArgument_DescriptorBuffer(
         Type_STLVector<vk::DeviceAddress> const& addresses, uint32_t index = 0);
 
@@ -173,6 +115,9 @@ public:
 
     // only update resources
     void UpdateArgument_Barriers(Type_STLVector<Type_STLString> const& names);
+
+    void UpdateArgument_DGCSequence(RenderResource const* buffer);
+    void UpdateArgument_DGCPipeline(DGCPipelineInfo const& info);
 
     void UpdateArgument_CopySrc(const char* name, uint32_t index);
     void UpdateArgument_CopyDst(const char* name, uint32_t index);

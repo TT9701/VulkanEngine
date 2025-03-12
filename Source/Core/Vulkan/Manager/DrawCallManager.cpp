@@ -202,20 +202,6 @@ void DrawCallManager::AddArgument_Pipeline(vk::PipelineBindPoint bindPoint,
     mMetaDatas.emplace_back(metaData);
 }
 
-void DrawCallManager::AddArgument_PushConstant(vk::PipelineLayout layout,
-                                               vk::ShaderStageFlags stage,
-                                               uint32_t offset, uint32_t size,
-                                               const void* pValues) {
-    DrawCallMetaData<DrawCallMetaDataType::PushContant> metaData;
-    metaData.layout = layout;
-    metaData.stage = stage;
-    metaData.offset = offset;
-    metaData.size = size;
-    metaData.pValues = pValues;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
 void DrawCallManager::AddArgument_DescriptorBuffer(
     Type_STLVector<vk::DeviceAddress> const& addresses) {
     DrawCallMetaData<DrawCallMetaDataType::DescriptorBuffer> metaData;
@@ -238,101 +224,17 @@ void DrawCallManager::AddArgument_DescriptorSet(
     mMetaDatas.emplace_back(metaData);
 }
 
-void DrawCallManager::AddArgument_IndexBuffer(vk::Buffer buffer,
-                                              vk::DeviceSize offset,
-                                              vk::IndexType type) {
-    DrawCallMetaData<DrawCallMetaDataType::IndexBuffer> metaData;
-    metaData.buffer = buffer;
-    metaData.offset = offset;
-    metaData.type = type;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_DrawIndexedIndirect(vk::Buffer buffer,
-                                                      vk::DeviceSize offset,
-                                                      uint32_t drawCount,
-                                                      uint32_t stride) {
-    DrawCallMetaData<DrawCallMetaDataType::DrawIndexedIndirect> metaData;
-    metaData.buffer = buffer;
-    metaData.offset = offset;
-    metaData.drawCount = drawCount;
-    metaData.stride = stride;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_DrawIndirect(vk::Buffer buffer,
-                                               vk::DeviceSize offset,
-                                               uint32_t drawCount,
-                                               uint32_t stride) {
-    DrawCallMetaData<DrawCallMetaDataType::DrawIndirect> metaData;
-    metaData.buffer = buffer;
-    metaData.offset = offset;
-    metaData.drawCount = drawCount;
-    metaData.stride = stride;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_Draw(uint32_t vertexCount,
-                                       uint32_t instanceCount,
-                                       uint32_t firstVertex,
-                                       uint32_t firstInstance) {
-    DrawCallMetaData<DrawCallMetaDataType::Draw> metaData;
-    metaData.vertexCount = vertexCount;
-    metaData.instanceCount = instanceCount;
-    metaData.firstVertex = firstVertex;
-    metaData.firstInstance = firstInstance;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_DispatchIndirect(vk::Buffer buffer,
-                                                   vk::DeviceSize offset) {
-    DrawCallMetaData<DrawCallMetaDataType::DispatchIndirect> metaData;
-    metaData.buffer = buffer;
-    metaData.offset = offset;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_Dispatch(uint32_t x, uint32_t y, uint32_t z) {
-    DrawCallMetaData<DrawCallMetaDataType::Dispatch> metaData;
-    metaData.x = x;
-    metaData.y = y;
-    metaData.z = z;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_DrawMeshTasksIndirect(vk::Buffer buffer,
-                                                        vk::DeviceSize offset,
-                                                        uint32_t drawCount,
-                                                        uint32_t stride) {
-    DrawCallMetaData<DrawCallMetaDataType::DrawMeshTasksIndirect> metaData;
-    metaData.buffer = buffer;
-    metaData.offset = offset;
-    metaData.drawCount = drawCount;
-    metaData.stride = stride;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
-void DrawCallManager::AddArgument_DrawMeshTask(uint32_t x, uint32_t y,
-                                               uint32_t z) {
-    DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask> metaData;
-    metaData.x = x;
-    metaData.y = y;
-    metaData.z = z;
-
-    mMetaDatas.emplace_back(metaData);
-}
-
 void DrawCallManager::AddArgument_DGCSequence(
     RenderResource const* sequenceBuffer) {
     DrawCallMetaData<DrawCallMetaDataType::DGCSequence> metaData;
     metaData.sequenceBuffer = sequenceBuffer;
+
+    mMetaDatas.emplace_back(metaData);
+}
+
+void DrawCallManager::AddArgument_DGCPipelineInfo(DGCPipelineInfo const& info) {
+    DrawCallMetaData<DrawCallMetaDataType::DGCPipelineInfo> metaData;
+    metaData.pipelineInfo = info;
 
     mMetaDatas.emplace_back(metaData);
 }
@@ -423,87 +325,6 @@ void DrawCallManager::UpdateArgument_Pipeline(vk::PipelineBindPoint bindPoint,
     auto data = FindMetaDataPtr<DrawCallMetaDataType::Pipeline>(index);
     data->bindPoint = bindPoint;
     data->pipeline = pipeline;
-}
-
-void DrawCallManager::UpdateArgument_PushConstant(
-    vk::PipelineLayout layout, vk::ShaderStageFlags stage, uint32_t offset,
-    uint32_t size, const void* pValues, uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::PushContant>(index);
-    data->layout = layout;
-    data->stage = stage;
-    data->offset = offset;
-    data->size = size;
-    data->pValues = pValues;
-}
-
-void DrawCallManager::UpdateArgument_IndexBuffer(vk::Buffer buffer,
-                                                 vk::DeviceSize offset,
-                                                 vk::IndexType type,
-                                                 uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::IndexBuffer>(index);
-    data->buffer = buffer;
-    data->offset = offset;
-    data->type = type;
-}
-
-void DrawCallManager::UpdateArgument_DrawIndexedIndiret(vk::Buffer buffer,
-                                                        vk::DeviceSize offset,
-                                                        uint32_t drawCount,
-                                                        uint32_t stride,
-                                                        uint32_t index) {
-    auto data =
-        FindMetaDataPtr<DrawCallMetaDataType::DrawIndexedIndirect>(index);
-    data->buffer = buffer;
-    data->offset = offset;
-    data->drawCount = drawCount;
-    data->stride = stride;
-}
-
-void DrawCallManager::UpdateArgument_Draw(uint32_t vertexCount,
-                                          uint32_t instanceCount,
-                                          uint32_t firstVertex,
-                                          uint32_t firstInstance,
-                                          uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::Draw>(index);
-    data->vertexCount = vertexCount;
-    data->instanceCount = instanceCount;
-    data->firstVertex = firstVertex;
-    data->firstInstance = firstInstance;
-}
-
-void DrawCallManager::UpdateArgument_DispatchIndirect(vk::Buffer buffer,
-                                                      vk::DeviceSize offset,
-                                                      uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::DispatchIndirect>(index);
-    data->buffer = buffer;
-    data->offset = offset;
-}
-
-void DrawCallManager::UpdateArgument_Dispatch(uint32_t x, uint32_t y,
-                                              uint32_t z, uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::Dispatch>(index);
-    data->x = x;
-    data->y = y;
-    data->z = z;
-}
-
-void DrawCallManager::UpdateArgument_DrawMeshTasksIndirect(
-    vk::Buffer buffer, vk::DeviceSize offset, uint32_t drawCount,
-    uint32_t stride, uint32_t index) {
-    auto data =
-        FindMetaDataPtr<DrawCallMetaDataType::DrawMeshTasksIndirect>(index);
-    data->buffer = buffer;
-    data->offset = offset;
-    data->drawCount = drawCount;
-    data->stride = stride;
-}
-
-void DrawCallManager::UpdateArgument_DrawMeshTask(uint32_t x, uint32_t y,
-                                                  uint32_t z, uint32_t index) {
-    auto data = FindMetaDataPtr<DrawCallMetaDataType::DrawMeshTask>(index);
-    data->x = x;
-    data->y = y;
-    data->z = z;
 }
 
 void DrawCallManager::UpdateArgument_DescriptorBuffer(
@@ -603,6 +424,16 @@ void DrawCallManager::UpdateArgument_Barriers(
                 "resource is not needed for vk::MemoryBarrier2");
         }
     }
+}
+
+void DrawCallManager::UpdateArgument_DGCSequence(RenderResource const* buffer) {
+    auto data = FindMetaDataPtr<DrawCallMetaDataType::DGCSequence>(0);
+    data->sequenceBuffer = buffer;
+}
+
+void DrawCallManager::UpdateArgument_DGCPipeline(DGCPipelineInfo const& info) {
+    auto data = FindMetaDataPtr<DrawCallMetaDataType::DGCPipelineInfo>(0);
+    data->pipelineInfo = info;
 }
 
 void DrawCallManager::UpdateArgument_CopySrc(const char* name, uint32_t index) {

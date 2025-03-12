@@ -58,6 +58,7 @@ public:
     Buffer::MemoryType GetBufferMemType() const;
     uint32_t GetBufferStride() const;
     void SetBufferDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq);
+    DGCSeqBase const* GetBufferDGCSequence() const;
     void Execute(vk::CommandBuffer cmd) const;
 
     // texture

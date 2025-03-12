@@ -143,23 +143,37 @@ Type_STLString ShaderManager::ParseShaderName(const char* name,
     return res;
 }
 
-ShaderProgram* ShaderManager::CreateProgram(const char* name,
-                                            ShaderBase* comp) {
+ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* comp) {
     auto ptr = MakeShared<ShaderProgram>(comp);
     mPrograms.emplace(name, ptr);
     return ptr.get();
 }
 
-ShaderProgram* ShaderManager::CreateProgram(const char* name, ShaderBase* vert,
-                                            ShaderBase* frag) {
+ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* vert,
+                                            Shader* frag) {
     auto ptr = MakeShared<ShaderProgram>(vert, frag);
     mPrograms.emplace(name, ptr);
     return ptr.get();
 }
 
-ShaderProgram* ShaderManager::CreateProgram(const char* name, ShaderBase* task,
-                                            ShaderBase* mesh,
-                                            ShaderBase* frag) {
+ShaderProgram* ShaderManager::CreateProgram(const char* name, Shader* task,
+                                            Shader* mesh, Shader* frag) {
+    auto ptr = MakeShared<ShaderProgram>(task, mesh, frag);
+    mPrograms.emplace(name, ptr);
+    return ptr.get();
+}
+
+ShaderProgram* ShaderManager::CreateProgram(const char* name,
+                                            ShaderObject* comp) {
+    auto ptr = MakeShared<ShaderProgram>(comp);
+    mPrograms.emplace(name, ptr);
+    return ptr.get();
+}
+
+ShaderProgram* ShaderManager::CreateProgram(const char* name,
+                                            ShaderObject* task,
+                                            ShaderObject* mesh,
+                                            ShaderObject* frag) {
     auto ptr = MakeShared<ShaderProgram>(task, mesh, frag);
     mPrograms.emplace(name, ptr);
     return ptr.get();
@@ -167,10 +181,6 @@ ShaderProgram* ShaderManager::CreateProgram(const char* name, ShaderBase* task,
 
 ShaderProgram* ShaderManager::GetProgram(const char* name) const {
     return mPrograms.at(name).get();
-}
-
-ShaderProgram ShaderManager::MakeTempProgram(ShaderObject* comp) {
-    return {comp};
 }
 
 ShaderProgram ShaderManager::MakeTempProgram(ShaderObject* task,

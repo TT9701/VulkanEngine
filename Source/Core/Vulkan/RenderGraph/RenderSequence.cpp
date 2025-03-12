@@ -14,15 +14,35 @@ RenderSequence::RenderSequence(VulkanContext& context,
       mPipelineMgr(pipelineMgr),
       mDescPool(descPool) {}
 
-RenderPassBindingInfo_PSO& RenderSequence::AddRenderPass(const char* name,
-                                                         RenderQueueType type) {
+RenderPassBindingInfo_PSO& RenderSequence::AddRenderPass(const char* name) {
     if (mPassNameToIndex.contains(name)) {
         return *dynamic_cast<RenderPassBindingInfo_PSO*>(
             mPasses[mPassNameToIndex.at(name)].binding.get());
     } else {
         uint32_t index = mPasses.size();
         mPasses.emplace_back(
-            *this, MakeUnique<RenderPassBindingInfo_PSO>(*this, index, type));
+            *this, MakeUnique<RenderPassBindingInfo_PSO>(*this, index));
+        mPassNameToIndex[name] = index;
+
+        mPassBarrierInfos.emplace_back();
+
+        auto ptr = dynamic_cast<RenderPassBindingInfo_PSO*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+        ptr->SetName(name);
+
+        return *ptr;
+    }
+}
+
+RenderPassBindingInfo_PSO& RenderSequence::AddRenderPass(
+    const char* name, RenderResource const* dgcSeqBuf) {
+    if (mPassNameToIndex.contains(name)) {
+        return *dynamic_cast<RenderPassBindingInfo_PSO*>(
+            mPasses[mPassNameToIndex.at(name)].binding.get());
+    } else {
+        uint32_t index = mPasses.size();
+        mPasses.emplace_back(*this, MakeUnique<RenderPassBindingInfo_PSO>(
+                                        *this, index, dgcSeqBuf));
         mPassNameToIndex[name] = index;
 
         mPassBarrierInfos.emplace_back();

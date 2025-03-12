@@ -94,24 +94,38 @@ private:
     IDVC_NS::UniquePtr<IDVC_NS::DGCSeqManager> mDGCSequenceMgr {};
 
     /**
-     *  dgc dispath
+     *  dgc dispath without execution set
      */
     void prepare_compute_sequence();
-    void dgc_dispatch(vk::CommandBuffer cmd);
 
     IDCMCore_NS::Float3 _baseColorFactor {0.0f, 0.0f, 0.01f};
 
     using DispatchSequenceTemp =
+        DGCSeqTemplate<true, DGCExecutionSetType::None, IDCMCore_NS::Float3>;
+
+    /**
+     *  dgc draw mesh task
+     */
+    void prepare_draw_mesh_task();
+
+    using DrawSequenceTemp = DGCSeqTemplate<false, DGCExecutionSetType::None,
+                                            IDVC_NS::MeshletPushConstants>;
+
+    /**
+     *  dgc dispath
+     */
+    void prepare_compute_sequence_pipeline();
+
+    using DispatchSequence_PipelineTemp =
         DGCSeqTemplate<true, DGCExecutionSetType::Pipeline,
                        IDCMCore_NS::Float3>;
 
     /**
      *  dgc draw mesh task
      */
-    void prepare_draw_mesh_task();
-    void dgc_draw_mesh_task(vk::CommandBuffer cmd);
+    void prepare_draw_mesh_task_pipeline();
 
-    using DrawSequenceTemp =
+    using DrawSequence_PipelineTemp =
         DGCSeqTemplate<false, DGCExecutionSetType::Pipeline,
                        IDVC_NS::MeshletPushConstants>;
 
@@ -123,7 +137,6 @@ private:
                        IDCMCore_NS::Float3>;
 
     void prepare_compute_sequence_shader();
-    void dgc_dispatch_shader(vk::CommandBuffer cmd);
 
     /**
      * ShaderEXT draw test
@@ -133,9 +146,6 @@ private:
                        IDVC_NS::MeshletPushConstants>;
 
     void prepare_draw_mesh_task_shader();
-    void dgc_draw_mesh_task_shader(vk::CommandBuffer cmd);
-
-    IDVC_NS::UniquePtr<IDVC_NS::DrawCallManager> mDrawCallMgr;
 };
 
 VE_CREATE_APPLICATION(DGCTest, 1600, 900);

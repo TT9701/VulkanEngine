@@ -17,7 +17,7 @@ class RenderResourceManager;
 
 namespace RenderPassBinding {
 
-enum class Type { DSV, ArgumentBuffer, RenderInfo, DGCSequence, Count };
+enum class Type { DSV, RenderInfo, Count };
 
 template <Type Type>
 struct TypeTraits;
@@ -28,18 +28,8 @@ struct TypeTraits<Type::DSV> {
 };
 
 template <>
-struct TypeTraits<Type::ArgumentBuffer> {
-    using value = ArgumentBufferInfo;
-};
-
-template <>
 struct TypeTraits<Type::RenderInfo> {
     using value = RenderInfo;
-};
-
-template <>
-struct TypeTraits<Type::DGCSequence> {
-    using value = RenderResource const*;
 };
 
 template <Type Type>
@@ -62,16 +52,11 @@ public:
 
 class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
     class Type_BindingValue {
-        using Type_PC = RenderPassBinding::PushContants;
         using Type_RenderInfo = RenderPassBinding::RenderInfo;
         using Type_BindlessDescInfo = RenderPassBinding::BindlessDescBufInfo;
-        using Type_ArgumentBuf = RenderPassBinding::ArgumentBufferInfo;
-        using Type_DGCSequence = RenderResource const*;
         using Type_Value =
-            ::std::variant<Type_STLString, Type_PC,
-                           Type_STLVector<Type_STLString>, Type_RenderInfo,
-                           Type_BindlessDescInfo, Type_ArgumentBuf,
-                           Type_DGCSequence>;
+            ::std::variant<Type_STLString, Type_STLVector<Type_STLString>,
+                           Type_RenderInfo, Type_BindlessDescInfo>;
 
     public:
         Type_BindingValue(const char* str);
@@ -81,27 +66,20 @@ class RenderPassBindingInfo_PSO : public IRenderPassBindingInfo {
         Type_BindingValue(::std::initializer_list<Type_STLString> const& str);
         Type_BindingValue(Type_STLVector<Type_STLString> const& str);
 
-        // push constants
-        Type_BindingValue(Type_PC const& data);
-
         // render info
         Type_BindingValue(Type_RenderInfo const& info);
 
         // bindless descriptro infos
         Type_BindingValue(Type_BindlessDescInfo const& info);
 
-        // argument buffer
-        Type_BindingValue(Type_ArgumentBuf const& info);
-
-        // DGC sequence
-        Type_BindingValue(Type_DGCSequence info);
-
         Type_Value value;
     };
 
 public:
+    RenderPassBindingInfo_PSO(RenderSequence& rs, uint32_t index);
+
     RenderPassBindingInfo_PSO(RenderSequence& rs, uint32_t index,
-                              RenderQueueType type);
+                              RenderResource const* dgcSeqBuf);
 
     virtual ~RenderPassBindingInfo_PSO() override = default;
 
@@ -109,6 +87,8 @@ public:
 
     void SetPipeline(const char* pipelineName,
                      const char* pipelineLayoutName = nullptr);
+
+    void GenerateLayoutData();
 
     Type_BindingValue& operator[](RenderPassBinding::Type type);
     Type_BindingValue& operator[](const char* name);
@@ -128,7 +108,6 @@ private:
     void InitBuiltInInfos();
 
     void GeneratePipelineMetaData(CMP_NS::Type_STLString_POD name);
-    void GeneratePushContantMetaData();
     void GenerateRTVMetaData(
         Type_STLVector<::std::array<Type_STLString, 2>> const& data);
 
@@ -151,15 +130,15 @@ private:
 private:
     RenderSequence& mRenderSequence;
     uint32_t mIndex;
-    RenderQueueType mType;
 
     DrawCallManager mDrawCallMgr;
+
+    RenderResource const* mDGCSeqBuf {nullptr};
 
     Type_STLUnorderedMap<RenderPassBinding::Type, Type_BindingValue>
         mBuiltInInfos {};
     Type_STLUnorderedMap_String<Type_BindingValue> mDescInfos {};
     Type_STLUnorderedMap_String<Type_BindingValue> mBindlessDescInfos {};
-    Type_STLUnorderedMap_String<Type_BindingValue> mPCInfos {};
     Type_STLVector<::std::pair<Type_STLString, Type_BindingValue>> mRTVInfos {};
 
     Type_STLString mPipelineName;

@@ -11,16 +11,12 @@ public:
     void CreateLayout(VulkanContext& context, PipelineLayout* pipelineLayout,
                       bool unorderedSequence, bool explicitPreprocess);
 
-    template <class TDGCSeqTemplate>
-    void CreateLayout(VulkanContext& context, ShaderProgram* shaderProgram,
-                      bool unorderedSequence, bool explicitPreprocess);
-
-    ShaderProgram* GetShaderProgram() const;
+    PipelineLayout* GetPipelineLayout() const;
 
     vk::IndirectCommandsLayoutEXT GetHandle() const;
 
 private:
-    ShaderProgram* mShaderProgram {nullptr};
+    PipelineLayout* mPipelineLayout {nullptr};
 
     Type_UniquePtr<DGCSeqLayout> mLayout;
 };
@@ -30,23 +26,11 @@ void DGCSeqRenderLayout::CreateLayout(VulkanContext& context,
                                       PipelineLayout* pipelineLayout,
                                       bool unorderedSequence,
                                       bool explicitPreprocess) {
-    mShaderProgram = &pipelineLayout->GetShaderProgram();
+    mPipelineLayout = pipelineLayout;
 
     mLayout = IntelliDesign_NS::Vulkan::Core::CreateLayout<TDGCSeqTemplate>(
         context, pipelineLayout->GetHandle(), unorderedSequence,
         explicitPreprocess);
-}
-
-template <class TDGCSeqTemplate>
-void DGCSeqRenderLayout::CreateLayout(VulkanContext& context,
-                                      ShaderProgram* shaderProgram,
-                                      bool unorderedSequence,
-                                      bool explicitPreprocess) {
-    mShaderProgram = shaderProgram;
-
-    mLayout = IntelliDesign_NS::Vulkan::Core::CreateLayout<TDGCSeqTemplate>(
-        context, shaderProgram->GetCombinedDescLayoutHandles(),
-        shaderProgram->GetPCRanges()[0], unorderedSequence, explicitPreprocess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

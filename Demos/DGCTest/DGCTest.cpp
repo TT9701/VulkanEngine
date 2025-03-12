@@ -42,8 +42,6 @@ DGCTest::DGCTest(ApplicationSpecification const& spec)
     mDGCSequenceMgr =
         MakeUnique<DGCSeqManager>(GetVulkanContext(), GetPipelineMgr(),
                                   GetShaderMgr(), GetRenderResMgr());
-
-    mDrawCallMgr = MakeUnique<DrawCallManager>(GetRenderResMgr());
 }
 
 DGCTest::~DGCTest() = default;
@@ -207,9 +205,9 @@ void DGCTest::Prepare() {
 
     auto& window = GetSDLWindow();
 
-    mRenderSequence.AddRenderPass("DrawBackground", RenderQueueType::Compute);
-    mRenderSequence.AddRenderPass("DrawMeshShader", RenderQueueType::Graphics);
-    mRenderSequence.AddRenderPass("DrawQuad", RenderQueueType::Graphics);
+    mRenderSequence.AddRenderPass("DrawBackground");
+    mRenderSequence.AddRenderPass("DrawMeshShader");
+    mRenderSequence.AddRenderPass("DrawQuad");
 
     for (auto& frame : GetFrames()) {
         frame.PrepareBindlessDescPool({dynamic_cast<RenderPassBindingInfo_PSO*>(
@@ -268,8 +266,8 @@ void DGCTest::Prepare() {
     }
 
     prepare_compute_sequence();
-
-    // prepare_compute_sequence_shader();
+    prepare_compute_sequence_pipeline();
+    prepare_compute_sequence_shader();
 
     const char* modelPath = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
 
@@ -279,31 +277,118 @@ void DGCTest::Prepare() {
 
     AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
 
-    // prepare_draw_mesh_task();
-
+    prepare_draw_mesh_task();
+    prepare_draw_mesh_task_pipeline();
     prepare_draw_mesh_task_shader();
 
     PrepareUIContext();
 
     // RecordPasses(mRenderSequence);
-
-    mDrawCallMgr->AddArgument_DGCSequence(
-        &GetRenderResMgr()["dgc_pipe_dispatch_test"]);
 }
 
 void DGCTest::prepare_compute_sequence() {
     const uint32_t sequenceCount = 2;
-    const uint32_t maxPipelineCount = 2;
+    const uint32_t maxPipelineCount = 1;
     const uint32_t maxDrawCount = 1;
 
     auto& sequence = mDGCSequenceMgr->CreateSequence<DispatchSequenceTemp>(
-        {sequenceCount, maxDrawCount, maxPipelineCount, "Background"},
-        {"Background-dgctest"});
+        {sequenceCount,
+         maxDrawCount,
+         maxPipelineCount,
+         {{"computeDraw", vk::ShaderStageFlagBits::eCompute}}});
 
     // buffers
     {
         auto data = mDGCSequenceMgr->CreateDataBuffer<DispatchSequenceTemp>(
-            "dgc_pipe_dispatch_test");
+            "dgc_dispatch_test");
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].pushConstant = _baseColorFactor;
+            data.data[i]
+                .command.setX((uint32_t)std::ceil(1600 / 16.0))
+                .setY((uint32_t)std::ceil(900 / 16.0))
+                .setZ(1);
+        }
+    }
+}
+
+void DGCTest::prepare_draw_mesh_task() {
+    Type_ShaderMacros taskMacros {};
+    taskMacros.emplace("TASK_INVOCATION_COUNT",
+                       std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
+
+    Type_ShaderMacros meshMacros {};
+    meshMacros.emplace("MESH_INVOCATION_COUNT",
+                       std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
+    meshMacros.emplace(
+        "MAX_VERTICES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES).c_str());
+    meshMacros.emplace(
+        "MAX_PRIMITIVES",
+        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
+
+    const uint32_t sequenceCount = 3;
+    const uint32_t maxShaderCount = 3;
+    const uint32_t maxDrawCount = 2000;
+
+    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequenceTemp>(
+        {sequenceCount,
+         maxDrawCount,
+         maxShaderCount,
+         {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
+          {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
+          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}}, true});
+
+    // buffers
+    {
+        auto const& node = mScene->GetNode("cisdi");
+        auto const& modelName = node.GetModel().name;
+        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
+        auto pushConstant = *geo.GetMeshletPushContantsPtr();
+
+        ::std::array<MeshletPushConstants, 3> meshletConstants {};
+
+        meshletConstants[0] = pushConstant;
+        meshletConstants[0].mModelMatrix =
+            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
+
+        meshletConstants[1] = pushConstant;
+        meshletConstants[1].mModelMatrix =
+            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
+            * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
+
+        meshletConstants[2] = pushConstant;
+        meshletConstants[2].mModelMatrix =
+            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
+            * IDCMCore_NS::MatrixTranslation(20.0f, 20.0f, 20.0f);
+
+        auto command = geo.GetDrawIndirectCmdBufInfo();
+
+        auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequenceTemp>(
+                "dgc_draw_test");
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].pushConstant = meshletConstants[i];
+            data.data[i].command = command;
+        }
+    }
+}
+
+void DGCTest::prepare_compute_sequence_pipeline() {
+    const uint32_t sequenceCount = 2;
+    const uint32_t maxPipelineCount = 2;
+    const uint32_t maxDrawCount = 1;
+
+    auto& sequence =
+        mDGCSequenceMgr->CreateSequence<DispatchSequence_PipelineTemp>(
+            {sequenceCount, maxDrawCount, maxPipelineCount, "Background"},
+            {"Background-dgctest"});
+
+    // buffers
+    {
+        auto data =
+            mDGCSequenceMgr->CreateDataBuffer<DispatchSequence_PipelineTemp>(
+                "dgc_pipe_dispatch_test");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].index = i;
@@ -316,16 +401,12 @@ void DGCTest::prepare_compute_sequence() {
     }
 }
 
-void DGCTest::dgc_dispatch(vk::CommandBuffer cmd) {
-    GetRenderResMgr()["dgc_pipe_dispatch_test"].Execute(cmd);
-}
-
-void DGCTest::prepare_draw_mesh_task() {
+void DGCTest::prepare_draw_mesh_task_pipeline() {
     const uint32_t sequenceCount = 2;
     const uint32_t maxPipelineCount = 2;
     const uint32_t maxDrawCount = 2000;
 
-    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequenceTemp>(
+    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequence_PipelineTemp>(
         {sequenceCount, maxDrawCount, maxPipelineCount, "MeshShaderDraw",
          true});
 
@@ -347,23 +428,18 @@ void DGCTest::prepare_draw_mesh_task() {
             IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
             * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
 
-        auto const& cmdBuffer = *geo.GetMeshTaskIndirectCmdBuffer();
+        auto command = geo.GetDrawIndirectCmdBufInfo();
 
-        auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequenceTemp>(
-            "dgc_pipe_draw_test");
+        auto data =
+            mDGCSequenceMgr->CreateDataBuffer<DrawSequence_PipelineTemp>(
+                "dgc_pipe_draw_test");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].index = i;
             data.data[i].pushConstant = meshletConstants[i];
-            data.data[i].command = vk::DrawIndirectCountIndirectCommandEXT {
-                cmdBuffer.GetDeviceAddress(), (uint32_t)cmdBuffer.GetStride(),
-                cmdBuffer.GetCount()};
+            data.data[i].command = command;
         }
     }
-}
-
-void DGCTest::dgc_draw_mesh_task(vk::CommandBuffer cmd) {
-    GetRenderResMgr()["dgc_pipe_draw_test"].Execute(cmd);
 }
 
 void DGCTest::prepare_compute_sequence_shader() {
@@ -396,10 +472,6 @@ void DGCTest::prepare_compute_sequence_shader() {
     }
 }
 
-void DGCTest::dgc_dispatch_shader(vk::CommandBuffer cmd) {
-    GetRenderResMgr()["dgc_shader_dispatch_test"].Execute(cmd);
-}
-
 void DGCTest::prepare_draw_mesh_task_shader() {
     Type_ShaderMacros taskMacros {};
     taskMacros.emplace("TASK_INVOCATION_COUNT",
@@ -415,7 +487,7 @@ void DGCTest::prepare_draw_mesh_task_shader() {
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
 
-    const uint32_t sequenceCount = 2;
+    const uint32_t sequenceCount = 1;
     const uint32_t maxShaderCount = 3;
     const uint32_t maxDrawCount = 2000;
 
@@ -446,23 +518,17 @@ void DGCTest::prepare_draw_mesh_task_shader() {
             IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
             * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
 
-        auto const& cmdBuffer = *geo.GetMeshTaskIndirectCmdBuffer();
+        auto command = geo.GetDrawIndirectCmdBufInfo();
 
         auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequence_ShaderTemp>(
             "dgc_shader_draw_test");
 
-        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
-            data.data[i].index = {i};
-            data.data[i].pushConstant = meshletConstants[i];
-            data.data[i].command = vk::DrawIndirectCountIndirectCommandEXT {
-                cmdBuffer.GetDeviceAddress(), (uint32_t)cmdBuffer.GetStride(),
-                cmdBuffer.GetCount()};
+        for (uint32_t i = 0; i < 1; ++i) {
+            data.data[i].index = {0, 1, 2};
+            data.data[i].pushConstant = meshletConstants[i % 2];
+            data.data[i].command = command;
         }
     }
-}
-
-void DGCTest::dgc_draw_mesh_task_shader(vk::CommandBuffer cmd) {
-    GetRenderResMgr()["dgc_shader_draw_test"].Execute(cmd);
 }
 
 void DGCTest::BeginFrame(IDVC_NS::RenderFrame& frame) {
@@ -485,11 +551,7 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
-        mRenderSequence.RecordPass("DrawBackground", cmd.GetHandle());
-
-        // dgc_dispatch(cmd.GetHandle());
-        // dgc_dispatch_shader(cmd.GetHandle());
-        mDrawCallMgr->RecordCmd(cmd.GetHandle());
+        mRenderSequence.RecordPass("DGC_Dispatch", cmd.GetHandle());
 
         cmd.End();
 
@@ -513,10 +575,9 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
-        mRenderSequence.RecordPass("DrawMeshShader", cmd.GetHandle());
+        mRenderSequence.RecordPass("DGC_DrawMeshShader", cmd.GetHandle());
 
-        // dgc_draw_mesh_task(cmd.GetHandle());
-        dgc_draw_mesh_task_shader(cmd.GetHandle());
+        auto cmdHandle = cmd.GetHandle();
 
         cmd.End();
 
@@ -936,8 +997,9 @@ void DGCTest::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("场景信息")) {
-                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", mMainCamera->mPosition.x,
-                            mMainCamera->mPosition.y, mMainCamera->mPosition.z);
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]",
+                            mMainCamera->mPosition.x, mMainCamera->mPosition.y,
+                            mMainCamera->mPosition.z);
 
                 IDCMCore_NS::Float3 lightPos {IDCMCore_NS::Vector3Normalize(
                     {mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
@@ -1027,49 +1089,39 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
 
     RenderSequenceConfig cfg {};
 
-    cfg.AddRenderPass("DrawBackground", "Background")
+    cfg.AddRenderPass("DGC_Dispatch",
+                      &GetRenderResMgr()["dgc_dispatch_test"])
         .SetBinding("image", "DrawImage")
-        .SetBinding("StorageBuffer", "RWBuffer")
-        .SetBinding("PushConstants", &_baseColorFactor);
-    // .SetExecuteInfo({{mDispatchIndirectCmdBuffer.get(),
-    //                   RenderPassConfig::ExecuteType::Dispatch}});
-
-    Type_STLVector<RenderPassConfig::ExecuteInfo> executeInfos {};
-
-    for (auto const& [name, node] : mScene->GetAllNodes()) {
-        auto const& modelName = node->GetModel().name;
-        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
-        auto pPushConstant = geo.GetMeshletPushContantsPtr();
-
-        pPushConstant->mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
-
-        executeInfos.emplace_back(geo.GetMeshTaskIndirectCmdBuffer(),
-                                  RenderPassConfig::ExecuteType::DrawMeshTask);
-    }
-
-    auto const& name = mScene->GetNode("cisdi").GetModel().name;
-    auto& geo = mGeoMgr->GetGPUGeometryData(name.c_str());
-    auto meshPushContants = geo.GetMeshletPushContantsPtr();
-
-    meshPushContants->mModelMatrix =
-        IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
-
-    // meshPushContants->mModelMatrix = IDCMCore_NS::MatrixRotationAxis(
-    //     {-1.0f, 0.0f, 0.0f}, IDCMCore_NS::ConvertToRadians(90.0f));
+        .SetBinding("StorageBuffer", "RWBuffer");
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 
-    cfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
-        .SetBinding("PushConstants", meshPushContants)
+    cfg.AddRenderPass("DGC_DrawMeshShader",
+                      &GetRenderResMgr()["dgc_draw_test"])
         .SetBinding("UBO", "SceneUniformBuffer")
         // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
         .SetBinding("_Depth_", "DepthImage")
-        .SetViewport({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f})
-        .SetScissor({{0, 0}, {width, height}})
+        .SetDGCPipelineInfo(DGCPipelineInfo {
+            .colorBlendInfo = {0,
+                               {vk::True},
+                               {{vk::BlendFactor::eOneMinusSrcAlpha,
+                                 vk::BlendFactor::eSrcAlpha, vk::BlendOp::eAdd,
+                                 vk::BlendFactor::eOne, vk::BlendFactor::eZero,
+                                 vk::BlendOp::eAdd}}},
+            .viewport = {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f},
+            .scissor = {{0, 0}, {width, height}}})
         .SetRenderArea({{0, 0}, {width, height}});
-    // .SetExecuteInfo(executeInfos);
+
+    // cfg.AddRenderPass("DGC_DrawMeshShader",
+    //                   &GetRenderResMgr()["dgc_draw_test"])
+    //     .SetBinding("UBO", "SceneUniformBuffer")
+    //     // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
+    //     .SetBinding("outFragColor", "DrawImage")
+    //     .SetBinding("_Depth_", "DepthImage")
+    //     .SetViewport({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f})
+    //     .SetScissor({{0, 0}, {width, height}})
+    //     .SetRenderArea({{0, 0}, {width, height}});
 
     cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")

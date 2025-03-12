@@ -28,6 +28,10 @@ public:
     friend Type_GPBuilder;
 
 public:
+    PipelineLayout* CreateLayout(const char* name, ShaderProgram* program,
+                                 vk::PipelineLayoutCreateFlags flags = {},
+                                 void* pNext = nullptr);
+
     vk::PipelineLayout GetLayoutHandle(const char* name) const;
     PipelineLayout* GetLayout(const char* name) const;
 
@@ -42,10 +46,6 @@ public:
     void BindPipeline(vk::CommandBuffer cmd, const char* name);
 
 private:
-    SharedPtr<PipelineLayout> CreateLayout(
-        const char* name, ShaderProgram* program,
-        vk::PipelineLayoutCreateFlags flags = {}, void* pNext = nullptr);
-
     Type_STLString ParsePipelineName(const char* pipelineName) const;
     Type_STLString ParsePipelineLayoutName(const char* pipelineName) const;
 

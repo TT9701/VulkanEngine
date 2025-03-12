@@ -140,9 +140,9 @@ template <class TDGCSeqTemplate>
 DGCSeq_ESShader& DGCSeqManager::CreateSequence(
     DGCSeqInfo_Shader const& info,
     std::initializer_list<ShaderIDInfo> shaderInfosInES) {
-    auto ptr =
-        MakeShared<DGCSeq_ESShader>(mContext, mShaderMgr, info.maxSequenceCount,
-                                    info.maxDrawCount, info.maxShaderCount);
+    auto ptr = MakeShared<DGCSeq_ESShader>(
+        mContext, mPipelineMgr, mShaderMgr, info.maxSequenceCount,
+        info.maxDrawCount, info.maxShaderCount);
 
     ptr->MakeSequenceLayout<TDGCSeqTemplate>(info.initialShaderIdInfos,
                                              info.unorderedSequence,

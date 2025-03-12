@@ -129,6 +129,8 @@ private:
 };
 
 class ShaderObject : public ShaderBase {
+    friend ShaderProgram;
+
 public:
     // from spirv
     ShaderObject(VulkanContext& context, const char* name,
@@ -170,10 +172,13 @@ public:
         ::std::array<ShaderBase*, Utils::EnumCast(ShaderStage::Count)>;
 
 public:
-    ShaderProgram(ShaderBase* comp, void* layoutPNext = nullptr);
-    ShaderProgram(ShaderBase* vert, ShaderBase* frag,
+    ShaderProgram(Shader* comp, void* layoutPNext = nullptr);
+    ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext = nullptr);
+    ShaderProgram(Shader* task, Shader* mesh, Shader* frag,
                   void* layoutPNext = nullptr);
-    ShaderProgram(ShaderBase* task, ShaderBase* mesh, ShaderBase* frag,
+
+    ShaderProgram(ShaderObject* comp, void* layoutPNext = nullptr);
+    ShaderProgram(ShaderObject* task, ShaderObject* mesh, ShaderObject* frag,
                   void* layoutPNext = nullptr);
 
     ~ShaderProgram() = default;
@@ -190,6 +195,8 @@ public:
     Type_STLVector<DescriptorSetLayout*> GetCombinedDescLayouts() const;
     Type_STLVector<vk::DescriptorSetLayout> GetCombinedDescLayoutHandles()
         const;
+
+    Type_STLVector<Type_STLString> const& GetRTVNames() const;
 
 private:
     void SetShader(ShaderStage stage, ShaderBase* shader);

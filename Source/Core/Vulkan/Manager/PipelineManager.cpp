@@ -9,7 +9,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 PipelineManager::PipelineManager(VulkanContext& contex) : mContext(contex) {}
 
-SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
+PipelineLayout* PipelineManager::CreateLayout(
     const char* name, ShaderProgram* program,
     vk::PipelineLayoutCreateFlags flags, void* pNext) {
     const auto ptr =
@@ -18,7 +18,7 @@ SharedPtr<PipelineLayout> PipelineManager::CreateLayout(
     mContext.SetName(ptr->GetHandle(), name);
     mPipelineLayouts.emplace(name, ptr);
 
-    return ptr;
+    return ptr.get();
 }
 
 vk::PipelineLayout PipelineManager::GetLayoutHandle(const char* name) const {

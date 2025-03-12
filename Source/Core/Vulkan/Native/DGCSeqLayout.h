@@ -3,7 +3,7 @@
 #include "Core/Vulkan/Manager/VulkanContext.h"
 
 #include "Core/Utilities/MemoryPool.h"
-#include "Core/Vulkan/Native/Shader.h"
+// #include "Core/Vulkan/Native/Shader.h"
 
 // #define EXPAND(x) x
 //
@@ -265,13 +265,6 @@ private:
         VulkanContext& context, vk::PipelineLayout pipelineLayout,
         bool unorderedSequence, bool explicitPreprocess);
 
-    template <class TDGCSeqTemplate>
-    friend Type_UniquePtr<DGCSeqLayout> CreateLayout(
-        VulkanContext& context,
-        Type_STLVector<vk::DescriptorSetLayout> const& descSetLayouts,
-        ::std::optional<vk::PushConstantRange> const& pcRange,
-        bool unorderedSequence, bool explicitPreprocess);
-
 private:
     VulkanContext& mContext;
 
@@ -356,8 +349,8 @@ inline vk::IndirectCommandsLayoutCreateInfoEXT MakeDGCLayoutCreateInfo(
 template <class TDGCSeqTemplate>
 Type_UniquePtr<DGCSeqLayout> CreateLayout(VulkanContext& context,
                                           vk::PipelineLayout pipelineLayout,
-                                          bool unorderedSequence = false,
-                                          bool explicitPreprocess = false) {
+                                          bool unorderedSequence,
+                                          bool explicitPreprocess) {
     auto layout = MakeUnique<DGCSeqLayout>(context);
 
     constexpr vk::ShaderStageFlags stages =
@@ -375,45 +368,6 @@ Type_UniquePtr<DGCSeqLayout> CreateLayout(VulkanContext& context,
                                         explicitPreprocess, stages,
                                         sizeof(TDGCSeqTemplate));
     info.setPipelineLayout(pipelineLayout);
-
-    layout->mHandle =
-        context.GetDevice()->createIndirectCommandsLayoutEXT(info);
-
-    return layout;
-}
-
-template <class TDGCSeqTemplate>
-Type_UniquePtr<DGCSeqLayout> CreateLayout(
-    VulkanContext& context,
-    Type_STLVector<vk::DescriptorSetLayout> const& descSetLayouts,
-    ::std::optional<vk::PushConstantRange> const& pcRange,
-    bool unorderedSequence = false, bool explicitPreprocess = false) {
-    auto layout = MakeUnique<DGCSeqLayout>(context);
-
-    constexpr vk::ShaderStageFlags stages =
-        TDGCSeqTemplate::_IsCompute_ ? vk::ShaderStageFlagBits::eCompute
-                                     : vk::ShaderStageFlagBits::eTaskEXT
-                                           | vk::ShaderStageFlagBits::eMeshEXT
-                                           | vk::ShaderStageFlagBits::eFragment;
-
-    vk::IndirectCommandsExecutionSetTokenEXT esToken {};
-    vk::IndirectCommandsPushConstantTokenEXT pcToken {};
-
-    auto tokenDatas = MakeTokenDatas<TDGCSeqTemplate>(stages, esToken, pcToken);
-
-    auto info = MakeDGCLayoutCreateInfo(tokenDatas, unorderedSequence,
-                                        explicitPreprocess, stages,
-                                        sizeof(TDGCSeqTemplate));
-
-    vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo {};
-    if constexpr (!::std::is_same_v<
-                      typename TDGCSeqTemplate::_Type_PushConstant_, void>) {
-        if (!descSetLayouts.empty())
-            pipelineLayoutCreateInfo.setSetLayouts(descSetLayouts);
-        if (pcRange)
-            pipelineLayoutCreateInfo.setPushConstantRanges(pcRange.value());
-        info.setPNext(&pipelineLayoutCreateInfo);
-    }
 
     layout->mHandle =
         context.GetDevice()->createIndirectCommandsLayoutEXT(info);

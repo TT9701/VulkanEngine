@@ -43,8 +43,10 @@ public:
 
     CLASS_NO_COPY_MOVE(RenderSequence);
 
+    RenderPassBindingInfo_PSO& AddRenderPass(const char* name);
+
     RenderPassBindingInfo_PSO& AddRenderPass(const char* name,
-                                             RenderQueueType type);
+                                             RenderResource const* dgcSeqBuf);
 
     RenderPassBindingInfo_Copy& AddCopyPass(const char* name);
 

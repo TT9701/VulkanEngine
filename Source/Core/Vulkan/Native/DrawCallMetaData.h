@@ -9,6 +9,24 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+struct DGCColorBlendInfo {
+    uint32_t firstAttachment {0};
+    Type_STLVector<vk::Bool32> enableColorBlend {vk::False};
+    Type_STLVector<vk::ColorBlendEquationEXT> equations {1};
+};
+
+struct DGCPipelineInfo {
+    vk::PolygonMode polygonMode {vk::PolygonMode::eFill};
+    vk::CullModeFlags cullMode {vk::CullModeFlagBits::eNone};
+    vk::SampleCountFlagBits rasterSampleCount {vk::SampleCountFlagBits::e1};
+    vk::Bool32 enableDepthTest {vk::True};
+    vk::Bool32 enableDepthWrite {vk::True};
+    vk::CompareOp depthCompareOp {vk::CompareOp::eGreaterOrEqual};
+    DGCColorBlendInfo colorBlendInfo {};
+    vk::Viewport viewport {};
+    vk::Rect2D scissor {};
+};
+
 enum class DrawCallMetaDataType {
     ClearColorImage,
     ClearDepthStencilImage,
@@ -20,20 +38,11 @@ enum class DrawCallMetaDataType {
     Scissor,
 
     Pipeline,
-    PushContant,
     DescriptorBuffer,
     DescriptorSet,
-    IndexBuffer,
-
-    DrawIndexedIndirect,
-    DrawIndirect,
-    Draw,
-    DispatchIndirect,
-    Dispatch,
-    DrawMeshTasksIndirect,
-    DrawMeshTask,
 
     DGCSequence,
+    DGCPipelineInfo,  ///<- only used when execution set is shaderEXT, and graphic draw
 
     Copy,
 
@@ -139,17 +148,6 @@ struct DrawCallMetaData<DrawCallMetaDataType::Pipeline> : IDrawCallMetaData {
 };
 
 template <>
-struct DrawCallMetaData<DrawCallMetaDataType::PushContant> : IDrawCallMetaData {
-    vk::PipelineLayout layout;
-    vk::ShaderStageFlags stage;
-    uint32_t offset;
-    uint32_t size;
-    const void* pValues;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
 struct DrawCallMetaData<DrawCallMetaDataType::DescriptorBuffer>
     : IDrawCallMetaData {
     Type_STLVector<vk::DeviceAddress> addresses;
@@ -170,85 +168,16 @@ struct DrawCallMetaData<DrawCallMetaDataType::DescriptorSet>
 };
 
 template <>
-struct DrawCallMetaData<DrawCallMetaDataType::IndexBuffer> : IDrawCallMetaData {
-    vk::Buffer buffer;
-    vk::DeviceSize offset;
-    vk::IndexType type;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::DrawIndexedIndirect>
-    : IDrawCallMetaData {
-    vk::Buffer buffer;
-    vk::DeviceSize offset;
-    uint32_t drawCount;
-    uint32_t stride;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::DrawIndirect>
-    : IDrawCallMetaData {
-    vk::Buffer buffer;
-    vk::DeviceSize offset;
-    uint32_t drawCount;
-    uint32_t stride;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::Draw> : IDrawCallMetaData {
-    uint32_t vertexCount;
-    uint32_t instanceCount;
-    uint32_t firstVertex;
-    uint32_t firstInstance;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::DispatchIndirect>
-    : IDrawCallMetaData {
-    vk::Buffer buffer;
-    vk::DeviceSize offset;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::Dispatch> : IDrawCallMetaData {
-    uint32_t x, y, z;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::DrawMeshTasksIndirect>
-    : IDrawCallMetaData {
-    vk::Buffer buffer;
-    vk::DeviceSize offset;
-    uint32_t drawCount;
-    uint32_t stride;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask>
-    : IDrawCallMetaData {
-    uint32_t x, y, z;
-
-    void RecordCmds(vk::CommandBuffer cmd) const override;
-};
-
-template <>
-struct DrawCallMetaData<DrawCallMetaDataType::DGCSequence>
-    : IDrawCallMetaData {
+struct DrawCallMetaData<DrawCallMetaDataType::DGCSequence> : IDrawCallMetaData {
     RenderResource const* sequenceBuffer;
+
+    void RecordCmds(vk::CommandBuffer cmd) const override;
+};
+
+template <>
+struct DrawCallMetaData<DrawCallMetaDataType::DGCPipelineInfo>
+    : IDrawCallMetaData {
+    DGCPipelineInfo pipelineInfo;
 
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

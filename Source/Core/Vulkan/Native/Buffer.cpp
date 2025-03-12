@@ -48,6 +48,13 @@ void Buffer::SetDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq) {
     mDGCSequence = dgcSeq;
 }
 
+DGCSeqBase const* Buffer::GetDGCSequence() const {
+    if (mDGCSequence)
+        return mDGCSequence.get();
+    else
+        throw ::std::runtime_error("DGCSequence is not set for this buffer.");
+}
+
 void Buffer::SetName(const char* name) const {
     mContext.GetDevice().SetObjectName(mHandle, name);
     if (mAllocationInfo.deviceMemory != VK_NULL_HANDLE)

@@ -54,11 +54,6 @@ void DrawCallMetaData<DrawCallMetaDataType::Pipeline>::RecordCmds(
     cmd.bindPipeline(bindPoint, pipeline);
 }
 
-void DrawCallMetaData<DrawCallMetaDataType::PushContant>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.pushConstants(layout, stage, offset, size, pValues);
-}
-
 void DrawCallMetaData<DrawCallMetaDataType::DescriptorBuffer>::RecordCmds(
     vk::CommandBuffer cmd) const {
     auto bufferCount = addresses.size();
@@ -80,49 +75,23 @@ void DrawCallMetaData<DrawCallMetaDataType::DescriptorSet>::RecordCmds(
                                       bufferIndices, offsets);
 }
 
-void DrawCallMetaData<DrawCallMetaDataType::IndexBuffer>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.bindIndexBuffer(buffer, offset, type);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::DrawIndexedIndirect>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.drawIndexedIndirect(buffer, offset, drawCount, stride);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::DrawIndirect>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.drawIndirect(buffer, offset, drawCount, stride);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::Draw>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.draw(vertexCount, instanceCount, firstVertex, firstInstance);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::DispatchIndirect>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.dispatchIndirect(buffer, offset);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::Dispatch>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.dispatch(x, y, z);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::DrawMeshTasksIndirect>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.drawMeshTasksIndirectEXT(buffer, offset, drawCount, stride);
-}
-
-void DrawCallMetaData<DrawCallMetaDataType::DrawMeshTask>::RecordCmds(
-    vk::CommandBuffer cmd) const {
-    cmd.drawMeshTasksEXT(x, y, z);
-}
-
 void DrawCallMetaData<DrawCallMetaDataType::DGCSequence>::RecordCmds(
     vk::CommandBuffer cmd) const {
     sequenceBuffer->Execute(cmd);
+}
+
+void DrawCallMetaData<DrawCallMetaDataType::DGCPipelineInfo>::RecordCmds(
+    vk::CommandBuffer cmd) const {
+    cmd.setPolygonModeEXT(pipelineInfo.polygonMode);
+    cmd.setCullModeEXT(pipelineInfo.cullMode);
+    cmd.setRasterizationSamplesEXT(pipelineInfo.rasterSampleCount);
+    cmd.setColorBlendEnableEXT(pipelineInfo.colorBlendInfo.firstAttachment,
+                               pipelineInfo.colorBlendInfo.enableColorBlend);
+    cmd.setColorBlendEquationEXT(pipelineInfo.colorBlendInfo.firstAttachment,
+                                 pipelineInfo.colorBlendInfo.equations);
+    cmd.setDepthTestEnableEXT(pipelineInfo.enableDepthTest);
+    cmd.setDepthWriteEnableEXT(pipelineInfo.enableDepthWrite);
+    cmd.setDepthCompareOpEXT(pipelineInfo.depthCompareOp);
 }
 
 void DrawCallMetaData<DrawCallMetaDataType::Copy>::RecordCmds(

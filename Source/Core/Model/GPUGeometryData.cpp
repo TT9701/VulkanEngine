@@ -270,6 +270,13 @@ Buffer* GPUGeometryData::GetMeshTaskIndirectCmdBuffer() const {
     return mMeshTaskIndirectCmdBuffer.get();
 }
 
+vk::DrawIndirectCountIndirectCommandEXT
+GPUGeometryData::GetDrawIndirectCmdBufInfo() const {
+    auto const& buffer = *mMeshTaskIndirectCmdBuffer;
+    return {buffer.GetDeviceAddress(), (uint32_t)buffer.GetStride(),
+            buffer.GetCount()};
+}
+
 void GPUGeometryData::GenerateStats(ModelData::CISDI_3DModel const& model) {
     const auto meshCount = model.meshes.size();
     mMeshDatas.vertexOffsets.reserve(meshCount);

@@ -88,6 +88,10 @@ void RenderResource::SetBufferDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq) {
     return ::std::get<Buffer>(mResource).SetDGCSequence(dgcSeq);
 }
 
+DGCSeqBase const* RenderResource::GetBufferDGCSequence() const {
+    return ::std::get<Buffer>(mResource).GetDGCSequence();
+}
+
 void RenderResource::Execute(vk::CommandBuffer cmd) const {
     ::std::get<Buffer>(mResource).Execute(cmd);
 }

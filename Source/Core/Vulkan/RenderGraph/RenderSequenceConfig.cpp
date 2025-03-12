@@ -17,6 +17,13 @@ RenderPassConfig& RenderSequenceConfig::AddRenderPass(
     return *dynamic_cast<RenderPassConfig*>(mPassConfigs.back().get());
 }
 
+RenderPassConfig& RenderSequenceConfig::AddRenderPass(
+    const char* passName, RenderResource const* dgcSeqBuf) {
+    mPassConfigs.emplace_back(
+        MakeUnique<RenderPassConfig>(passName, dgcSeqBuf));
+    return *dynamic_cast<RenderPassConfig*>(mPassConfigs.back().get());
+}
+
 CopyPassConfig& RenderSequenceConfig::AddCopyPass(const char* passName) {
     mPassConfigs.emplace_back(MakeUnique<CopyPassConfig>(passName));
     return *dynamic_cast<CopyPassConfig*>(mPassConfigs.back().get());
@@ -35,9 +42,15 @@ void RenderSequenceConfig::Compile(RenderSequence& result) {
     result.GenerateBarriers();
 }
 
+IPassConfig::IPassConfig(const char* passName) : mPassName(passName) {}
+
 RenderPassConfig::RenderPassConfig(const char* passName,
                                    const char* pipelineName)
     : IPassConfig {passName}, mPipelineName(pipelineName) {}
+
+RenderPassConfig::RenderPassConfig(const char* passName,
+                                   RenderResource const* dgcSeqBuf)
+    : IPassConfig {passName}, mDGCSeqBuf(dgcSeqBuf) {}
 
 RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* param,
                                                      const char* argument) {
@@ -69,34 +82,23 @@ RenderPassConfig::Self& RenderPassConfig::SetScissor(
     return *this;
 }
 
-void RenderPassConfig::SetExecuteInfo(
-    Type_STLVector<ExecuteInfo> const& infos) {
-    mInfos = infos;
+RenderPassConfig::Self& RenderPassConfig::SetDGCPipelineInfo(
+    DGCPipelineInfo const& info) {
+    mDgcPipelineInfo = info;
+    return *this;
 }
 
 void RenderPassConfig::Compile(RenderSequence& result) {
-    auto type =
-        result.mPipelineMgr.GetPipeline(mPipelineName.c_str()).GetType();
-
-    switch (type) {
-        case PipelineType::Graphics:
-            result.AddRenderPass(mPassName.c_str(), RenderQueueType::Graphics);
-            break;
-        case PipelineType::Compute:
-            result.AddRenderPass(mPassName.c_str(), RenderQueueType::Compute);
-            break;
+    if (mDGCSeqBuf) {
+        result.AddRenderPass(mPassName.c_str(), mDGCSeqBuf)
+            .GenerateLayoutData();
+    } else {
+        result.AddRenderPass(mPassName.c_str())
+            .SetPipeline(mPipelineName.c_str());
     }
 
     auto& pso = *dynamic_cast<RenderPassBindingInfo_PSO*>(
         result.FindPass(mPassName.c_str()).binding.get());
-
-    pso.SetPipeline(mPipelineName.c_str());
-
-    if (!mPushConstants.empty()) {
-        for (auto const& pc : mPushConstants) {
-            pso[pc.first.c_str()] = pc.second;
-        }
-    }
 
     if (mBindlessDesc) {
         pso[mBindlessDesc->first.c_str()] = mBindlessDesc->second;
@@ -119,50 +121,20 @@ void RenderPassConfig::Compile(RenderSequence& result) {
 
     auto& dcMgr = pso.GetDrawCallManager();
 
-    if (mViewport) {
-        dcMgr.AddArgument_Viewport(0, {*mViewport});
-    }
-
-    if (mScissor) {
-        dcMgr.AddArgument_Scissor(0, {*mScissor});
-    }
-
-    for (auto const& info : mInfos) {
-        auto startIdx = info.startIdx ? *info.startIdx : 0;
-        auto drawCount =
-            info.drawCount ? *info.drawCount
-            : info.argumentBuffer
-                ? info.argumentBuffer->GetCount() - startIdx
-                : throw ::std::runtime_error("No argument buffer provided");
-        switch (info.type) {
-            case ExecuteType::Dispatch: {
-                dcMgr.AddArgument_DispatchIndirect(
-                    info.argumentBuffer->GetHandle(),
-                    startIdx * info.argumentBuffer->GetStride());
-                break;
-                case ExecuteType::Draw: {
-                    dcMgr.AddArgument_DrawIndirect(
-                        info.argumentBuffer->GetHandle(),
-                        startIdx * info.argumentBuffer->GetStride(), drawCount,
-                        info.argumentBuffer->GetStride());
-                    break;
-                }
-                case ExecuteType::DrawIndexed: {
-                    dcMgr.AddArgument_DrawIndexedIndirect(
-                        info.argumentBuffer->GetHandle(),
-                        startIdx * info.argumentBuffer->GetStride(), drawCount,
-                        info.argumentBuffer->GetStride());
-                    break;
-                }
-                case ExecuteType::DrawMeshTask: {
-                    dcMgr.AddArgument_DrawMeshTasksIndirect(
-                        info.argumentBuffer->GetHandle(),
-                        startIdx * info.argumentBuffer->GetStride(), drawCount,
-                        info.argumentBuffer->GetStride());
-                    break;
-                }
-            }
+    if (mDgcPipelineInfo) {
+        dcMgr.AddArgument_DGCPipelineInfo(*mDgcPipelineInfo);
+    } else {
+        if (mViewport) {
+            dcMgr.AddArgument_Viewport(0, {*mViewport});
         }
+
+        if (mScissor) {
+            dcMgr.AddArgument_Scissor(0, {*mScissor});
+        }
+    }
+
+    if (mDGCSeqBuf) {
+        dcMgr.AddArgument_DGCSequence(mDGCSeqBuf);
     }
 }
 

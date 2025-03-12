@@ -20,6 +20,9 @@ public:
     RenderPassConfig& AddRenderPass(const char* passName,
                                     const char* pipelineName);
 
+    RenderPassConfig& AddRenderPass(const char* passName,
+                                    RenderResource const* dgcSeqBuf);
+
     CopyPassConfig& AddCopyPass(const char* passName);
 
     ExecutorConfig& AddExecutor(const char* passName);
@@ -32,7 +35,7 @@ private:
 
 class IPassConfig {
 public:
-    IPassConfig(const char* passName) : mPassName(passName) {}
+    explicit IPassConfig(const char* passName);
 
     virtual ~IPassConfig() = default;
 
@@ -40,6 +43,7 @@ protected:
     friend RenderSequenceConfig;
 
     virtual void Compile(RenderSequence& result) = 0;
+
     Type_STLString mPassName;
 };
 
@@ -49,12 +53,11 @@ class RenderPassConfig : public IPassConfig {
 public:
     RenderPassConfig(const char* passName, const char* pipelineName);
 
+    RenderPassConfig(const char* passName, RenderResource const* dgcSeqBuf);
+
     virtual ~RenderPassConfig() override = default;
 
     Self& SetBinding(const char* param, const char* argument);
-
-    template <class T>
-    Self& SetBinding(const char* name, T* pPushConstants);
 
     Self& SetBinding(const char* param,
                      RenderPassBinding::BindlessDescBufInfo bindless);
@@ -62,48 +65,26 @@ public:
     Self& SetRenderArea(vk::Rect2D const& area);
     Self& SetViewport(vk::Viewport const& viewport);
     Self& SetScissor(vk::Rect2D const& scissor);
-
-    enum class ExecuteType {
-        Draw,
-        DrawIndexed,
-        DrawMeshTask,
-        Dispatch,
-        None = -1
-    };
-
-    struct ExecuteInfo {
-        Buffer* argumentBuffer {nullptr};
-        ExecuteType type {ExecuteType::None};
-        ::std::optional<uint32_t> startIdx {::std::nullopt};
-        ::std::optional<uint32_t> drawCount {::std::nullopt};
-    };
-
-    void SetExecuteInfo(Type_STLVector<ExecuteInfo> const& infos);
+    Self& SetDGCPipelineInfo(DGCPipelineInfo const& info);
 
     friend RenderSequenceConfig;
 
 private:
     void Compile(RenderSequence& result) override;
 
+    RenderResource const* mDGCSeqBuf {nullptr};
+
     Type_STLString mPipelineName;
 
     Type_STLVector<::std::pair<Type_STLString, Type_STLString>> mConfigs;
-    Type_STLVector<::std::pair<Type_STLString, RenderPassBinding::PushContants>>
-        mPushConstants;
     ::std::optional<
         ::std::pair<Type_STLString, RenderPassBinding::BindlessDescBufInfo>>
         mBindlessDesc;
 
-    // Buffer* mArgumentBuffer;
-    Type_STLVector<ExecuteInfo> mInfos;
-
     ::std::optional<vk::Rect2D> mRenderArea;
     ::std::optional<vk::Viewport> mViewport;
     ::std::optional<vk::Rect2D> mScissor;
-
-    // ExecuteType mExecuteType {ExecuteType::None};
-    // uint32_t mStartIdx {0};
-    // uint32_t mDrawCount {0};
+    ::std::optional<DGCPipelineInfo> mDgcPipelineInfo;
 };
 
 class CopyPassConfig : public IPassConfig {
@@ -167,13 +148,5 @@ private:
     Type_STLVector<ResourceStateInfos> mResourceStateInfos;
     Type_Func mExecution;
 };
-
-template <class T>
-RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* name,
-                                                     T* pPushConstants) {
-    mPushConstants.emplace_back(::std::pair {
-        name, RenderPassBinding::PushContants {sizeof(T), pPushConstants}});
-    return *this;
-}
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

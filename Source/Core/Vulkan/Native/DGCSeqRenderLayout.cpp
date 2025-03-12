@@ -2,9 +2,9 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-ShaderProgram* DGCSeqRenderLayout::GetShaderProgram() const {
-    VE_ASSERT(mShaderProgram != nullptr, "Shader program is null.");
-    return mShaderProgram;
+PipelineLayout* DGCSeqRenderLayout::GetPipelineLayout() const {
+    VE_ASSERT(mPipelineLayout != nullptr, "Pipeline layout is null.");
+    return mPipelineLayout;
 }
 
 vk::IndirectCommandsLayoutEXT DGCSeqRenderLayout::GetHandle() const {

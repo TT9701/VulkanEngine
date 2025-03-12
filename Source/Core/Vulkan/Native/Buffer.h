@@ -42,6 +42,8 @@ public:
 
     void SetDGCSequence(SharedPtr<DGCSeqBase> const& dgcSeq);
 
+    DGCSeqBase const* GetDGCSequence() const;
+
     void SetName(const char* name) const;
 
     void Resize(size_t newSize);

@@ -178,11 +178,8 @@ Type_STLVector<ShaderBase::DescriptorSetLayoutData> MergeDescLayoutData(
 
     for (auto const& shader : shaders) {
         if (shader)
-            datas.insert(datas.end(),
-                         ::std::make_move_iterator(
-                             shader->GetDescSetLayoutDatas().begin()),
-                         ::std::make_move_iterator(
-                             shader->GetDescSetLayoutDatas().end()));
+            datas.insert(datas.end(), shader->GetDescSetLayoutDatas().begin(),
+                         shader->GetDescSetLayoutDatas().end());
     }
 
     if (datas.empty())
@@ -655,11 +652,7 @@ vk::ShaderEXT ShaderObject::CreateShader(vk::ShaderCreateFlagBitsEXT flags,
 
     mDescLayouts = CreateDescLayout(mContext, datas, nullptr);
 
-    Type_STLVector<vk::DescriptorSetLayout> layouts {};
-    layouts.reserve(mDescLayouts.size());
-    for (auto const& layout : mDescLayouts) {
-        layouts.push_back(layout->GetHandle());
-    }
+    auto layouts = GetDescLayoutHandles();
 
     auto pushConstant = GetPushContantData();
 
@@ -693,28 +686,62 @@ vk::ShaderEXT ShaderObject::CreateShader(vk::ShaderCreateFlagBitsEXT flags,
     return res.value;
 }
 
-ShaderProgram::ShaderProgram(ShaderBase* comp, void* layoutPNext)
+ShaderProgram::ShaderProgram(Shader* comp, void* layoutPNext)
     : mContext(comp->mContext) {
     SetShader(ShaderStage::Compute, comp);
     GenerateProgram(layoutPNext);
 }
 
-ShaderProgram::ShaderProgram(ShaderBase* vert, ShaderBase* frag,
-                             void* layoutPNext)
+ShaderProgram::ShaderProgram(Shader* vert, Shader* frag, void* layoutPNext)
     : mContext(vert->mContext) {
     SetShader(ShaderStage::Vertex, vert);
     SetShader(ShaderStage::Fragment, frag);
     GenerateProgram(layoutPNext);
 }
 
-ShaderProgram::ShaderProgram(ShaderBase* task, ShaderBase* mesh,
-                             ShaderBase* frag, void* layoutPNext)
+ShaderProgram::ShaderProgram(Shader* task, Shader* mesh, Shader* frag,
+                             void* layoutPNext)
     : mContext(mesh->mContext) {
     if (task)
         SetShader(ShaderStage::Task, task);
     SetShader(ShaderStage::Mesh, mesh);
     SetShader(ShaderStage::Fragment, frag);
     GenerateProgram(layoutPNext);
+}
+
+ShaderProgram::ShaderProgram(ShaderObject* comp, void* layoutPNext)
+    : mContext(comp->mContext) {
+    SetShader(ShaderStage::Compute, comp);
+
+    if (auto pcData = comp->GetPushContantData()) {
+        mCombinedPushContants.emplace(comp->mGLSL_PushContantName,
+                                      pcData.value());
+    }
+
+    mDescLayouts = comp->mDescLayouts;
+}
+
+ShaderProgram::ShaderProgram(ShaderObject* task, ShaderObject* mesh,
+                             ShaderObject* frag, void* layoutPNext)
+    : mContext(mesh->mContext) {
+    if (task)
+        SetShader(ShaderStage::Task, task);
+    SetShader(ShaderStage::Mesh, mesh);
+    SetShader(ShaderStage::Fragment, frag);
+
+    for (auto pShader : pShaders) {
+        if (pShader) {
+            if (auto pcData = pShader->GetPushContantData()) {
+                mCombinedPushContants.emplace(pShader->mGLSL_PushContantName,
+                                              pcData.value());
+                break;
+            }
+        }
+    }
+
+    MergeDescLayoutDatas(layoutPNext);
+
+    mRtvNames = frag->mGLSL_OutVarNames;
 }
 
 const ShaderBase* ShaderProgram::operator[](ShaderStage stage) const {
@@ -761,6 +788,10 @@ ShaderProgram::GetCombinedDescLayoutHandles() const {
         layouts.push_back(layout->GetHandle());
     }
     return layouts;
+}
+
+Type_STLVector<Type_STLString> const& ShaderProgram::GetRTVNames() const {
+    return mRtvNames;
 }
 
 void ShaderProgram::SetShader(ShaderStage stage, ShaderBase* shader) {

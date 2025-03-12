@@ -818,7 +818,6 @@ void MeshShaderDemo::RecordPasses(RenderSequence& sequence) {
 
     cfg.AddRenderPass("DrawMeshShader", "MeshShaderDraw")
         .SetBinding("PushConstants", meshPushContants)
-        .SetBinding("PushConstantsFrag", geo.GetFragmentPushConstantsPtr())
         .SetBinding("UBO", "SceneUniformBuffer")
         // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")

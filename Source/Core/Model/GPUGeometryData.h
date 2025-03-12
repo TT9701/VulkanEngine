@@ -59,6 +59,8 @@ public:
 
     Buffer* GetMeshTaskIndirectCmdBuffer() const;
 
+    vk::DrawIndirectCountIndirectCommandEXT GetDrawIndirectCmdBufInfo() const;
+
 private:
     void GenerateStats(ModelData::CISDI_3DModel const& model);
 

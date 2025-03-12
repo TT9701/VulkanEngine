@@ -19,12 +19,17 @@ class DGCSeqBase {
     };
 
 public:
-    DGCSeqBase(VulkanContext& context, uint32_t sequenceCount,
-               uint32_t maxDrawCount, uint32_t maxESObjectCount);
+    DGCSeqBase(VulkanContext& context, PipelineManager& pipelineMgr,
+               uint32_t sequenceCount, uint32_t maxDrawCount,
+               uint32_t maxESObjectCount);
 
     virtual ~DGCSeqBase();
 
     uint32_t GetSequenceCount() const;
+
+    PipelineLayout* GetPipelineLayout() const;
+
+    bool IsCompute() const;
 
     virtual void Finalize();
 
@@ -44,6 +49,7 @@ protected:
 
 protected:
     VulkanContext& mContext;
+    PipelineManager& mPipelineMgr;
 
     uint32_t mMaxSequenceCount;
     uint32_t mMaxESObjectCount;
@@ -83,16 +89,14 @@ public:
     void Execute(vk::CommandBuffer cmd, Buffer const& buffer) override;
 
 private:
-    PipelineManager& mPipelineMgr;
-
     vk::Pipeline mInitialPipeline;
 };
 
 class DGCSeq_ESShader : public DGCSeqBase {
 public:
-    DGCSeq_ESShader(VulkanContext& context, ShaderManager& shaderMgr,
-                    uint32_t maxSequenceCount, uint32_t maxDrawCount,
-                    uint32_t maxPipelineCount);
+    DGCSeq_ESShader(VulkanContext& context, PipelineManager& pipelineMgr,
+                    ShaderManager& shaderMgr, uint32_t maxSequenceCount,
+                    uint32_t maxDrawCount, uint32_t maxPipelineCount);
 
     DGCSeq_ESShader& AddShader(ShaderIDInfo const& idInfo);
 
@@ -132,14 +136,9 @@ template <class TDGCSeqTemplate>
 void DGCSeq_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
                                            bool unorderedSequence,
                                            bool explicitPreprocess) {
-    auto pipelineLayout = mPipelineMgr.GetLayoutHandle(pipelineLayoutName);
-
     mLayout.CreateLayout<TDGCSeqTemplate>(
         mContext, mPipelineMgr.GetLayout(pipelineLayoutName), unorderedSequence,
         explicitPreprocess);
-
-    // mLayout = CreateLayout<TDGCSeqTemplate>(
-    //     mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
 
     mExplicitPreprocess = explicitPreprocess;
     mIsCompute = TDGCSeqTemplate::_IsCompute_;
@@ -181,8 +180,11 @@ void DGCSeq_ESShader::MakeSequenceLayout(
         typeid(TDGCSeqTemplate).name(), shaderObjects[TaskShaderIdx],
         shaderObjects[MeshShaderIdx], shaderObjects[FragmentShaderIdx]);
 
-    mLayout.CreateLayout<TDGCSeqTemplate>(mContext, program, unorderedSequence,
-                                          explicitPreprocess);
+    auto pipelineLayout =
+        mPipelineMgr.CreateLayout(typeid(TDGCSeqTemplate).name(), program);
+
+    mLayout.CreateLayout<TDGCSeqTemplate>(
+        mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
 }
 
 template <class TDGCSeqTemplate>
@@ -198,8 +200,11 @@ void DGCSeq_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
     auto program =
         mShaderMgr.CreateProgram(typeid(TDGCSeqTemplate).name(), shader);
 
-    mLayout.CreateLayout<TDGCSeqTemplate>(mContext, program, unorderedSequence,
-                                          explicitPreprocess);
+    auto pipelineLayout =
+        mPipelineMgr.CreateLayout(typeid(TDGCSeqTemplate).name(), program);
+
+    mLayout.CreateLayout<TDGCSeqTemplate>(
+        mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core
