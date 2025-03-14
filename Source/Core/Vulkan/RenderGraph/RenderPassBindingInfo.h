@@ -10,6 +10,7 @@
 #include "RenderSequence.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
+class PipelineLayout;
 
 class PipelineManager;
 class DescriptorManager;
@@ -17,13 +18,18 @@ class RenderResourceManager;
 
 namespace RenderPassBinding {
 
-enum class Type { DSV, RenderInfo, Count };
+enum class Type { DSV, DGCSeqBuf, RenderInfo, Count };
 
 template <Type Type>
 struct TypeTraits;
 
 template <>
 struct TypeTraits<Type::DSV> {
+    using value = Type_STLVector<Type_STLString>;
+};
+
+template <>
+struct TypeTraits<Type::DGCSeqBuf> {
     using value = Type_STLVector<Type_STLString>;
 };
 
@@ -79,7 +85,7 @@ public:
     RenderPassBindingInfo_PSO(RenderSequence& rs, uint32_t index);
 
     RenderPassBindingInfo_PSO(RenderSequence& rs, uint32_t index,
-                              RenderResource const* dgcSeqBuf);
+                              PipelineLayout const* pipelineLayout);
 
     virtual ~RenderPassBindingInfo_PSO() override = default;
 
@@ -133,7 +139,7 @@ private:
 
     DrawCallManager mDrawCallMgr;
 
-    RenderResource const* mDGCSeqBuf {nullptr};
+    PipelineLayout const* mPipelineLayout {nullptr};
 
     Type_STLUnorderedMap<RenderPassBinding::Type, Type_BindingValue>
         mBuiltInInfos {};

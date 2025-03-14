@@ -319,6 +319,7 @@ void VulkanContext::EnableFeatures() {
     features.setMultiDrawIndirect(vk::True)
         .setDrawIndirectFirstInstance(vk::True)
         .setShaderInt16(vk::True)
+        .setShaderInt64(vk::True)
         .setFillModeNonSolid(vk::True);
 
     REQUEST_REQUIRED_FEATURE(mPhysicalDevice,

@@ -5,6 +5,7 @@
 #include "Core/Vulkan/Native/DescriptorSetAllocator.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
+class PipelineLayout;
 
 enum class RenderQueueType { Graphics, Compute, AsyncCompute, AsyncTransfer };
 
@@ -45,8 +46,8 @@ public:
 
     RenderPassBindingInfo_PSO& AddRenderPass(const char* name);
 
-    RenderPassBindingInfo_PSO& AddRenderPass(const char* name,
-                                             RenderResource const* dgcSeqBuf);
+    RenderPassBindingInfo_PSO& AddRenderPass(
+        const char* name, PipelineLayout const* pipelineLayout);
 
     RenderPassBindingInfo_Copy& AddCopyPass(const char* name);
 

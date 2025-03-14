@@ -10,8 +10,6 @@ DGCSeqDataBuffer::DGCSeqDataBuffer(VulkanContext& context,
 }
 
 void DGCSeqDataBuffer::CreateSequenceDataBuffer() {
-    VE_ASSERT(!sequenceData.empty(), "No data was set.")
-
     size_t const dataSize = sequenceData.size();
 
     auto staging = context.CreateStagingBuffer("", dataSize);

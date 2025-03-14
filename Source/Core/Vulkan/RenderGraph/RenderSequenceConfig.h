@@ -21,7 +21,7 @@ public:
                                     const char* pipelineName);
 
     RenderPassConfig& AddRenderPass(const char* passName,
-                                    RenderResource const* dgcSeqBuf);
+                                    PipelineLayout const* pipelineLayout);
 
     CopyPassConfig& AddCopyPass(const char* passName);
 
@@ -53,7 +53,8 @@ class RenderPassConfig : public IPassConfig {
 public:
     RenderPassConfig(const char* passName, const char* pipelineName);
 
-    RenderPassConfig(const char* passName, RenderResource const* dgcSeqBuf);
+    RenderPassConfig(const char* passName,
+                     PipelineLayout const* pipelineLayout);
 
     virtual ~RenderPassConfig() override = default;
 
@@ -66,13 +67,14 @@ public:
     Self& SetViewport(vk::Viewport const& viewport);
     Self& SetScissor(vk::Rect2D const& scissor);
     Self& SetDGCPipelineInfo(DGCPipelineInfo const& info);
+    Self& SetDGCSeqBufs(Type_STLVector<const char*> const& buffers);
 
     friend RenderSequenceConfig;
 
 private:
     void Compile(RenderSequence& result) override;
 
-    RenderResource const* mDGCSeqBuf {nullptr};
+    PipelineLayout const* mPipelineLayout {nullptr};
 
     Type_STLString mPipelineName;
 
@@ -80,6 +82,8 @@ private:
     ::std::optional<
         ::std::pair<Type_STLString, RenderPassBinding::BindlessDescBufInfo>>
         mBindlessDesc;
+
+    Type_STLVector<Type_STLString> mDGCSeqBufs {};
 
     ::std::optional<vk::Rect2D> mRenderArea;
     ::std::optional<vk::Viewport> mViewport;

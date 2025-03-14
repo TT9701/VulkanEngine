@@ -33,5 +33,5 @@ void main()
 
 //    float r = constants.baseColorFactor.z;
 //
-//    imageStore(image, texelCoord, vec4(r,r,r,1.0f));
+   imageStore(image, texelCoord, vec4(0.8, 0.8, 0.8, 1.0f));
 }

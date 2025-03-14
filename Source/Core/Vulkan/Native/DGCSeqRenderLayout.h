@@ -11,7 +11,7 @@ public:
     void CreateLayout(VulkanContext& context, PipelineLayout* pipelineLayout,
                       bool unorderedSequence, bool explicitPreprocess);
 
-    PipelineLayout* GetPipelineLayout() const;
+    PipelineLayout const* GetPipelineLayout() const;
 
     vk::IndirectCommandsLayoutEXT GetHandle() const;
 

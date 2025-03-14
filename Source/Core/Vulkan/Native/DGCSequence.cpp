@@ -28,7 +28,7 @@ uint32_t DGCSeqBase::GetSequenceCount() const {
     return mMaxSequenceCount;
 }
 
-PipelineLayout* DGCSeqBase::GetPipelineLayout() const {
+PipelineLayout const* DGCSeqBase::GetPipelineLayout() const {
     return mLayout.GetPipelineLayout();
 }
 

@@ -18,9 +18,9 @@ RenderPassConfig& RenderSequenceConfig::AddRenderPass(
 }
 
 RenderPassConfig& RenderSequenceConfig::AddRenderPass(
-    const char* passName, RenderResource const* dgcSeqBuf) {
+    const char* passName, PipelineLayout const* pipelineLayout) {
     mPassConfigs.emplace_back(
-        MakeUnique<RenderPassConfig>(passName, dgcSeqBuf));
+        MakeUnique<RenderPassConfig>(passName, pipelineLayout));
     return *dynamic_cast<RenderPassConfig*>(mPassConfigs.back().get());
 }
 
@@ -49,8 +49,8 @@ RenderPassConfig::RenderPassConfig(const char* passName,
     : IPassConfig {passName}, mPipelineName(pipelineName) {}
 
 RenderPassConfig::RenderPassConfig(const char* passName,
-                                   RenderResource const* dgcSeqBuf)
-    : IPassConfig {passName}, mDGCSeqBuf(dgcSeqBuf) {}
+                                   PipelineLayout const* pipelineLayout)
+    : IPassConfig(passName), mPipelineLayout(pipelineLayout) {}
 
 RenderPassConfig::Self& RenderPassConfig::SetBinding(const char* param,
                                                      const char* argument) {
@@ -88,9 +88,18 @@ RenderPassConfig::Self& RenderPassConfig::SetDGCPipelineInfo(
     return *this;
 }
 
+RenderPassConfig::Self& RenderPassConfig::SetDGCSeqBufs(
+    Type_STLVector<const char*> const& buffers) {
+    mDGCSeqBufs.reserve(buffers.size());
+    for (auto const& buf : buffers) {
+        mDGCSeqBufs.emplace_back(buf);
+    }
+    return *this;
+}
+
 void RenderPassConfig::Compile(RenderSequence& result) {
-    if (mDGCSeqBuf) {
-        result.AddRenderPass(mPassName.c_str(), mDGCSeqBuf)
+    if (mPipelineLayout) {
+        result.AddRenderPass(mPassName.c_str(), mPipelineLayout)
             .GenerateLayoutData();
     } else {
         result.AddRenderPass(mPassName.c_str())
@@ -117,8 +126,6 @@ void RenderPassConfig::Compile(RenderSequence& result) {
             RenderPassBinding::RenderInfo {*mRenderArea, 1, 0};
     }
 
-    pso.GenerateMetaData();
-
     auto& dcMgr = pso.GetDrawCallManager();
 
     if (mDgcPipelineInfo) {
@@ -133,9 +140,16 @@ void RenderPassConfig::Compile(RenderSequence& result) {
         }
     }
 
-    if (mDGCSeqBuf) {
-        dcMgr.AddArgument_DGCSequence(mDGCSeqBuf);
+    if (!mDGCSeqBufs.empty()) {
+        Type_STLVector<Type_STLString> tmp {};
+        tmp.reserve(mDGCSeqBufs.size());
+        for (auto const& buf : mDGCSeqBufs) {
+            tmp.emplace_back(buf);
+        }
+        pso[RenderPassBinding::Type::DGCSeqBuf] = tmp;
     }
+
+    pso.GenerateMetaData();
 }
 
 CopyPassConfig::CopyPassConfig(const char* passName) : IPassConfig(passName) {}

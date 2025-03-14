@@ -1,0 +1,54 @@
+#version 460
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+layout (local_size_x = 1, local_size_y = 1) in;
+
+struct PushConstant {
+    vec2 mModel[8];
+
+    uint64_t mVPBufAddr;
+    uint64_t mVNBufAddr;
+    uint64_t mVTBufAddr;
+    uint64_t mMeshletBufAddr;
+    uint64_t mMeshletTriBufAddr;
+    uint64_t mVertOffsetBufAddr;
+    uint64_t mMeshletOffsetBufAddr;
+    uint64_t mMeshletTrioffsetBufAddr;
+    uint64_t mMeshletCountBufAddr;
+    uint64_t mBoundingBoxBufAddr;
+    uint64_t mMeshletBoundingBoxBufAddr;
+    uint64_t mMeshMaterialIdxBufAddr;
+    uint64_t mMaterialBufAddr;
+};
+
+struct DrawIndirectCountIndirectCommand {
+    uint64_t bufferAddress;
+    uint stride;
+    uint commandCount;
+};
+
+struct DGCCommand {
+    PushConstant constants;
+
+    DrawIndirectCountIndirectCommand indirectCommand;
+};
+
+layout (set = 0, binding = 0) uniform UBO
+{
+    DrawIndirectCountIndirectCommand ubo;
+} ubo;
+
+layout (set = 0, binding = 1) buffer StorageBuffer {
+    DGCCommand storageBuffer[];
+};
+
+void main() 
+{
+    for (int i = 0; i < 1; i++) {
+    storageBuffer[i].indirectCommand.bufferAddress = ubo.ubo.bufferAddress;
+    storageBuffer[i].indirectCommand.stride = ubo.ubo.stride;
+    storageBuffer[i].indirectCommand.commandCount = ubo.ubo.commandCount;
+    }
+    
+}

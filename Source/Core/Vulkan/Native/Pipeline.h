@@ -34,6 +34,8 @@ public:
 
     Type_STLVector<Type_STLString> const& GetRTVNames() const;
 
+    bool IsCompute() const;
+
 private:
     vk::PipelineLayout CreateLayout(vk::PipelineLayoutCreateFlags flags,
                                     void* pNext) const;
@@ -41,7 +43,7 @@ private:
 private:
     VulkanContext& mContext;
     ShaderProgram& mProgram;
-
+    bool mIsCompute {false};
     vk::PipelineLayout mLayout;
 };
 

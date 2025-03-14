@@ -10,7 +10,8 @@ PipelineLayout::PipelineLayout(VulkanContext& context, ShaderProgram& program,
     : mContext(context),
       mProgram(program),
       mLayout(CreateLayout(flags, pNext)) {
-    int i = 0;
+    mIsCompute =
+        mProgram.pShaders[Utils::EnumCast(ShaderStage::Compute)] != nullptr;
 }
 
 PipelineLayout::~PipelineLayout() {
@@ -37,6 +38,10 @@ PipelineLayout::GetCombinedPushContant() const {
 
 Type_STLVector<Type_STLString> const& PipelineLayout::GetRTVNames() const {
     return mProgram.mRtvNames;
+}
+
+bool PipelineLayout::IsCompute() const {
+    return mIsCompute;
 }
 
 vk::PipelineLayout PipelineLayout::CreateLayout(

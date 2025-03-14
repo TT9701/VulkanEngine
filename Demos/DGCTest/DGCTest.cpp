@@ -126,6 +126,10 @@ void DGCTest::LoadShaders() {
         "Mesh shader fragment", SHADER_PATH_CSTR("MeshShader.frag"),
         vk::ShaderStageFlagBits::eFragment,
         vk::ShaderCreateFlagBitsEXT::eIndirectBindable, true);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "prepareDGC", SHADER_PATH_CSTR("PrepareGDCBuffer_test.comp"),
+        vk::ShaderStageFlagBits::eCompute);
 }
 
 void DGCTest::PollEvents(SDL_Event* e, float deltaTime) {
@@ -269,13 +273,23 @@ void DGCTest::Prepare() {
     prepare_compute_sequence_pipeline();
     prepare_compute_sequence_shader();
 
-    const char* modelPath = "5d9b133d-bc33-42a1-86fe-3dc6996d5b46.fbx.cisdi";
+    model0 = "29d64ac4-8943-4319-872f-31d275371cf6.fbx.cisdi";
 
-    auto& node = mScene->AddNode("cisdi");
+    mScene->AddNode("cisdi").SetModel(MODEL_PATH_CSTR(model0), *mGeoMgr,
+                                      *mModelMgr);
+
+    auto& node = mScene->AddNode(model0);
+
     auto const& modelData =
-        node.SetModel(MODEL_PATH_CSTR(modelPath), *mGeoMgr, *mModelMgr);
+        node.SetModel(MODEL_PATH_CSTR(model0), *mGeoMgr, *mModelMgr);
 
     AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
+
+    model1 = "f29cd4b7-f772-4ea8-9e2b-2f2796a03c38.fbx.cisdi";
+    mScene->AddNode(model1).SetModel(MODEL_PATH_CSTR(model1), *mGeoMgr,
+                                     *mModelMgr);
+
+    prepare_dgc_draw_command();
 
     prepare_draw_mesh_task();
     prepare_draw_mesh_task_pipeline();
@@ -284,10 +298,50 @@ void DGCTest::Prepare() {
     PrepareUIContext();
 
     // RecordPasses(mRenderSequence);
+
+    {
+        renderResMgr.CreateBuffer(
+            "prepareDGC_UBO", sizeof(vk::DrawIndirectCountIndirectCommandEXT),
+            vk::BufferUsageFlagBits::eUniformBuffer
+                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            Buffer::MemoryType::Staging);
+
+        auto const& modelName = modelData.name;
+        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
+
+        auto command = geo.GetDrawIndirectCmdBufInfo();
+
+        auto data = renderResMgr["prepareDGC_UBO"].GetBufferMappedPtr();
+        memcpy(data, &command, sizeof(command));
+    }
+}
+
+void DGCTest::prepare_dgc_draw_command() {
+    const uint32_t sequenceCount = 1;
+    const uint32_t maxShaderCount = 1;
+    const uint32_t maxDrawCount = 1;
+
+    auto& sequence =
+        mDGCSequenceMgr->CreateSequence<PrepareDGCDrawCommandSequenceTemp>(
+            {sequenceCount,
+             maxDrawCount,
+             maxShaderCount,
+             {{"prepareDGC", vk::ShaderStageFlagBits::eCompute}}});
+
+    // buffers
+    {
+        auto data = mDGCSequenceMgr
+                        ->CreateDataBuffer<PrepareDGCDrawCommandSequenceTemp>(
+                            "dgc_dispatch_for_draw");
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i].command = vk::DispatchIndirectCommand {1, 1, 1};
+        }
+    }
 }
 
 void DGCTest::prepare_compute_sequence() {
-    const uint32_t sequenceCount = 2;
+    const uint32_t sequenceCount = 1;
     const uint32_t maxPipelineCount = 1;
     const uint32_t maxDrawCount = 1;
 
@@ -327,9 +381,9 @@ void DGCTest::prepare_draw_mesh_task() {
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
 
-    const uint32_t sequenceCount = 3;
+    const uint32_t sequenceCount = 2;
     const uint32_t maxShaderCount = 3;
-    const uint32_t maxDrawCount = 2000;
+    const uint32_t maxDrawCount = 200000;
 
     auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequenceTemp>(
         {sequenceCount,
@@ -337,39 +391,27 @@ void DGCTest::prepare_draw_mesh_task() {
          maxShaderCount,
          {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
           {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
-          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}}, true});
+          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}},
+         true});
 
     // buffers
     {
-        auto const& node = mScene->GetNode("cisdi");
-        auto const& modelName = node.GetModel().name;
-        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
-        auto pushConstant = *geo.GetMeshletPushContantsPtr();
+        auto data0 = mDGCSequenceMgr->CreateDataBuffer<DrawSequenceTemp>(
+            "dgc_draw_test_0");
 
-        ::std::array<MeshletPushConstants, 3> meshletConstants {};
+        std::array<IntelliDesign_NS::Core::SceneGraph::Node const*, 2> node = {
+            &mScene->GetNode(model0), &mScene->GetNode(model1)};
 
-        meshletConstants[0] = pushConstant;
-        meshletConstants[0].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
+        for (uint32_t i = 1; i < sequence.GetSequenceCount(); ++i) {
+            auto const& modelName = node[i]->GetModel().name;
+            auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
+            auto pushConstant = *geo.GetMeshletPushContantsPtr();
+            pushConstant.mModelMatrix =
+                IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
+            auto command = geo.GetDrawIndirectCmdBufInfo();
 
-        meshletConstants[1] = pushConstant;
-        meshletConstants[1].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
-            * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
-
-        meshletConstants[2] = pushConstant;
-        meshletConstants[2].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
-            * IDCMCore_NS::MatrixTranslation(20.0f, 20.0f, 20.0f);
-
-        auto command = geo.GetDrawIndirectCmdBufInfo();
-
-        auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequenceTemp>(
-                "dgc_draw_test");
-
-        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
-            data.data[i].pushConstant = meshletConstants[i];
-            data.data[i].command = command;
+            data0.data[i].pushConstant = pushConstant;
+            data0.data[i].command = command;
         }
     }
 }
@@ -574,6 +616,8 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
     // Graphics Draw
     {
         auto cmd = frame.GetGraphicsCmdBuf();
+
+        // mRenderSequence.RecordPass("DGC_PrepareDraw", cmd.GetHandle());
 
         mRenderSequence.RecordPass("DGC_DrawMeshShader", cmd.GetHandle());
 
@@ -1090,14 +1134,25 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
     RenderSequenceConfig cfg {};
 
     cfg.AddRenderPass("DGC_Dispatch",
-                      &GetRenderResMgr()["dgc_dispatch_test"])
+                      mDGCSequenceMgr->GetSequence<DispatchSequenceTemp>()
+                          .GetPipelineLayout())
         .SetBinding("image", "DrawImage")
-        .SetBinding("StorageBuffer", "RWBuffer");
+        .SetBinding("StorageBuffer", "RWBuffer")
+        .SetDGCSeqBufs({"dgc_dispatch_test"});
+
+    cfg.AddRenderPass(
+           "DGC_PrepareDraw",
+           mDGCSequenceMgr->GetSequence<PrepareDGCDrawCommandSequenceTemp>()
+               .GetPipelineLayout())
+        .SetBinding("UBO", "prepareDGC_UBO")
+        .SetBinding("StorageBuffer", "dgc_draw_test_0")
+        .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
 
     auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
 
-    cfg.AddRenderPass("DGC_DrawMeshShader",
-                      &GetRenderResMgr()["dgc_draw_test"])
+    cfg.AddRenderPass(
+           "DGC_DrawMeshShader",
+           mDGCSequenceMgr->GetSequence<DrawSequenceTemp>().GetPipelineLayout())
         .SetBinding("UBO", "SceneUniformBuffer")
         // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
@@ -1111,7 +1166,8 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
                                  vk::BlendOp::eAdd}}},
             .viewport = {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f},
             .scissor = {{0, 0}, {width, height}}})
-        .SetRenderArea({{0, 0}, {width, height}});
+        .SetRenderArea({{0, 0}, {width, height}})
+        .SetDGCSeqBufs({"dgc_draw_test_0"});
 
     // cfg.AddRenderPass("DGC_DrawMeshShader",
     //                   &GetRenderResMgr()["dgc_draw_test"])

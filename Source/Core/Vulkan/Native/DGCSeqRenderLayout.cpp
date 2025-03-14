@@ -2,7 +2,7 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-PipelineLayout* DGCSeqRenderLayout::GetPipelineLayout() const {
+PipelineLayout const* DGCSeqRenderLayout::GetPipelineLayout() const {
     VE_ASSERT(mPipelineLayout != nullptr, "Pipeline layout is null.");
     return mPipelineLayout;
 }

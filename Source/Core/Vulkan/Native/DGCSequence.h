@@ -27,7 +27,7 @@ public:
 
     uint32_t GetSequenceCount() const;
 
-    PipelineLayout* GetPipelineLayout() const;
+    PipelineLayout const* GetPipelineLayout() const;
 
     bool IsCompute() const;
 

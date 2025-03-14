@@ -35,14 +35,14 @@ RenderPassBindingInfo_PSO& RenderSequence::AddRenderPass(const char* name) {
 }
 
 RenderPassBindingInfo_PSO& RenderSequence::AddRenderPass(
-    const char* name, RenderResource const* dgcSeqBuf) {
+    const char* name, PipelineLayout const* pipelineLayout) {
     if (mPassNameToIndex.contains(name)) {
         return *dynamic_cast<RenderPassBindingInfo_PSO*>(
             mPasses[mPassNameToIndex.at(name)].binding.get());
     } else {
         uint32_t index = mPasses.size();
         mPasses.emplace_back(*this, MakeUnique<RenderPassBindingInfo_PSO>(
-                                        *this, index, dgcSeqBuf));
+                                        *this, index, pipelineLayout));
         mPassNameToIndex[name] = index;
 
         mPassBarrierInfos.emplace_back();

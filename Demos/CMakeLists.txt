@@ -1,3 +1,2 @@
-add_subdirectory(MeshShader)
 add_subdirectory(CISDIModel_Generator)
 add_subdirectory(DGCTest)

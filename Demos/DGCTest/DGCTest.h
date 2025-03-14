@@ -93,6 +93,9 @@ private:
 
     IDVC_NS::UniquePtr<IDVC_NS::DGCSeqManager> mDGCSequenceMgr {};
 
+    using PrepareDGCDrawCommandSequenceTemp = DGCSeqTemplate<true, DGCExecutionSetType::None>;
+    void prepare_dgc_draw_command();
+
     /**
      *  dgc dispath without execution set
      */
@@ -146,6 +149,9 @@ private:
                        IDVC_NS::MeshletPushConstants>;
 
     void prepare_draw_mesh_task_shader();
+
+    const char* model0 {nullptr};
+    const char* model1 {nullptr};
 };
 
 VE_CREATE_APPLICATION(DGCTest, 1600, 900);
