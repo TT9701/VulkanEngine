@@ -3,6 +3,7 @@
 
 #include <Windows.h>
 
+#include "../Utilities/Timer.h"
 #include "CISDI_3DModelData.h"
 
 void GenerateModel(std::pmr::memory_resource* pMemPool,
@@ -17,12 +18,20 @@ void GenerateModel(std::pmr::memory_resource* pMemPool,
 
         IntelliDesign_NS::ModelData::CISDI_3DModel model {pMemPool};
 
+        IntelliDesign_NS::Core::Utils::Timer timer {};
+
+        timer.Start();
+
         Convert(&model, modelPathes[i], false, pMemPool);
+
+        auto duration = timer.End();
 
         DWORD pid = GetCurrentProcessId();
 
-        printf("[Pid: %ld] CISDI Model %d/%d: %s successfully generated. \n",
-               pid, i + 1, count, modelPathes[i]);
+        printf(
+            "[Pid: %ld] CISDI Model %d/%d: %s successfully generated, "
+            "duration: %f s. \n",
+            pid, i + 1, count, modelPathes[i], duration);
     }
 }
 

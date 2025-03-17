@@ -338,10 +338,18 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
     for (auto const& descInfo : mDescInfos) {
         if (::std::get<Type_STLString>(descInfo.second.value) == resName) {
             auto param = descInfo.first;
-            auto const& descLayouts =
-                mRenderSequence.mPipelineMgr
-                    .GetLayout(mPipelineLayoutName.c_str())
-                    ->GetDescSetLayoutDatas();
+
+            Type_STLVector<DescriptorSetLayout*> descLayouts;
+            if (!mPipelineLayoutName.empty()) {
+                descLayouts = mRenderSequence.mPipelineMgr
+                                  .GetLayout(mPipelineLayoutName.c_str())
+                                  ->GetDescSetLayoutDatas();
+            } else if (mPipelineLayout) {
+                descLayouts = mPipelineLayout->GetDescSetLayoutDatas();
+            } else {
+                throw ::std::runtime_error("");
+            }
+            
 
             ::std::optional<uint32_t> set;
             vk::DescriptorSetLayoutBinding binding {};

@@ -14,6 +14,7 @@ Application::Application(ApplicationSpecification const& spec)
       mCmdMgr(CreateCommandManager()),
       mPipelineMgr(CreatePipelineManager()),
       mShaderMgr(CreateShaderManager()),
+      mDGCSequenceMgr(CreateDGCSeqManager()),
       mGui(GetVulkanContext(), GetSwapchain(), GetSDLWindow())
 #ifdef CUDA_VULKAN_INTEROP
       ,
@@ -96,12 +97,11 @@ UniquePtr<VulkanContext> Application::CreateContext() {
     enabledDeivceExtensions.emplace_back(vk::KHRBindMemory2ExtensionName);
     enabledDeivceExtensions.emplace_back(
         vk::EXTDeviceGeneratedCommandsExtensionName);
-    enabledDeivceExtensions
-        .emplace_back(vk::EXTShaderObjectExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::EXTShaderObjectExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
-            enabledDeivceExtensions.emplace_back(
-                vk::KHRExternalMemoryWin32ExtensionName);
+    enabledDeivceExtensions.emplace_back(
+        vk::KHRExternalMemoryWin32ExtensionName);
     enabledDeivceExtensions.emplace_back(
         vk::KHRExternalSemaphoreWin32ExtensionName);
 #endif
@@ -132,6 +132,11 @@ UniquePtr<PipelineManager> Application::CreatePipelineManager() {
 
 UniquePtr<ShaderManager> Application::CreateShaderManager() {
     return MakeUnique<ShaderManager>(*mVulkanContext);
+}
+
+UniquePtr<DGCSeqManager> Application::CreateDGCSeqManager() {
+    return MakeUnique<DGCSeqManager>(*mVulkanContext, *mPipelineMgr,
+                                     *mShaderMgr, *mRenderResMgr);
 }
 
 void Application::CreatePipelines() {}
@@ -266,6 +271,10 @@ PipelineManager& Application::GetPipelineMgr() const {
 
 ShaderManager& Application::GetShaderMgr() const {
     return *mShaderMgr;
+}
+
+DGCSeqManager& Application::GetDGCSeqMgr() const {
+    return *mDGCSequenceMgr;
 }
 
 GUI& Application::GetUILayer() {

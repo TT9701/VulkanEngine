@@ -8,6 +8,7 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Utilities/Timer.h"
 #include "Core/Vulkan/Manager/CommandManager.h"
+#include "Core/Vulkan/Manager/DGCSeqManager.h"
 #include "Core/Vulkan/Manager/PipelineManager.h"
 #include "Core/Vulkan/Manager/RenderFrame.h"
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
@@ -22,17 +23,20 @@
 #include "CUDA/CUDAVulkan.h"
 #endif
 
+constexpr uint32_t DGC_MAX_SEQUENCE_COUNT = 256;
+constexpr uint32_t DGC_MAX_DRAW_COUNT = 65535;
+
 class SDLWindow;
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 struct ApplicationCommandLineArgs {
-    int Count = 0;
-    char** Args = nullptr;
+    int count = 0;
+    char** args = nullptr;
 
     const char* operator[](int index) const {
-        VE_ASSERT(index < Count, "");
-        return Args[index];
+        VE_ASSERT(index < count, "");
+        return args[index];
     }
 };
 
@@ -80,12 +84,13 @@ protected:
     CommandManager& GetCmdMgr() const;
     PipelineManager& GetPipelineMgr() const;
     ShaderManager& GetShaderMgr() const;
+    DGCSeqManager& GetDGCSeqMgr() const;
     GUI& GetUILayer();
 
     Core::RenderFrame& GetCurFrame();
     Type_STLVector<Core::RenderFrame> const& GetFrames() const;
     Type_STLVector<Core::RenderFrame>& GetFrames();
-    
+
     bool mStopRendering {false};
     uint64_t mFrameNum {0};
     IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
@@ -117,6 +122,7 @@ private:
     UniquePtr<CommandManager> CreateCommandManager();
     UniquePtr<PipelineManager> CreatePipelineManager();
     UniquePtr<ShaderManager> CreateShaderManager();
+    UniquePtr<DGCSeqManager> CreateDGCSeqManager();
 
     UniquePtr<SDLWindow> mWindow;
     UniquePtr<VulkanContext> mVulkanContext;
@@ -125,6 +131,7 @@ private:
     UniquePtr<CommandManager> mCmdMgr;
     UniquePtr<PipelineManager> mPipelineMgr;
     UniquePtr<ShaderManager> mShaderMgr;
+    UniquePtr<DGCSeqManager> mDGCSequenceMgr;
 
     GUI mGui;
 

@@ -38,10 +38,6 @@ DGCTest::DGCTest(ApplicationSpecification const& spec)
         MakeUnique<IntelliDesign_NS::ModelData::ModelDataManager>(gMemPool);
 
     mGeoMgr = MakeUnique<GPUGeometryDataManager>(GetVulkanContext(), gMemPool);
-
-    mDGCSequenceMgr =
-        MakeUnique<DGCSeqManager>(GetVulkanContext(), GetPipelineMgr(),
-                                  GetShaderMgr(), GetRenderResMgr());
 }
 
 DGCTest::~DGCTest() = default;
@@ -179,10 +175,10 @@ void DGCTest::Update_OnResize() {
 
     auto resNames = renderResMgr.GetResourceNames_SrcreenSizeRelated();
 
-    auto& backgroundPass = mRenderSequence.FindPass("DrawBackground");
+    auto& backgroundPass = mRenderSequence.FindPass("DGC_Dispatch");
     backgroundPass.Update(resNames);
 
-    auto& meshShaderPass = mRenderSequence.FindPass("DrawMeshShader");
+    auto& meshShaderPass = mRenderSequence.FindPass("DGC_DrawMeshShader");
     meshShaderPass.OnResize(extent);
 
     auto& drawQuadPass = mRenderSequence.FindPass("DrawQuad");
@@ -209,13 +205,13 @@ void DGCTest::Prepare() {
 
     auto& window = GetSDLWindow();
 
-    mRenderSequence.AddRenderPass("DrawBackground");
-    mRenderSequence.AddRenderPass("DrawMeshShader");
+    mRenderSequence.AddRenderPass("DGC_Dispatch");
+    mRenderSequence.AddRenderPass("DGC_DrawMeshShader");
     mRenderSequence.AddRenderPass("DrawQuad");
 
     for (auto& frame : GetFrames()) {
         frame.PrepareBindlessDescPool({dynamic_cast<RenderPassBindingInfo_PSO*>(
-            mRenderSequence.FindPass("DrawMeshShader").binding.get())});
+            mRenderSequence.FindPass("DGC_DrawMeshShader").binding.get())});
     }
     CreateRandomTexture();
 
@@ -321,18 +317,18 @@ void DGCTest::prepare_dgc_draw_command() {
     const uint32_t maxShaderCount = 1;
     const uint32_t maxDrawCount = 1;
 
-    auto& sequence =
-        mDGCSequenceMgr->CreateSequence<PrepareDGCDrawCommandSequenceTemp>(
-            {sequenceCount,
-             maxDrawCount,
-             maxShaderCount,
-             {{"prepareDGC", vk::ShaderStageFlagBits::eCompute}}});
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<PrepareDGCDrawCommandSequenceTemp>(
+        {sequenceCount,
+         maxDrawCount,
+         maxShaderCount,
+         {{"prepareDGC", vk::ShaderStageFlagBits::eCompute}}});
 
     // buffers
     {
-        auto data = mDGCSequenceMgr
-                        ->CreateDataBuffer<PrepareDGCDrawCommandSequenceTemp>(
-                            "dgc_dispatch_for_draw");
+        auto data = dgcMgr.CreateDataBuffer<PrepareDGCDrawCommandSequenceTemp>(
+            "dgc_dispatch_for_draw");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].command = vk::DispatchIndirectCommand {1, 1, 1};
@@ -345,7 +341,9 @@ void DGCTest::prepare_compute_sequence() {
     const uint32_t maxPipelineCount = 1;
     const uint32_t maxDrawCount = 1;
 
-    auto& sequence = mDGCSequenceMgr->CreateSequence<DispatchSequenceTemp>(
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<DispatchSequenceTemp>(
         {sequenceCount,
          maxDrawCount,
          maxPipelineCount,
@@ -353,8 +351,8 @@ void DGCTest::prepare_compute_sequence() {
 
     // buffers
     {
-        auto data = mDGCSequenceMgr->CreateDataBuffer<DispatchSequenceTemp>(
-            "dgc_dispatch_test");
+        auto data =
+            dgcMgr.CreateDataBuffer<DispatchSequenceTemp>("dgc_dispatch_test");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].pushConstant = _baseColorFactor;
@@ -381,13 +379,13 @@ void DGCTest::prepare_draw_mesh_task() {
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
 
-    const uint32_t sequenceCount = 2;
-    const uint32_t maxShaderCount = 3;
-    const uint32_t maxDrawCount = 200000;
+    const uint32_t maxShaderCount = 1;
 
-    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequenceTemp>(
-        {sequenceCount,
-         maxDrawCount,
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<DrawSequenceTemp>(
+        {DGC_MAX_SEQUENCE_COUNT,
+         DGC_MAX_DRAW_COUNT,
          maxShaderCount,
          {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
           {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
@@ -396,13 +394,13 @@ void DGCTest::prepare_draw_mesh_task() {
 
     // buffers
     {
-        auto data0 = mDGCSequenceMgr->CreateDataBuffer<DrawSequenceTemp>(
-            "dgc_draw_test_0");
+        auto data0 =
+            dgcMgr.CreateDataBuffer<DrawSequenceTemp>("dgc_draw_test_0");
 
         std::array<IntelliDesign_NS::Core::SceneGraph::Node const*, 2> node = {
             &mScene->GetNode(model0), &mScene->GetNode(model1)};
 
-        for (uint32_t i = 1; i < sequence.GetSequenceCount(); ++i) {
+        for (uint32_t i = 0; i < 2; ++i) {
             auto const& modelName = node[i]->GetModel().name;
             auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
             auto pushConstant = *geo.GetMeshletPushContantsPtr();
@@ -421,16 +419,16 @@ void DGCTest::prepare_compute_sequence_pipeline() {
     const uint32_t maxPipelineCount = 2;
     const uint32_t maxDrawCount = 1;
 
-    auto& sequence =
-        mDGCSequenceMgr->CreateSequence<DispatchSequence_PipelineTemp>(
-            {sequenceCount, maxDrawCount, maxPipelineCount, "Background"},
-            {"Background-dgctest"});
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<DispatchSequence_PipelineTemp>(
+        {sequenceCount, maxDrawCount, maxPipelineCount, "Background"},
+        {"Background-dgctest"});
 
     // buffers
     {
-        auto data =
-            mDGCSequenceMgr->CreateDataBuffer<DispatchSequence_PipelineTemp>(
-                "dgc_pipe_dispatch_test");
+        auto data = dgcMgr.CreateDataBuffer<DispatchSequence_PipelineTemp>(
+            "dgc_pipe_dispatch_test");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].index = i;
@@ -448,7 +446,9 @@ void DGCTest::prepare_draw_mesh_task_pipeline() {
     const uint32_t maxPipelineCount = 2;
     const uint32_t maxDrawCount = 2000;
 
-    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequence_PipelineTemp>(
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<DrawSequence_PipelineTemp>(
         {sequenceCount, maxDrawCount, maxPipelineCount, "MeshShaderDraw",
          true});
 
@@ -472,9 +472,8 @@ void DGCTest::prepare_draw_mesh_task_pipeline() {
 
         auto command = geo.GetDrawIndirectCmdBufInfo();
 
-        auto data =
-            mDGCSequenceMgr->CreateDataBuffer<DrawSequence_PipelineTemp>(
-                "dgc_pipe_draw_test");
+        auto data = dgcMgr.CreateDataBuffer<DrawSequence_PipelineTemp>(
+            "dgc_pipe_draw_test");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].index = i;
@@ -489,19 +488,19 @@ void DGCTest::prepare_compute_sequence_shader() {
     const uint32_t maxShaderCount = 2;
     const uint32_t maxDrawCount = 1;
 
-    auto& sequence =
-        mDGCSequenceMgr->CreateSequence<DispatchSequence_ShaderTemp>(
-            {sequenceCount,
-             maxDrawCount,
-             maxShaderCount,
-             {{"computeDraw", vk::ShaderStageFlagBits::eCompute}}},
-            {{"computeDraw-dgc-test", vk::ShaderStageFlagBits::eCompute}});
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<DispatchSequence_ShaderTemp>(
+        {sequenceCount,
+         maxDrawCount,
+         maxShaderCount,
+         {{"computeDraw", vk::ShaderStageFlagBits::eCompute}}},
+        {{"computeDraw-dgc-test", vk::ShaderStageFlagBits::eCompute}});
 
     // buffers
     {
-        auto data =
-            mDGCSequenceMgr->CreateDataBuffer<DispatchSequence_ShaderTemp>(
-                "dgc_shader_dispatch_test");
+        auto data = dgcMgr.CreateDataBuffer<DispatchSequence_ShaderTemp>(
+            "dgc_shader_dispatch_test");
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].index = {i};
@@ -531,9 +530,11 @@ void DGCTest::prepare_draw_mesh_task_shader() {
 
     const uint32_t sequenceCount = 1;
     const uint32_t maxShaderCount = 3;
-    const uint32_t maxDrawCount = 2000;
+    const uint32_t maxDrawCount = 1;
 
-    auto& sequence = mDGCSequenceMgr->CreateSequence<DrawSequence_ShaderTemp>(
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<DrawSequence_ShaderTemp>(
         {sequenceCount,
          maxDrawCount,
          maxShaderCount,
@@ -562,10 +563,10 @@ void DGCTest::prepare_draw_mesh_task_shader() {
 
         auto command = geo.GetDrawIndirectCmdBufInfo();
 
-        auto data = mDGCSequenceMgr->CreateDataBuffer<DrawSequence_ShaderTemp>(
+        auto data = dgcMgr.CreateDataBuffer<DrawSequence_ShaderTemp>(
             "dgc_shader_draw_test");
 
-        for (uint32_t i = 0; i < 1; ++i) {
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].index = {0, 1, 2};
             data.data[i].pushConstant = meshletConstants[i % 2];
             data.data[i].command = command;
@@ -1131,19 +1132,20 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
     uint32_t width = drawImage.GetTexWidth();
     uint32_t height = drawImage.GetTexHeight();
 
+    auto& dgcMgr = GetDGCSeqMgr();
+
     RenderSequenceConfig cfg {};
 
-    cfg.AddRenderPass("DGC_Dispatch",
-                      mDGCSequenceMgr->GetSequence<DispatchSequenceTemp>()
-                          .GetPipelineLayout())
+    cfg.AddRenderPass(
+           "DGC_Dispatch",
+           dgcMgr.GetSequence<DispatchSequenceTemp>().GetPipelineLayout())
         .SetBinding("image", "DrawImage")
         .SetBinding("StorageBuffer", "RWBuffer")
         .SetDGCSeqBufs({"dgc_dispatch_test"});
 
-    cfg.AddRenderPass(
-           "DGC_PrepareDraw",
-           mDGCSequenceMgr->GetSequence<PrepareDGCDrawCommandSequenceTemp>()
-               .GetPipelineLayout())
+    cfg.AddRenderPass("DGC_PrepareDraw",
+                      dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
+                          .GetPipelineLayout())
         .SetBinding("UBO", "prepareDGC_UBO")
         .SetBinding("StorageBuffer", "dgc_draw_test_0")
         .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
@@ -1152,7 +1154,7 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
 
     cfg.AddRenderPass(
            "DGC_DrawMeshShader",
-           mDGCSequenceMgr->GetSequence<DrawSequenceTemp>().GetPipelineLayout())
+           dgcMgr.GetSequence<DrawSequenceTemp>().GetPipelineLayout())
         .SetBinding("UBO", "SceneUniformBuffer")
         // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")

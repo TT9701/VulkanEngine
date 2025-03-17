@@ -11,9 +11,6 @@
 #include "Core/Model/GPUGeometryDataManager.h"
 #include "Core/Model/ModelDataManager.h"
 
-#include "Core/Vulkan/Manager/DGCSeqManager.h"
-// #include "Core/Vulkan/Native/DGCSequence.h"
-
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 
@@ -91,7 +88,6 @@ private:
     IDVC_NS::Type_STLString mImageName0 {};
     IDVC_NS::Type_STLString mImageName1 {};
 
-    IDVC_NS::UniquePtr<IDVC_NS::DGCSeqManager> mDGCSequenceMgr {};
 
     using PrepareDGCDrawCommandSequenceTemp = DGCSeqTemplate<true, DGCExecutionSetType::None>;
     void prepare_dgc_draw_command();
