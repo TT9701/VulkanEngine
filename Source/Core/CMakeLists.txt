@@ -73,6 +73,10 @@ set(VULKAN_CORE_SRC
         Vulkan/Native/DGCSeqLayout.cpp
         Vulkan/Native/DGCSequence.cpp
         Vulkan/Native/DGCSequence.h
+        Vulkan/Native/DGCSeqRenderLayout.cpp
+        Vulkan/Native/DGCSeqRenderLayout.h
+        Vulkan/Native/DGCSeqDataBufPoolResource.cpp
+        Vulkan/Native/DGCSeqDataBufPoolResource.h
 
         Vulkan/Manager/VulkanContext.h
         Vulkan/Manager/VulkanContext.cpp
@@ -99,8 +103,6 @@ set(VULKAN_CORE_SRC
         Vulkan/RenderGraph/RenderSequence.cpp
         Vulkan/RenderGraph/RenderSequenceConfig.h
         Vulkan/RenderGraph/RenderSequenceConfig.cpp
-        Vulkan/Native/DGCSeqRenderLayout.cpp
-        Vulkan/Native/DGCSeqRenderLayout.h
 )
 set(VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 
@@ -127,6 +129,7 @@ set(SCENE_GRAPH_SRC
         SceneGraph/Scene.cpp
         SceneGraph/Node.h
         SceneGraph/Node.cpp
+        SceneGraph/NodeProxy.hpp
 )
 set(SCENE_GRAPH_SRC_GROUP_NAME "SceneGraph")
 

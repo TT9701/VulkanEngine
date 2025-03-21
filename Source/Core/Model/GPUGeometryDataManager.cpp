@@ -6,19 +6,28 @@
 namespace IntelliDesign_NS::Vulkan::Core {
 
 GPUGeometryDataManager::GPUGeometryDataManager(
-    VulkanContext& context, ::std::pmr::memory_resource* pMemPool)
-    : mContext(context), pMemPool(pMemPool), mGeometries(pMemPool) {}
+    VulkanContext& context, uint32_t dgcSequenceMaxDrawCount,
+    ::std::pmr::memory_resource* pMemPool)
+    : mContext(context),
+      mDGCSequenceMaxDrawCount(dgcSequenceMaxDrawCount),
+      pMemPool(pMemPool),
+      mGeometries(pMemPool) {}
 
-GPUGeometryData& GPUGeometryDataManager::CreateGPUGeometryData(
+SharedPtr<GPUGeometryData> GPUGeometryDataManager::CreateGPUGeometryData(
     ModelData::CISDI_3DModel const& model) {
-    auto ptr = MakeShared<GPUGeometryData>(mContext, model);
+    if (mGeometries.contains(model.name)) 
+        return mGeometries.at(model.name);
+    
+    auto ptr =
+        MakeShared<GPUGeometryData>(mContext, model, mDGCSequenceMaxDrawCount);
     mGeometries.emplace(ptr->GetName(), ptr);
-    return *ptr;
+
+    return ptr;
 }
 
-GPUGeometryData& GPUGeometryDataManager::GetGPUGeometryData(
+SharedPtr<GPUGeometryData> GPUGeometryDataManager::GetGPUGeometryData(
     const char* name) const {
-    return *mGeometries.at(name);
+    return mGeometries.at(name);
 }
 
 void GPUGeometryDataManager::RemoveGPUGeometryData(const char* name) {

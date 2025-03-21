@@ -4,8 +4,14 @@
 #include "Core/Vulkan/Native/Descriptors.h"
 #include "Core/Vulkan/Native/SyncStructures.h"
 
+#include "Core/System/concurrentqueue.h"
+
 namespace IntelliDesign_NS::Vulkan::Core {
+
+class GPUGeometryData;
+
 class RenderFrame {
+    using Type_Task = ::std::function<void()>;
 public:
     RenderFrame(VulkanContext& context);
 
@@ -37,6 +43,10 @@ public:
 
     void Reset();
 
+    void CullRegister(SharedPtr<GPUGeometryData> const& refData);
+
+    void ClearGPUGeoDataRefs();
+
 private:
     VulkanContext& mContext;
 
@@ -51,5 +61,7 @@ private:
     UniquePtr<Semaphore> mSwapchainPresent;
 
     SharedPtr<BindlessDescPool> mBindlessDescPool;
+
+    Type_STLVector<SharedPtr<GPUGeometryData>> mRefGPUGeoDatas {};
 };
 }  // namespace IntelliDesign_NS::Vulkan::Core

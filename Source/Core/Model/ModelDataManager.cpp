@@ -14,6 +14,15 @@ Core::MemoryPool::Type_SharedPtr<CISDI_3DModel>
 ModelDataManager::Create_CISDI_3DModel(const char* path) {
     auto modelPath = ::std::filesystem::path {path};
 
+    ::std::u8string modelName {};
+    if (modelPath.extension() == ".cisdi")
+        modelName = modelPath.stem().stem().u8string();
+    else
+        modelName = modelPath.stem().u8string();
+
+    if (mModels.contains(modelName.c_str()))
+        return mModels.at(modelName.c_str());
+
     auto ptr = Core::MemoryPool::New_Shared<CISDI_3DModel>(pMemPool, pMemPool);
 
     Type_STLString name {};
@@ -41,9 +50,11 @@ ModelDataManager::Create_CISDI_3DModel(const char* path) {
 }
 
 Core::MemoryPool::Type_SharedPtr<CISDI_3DModel>
-ModelDataManager::Get_CISDI_3DModel(
-    const char* name) const {
-    return mModels.at(name);
+ModelDataManager::Get_CISDI_3DModel(const char* name) const {
+    if (mModels.contains(name))
+        return mModels.at(name);
+    else
+        return nullptr;
 }
 
 void ModelDataManager::Remove_CISDI_3DModel(const char* name) {

@@ -1,22 +1,33 @@
 #pragma once
 
+#include "Core/System/IDDeferredResourcePool.hpp"
 #include "Core/Utilities/Defines.h"
-#include "DGCSeqRenderLayout.h"
-
 #include "Core/Vulkan/Manager/PipelineManager.h"
 #include "Core/Vulkan/Manager/ShaderManager.h"
+#include "DGCSeqDataBufPoolResource.h"
+#include "DGCSeqRenderLayout.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
+class DGCSeqManager;
+class RenderResourceManager;
 class Buffer;
 
 class DGCSeqBase {
+    friend class DGCSeqManager;
+
     struct PreprocessBuffer {
         uint32_t size;
         vk::Buffer handle;
         vk::DeviceMemory memory;
         vk::DeviceAddress address;
     };
+
+public:
+    using SequenceDataBufferPool =
+        IntelliDesign_NS::Core::IDDeferredResourcePool<
+            DGCSeqDataBufPoolResource, VulkanContext&, RenderResourceManager&,
+            DGCSeqManager&, const char*, uint32_t>;
 
 public:
     DGCSeqBase(VulkanContext& context, PipelineManager& pipelineMgr,
@@ -28,6 +39,8 @@ public:
     uint32_t GetSequenceCount() const;
 
     PipelineLayout const* GetPipelineLayout() const;
+
+    SequenceDataBufferPool* GetBufferPool() const;
 
     bool IsCompute() const;
 
@@ -67,6 +80,9 @@ protected:
     PreprocessBuffer mPreprocessBuffer {};
 
     bool mExplicitPreprocess {false};
+
+    UniquePtr<SequenceDataBufferPool> mSeqDataBufPool {
+        nullptr};  ///<- filled by DGCSeqManager
 };
 
 class DGCSeq_ESPipeline : public DGCSeqBase {

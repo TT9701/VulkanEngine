@@ -94,4 +94,12 @@ void RenderFrame::Reset() {
     mSemaphorePool->Reset();
 }
 
+void RenderFrame::CullRegister(SharedPtr<GPUGeometryData> const& refData) {
+    mRefGPUGeoDatas.push_back(refData);
+}
+
+void RenderFrame::ClearGPUGeoDataRefs() {
+    mRefGPUGeoDatas.clear();
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

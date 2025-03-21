@@ -69,6 +69,8 @@ struct DGCSeqInfo_Shader {
 };
 
 class DGCSeqManager {
+    using Type_Sequences = Type_STLUnorderedMap_String<SharedPtr<DGCSeqBase>>;
+
 public:
     DGCSeqManager(VulkanContext& context, PipelineManager& pipelineMgr,
                   ShaderManager& shaderMgr,
@@ -88,11 +90,19 @@ public:
     template <class TDGCSeqTemplate>
     DGCSeqDataBuffer::Data<TDGCSeqTemplate> CreateDataBuffer(const char* name);
 
+private:
+    template <class TDGCSeqTemplate>
+    void CreateSequenceBufferPool(DGCSeqBase* seq);
+
 public:
-    template <class TDGCSequenceTemplate>
+    template <class TDGCSeqTemplate>
     DGCSeqBase& GetSequence();
 
     DGCSeqBase& GetSequence(const char* name);
+
+    SharedPtr<DGCSeqBase> GetSequenceRef(const char* name);
+
+    Type_Sequences const& GetAllSequences() const;
 
 private:
     VulkanContext& mContext;
@@ -100,7 +110,28 @@ private:
     ShaderManager& mShaderMgr;
     RenderResourceManager& mRenderResMgr;
 
-    Type_STLUnorderedMap_String<SharedPtr<DGCSeqBase>> mSequences {};
+    Type_Sequences mSequences {};
+
+    // Type_STLUnorderedMap_String<>
+};
+
+template <class Type_Ret, class... Type_Args>
+class CreatorBase {};
+
+template <class TDGCSeqTemp, class Type_Ret, class... Type_Args>
+class DGCSeqTempRelatedCreator : CreatorBase<Type_Ret, Type_Args...> {
+    using Type_Creator = ::std::function<Type_Ret(Type_Args&&...)>;
+
+public:
+    DGCSeqTempRelatedCreator(Type_Creator&& creator)
+        : mCreator(::std::move(creator)) {}
+
+    Type_Ret operator()(Type_Args&&... args) {
+        return mCreator(::std::forward<Type_Args>(args)...);
+    }
+
+private:
+    Type_Creator mCreator;
 };
 
 template <class T>
@@ -133,6 +164,9 @@ DGCSeq_ESPipeline& DGCSeqManager::CreateSequence(
     auto const& [it, success] =
         mSequences.try_emplace(typeid(TDGCSeqTemplate).name(), std::move(ptr));
 
+    // create related buffer pool
+    CreateSequenceBufferPool<TDGCSeqTemplate>(pRes);
+
     return *pRes;
 }
 
@@ -160,6 +194,9 @@ DGCSeq_ESShader& DGCSeqManager::CreateSequence(
     auto const& [it, success] =
         mSequences.try_emplace(typeid(TDGCSeqTemplate).name(), std::move(ptr));
 
+    // create related buffer pool
+    CreateSequenceBufferPool<TDGCSeqTemplate>(pRes);
+
     return *pRes;
 }
 
@@ -183,6 +220,13 @@ DGCSeqDataBuffer::Data<TDGCSeqTemplate> DGCSeqManager::CreateDataBuffer(
 
     return DGCSeqDataBuffer::GetData<TDGCSeqTemplate>(
         MakeUnique<DGCSeqDataBuffer>(mContext, buf, sequenceCount, stride));
+}
+
+template <class TDGCSeqTemplate>
+void DGCSeqManager::CreateSequenceBufferPool(DGCSeqBase* seq) {
+    seq->mSeqDataBufPool = MakeUnique<DGCSeqBase::SequenceDataBufferPool>(
+        seq->GetSequenceCount(), mContext, mRenderResMgr, *this,
+        typeid(TDGCSeqTemplate).name(), sizeof(TDGCSeqTemplate));
 }
 
 template <class TDGCSeqTemplate>

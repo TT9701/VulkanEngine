@@ -1,8 +1,7 @@
-﻿#include "DGCTest.h"
-
-#include <random>
+﻿#include "DynamicLoading.h"
 
 #include "Core/System/GameTimer.h"
+#include "Core/System/MemoryPool/MemoryPool.h"
 
 using namespace IDVC_NS;
 
@@ -21,7 +20,7 @@ void AdjustCameraPosition(
 
 }  // namespace
 
-DGCTest::DGCTest(ApplicationSpecification const& spec)
+DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
     : Application(spec),
       mDescSetPool(CreateDescSetPool(GetVulkanContext())),
       mRenderSequence(GetVulkanContext(), GetRenderResMgr(), GetPipelineMgr(),
@@ -32,23 +31,25 @@ DGCTest::DGCTest(ApplicationSpecification const& spec)
         1000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
         (float)spec.width / spec.height});
 
-    mScene = MakeShared<IDCSG_NS::Scene>(gMemPool);
-
     mModelMgr =
         MakeUnique<IntelliDesign_NS::ModelData::ModelDataManager>(gMemPool);
 
-    mGeoMgr = MakeUnique<GPUGeometryDataManager>(GetVulkanContext(), gMemPool);
+    mGeoMgr = MakeUnique<GPUGeometryDataManager>(GetVulkanContext(),
+                                                 DGC_MAX_DRAW_COUNT, gMemPool);
+
+    mScene = MakeShared<IDCSG_NS::Scene>(GetDGCSeqMgr(), *mGeoMgr, *mModelMgr,
+                                         gMemPool);
 }
 
-DGCTest::~DGCTest() = default;
+DynamicLoading::~DynamicLoading() = default;
 
-void DGCTest::CreatePipelines() {
+void DynamicLoading::CreatePipelines() {
     CreateBackgroundComputePipeline();
     CreateDrawQuadPipeline();
     CreateMeshShaderPipeline();
 }
 
-void DGCTest::LoadShaders() {
+void DynamicLoading::LoadShaders() {
     auto& shaderMgr = GetShaderMgr();
 
     shaderMgr.CreateShaderFromGLSL("computeDraw",
@@ -128,7 +129,7 @@ void DGCTest::LoadShaders() {
         vk::ShaderStageFlagBits::eCompute);
 }
 
-void DGCTest::PollEvents(SDL_Event* e, float deltaTime) {
+void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
     Application::PollEvents(e, deltaTime);
 
     switch (e->type) {
@@ -136,13 +137,9 @@ void DGCTest::PollEvents(SDL_Event* e, float deltaTime) {
             DBG_LOG_INFO("Dropped file: %s", e->drop.file);
             ::std::filesystem::path path {e->drop.file};
 
-            GetVulkanContext().GetDevice()->waitIdle();
+            AddNewNode(path.string().c_str());
 
-            auto& node = mScene->AddNode(path.stem().string().c_str());
-            auto const& modelData =
-                node.SetModel(path.string().c_str(), *mGeoMgr, *mModelMgr);
-
-            AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
+            auto& node = mScene->GetNode(path.string().c_str());
 
             SDL_free(e->drop.file);
         } break;
@@ -160,7 +157,7 @@ void DGCTest::PollEvents(SDL_Event* e, float deltaTime) {
     mMainCamera->ProcessSDLEvent(e, deltaTime);
 }
 
-void DGCTest::Update_OnResize() {
+void DynamicLoading::Update_OnResize() {
     Application::Update_OnResize();
 
     auto& window = GetSDLWindow();
@@ -188,7 +185,7 @@ void DGCTest::Update_OnResize() {
     mRenderSequence.ExecutePreRenderBarriers();
 }
 
-void DGCTest::UpdateScene() {
+void DynamicLoading::UpdateScene() {
     Application::UpdateScene();
 
     mSceneData.cameraPos = {mMainCamera->mPosition.x, mMainCamera->mPosition.y,
@@ -200,7 +197,7 @@ void DGCTest::UpdateScene() {
     UpdateSceneUBO();
 }
 
-void DGCTest::Prepare() {
+void DynamicLoading::Prepare() {
     Application::Prepare();
 
     auto& window = GetSDLWindow();
@@ -213,7 +210,6 @@ void DGCTest::Prepare() {
         frame.PrepareBindlessDescPool({dynamic_cast<RenderPassBindingInfo_PSO*>(
             mRenderSequence.FindPass("DGC_DrawMeshShader").binding.get())});
     }
-    CreateRandomTexture();
 
     CreateDrawImage();
     CreateDepthImage();
@@ -265,54 +261,18 @@ void DGCTest::Prepare() {
         }
     }
 
+    // model0 = "29d64ac4-8943-4319-872f-31d275371cf6.fbx.cisdi";
+
     prepare_compute_sequence();
-    prepare_compute_sequence_pipeline();
-    prepare_compute_sequence_shader();
-
-    model0 = "29d64ac4-8943-4319-872f-31d275371cf6.fbx.cisdi";
-
-    mScene->AddNode("cisdi").SetModel(MODEL_PATH_CSTR(model0), *mGeoMgr,
-                                      *mModelMgr);
-
-    auto& node = mScene->AddNode(model0);
-
-    auto const& modelData =
-        node.SetModel(MODEL_PATH_CSTR(model0), *mGeoMgr, *mModelMgr);
-
-    AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
-
-    model1 = "f29cd4b7-f772-4ea8-9e2b-2f2796a03c38.fbx.cisdi";
-    mScene->AddNode(model1).SetModel(MODEL_PATH_CSTR(model1), *mGeoMgr,
-                                     *mModelMgr);
-
     prepare_dgc_draw_command();
-
     prepare_draw_mesh_task();
-    prepare_draw_mesh_task_pipeline();
-    prepare_draw_mesh_task_shader();
 
     PrepareUIContext();
 
     // RecordPasses(mRenderSequence);
-
-    {
-        renderResMgr.CreateBuffer(
-            "prepareDGC_UBO", sizeof(vk::DrawIndirectCountIndirectCommandEXT),
-            vk::BufferUsageFlagBits::eUniformBuffer
-                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-            Buffer::MemoryType::Staging);
-
-        auto const& modelName = modelData.name;
-        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
-
-        auto command = geo.GetDrawIndirectCmdBufInfo();
-
-        auto data = renderResMgr["prepareDGC_UBO"].GetBufferMappedPtr();
-        memcpy(data, &command, sizeof(command));
-    }
 }
 
-void DGCTest::prepare_dgc_draw_command() {
+void DynamicLoading::prepare_dgc_draw_command() {
     const uint32_t sequenceCount = 1;
     const uint32_t maxShaderCount = 1;
     const uint32_t maxDrawCount = 1;
@@ -336,7 +296,7 @@ void DGCTest::prepare_dgc_draw_command() {
     }
 }
 
-void DGCTest::prepare_compute_sequence() {
+void DynamicLoading::prepare_compute_sequence() {
     const uint32_t sequenceCount = 1;
     const uint32_t maxPipelineCount = 1;
     const uint32_t maxDrawCount = 1;
@@ -364,7 +324,7 @@ void DGCTest::prepare_compute_sequence() {
     }
 }
 
-void DGCTest::prepare_draw_mesh_task() {
+void DynamicLoading::prepare_draw_mesh_task() {
     Type_ShaderMacros taskMacros {};
     taskMacros.emplace("TASK_INVOCATION_COUNT",
                        std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
@@ -383,7 +343,7 @@ void DGCTest::prepare_draw_mesh_task() {
 
     auto& dgcMgr = GetDGCSeqMgr();
 
-    auto& sequence = dgcMgr.CreateSequence<DrawSequenceTemp>(
+    dgcMgr.CreateSequence<DrawSequenceTemp>(
         {DGC_MAX_SEQUENCE_COUNT,
          DGC_MAX_DRAW_COUNT,
          maxShaderCount,
@@ -391,195 +351,50 @@ void DGCTest::prepare_draw_mesh_task() {
           {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
           {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}},
          true});
+}
 
-    // buffers
-    {
-        auto data0 =
-            dgcMgr.CreateDataBuffer<DrawSequenceTemp>("dgc_draw_test_0");
+void DynamicLoading::ResizeToFitAllSeqBufPool() {
+    for (auto const& seq : GetDGCSeqMgr().GetAllSequences()) {
+        seq.second->GetBufferPool()->ResizeToFitIDAllocation();
+    }
 
-        std::array<IntelliDesign_NS::Core::SceneGraph::Node const*, 2> node = {
-            &mScene->GetNode(model0), &mScene->GetNode(model1)};
-
-        for (uint32_t i = 0; i < 2; ++i) {
-            auto const& modelName = node[i]->GetModel().name;
-            auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
-            auto pushConstant = *geo.GetMeshletPushContantsPtr();
-            pushConstant.mModelMatrix =
-                IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
-            auto command = geo.GetDrawIndirectCmdBufInfo();
-
-            data0.data[i].pushConstant = pushConstant;
-            data0.data[i].command = command;
-        }
+    for (auto& node : mScene->GetAllNodes()) {
+        node.second->UploadSeqBuf();
     }
 }
 
-void DGCTest::prepare_compute_sequence_pipeline() {
-    const uint32_t sequenceCount = 2;
-    const uint32_t maxPipelineCount = 2;
-    const uint32_t maxDrawCount = 1;
+float DynamicLoading::AddNewNode(const char* modelPath) {
+    float loadTime;
 
-    auto& dgcMgr = GetDGCSeqMgr();
+    GameTimer timer;
+    INTELLI_DS_MEASURE_DURATION_MS_START(timer);
 
-    auto& sequence = dgcMgr.CreateSequence<DispatchSequence_PipelineTemp>(
-        {sequenceCount, maxDrawCount, maxPipelineCount, "Background"},
-        {"Background-dgctest"});
+    auto pBufferPool =
+        GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
+    auto& node = mScene->AddNodeProxy<DrawSequenceTemp>(modelPath, pBufferPool);
 
-    // buffers
-    {
-        auto data = dgcMgr.CreateDataBuffer<DispatchSequence_PipelineTemp>(
-            "dgc_pipe_dispatch_test");
+    auto const& modelData = node.SetModel(modelPath);
 
-        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
-            data.data[i].index = i;
-            data.data[i].pushConstant = _baseColorFactor;
-            data.data[i]
-                .command.setX((uint32_t)std::ceil(1600 / 16.0))
-                .setY((uint32_t)std::ceil(900 / 16.0))
-                .setZ(1);
-        }
-    }
+    GetVulkanContext().GetDevice()->waitIdle();
+
+    AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
+
+    INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer, loadTime);
+
+    return loadTime;
 }
 
-void DGCTest::prepare_draw_mesh_task_pipeline() {
-    const uint32_t sequenceCount = 2;
-    const uint32_t maxPipelineCount = 2;
-    const uint32_t maxDrawCount = 2000;
-
-    auto& dgcMgr = GetDGCSeqMgr();
-
-    auto& sequence = dgcMgr.CreateSequence<DrawSequence_PipelineTemp>(
-        {sequenceCount, maxDrawCount, maxPipelineCount, "MeshShaderDraw",
-         true});
-
-    // buffers
-    {
-        auto const& node = mScene->GetNode("cisdi");
-        auto const& modelName = node.GetModel().name;
-        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
-        auto pushConstant = *geo.GetMeshletPushContantsPtr();
-
-        ::std::array<MeshletPushConstants, 2> meshletConstants {};
-
-        meshletConstants[0] = pushConstant;
-        meshletConstants[0].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
-
-        meshletConstants[1] = pushConstant;
-        meshletConstants[1].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
-            * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
-
-        auto command = geo.GetDrawIndirectCmdBufInfo();
-
-        auto data = dgcMgr.CreateDataBuffer<DrawSequence_PipelineTemp>(
-            "dgc_pipe_draw_test");
-
-        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
-            data.data[i].index = i;
-            data.data[i].pushConstant = meshletConstants[i];
-            data.data[i].command = command;
-        }
-    }
+void DynamicLoading::RemoveNode(const char* nodeName) {
+    GetVulkanContext().GetDevice()->waitIdle();
+    mScene->RemoveNode(nodeName);
 }
 
-void DGCTest::prepare_compute_sequence_shader() {
-    const uint32_t sequenceCount = 2;
-    const uint32_t maxShaderCount = 2;
-    const uint32_t maxDrawCount = 1;
-
-    auto& dgcMgr = GetDGCSeqMgr();
-
-    auto& sequence = dgcMgr.CreateSequence<DispatchSequence_ShaderTemp>(
-        {sequenceCount,
-         maxDrawCount,
-         maxShaderCount,
-         {{"computeDraw", vk::ShaderStageFlagBits::eCompute}}},
-        {{"computeDraw-dgc-test", vk::ShaderStageFlagBits::eCompute}});
-
-    // buffers
-    {
-        auto data = dgcMgr.CreateDataBuffer<DispatchSequence_ShaderTemp>(
-            "dgc_shader_dispatch_test");
-
-        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
-            data.data[i].index = {i};
-            data.data[i].pushConstant = _baseColorFactor;
-            data.data[i]
-                .command.setX((uint32_t)std::ceil(1600 / 16.0))
-                .setY((uint32_t)std::ceil(900 / 16.0))
-                .setZ(1);
-        }
-    }
-}
-
-void DGCTest::prepare_draw_mesh_task_shader() {
-    Type_ShaderMacros taskMacros {};
-    taskMacros.emplace("TASK_INVOCATION_COUNT",
-                       std::to_string(TASK_SHADER_INVOCATION_COUNT).c_str());
-
-    Type_ShaderMacros meshMacros {};
-    meshMacros.emplace("MESH_INVOCATION_COUNT",
-                       std::to_string(MESH_SHADER_INVOCATION_COUNT).c_str());
-    meshMacros.emplace(
-        "MAX_VERTICES",
-        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_VERTICES).c_str());
-    meshMacros.emplace(
-        "MAX_PRIMITIVES",
-        std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
-
-    const uint32_t sequenceCount = 1;
-    const uint32_t maxShaderCount = 3;
-    const uint32_t maxDrawCount = 1;
-
-    auto& dgcMgr = GetDGCSeqMgr();
-
-    auto& sequence = dgcMgr.CreateSequence<DrawSequence_ShaderTemp>(
-        {sequenceCount,
-         maxDrawCount,
-         maxShaderCount,
-         {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
-          {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
-          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}},
-         true});
-
-    // buffers
-    {
-        auto const& node = mScene->GetNode("cisdi");
-        auto const& modelName = node.GetModel().name;
-        auto& geo = mGeoMgr->GetGPUGeometryData(modelName.c_str());
-        auto pushConstant = *geo.GetMeshletPushContantsPtr();
-
-        ::std::array<MeshletPushConstants, 2> meshletConstants {};
-
-        meshletConstants[0] = pushConstant;
-        meshletConstants[0].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f);
-
-        meshletConstants[1] = pushConstant;
-        meshletConstants[1].mModelMatrix =
-            IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)
-            * IDCMCore_NS::MatrixTranslation(10.0f, 10.0f, 10.0f);
-
-        auto command = geo.GetDrawIndirectCmdBufInfo();
-
-        auto data = dgcMgr.CreateDataBuffer<DrawSequence_ShaderTemp>(
-            "dgc_shader_draw_test");
-
-        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
-            data.data[i].index = {0, 1, 2};
-            data.data[i].pushConstant = meshletConstants[i % 2];
-            data.data[i].command = command;
-        }
-    }
-}
-
-void DGCTest::BeginFrame(IDVC_NS::RenderFrame& frame) {
+void DynamicLoading::BeginFrame(IDVC_NS::RenderFrame& frame) {
     Application::BeginFrame(frame);
     GetUILayer().BeginFrame();
 }
 
-void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
+void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     auto& vkCtx = GetVulkanContext();
     auto& timelineSem = vkCtx.GetTimelineSemphore();
     auto& cmdMgr = GetCmdMgr();
@@ -588,7 +403,17 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
 
+    frame.ClearGPUGeoDataRefs();
+
+    for (auto& node : mScene->GetAllNodes()) {
+        if (true /*bCullPass*/) {
+            frame.CullRegister(node.second->GetGPUGeoDataRef());
+        }
+    }
+
     RecordPasses(mRenderSequence);
+
+    ResizeToFitAllSeqBufPool();
 
     // Compute Draw
     {
@@ -643,15 +468,15 @@ void DGCTest::RenderFrame(IDVC_NS::RenderFrame& frame) {
     }
 }
 
-void DGCTest::EndFrame(IDVC_NS::RenderFrame& frame) {
+void DynamicLoading::EndFrame(IDVC_NS::RenderFrame& frame) {
     Application::EndFrame(frame);
 }
 
-void DGCTest::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
+void DynamicLoading::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
     mRenderSequence.GetRenderToSwapchainPass().RecordCmd(cmd);
 }
 
-void DGCTest::CreateDrawImage() {
+void DynamicLoading::CreateDrawImage() {
     auto& window = GetSDLWindow();
 
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(window.GetWidth()),
@@ -679,7 +504,7 @@ void DGCTest::CreateDrawImage() {
     }
 }
 
-void DGCTest::CreateDepthImage() {
+void DynamicLoading::CreateDepthImage() {
     auto& window = GetSDLWindow();
 
     vk::Extent3D depthImageExtent {static_cast<uint32_t>(window.GetWidth()),
@@ -705,88 +530,7 @@ void DGCTest::CreateDepthImage() {
     }
 }
 
-void DGCTest::CreateRandomTexture() {
-    constexpr auto extent = vk::Extent3D {4, 4, 1};
-    constexpr uint32_t randomImageCount = 16;
-
-    constexpr size_t dataSize = extent.width * extent.height * 4;
-
-    auto& renderResMgr = GetRenderResMgr();
-
-    auto& uploadBuffer = renderResMgr.CreateBuffer(
-        "staging", dataSize * randomImageCount,
-        vk::BufferUsageFlagBits::eTransferSrc, Buffer::MemoryType::Staging);
-
-    ::std::string baseName {"RandomImage"};
-
-    for (uint32_t i = 0; i < randomImageCount; ++i) {
-        std::random_device rndDevice;
-        std::default_random_engine rndEngine(rndDevice());
-        std::uniform_int_distribution rndDist(50, UCHAR_MAX);
-
-        std::vector<uint8_t> pixels(dataSize);
-        for (uint32_t j = 0; j < extent.width * extent.height; ++j) {
-            pixels[j * 4] = rndDist(rndEngine);
-            pixels[j * 4 + 1] = rndDist(rndEngine);
-            pixels[j * 4 + 2] = rndDist(rndEngine);
-            pixels[j * 4 + 3] = 255;
-        }
-
-        auto name = baseName + ::std::to_string(i);
-        auto& ref = renderResMgr.CreateTexture(
-            name.c_str(), RenderResource::Type::Texture2D,
-            vk::Format::eR8G8B8A8Unorm, extent,
-            vk::ImageUsageFlagBits::eSampled
-                | vk::ImageUsageFlagBits::eTransferDst);
-        ref.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
-
-        memcpy((char*)uploadBuffer.GetBufferMappedPtr() + dataSize * i,
-               pixels.data(), dataSize);
-    }
-
-    auto& vkCtx = GetVulkanContext();
-    {
-        auto cmd =
-            vkCtx.CreateCmdBufToBegin(vkCtx.GetQueue(QueueType::Graphics));
-
-        for (uint32_t i = 0; i < randomImageCount; ++i) {
-            auto name = baseName + ::std::to_string(i);
-            Utils::TransitionImageLayout(
-                cmd.mHandle, renderResMgr[name.c_str()].GetTexHandle(),
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eTransferDstOptimal);
-
-            vk::BufferImageCopy2 copyRegion {};
-            copyRegion.setBufferOffset(dataSize * i)
-                .setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1})
-                .setImageExtent(extent);
-
-            vk::CopyBufferToImageInfo2 info {};
-            info.setSrcBuffer(GetRenderResMgr()["staging"].GetBufferHandle())
-                .setDstImage(GetRenderResMgr()[name.c_str()].GetTexHandle())
-                .setDstImageLayout(vk::ImageLayout::eTransferDstOptimal)
-                .setRegions(copyRegion);
-
-            cmd->copyBufferToImage2(info);
-
-            Utils::TransitionImageLayout(
-                cmd.mHandle, renderResMgr[name.c_str()].GetTexHandle(),
-                vk::ImageLayout::eTransferDstOptimal,
-                vk::ImageLayout::eShaderReadOnlyOptimal);
-        }
-    }
-
-    for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
-        for (uint32_t j = 0; j < randomImageCount / 2; ++j) {
-            auto name = baseName + ::std::to_string(j);
-            auto texture = renderResMgr[name.c_str()].GetTexPtr();
-
-            GetFrames()[i].GetBindlessDescPool().Add(texture);
-        }
-    }
-}
-
-void DGCTest::CreateBackgroundComputePipeline() {
+void DynamicLoading::CreateBackgroundComputePipeline() {
     auto& shaderMgr = GetShaderMgr();
 
     auto compute =
@@ -817,7 +561,7 @@ void DGCTest::CreateBackgroundComputePipeline() {
     DBG_LOG_INFO("Vulkan Background Compute Pipeline Created");
 }
 
-void DGCTest::CreateMeshShaderPipeline() {
+void DynamicLoading::CreateMeshShaderPipeline() {
     auto& renderResMgr = GetRenderResMgr();
     auto& shaderMgr = GetShaderMgr();
 
@@ -865,7 +609,7 @@ void DGCTest::CreateMeshShaderPipeline() {
     DBG_LOG_INFO("Vulkan MeshShader Graphics Pipeline Created");
 }
 
-void DGCTest::CreateDrawQuadPipeline() {
+void DynamicLoading::CreateDrawQuadPipeline() {
     auto& shaderMgr = GetShaderMgr();
 
     auto vert =
@@ -892,7 +636,7 @@ void DGCTest::CreateDrawQuadPipeline() {
     DBG_LOG_INFO("Vulkan Quad Graphics Pipeline Created");
 }
 
-void DGCTest::UpdateSceneUBO() {
+void DynamicLoading::UpdateSceneUBO() {
     auto& renderResMgr = GetRenderResMgr();
     auto data = renderResMgr["SceneUniformBuffer"].GetBufferMappedPtr();
     memcpy(data, &mSceneData, sizeof(mSceneData));
@@ -951,10 +695,9 @@ void DisplayNode(const IntelliDesign_NS::ModelData::CISDI_Node& node,
 
 }  // namespace
 
-void DGCTest::PrepareUIContext() {
-    mImageName0 = "RandomImage";
-    mImageName1 = "RandomImage";
+void DynamicLoading::PrepareUIContext() {
     auto& renderResMgr = GetRenderResMgr();
+
     GetUILayer()
         .AddContext([]() {
             ImGui::Begin("Guide");
@@ -968,38 +711,7 @@ void DGCTest::PrepareUIContext() {
                             1000.0f / ImGui::GetIO().Framerate,
                             ImGui::GetIO().Framerate);
 
-                static char buf[1024] {};
                 static float loadTime {};
-
-                ImGui::SetNextItemWidth(200);
-                ImGui::InputText("模型文件名 -->", buf, 1024);
-
-                ::std::string buffName = buf;
-
-                ImGui::SameLine();
-                if (ImGui::Button("加载")) {
-                    if (buffName.empty()
-                        || !::std::filesystem::exists(
-                            MODEL_PATH_CSTR(buffName.c_str()))) {
-                        MessageBoxW(nullptr, L"模型文件不存在", L"错误", MB_OK);
-                    } else {
-                        GameTimer timer;
-                        INTELLI_DS_MEASURE_DURATION_MS_START(timer);
-
-                        GetVulkanContext().GetDevice()->waitIdle();
-
-                        auto& node = mScene->GetNode("cisdi");
-                        auto const& modelData =
-                            node.SetModel(MODEL_PATH_CSTR(buffName.c_str()),
-                                          *mGeoMgr, *mModelMgr);
-
-                        AdjustCameraPosition(*mMainCamera,
-                                             modelData.boundingBox);
-
-                        INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
-                                                                 loadTime);
-                    }
-                }
 
                 if (ImGui::Button("浏览文件列表")) {
                     IGFD::FileDialogConfig config;
@@ -1013,23 +725,10 @@ void DGCTest::PrepareUIContext() {
                     if (ImGuiFileDialog::Instance()->IsOk()) {  // action if OK
                         std::string filePathName =
                             ImGuiFileDialog::Instance()->GetFilePathName();
-                        std::string filePath =
-                            ImGuiFileDialog::Instance()->GetCurrentPath();
 
-                        GameTimer timer;
-                        INTELLI_DS_MEASURE_DURATION_MS_START(timer);
+                        loadTime = AddNewNode(filePathName.c_str());
 
-                        GetVulkanContext().GetDevice()->waitIdle();
-
-                        auto& node = mScene->GetNode("cisdi");
-                        auto const& modelData = node.SetModel(
-                            filePathName.c_str(), *mGeoMgr, *mModelMgr);
-
-                        AdjustCameraPosition(*mMainCamera,
-                                             modelData.boundingBox);
-
-                        INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer,
-                                                                 loadTime);
+                        auto& node = mScene->GetNode(filePathName.c_str());
                     }
 
                     // close
@@ -1065,67 +764,92 @@ void DGCTest::PrepareUIContext() {
             ImGui::End();
         })
         .AddContext([&]() {
-            auto& model = mScene->GetNode("cisdi").GetModel();
+            if (ImGui::Begin("Model stats:"))
+                for (auto const& [n, pNode] : mScene->GetAllNodes()) {
+                    ::std::filesystem::path name {n.c_str()};
+                    name = name.stem().stem();
+                    auto const& model = pNode->GetModel();
 
-            if (ImGui::Begin(model.name.c_str())) {
-                if (ImGui::TreeNode("Hierarchy")) {
-                    auto const& node = model.nodes[0];
-                    DisplayNode(node, 0, model);
-                    ImGui::TreePop();
-                }
-                if (ImGui::TreeNode("Materials")) {
-                    for (auto const& material : model.materials) {
-                        if (ImGui::TreeNode(material.name.c_str())) {
-                            ImGui::Text("Ambient: (%.3f, %.3f, %.3f)",
-                                        material.data.ambient.x,
-                                        material.data.ambient.y,
-                                        material.data.ambient.z);
-                            ImGui::Text("AmbientFactor: %.3f",
-                                        material.data.ambient.w);
-                            ImGui::Text("Diffuse: (%.3f, %.3f, %.3f)",
-                                        material.data.diffuse.x,
-                                        material.data.diffuse.y,
-                                        material.data.diffuse.z);
-                            ImGui::Text("DiffuseFactor: %.3f",
-                                        material.data.diffuse.w);
-                            ImGui::Text("Specular: (%.3f, %.3f, %.3f)",
-                                        material.data.specular.x,
-                                        material.data.specular.y,
-                                        material.data.specular.z);
-                            ImGui::Text("SpecularFactor: %.3f",
-                                        material.data.specular.w);
-                            ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
-                                        material.data.emissive.x,
-                                        material.data.emissive.y,
-                                        material.data.emissive.z);
-                            ImGui::Text("EmissiveFactor: %.3f",
-                                        material.data.emissive.w);
-                            ImGui::Text("Reflection: (%.3f, %.3f, %.3f)",
+                    bool nodeOpen = ImGui::TreeNode(name.string().c_str());
+
+                    bool deleted = false;
+
+                    ImGui::SameLine();
+
+                    Type_STLString buttonLabel =
+                        Type_STLString {"删除##"} + name.string().c_str();
+                    if (ImGui::Button(buttonLabel.c_str())) {
+                        RemoveNode(n.c_str());
+                        deleted = true;
+                    }
+
+                    if (nodeOpen) {
+                        if (ImGui::TreeNode("Hierarchy")) {
+                            auto const& node = model.nodes[0];
+                            DisplayNode(node, 0, model);
+                            ImGui::TreePop();
+                        }
+                        if (ImGui::TreeNode("Materials")) {
+                            for (auto const& material : model.materials) {
+                                if (ImGui::TreeNode(material.name.c_str())) {
+                                    ImGui::Text("Ambient: (%.3f, %.3f, %.3f)",
+                                                material.data.ambient.x,
+                                                material.data.ambient.y,
+                                                material.data.ambient.z);
+                                    ImGui::Text("AmbientFactor: %.3f",
+                                                material.data.ambient.w);
+                                    ImGui::Text("Diffuse: (%.3f, %.3f, %.3f)",
+                                                material.data.diffuse.x,
+                                                material.data.diffuse.y,
+                                                material.data.diffuse.z);
+                                    ImGui::Text("DiffuseFactor: %.3f",
+                                                material.data.diffuse.w);
+                                    ImGui::Text("Specular: (%.3f, %.3f, %.3f)",
+                                                material.data.specular.x,
+                                                material.data.specular.y,
+                                                material.data.specular.z);
+                                    ImGui::Text("SpecularFactor: %.3f",
+                                                material.data.specular.w);
+                                    ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
+                                                material.data.emissive.x,
+                                                material.data.emissive.y,
+                                                material.data.emissive.z);
+                                    ImGui::Text("EmissiveFactor: %.3f",
+                                                material.data.emissive.w);
+                                    ImGui::Text(
+                                        "Reflection: (%.3f, %.3f, %.3f)",
                                         material.data.reflection.x,
                                         material.data.reflection.y,
                                         material.data.reflection.z);
-                            ImGui::Text("ReflectionFactor: %.3f",
-                                        material.data.reflection.w);
-                            ImGui::Text("Transparency: (%.3f, %.3f, %.3f)",
+                                    ImGui::Text("ReflectionFactor: %.3f",
+                                                material.data.reflection.w);
+                                    ImGui::Text(
+                                        "Transparency: (%.3f, %.3f, %.3f)",
                                         material.data.transparency.x,
                                         material.data.transparency.y,
                                         material.data.transparency.z);
-                            ImGui::Text("TransparencyFactor: %.3f",
-                                        material.data.transparency.w);
-                            ImGui::Text("Shininess: %.3f",
-                                        material.data.shininess);
+                                    ImGui::Text("TransparencyFactor: %.3f",
+                                                material.data.transparency.w);
+                                    ImGui::Text("Shininess: %.3f",
+                                                material.data.shininess);
 
+                                    ImGui::TreePop();
+                                }
+                            }
                             ImGui::TreePop();
                         }
+                        ImGui::TreePop();
                     }
-                    ImGui::TreePop();
+                    if (deleted) {
+                        break;
+                    }
                 }
-            }
+
             ImGui::End();
         });
 }
 
-void DGCTest::RecordPasses(RenderSequence& sequence) {
+void DynamicLoading::RecordPasses(RenderSequence& sequence) {
     sequence.Clear();
 
     auto& drawImage = GetRenderResMgr()["DrawImage"];
@@ -1143,20 +867,32 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
         .SetBinding("StorageBuffer", "RWBuffer")
         .SetDGCSeqBufs({"dgc_dispatch_test"});
 
-    cfg.AddRenderPass("DGC_PrepareDraw",
-                      dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
-                          .GetPipelineLayout())
-        .SetBinding("UBO", "prepareDGC_UBO")
-        .SetBinding("StorageBuffer", "dgc_draw_test_0")
-        .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
+    // cfg.AddCopyPass("dgc_seq_data_buf_copy")
+    //     .SetBinding(CopyPassConfig::CopyInfo {})
 
-    auto bindlessSet = GetCurFrame().GetBindlessDescPool().GetPoolResource();
+    // cfg.AddRenderPass("DGC_PrepareDraw",
+    //                   dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
+    //                       .GetPipelineLayout())
+    //     .SetBinding("UBO", "prepareDGC_UBO")
+    //     .SetBinding("StorageBuffer", "dgc_draw_test_0")
+    //     .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
 
-    cfg.AddRenderPass(
-           "DGC_DrawMeshShader",
-           dgcMgr.GetSequence<DrawSequenceTemp>().GetPipelineLayout())
+    auto& drawMeshShaderSeq = dgcMgr.GetSequence<DrawSequenceTemp>();
+    auto names =
+        drawMeshShaderSeq.GetBufferPool()
+            ->VisitPoolResources<Type_STLVector<const char*>>(
+                [](DGCSeqBase::SequenceDataBufferPool::Type_PoolResources const&
+                       resources) {
+                    Type_STLVector<const char*> names {};
+                    for (auto const& res : resources) {
+                        names.emplace_back(res->GetName().c_str());
+                    }
+                    return names;
+                });
+
+    cfg.AddRenderPass("DGC_DrawMeshShader",
+                      drawMeshShaderSeq.GetPipelineLayout())
         .SetBinding("UBO", "SceneUniformBuffer")
-        // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
         .SetBinding("outFragColor", "DrawImage")
         .SetBinding("_Depth_", "DepthImage")
         .SetDGCPipelineInfo(DGCPipelineInfo {
@@ -1169,17 +905,7 @@ void DGCTest::RecordPasses(RenderSequence& sequence) {
             .viewport = {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f},
             .scissor = {{0, 0}, {width, height}}})
         .SetRenderArea({{0, 0}, {width, height}})
-        .SetDGCSeqBufs({"dgc_draw_test_0"});
-
-    // cfg.AddRenderPass("DGC_DrawMeshShader",
-    //                   &GetRenderResMgr()["dgc_draw_test"])
-    //     .SetBinding("UBO", "SceneUniformBuffer")
-    //     // .SetBinding("sceneTexs", {bindlessSet.deviceAddr, bindlessSet.offset})
-    //     .SetBinding("outFragColor", "DrawImage")
-    //     .SetBinding("_Depth_", "DepthImage")
-    //     .SetViewport({0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f})
-    //     .SetScissor({{0, 0}, {width, height}})
-    //     .SetRenderArea({{0, 0}, {width, height}});
+        .SetDGCSeqBufs(names);
 
     cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")

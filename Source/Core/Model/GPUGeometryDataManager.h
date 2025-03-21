@@ -14,17 +14,19 @@ class GPUGeometryData;
 class GPUGeometryDataManager {
 public:
     GPUGeometryDataManager(VulkanContext& context,
+                           uint32_t dgcSequenceMaxDrawCount,
                            ::std::pmr::memory_resource* pMemPool);
 
-    GPUGeometryData& CreateGPUGeometryData(
+    SharedPtr<GPUGeometryData> CreateGPUGeometryData(
         ModelData::CISDI_3DModel const& model);
 
-    GPUGeometryData& GetGPUGeometryData(const char* name) const;
+    SharedPtr<GPUGeometryData> GetGPUGeometryData(const char* name) const;
 
     void RemoveGPUGeometryData(const char* name);
 
 private:
     VulkanContext& mContext;
+    uint32_t mDGCSequenceMaxDrawCount;
     ::std::pmr::memory_resource* pMemPool;
 
     Type_STLUnorderedMap_String<SharedPtr<GPUGeometryData>> mGeometries;

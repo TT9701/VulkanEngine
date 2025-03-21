@@ -42,4 +42,15 @@ DGCSeqBase& DGCSeqManager::GetSequence(const char* name) {
     return *it->second;
 }
 
+SharedPtr<DGCSeqBase> DGCSeqManager::GetSequenceRef(const char* name) {
+    auto it = mSequences.find(name);
+    VE_ASSERT(it != mSequences.end(),
+              "The sequence does not exist in the manager.");
+    return it->second;
+}
+
+DGCSeqManager::Type_Sequences const& DGCSeqManager::GetAllSequences() const {
+    return mSequences;
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

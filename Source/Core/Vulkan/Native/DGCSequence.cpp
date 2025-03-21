@@ -32,6 +32,10 @@ PipelineLayout const* DGCSeqBase::GetPipelineLayout() const {
     return mLayout.GetPipelineLayout();
 }
 
+DGCSeqBase::SequenceDataBufferPool* DGCSeqBase::GetBufferPool() const {
+    return mSeqDataBufPool.get();
+}
+
 bool DGCSeqBase::IsCompute() const {
     return mIsCompute;
 }

@@ -16,7 +16,8 @@ namespace IDCMCore_NS = CMCore_NS;
 class VulkanContext;
 
 struct MeshletPushConstants {
-    IDCMCore_NS::Mat4 mModelMatrix {IDCMCore_NS::Identity4x4()};
+    IDCMCore_NS::Mat4 mModelMatrix {
+        IDCMCore_NS::Mat4 {IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)}};
 
     vk::DeviceAddress mVPBufAddr {};
     vk::DeviceAddress mVNBufAddr {};
@@ -39,57 +40,52 @@ struct MeshletPushConstants {
 class GPUGeometryData {
 public:
     GPUGeometryData(VulkanContext& context,
-                    ModelData::CISDI_3DModel const& model);
+                    ModelData::CISDI_3DModel const& model,
+                    uint32_t maxMeshCountPerDGCSequence);
 
     void GenerateMeshletBuffers(VulkanContext& context,
-                                ModelData::CISDI_3DModel const& model);
+                                ModelData::CISDI_3DModel const& model,
+                                uint32_t maxMeshCount);
 
     Type_STLString const& GetName() const;
 
-    uint32_t GetMeshCount() const;
-    uint32_t GetVertexCount() const;
-    uint32_t GetMeshletCount() const;
-    uint32_t GetMeshletTriangleCount() const;
+    MeshletPushConstants GetMeshletPushContants(uint32_t idx = 0) const;
 
-    ::std::span<uint32_t> GetVertexOffsets();
+    vk::DrawIndirectCountIndirectCommandEXT GetDrawIndirectCmdBufInfo(
+        uint32_t idx = 0) const;
 
-    GPUMeshBuffers& GetMeshBuffer();
-    MeshletPushConstants GetMeshletPushContants() const;
-    MeshletPushConstants* GetMeshletPushContantsPtr();
-
-    Buffer* GetMeshTaskIndirectCmdBuffer() const;
-
-    vk::DrawIndirectCountIndirectCommandEXT GetDrawIndirectCmdBufInfo() const;
+    uint32_t GetSequenceCount() const;
 
 private:
-    void GenerateStats(ModelData::CISDI_3DModel const& model);
+    void GenerateStats(ModelData::CISDI_3DModel const& model,
+                       uint32_t maxMeshCount);
 
     // TODO: Texture
 
 private:
-    bool mFlipYZ;
-
-    uint32_t mVertexCount {0};
-    uint32_t mMeshCount {0};
-    uint32_t mMeshletCount {0};
-    uint32_t mMeshletTriangleCount {0};
-
     Type_STLString mName;
+    uint32_t mSequenceCount;
 
     struct MeshDatas {
+        uint32_t mVertexCount {0};
+        uint32_t mMeshCount {0};
+        uint32_t mMeshletCount {0};
+        uint32_t mMeshletTriangleCount {0};
+
         Type_STLVector<uint32_t> vertexOffsets;
         Type_STLVector<uint32_t> meshletOffsets;
         Type_STLVector<uint32_t> meshletTrianglesOffsets;
         Type_STLVector<uint32_t> meshletCounts;
     };
 
-    MeshDatas mMeshDatas;
-    GPUMeshBuffers mBuffers {};
+    Type_STLVector<MeshDatas> mMeshDatas;
+    Type_STLVector<Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT>>
+        mMeshTaskIndirectCmds;
 
-    MeshletPushConstants mMeshletConstants {};
+    Type_STLVector<GPUMeshBuffers> mBuffers {};
+    Type_STLVector<MeshletPushConstants> mMeshletConstants {};
 
-    Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT> mMeshTaskIndirectCmds;
-    SharedPtr<Buffer> mMeshTaskIndirectCmdBuffer;
+    Type_STLVector<SharedPtr<Buffer>> mMeshTaskIndirectCmdBuffer;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

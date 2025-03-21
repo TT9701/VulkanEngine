@@ -1,2 +1,3 @@
 add_subdirectory(CISDIModel_Generator)
-add_subdirectory(DGCTest)
+# add_subdirectory(DGCTest)
+add_subdirectory(DynamicLoading)

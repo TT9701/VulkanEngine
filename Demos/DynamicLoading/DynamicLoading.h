@@ -11,6 +11,8 @@
 #include "Core/Model/GPUGeometryDataManager.h"
 #include "Core/Model/ModelDataManager.h"
 
+#include "Core/System/IDDeferredResourcePool.hpp"
+
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 
@@ -31,11 +33,11 @@ struct SceneData {
     int32_t texIndex {0};
 };
 
-class DGCTest : public IDVC_NS::Application {
+class DynamicLoading : public IDVC_NS::Application {
 public:
-    explicit DGCTest(IDVC_NS::ApplicationSpecification const& spec);
+    explicit DynamicLoading(IDVC_NS::ApplicationSpecification const& spec);
 
-    ~DGCTest() override;
+    ~DynamicLoading() override;
 
 private:
     void CreatePipelines() override;
@@ -54,7 +56,6 @@ private:
 private:
     void CreateDrawImage();
     void CreateDepthImage();
-    void CreateRandomTexture();
 
     void CreateBackgroundComputePipeline();
     void CreateMeshShaderPipeline();
@@ -85,11 +86,8 @@ private:
 
     IDVC_NS::SharedPtr<IDCSG_NS::Scene> mScene {};
 
-    IDVC_NS::Type_STLString mImageName0 {};
-    IDVC_NS::Type_STLString mImageName1 {};
-
-
-    using PrepareDGCDrawCommandSequenceTemp = DGCSeqTemplate<true, DGCExecutionSetType::None>;
+    using PrepareDGCDrawCommandSequenceTemp =
+        DGCSeqTemplate<true, DGCExecutionSetType::None>;
     void prepare_dgc_draw_command();
 
     /**
@@ -110,44 +108,16 @@ private:
     using DrawSequenceTemp = DGCSeqTemplate<false, DGCExecutionSetType::None,
                                             IDVC_NS::MeshletPushConstants>;
 
-    /**
-     *  dgc dispath
-     */
-    void prepare_compute_sequence_pipeline();
-
-    using DispatchSequence_PipelineTemp =
-        DGCSeqTemplate<true, DGCExecutionSetType::Pipeline,
-                       IDCMCore_NS::Float3>;
-
-    /**
-     *  dgc draw mesh task
-     */
-    void prepare_draw_mesh_task_pipeline();
-
-    using DrawSequence_PipelineTemp =
-        DGCSeqTemplate<false, DGCExecutionSetType::Pipeline,
-                       IDVC_NS::MeshletPushConstants>;
-
-    /**
-     * ShaderEXT compute test
-     */
-    using DispatchSequence_ShaderTemp =
-        DGCSeqTemplate<true, DGCExecutionSetType::Shader_Dispatch,
-                       IDCMCore_NS::Float3>;
-
-    void prepare_compute_sequence_shader();
-
-    /**
-     * ShaderEXT draw test
-     */
-    using DrawSequence_ShaderTemp =
-        DGCSeqTemplate<false, DGCExecutionSetType::Shader_Draw,
-                       IDVC_NS::MeshletPushConstants>;
-
-    void prepare_draw_mesh_task_shader();
-
     const char* model0 {nullptr};
     const char* model1 {nullptr};
+
+    void ResizeToFitAllSeqBufPool();
+
+    float AddNewNode(const char* modelPath);
+
+    void RemoveNode(const char* nodeName);
 };
 
-VE_CREATE_APPLICATION(DGCTest, 1600, 900);
+
+
+VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);
