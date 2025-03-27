@@ -135,7 +135,7 @@ private:
 
     GUI mGui;
 
-    Type_STLVector<Core::RenderFrame> mFrames;
+    Type_STLVector<Core::RenderFrame> mFrames {::std::pmr::get_default_resource()};
 };
 
 // To be defined in CLIENT

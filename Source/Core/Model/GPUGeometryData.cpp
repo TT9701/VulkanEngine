@@ -87,12 +87,12 @@ void GPUGeometryData::GenerateMeshletBuffers(
 
         auto tmp =
             ExtractVertexAttribute<ModelData::VertexAttributeEnum::Position>(
-                model, seqIdx * maxMeshCount, meshData.mMeshCount,
-                meshData.mVertexCount);
+                model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+                meshData.stats.mVertexCount);
 
         buffer.mVPBuf = CreateStorageBuffer_WithData(
             context, (mName + " Vertex Position").c_str(),
-            meshData.mVertexCount, tmp.data());
+            meshData.stats.mVertexCount, tmp.data());
 
         mMeshletConstants[seqIdx].mVPBufAddr =
             buffer.mVPBuf->GetDeviceAddress();
@@ -105,12 +105,12 @@ void GPUGeometryData::GenerateMeshletBuffers(
 
         auto tmp =
             ExtractVertexAttribute<ModelData::VertexAttributeEnum::Normal>(
-                model, seqIdx * maxMeshCount, meshData.mMeshCount,
-                meshData.mVertexCount);
+                model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+                meshData.stats.mVertexCount);
 
         buffer.mVNBuf = CreateStorageBuffer_WithData(
-            context, (mName + " Vertex Normal").c_str(), meshData.mVertexCount,
-            tmp.data());
+            context, (mName + " Vertex Normal").c_str(),
+            meshData.stats.mVertexCount, tmp.data());
 
         mMeshletConstants[seqIdx].mVNBufAddr =
             buffer.mVNBuf->GetDeviceAddress();
@@ -122,12 +122,12 @@ void GPUGeometryData::GenerateMeshletBuffers(
         auto& buffer = mBuffers[seqIdx];
 
         auto tmp = ExtractVertexAttribute<ModelData::VertexAttributeEnum::UV>(
-            model, seqIdx * maxMeshCount, meshData.mMeshCount,
-            meshData.mVertexCount);
+            model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+            meshData.stats.mVertexCount);
 
         buffer.mVTBuf = CreateStorageBuffer_WithData(
             context, (mName + " Vertex Texcoords").c_str(),
-            meshData.mVertexCount, tmp.data());
+            meshData.stats.mVertexCount, tmp.data());
 
         mMeshletConstants[seqIdx].mVTBufAddr =
             buffer.mVTBuf->GetDeviceAddress();
@@ -140,12 +140,12 @@ void GPUGeometryData::GenerateMeshletBuffers(
 
         auto tmp =
             ExtractMeshletProperty<ModelData::MeshletPropertyTypeEnum::Info>(
-                model, seqIdx * maxMeshCount, meshData.mMeshCount,
-                meshData.mMeshletCount);
+                model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+                meshData.stats.mMeshletCount);
 
-        buffer.mMeshletBuf =
-            CreateStorageBuffer_WithData(context, (mName + " Meshlet").c_str(),
-                                         meshData.mMeshletCount, tmp.data());
+        buffer.mMeshletBuf = CreateStorageBuffer_WithData(
+            context, (mName + " Meshlet").c_str(), meshData.stats.mMeshletCount,
+            tmp.data());
 
         mMeshletConstants[seqIdx].mMeshletBufAddr =
             buffer.mMeshletBuf->GetDeviceAddress();
@@ -158,12 +158,12 @@ void GPUGeometryData::GenerateMeshletBuffers(
 
         auto tmp = ExtractMeshletProperty<
             ModelData::MeshletPropertyTypeEnum::Triangle>(
-            model, seqIdx * maxMeshCount, meshData.mMeshCount,
-            meshData.mMeshletTriangleCount);
+            model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+            meshData.stats.mMeshletTriangleCount);
 
         buffer.mMeshletTriBuf = CreateStorageBuffer_WithData(
             context, (mName + " Meshlet").c_str(),
-            meshData.mMeshletTriangleCount, tmp.data());
+            meshData.stats.mMeshletTriangleCount, tmp.data());
 
         mMeshletConstants[seqIdx].mMeshletTriBufAddr =
             buffer.mMeshletTriBuf->GetDeviceAddress();
@@ -176,26 +176,27 @@ void GPUGeometryData::GenerateMeshletBuffers(
         auto& pc = mMeshletConstants[seqIdx];
 
         ::std::vector<ModelData::AABoundingBox> tmp;
-        tmp.reserve(1 + meshData.mMeshCount + meshData.mMeshletCount);
+        tmp.reserve(1 + meshData.stats.mMeshCount
+                    + meshData.stats.mMeshletCount);
 
         tmp.push_back(model.boundingBox);
-        for (uint32_t i = 0; i < meshData.mMeshCount; ++i) {
+        for (uint32_t i = 0; i < meshData.stats.mMeshCount; ++i) {
             tmp.push_back(model.meshes[i].boundingBox);
         }
 
         auto meshletBB = ExtractMeshletProperty<
             ModelData::MeshletPropertyTypeEnum::BoundingBox>(
-            model, seqIdx * maxMeshCount, meshData.mMeshCount,
-            meshData.mMeshCount);
+            model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+            meshData.stats.mMeshCount);
         tmp.insert(tmp.end(), meshletBB.begin(), meshletBB.end());
 
         buffer.mBoundingBoxBuf = CreateStorageBuffer_WithData(
             context, (mName + " Bounding Box").c_str(), tmp.size(), tmp.data());
 
         pc.mBoundingBoxBufAddr = buffer.mBoundingBoxBuf->GetDeviceAddress();
-        pc.mMeshletBoundingBoxBufAddr =
-            pc.mBoundingBoxBufAddr
-            + sizeof(ModelData::AABoundingBox) * (meshData.mMeshCount + 1);
+        pc.mMeshletBoundingBoxBufAddr = pc.mBoundingBoxBufAddr
+                                      + sizeof(ModelData::AABoundingBox)
+                                            * (meshData.stats.mMeshCount + 1);
     }
 
     // material data buffer
@@ -222,13 +223,14 @@ void GPUGeometryData::GenerateMeshletBuffers(
         auto const& meshData = mMeshDatas[seqIdx];
         auto& buffer = mBuffers[seqIdx];
 
-        ::std::vector<uint32_t> meshMaterialIndices(meshData.mMeshCount);
+        ::std::vector<uint32_t> meshMaterialIndices(meshData.stats.mMeshCount);
         for (auto const& node : model.nodes) {
             if (node.meshIdx == -1)
                 continue;
 
             if (node.meshIdx < seqIdx * maxMeshCount
-                || node.meshIdx >= seqIdx * maxMeshCount + meshData.mMeshCount)
+                || node.meshIdx
+                       >= seqIdx * maxMeshCount + meshData.stats.mMeshCount)
                 continue;
 
             meshMaterialIndices[node.meshIdx - seqIdx * maxMeshCount] =
@@ -236,7 +238,7 @@ void GPUGeometryData::GenerateMeshletBuffers(
         }
         buffer.mMeshMaterialIdxBuf = CreateStorageBuffer_WithData(
             context, (mName + " Mesh Material Indices").c_str(),
-            meshData.mMeshCount, meshMaterialIndices.data());
+            meshData.stats.mMeshCount, meshMaterialIndices.data());
 
         mMeshletConstants[seqIdx].mMeshMaterialIdxBufAddr =
             buffer.mMeshMaterialIdxBuf->GetDeviceAddress();
@@ -249,7 +251,7 @@ void GPUGeometryData::GenerateMeshletBuffers(
         auto& pc = mMeshletConstants[seqIdx];
 
         ::std::vector<uint32_t> tmp {};
-        tmp.reserve(meshData.mMeshCount * 4);
+        tmp.reserve(meshData.stats.mMeshCount * 4);
         tmp.insert(tmp.end(), meshData.vertexOffsets.begin(),
                    meshData.vertexOffsets.end());
         tmp.insert(tmp.end(), meshData.meshletOffsets.begin(),
@@ -260,10 +262,10 @@ void GPUGeometryData::GenerateMeshletBuffers(
                    meshData.meshletCounts.end());
 
         buffer.mMeshDataBuf = CreateStorageBuffer_WithData(
-            context, (mName + " Offsets data").c_str(), meshData.mMeshCount * 4,
-            tmp.data());
+            context, (mName + " Offsets data").c_str(),
+            meshData.stats.mMeshCount * 4, tmp.data());
 
-        uint32_t meshCountSize = meshData.mMeshCount * sizeof(uint32_t);
+        uint32_t meshCountSize = meshData.stats.mMeshCount * sizeof(uint32_t);
 
         pc.mVertOffsetBufAddr = buffer.mMeshDataBuf->GetDeviceAddress();
         pc.mMeshletOffsetBufAddr = pc.mVertOffsetBufAddr + meshCountSize;
@@ -305,16 +307,28 @@ uint32_t GPUGeometryData::GetSequenceCount() const {
     return mSequenceCount;
 }
 
+GPUGeometryData::MeshDatas::Stats GPUGeometryData::GetStats() const {
+    MeshDatas::Stats stats {};
+    for (auto const& data : mMeshDatas) {
+        stats.mVertexCount += data.stats.mVertexCount;
+        stats.mMeshCount += data.stats.mMeshCount;
+        stats.mMeshletCount += data.stats.mMeshletCount;
+        stats.mMeshletTriangleCount += data.stats.mMeshletTriangleCount;
+    }
+
+    return stats;
+}
+
 void GPUGeometryData::GenerateStats(ModelData::CISDI_3DModel const& model,
                                     uint32_t maxMeshCount) {
     size_t meshCount = model.meshes.size();
 
     for (auto& data : mMeshDatas) {
         if (meshCount > maxMeshCount) {
-            data.mMeshCount = maxMeshCount;
+            data.stats.mMeshCount = maxMeshCount;
             meshCount -= maxMeshCount;
         } else {
-            data.mMeshCount = meshCount;
+            data.stats.mMeshCount = meshCount;
         }
     }
 
@@ -322,10 +336,11 @@ void GPUGeometryData::GenerateStats(ModelData::CISDI_3DModel const& model,
         auto& meshData = mMeshDatas[seqIdx];
         auto& indirectCmds = mMeshTaskIndirectCmds[seqIdx];
 
-        meshData.vertexOffsets.reserve(meshData.mMeshCount);
-        indirectCmds.reserve(meshData.mMeshCount);
+        meshData.vertexOffsets.reserve(meshData.stats.mMeshCount);
+        indirectCmds.reserve(meshData.stats.mMeshCount);
 
-        for (uint32_t meshIdx = 0; meshIdx < meshData.mMeshCount; ++meshIdx) {
+        for (uint32_t meshIdx = 0; meshIdx < meshData.stats.mMeshCount;
+             ++meshIdx) {
             auto& mesh = model.meshes[seqIdx * maxMeshCount + meshIdx];
 
             vk::DrawMeshTasksIndirectCommandEXT meshTasksIndirectCmd {};
@@ -341,18 +356,18 @@ void GPUGeometryData::GenerateStats(ModelData::CISDI_3DModel const& model,
                 .setGroupCountZ(1);
             indirectCmds.push_back(meshTasksIndirectCmd);
 
-            meshData.vertexOffsets.push_back(meshData.mVertexCount);
-            meshData.mVertexCount += mesh.header.vertexCount;
+            meshData.vertexOffsets.push_back(meshData.stats.mVertexCount);
+            meshData.stats.mVertexCount += mesh.header.vertexCount;
 
-            meshData.meshletOffsets.push_back(meshData.mMeshletCount);
-            meshData.mMeshletCount += infoSize;
+            meshData.meshletOffsets.push_back(meshData.stats.mMeshletCount);
+            meshData.stats.mMeshletCount += infoSize;
             meshData.meshletCounts.push_back(infoSize);
 
             auto const& triangles = mesh.meshlets.GetProperty<
                 ModelData::MeshletPropertyTypeEnum::Triangle>();
             meshData.meshletTrianglesOffsets.push_back(
-                meshData.mMeshletTriangleCount);
-            meshData.mMeshletTriangleCount += triangles.size();
+                meshData.stats.mMeshletTriangleCount);
+            meshData.stats.mMeshletTriangleCount += triangles.size();
         }
     }
 }

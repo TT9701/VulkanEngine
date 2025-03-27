@@ -2,7 +2,6 @@
 
 #include <filesystem>
 
-#include <assimp/scene.h>
 #include <vulkan/vulkan.hpp>
 
 #include "CISDIModel/CISDI_3DModelData.h"
@@ -16,8 +15,7 @@ namespace IDCMCore_NS = CMCore_NS;
 class VulkanContext;
 
 struct MeshletPushConstants {
-    IDCMCore_NS::Mat4 mModelMatrix {
-        IDCMCore_NS::Mat4 {IDCMCore_NS::MatrixScaling(0.01f, 0.01f, 0.01f)}};
+    IDCMCore_NS::Mat4 mModelMatrix {IDCMCore_NS::Identity4x4()};
 
     vk::DeviceAddress mVPBufAddr {};
     vk::DeviceAddress mVNBufAddr {};
@@ -38,6 +36,20 @@ struct MeshletPushConstants {
 };
 
 class GPUGeometryData {
+    struct MeshDatas {
+        struct Stats {
+            uint32_t mVertexCount {0};
+            uint32_t mMeshCount {0};
+            uint32_t mMeshletCount {0};
+            uint32_t mMeshletTriangleCount {0};
+        } stats;
+
+        Type_STLVector<uint32_t> vertexOffsets;
+        Type_STLVector<uint32_t> meshletOffsets;
+        Type_STLVector<uint32_t> meshletTrianglesOffsets;
+        Type_STLVector<uint32_t> meshletCounts;
+    };
+
 public:
     GPUGeometryData(VulkanContext& context,
                     ModelData::CISDI_3DModel const& model,
@@ -56,6 +68,8 @@ public:
 
     uint32_t GetSequenceCount() const;
 
+    MeshDatas::Stats GetStats() const;
+
 private:
     void GenerateStats(ModelData::CISDI_3DModel const& model,
                        uint32_t maxMeshCount);
@@ -65,18 +79,6 @@ private:
 private:
     Type_STLString mName;
     uint32_t mSequenceCount;
-
-    struct MeshDatas {
-        uint32_t mVertexCount {0};
-        uint32_t mMeshCount {0};
-        uint32_t mMeshletCount {0};
-        uint32_t mMeshletTriangleCount {0};
-
-        Type_STLVector<uint32_t> vertexOffsets;
-        Type_STLVector<uint32_t> meshletOffsets;
-        Type_STLVector<uint32_t> meshletTrianglesOffsets;
-        Type_STLVector<uint32_t> meshletCounts;
-    };
 
     Type_STLVector<MeshDatas> mMeshDatas;
     Type_STLVector<Type_STLVector<vk::DrawMeshTasksIndirectCommandEXT>>

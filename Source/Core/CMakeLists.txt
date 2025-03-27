@@ -1,8 +1,8 @@
-find_package(Vulkan REQUIRED)
+find_package (Vulkan REQUIRED)
 
-set(CMAKE_CXX_STANDARD 20)
+set (CMAKE_CXX_STANDARD 20)
 
-set(UTILITIES_SRC
+set (UTILITIES_SRC
         Utilities/Logger.h
         Utilities/VulkanUtilities.h
         Utilities/VulkanUtilities.cpp
@@ -17,16 +17,16 @@ set(UTILITIES_SRC
         Utilities/GUI.h
         Utilities/GUI.cpp
 )
-set(UTILITIES_SRC_GROUP_NAME "Utilities")
+set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
-set(APPLICATION_SRC
+set (APPLICATION_SRC
         Application/Application.h
         Application/Application.cpp
         Application/EntryPoint.h
 )
-set(APPLICATION_SRC_GROUP_NAME "Application")
+set (APPLICATION_SRC_GROUP_NAME "Application")
 
-set(VULKAN_CORE_SRC
+set (VULKAN_CORE_SRC
         Vulkan/Native/Instance.h
         Vulkan/Native/Instance.cpp
         Vulkan/Native/DebugUtils.h
@@ -77,6 +77,8 @@ set(VULKAN_CORE_SRC
         Vulkan/Native/DGCSeqRenderLayout.h
         Vulkan/Native/DGCSeqDataBufPoolResource.cpp
         Vulkan/Native/DGCSeqDataBufPoolResource.h
+        Vulkan/Native/QueryPool.h
+        Vulkan/Native/QueryPool.cpp
 
         Vulkan/Manager/VulkanContext.h
         Vulkan/Manager/VulkanContext.cpp
@@ -104,15 +106,15 @@ set(VULKAN_CORE_SRC
         Vulkan/RenderGraph/RenderSequenceConfig.h
         Vulkan/RenderGraph/RenderSequenceConfig.cpp
 )
-set(VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
+set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 
-set(PLATFORM_SRC
+set (PLATFORM_SRC
         Platform/Window.h
         Platform/Window.cpp
 )
-set(PLATFORM_SRC_GROUP_NAME "Platform")
+set (PLATFORM_SRC_GROUP_NAME "Platform")
 
-set(MODEL_SRC
+set (MODEL_SRC
         Model/Mesh.h
         Model/Mesh.cpp
         Model/GPUGeometryData.cpp
@@ -122,25 +124,25 @@ set(MODEL_SRC
         Model/ModelDataManager.h
         Model/ModelDataManager.cpp
 )
-set(MODEL_SRC_GROUP_NAME "Model")
+set (MODEL_SRC_GROUP_NAME "Model")
 
-set(SCENE_GRAPH_SRC
+set (SCENE_GRAPH_SRC
         SceneGraph/Scene.h
         SceneGraph/Scene.cpp
         SceneGraph/Node.h
         SceneGraph/Node.cpp
         SceneGraph/NodeProxy.hpp
 )
-set(SCENE_GRAPH_SRC_GROUP_NAME "SceneGraph")
+set (SCENE_GRAPH_SRC_GROUP_NAME "SceneGraph")
 
-source_group(${UTILITIES_SRC_GROUP_NAME} FILES ${UTILITIES_SRC})
-source_group(${VULKAN_CORE_SRC_GROUP_NAME} FILES ${VULKAN_CORE_SRC})
-source_group(${PLATFORM_SRC_GROUP_NAME} FILES ${PLATFORM_SRC})
-source_group(${MODEL_SRC_GROUP_NAME} FILES ${MODEL_SRC})
-source_group(${APPLICATION_SRC_GROUP_NAME} FILES ${APPLICATION_SRC})
-source_group(${SCENE_GRAPH_SRC_GROUP_NAME} FILES ${SCENE_GRAPH_SRC})
+source_group (${UTILITIES_SRC_GROUP_NAME} FILES ${UTILITIES_SRC})
+source_group (${VULKAN_CORE_SRC_GROUP_NAME} FILES ${VULKAN_CORE_SRC})
+source_group (${PLATFORM_SRC_GROUP_NAME} FILES ${PLATFORM_SRC})
+source_group (${MODEL_SRC_GROUP_NAME} FILES ${MODEL_SRC})
+source_group (${APPLICATION_SRC_GROUP_NAME} FILES ${APPLICATION_SRC})
+source_group (${SCENE_GRAPH_SRC_GROUP_NAME} FILES ${SCENE_GRAPH_SRC})
 
-add_library(Core STATIC
+add_library (Core STATIC
         ${UTILITIES_SRC}
         ${PLATFORM_SRC}
         ${VULKAN_CORE_SRC}
@@ -149,73 +151,72 @@ add_library(Core STATIC
         ${SCENE_GRAPH_SRC}
 )
 
-set_target_properties(Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})
+set_target_properties (Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
 if (MSVC AND NOT USE_CLANG)
-    target_compile_options(Core
-            PUBLIC
-            "/MP")
+        target_compile_options (Core
+                PUBLIC
+                "/MP")
 endif ()
 
 # <TODO>
-target_compile_definitions(Core
+target_compile_definitions (Core
         PUBLIC
         VK_USE_PLATFORM_WIN32_KHR
         NOMINMAX)
 
-target_compile_definitions(Core
+target_compile_definitions (Core
         PUBLIC
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
 
-target_link_libraries(Core
+target_link_libraries (Core
         PUBLIC
         Vulkan::Headers
         Vulkan::shaderc_combined)
 
-target_include_directories(Core
+target_include_directories (Core
         PUBLIC
         ${PROJECT_SOURCE_DIR}/Source)
 
-# target_include_directories(Core 
-#     PUBLIC 
-#         ${PROJECT_SOURCE_DIR}/External/Output/Include)
+# target_include_directories(Core
+# PUBLIC
+# ${PROJECT_SOURCE_DIR}/External/Output/Include)
 
 # include("../../External/Output/cmake/SDL2Config.cmake")
-target_link_libraries(Core
+target_link_libraries (Core
         PUBLIC
         SDL2::SDL2
         spirv-cross-c
         ImGuiFileDialog)
 
 # include("../../External/Output/lib/cmake/assimp-5.4/assimpConfig.cmake")
+set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
+set (INTELLIGENDESIGN_LIB_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository/LibraryOutputs/x64")
 
-set(INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
-set(INTELLIGENDESIGN_LIB_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository/LibraryOutputs/x64")
-
-target_include_directories(Core
+target_include_directories (Core
         PUBLIC
         ${INTELLIGENDESIGN_CODE_PATH}
 )
 
-add_library(INTELLI_DS_MemoryPool_DEBUG STATIC IMPORTED)
-add_library(INTELLI_DS_MemoryPool_RELEASE STATIC IMPORTED)
+add_library (INTELLI_DS_MemoryPool_DEBUG STATIC IMPORTED)
+add_library (INTELLI_DS_MemoryPool_RELEASE STATIC IMPORTED)
 
 # if (MSVC)
-set_target_properties(INTELLI_DS_MemoryPool_DEBUG
+set_target_properties (INTELLI_DS_MemoryPool_DEBUG
         PROPERTIES
         IMPORTED_LOCATION ${INTELLIGENDESIGN_LIB_PATH}/Debug/LibMemoryPool.lib)
-set_target_properties(INTELLI_DS_MemoryPool_RELEASE
+set_target_properties (INTELLI_DS_MemoryPool_RELEASE
         PROPERTIES
         IMPORTED_LOCATION ${INTELLIGENDESIGN_LIB_PATH}/Release/LibMemoryPool.lib)
-# endif(MSVC)
 
-target_link_libraries(Core
+# endif(MSVC)
+target_link_libraries (Core
         PUBLIC
         debug INTELLI_DS_MemoryPool_DEBUG
         optimized INTELLI_DS_MemoryPool_RELEASE)
 
-add_subdirectory(CISDIModel)
+add_subdirectory (CISDIModel)
 
-target_link_libraries(Core
+target_link_libraries (Core
         PUBLIC
         CISDI_ModelData)

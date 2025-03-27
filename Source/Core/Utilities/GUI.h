@@ -4,11 +4,11 @@
 #include <functional>
 #include <vector>
 
-#include <vulkan/vulkan.hpp>
+#include <ImGuiFileDialog.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
-#include <ImGuiFileDialog.h>
+#include <vulkan/vulkan.hpp>
 
 class SDLWindow;
 
@@ -16,6 +16,7 @@ namespace IntelliDesign_NS::Vulkan::Core {
 
 class VulkanContext;
 class Swapchain;
+class RenderFrame;
 
 class GUI {
 public:
@@ -24,10 +25,12 @@ public:
 
 public:
     void PollEvent(const SDL_Event* event);
-    void BeginFrame();
+    void BeginFrame(RenderFrame& frame);
     void Draw(vk::CommandBuffer cmd);
 
     GUI& AddContext(::std::function<void()>&& ctx);
+
+    GUI& AddFrameRelatedContext(::std::function<void(RenderFrame&)>&& ctx);
 
     bool WantCaptureKeyboard() const;
 
@@ -44,6 +47,7 @@ private:
     vk::DescriptorPool mDescPool;
 
     ::std::vector<::std::function<void()>> mUIContexts;
+    ::std::vector<::std::function<void(RenderFrame&)>> mFrameContexts;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

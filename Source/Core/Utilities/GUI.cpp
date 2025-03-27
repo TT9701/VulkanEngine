@@ -23,7 +23,7 @@ void GUI::PollEvent(const SDL_Event* event) {
     ImGui_ImplSDL2_ProcessEvent(event);
 }
 
-void GUI::BeginFrame() {
+void GUI::BeginFrame(RenderFrame& frame) {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
@@ -32,6 +32,9 @@ void GUI::BeginFrame() {
 
     for (auto const& ctx : mUIContexts)
         ctx();
+
+    for (auto const& ctx : mFrameContexts)
+        ctx(frame);
 
     ImGui::Render();
 }
@@ -57,6 +60,11 @@ void GUI::Draw(vk::CommandBuffer cmd) {
 
 GUI& GUI::AddContext(std::function<void()>&& ctx) {
     mUIContexts.push_back(::std::move(ctx));
+    return *this;
+}
+
+GUI& GUI::AddFrameRelatedContext(std::function<void(RenderFrame&)>&& ctx) {
+    mFrameContexts.push_back(::std::move(ctx));
     return *this;
 }
 
