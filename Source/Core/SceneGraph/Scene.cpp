@@ -42,15 +42,32 @@ Scene::Type_NodeMap const& Scene::GetAllNodes() const {
 
 void Scene::RemoveNode(const char* name) {
     if (mNodes.contains(name)) {
-        auto dataName = mNodes.at(name)->GetModel().name.c_str();
-
-        mModelDataMgr.Remove_CISDI_3DModel(dataName);
-        mGPUGeoDataMgr.RemoveGPUGeometryData(dataName);
+        auto dataName = mNodes.at(name)->GetModel().name;
 
         mNodes.erase(name);
+
+        mModelDataMgr.Remove_CISDI_3DModel(dataName.c_str());
+        mGPUGeoDataMgr.RemoveGPUGeometryData(dataName.c_str());
     } else {
         DBG_LOG_INFO("Scene::RemoveNode: Node %s not found.", name);
     }
+}
+
+void Scene::CullNode(MathCore::BoundingFrustum const& frustum) {
+    for (auto const& [name, node] : mNodes) {
+        auto const& bb = node->GetModel().boundingBox;
+        if (frustum.Contains(bb) != MathCore::ContainmentType::DISJOINT) {
+            mInFrustumNodes.push_back(node.get());
+        }
+    }
+}
+
+MemoryPool::Type_STLVector<Node*> const& Scene::GetInFrustumNodes() const {
+    return mInFrustumNodes;
+}
+
+void Scene::ClearInFrustumNodes() {
+    mInFrustumNodes.clear();
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

@@ -31,6 +31,8 @@ enum class DrawCallMetaDataType {
     ClearColorImage,
     ClearDepthStencilImage,
 
+    ResetBuffer,
+
     MemoryBarrier,
 
     RenderingInfo,
@@ -88,6 +90,16 @@ struct DrawCallMetaData<DrawCallMetaDataType::ClearDepthStencilImage>
     vk::ImageLayout layout;
     vk::ClearDepthStencilValue clearValue;
     Type_STLVector<vk::ImageSubresourceRange> ranges;
+
+    void RecordCmds(vk::CommandBuffer cmd) const override;
+};
+
+template <>
+struct DrawCallMetaData<DrawCallMetaDataType::ResetBuffer>
+    : IDrawCallMetaData {
+    vk::Buffer buffer;
+    vk::DeviceSize offset;
+    vk::DeviceSize size;
 
     void RecordCmds(vk::CommandBuffer cmd) const override;
 };

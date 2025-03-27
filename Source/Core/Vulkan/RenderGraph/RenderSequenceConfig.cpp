@@ -159,6 +159,18 @@ CopyPassConfig::Self& CopyPassConfig::SetBinding(CopyInfo const& info) {
     return *this;
 }
 
+CopyPassConfig::Self& CopyPassConfig::SetBinding(
+    Type_STLVector<CopyInfo> const& info) {
+    mConfigs.insert(mConfigs.end(), info.begin(), info.end());
+    return *this;
+}
+
+CopyPassConfig::Self& CopyPassConfig::SetClearBuffer(
+    Type_STLVector<const char*> const& buffers) {
+    mBuffersToClear = buffers;
+    return *this;
+}
+
 CopyPassConfig::Self& CopyPassConfig::SetAsync(bool isAsync) {
     mIsAync = isAsync;
     return *this;
@@ -166,6 +178,9 @@ CopyPassConfig::Self& CopyPassConfig::SetAsync(bool isAsync) {
 
 void CopyPassConfig::Compile(RenderSequence& result) {
     auto& copyPass = result.AddCopyPass(mPassName.c_str());
+
+    if (!mBuffersToClear.empty())
+        copyPass.ClearBuffers(mBuffersToClear);
 
     auto getResType = [&result](const char* name) {
         return result.mResMgr[name].GetType();

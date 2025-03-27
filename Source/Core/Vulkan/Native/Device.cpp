@@ -153,29 +153,37 @@ vk::Device Device::CreateDevice(std::span<Type_STLString> requestedExtensions) {
         DBG_LOG_INFO("Dedicated Allocation enabled");
     }
 
+    if (IsExtensionSupported(VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME)) {
+        auto hostQueryResetFeatures = mPhysicalDevice.GetExtensionFeatures<
+            vk::PhysicalDeviceHostQueryResetFeatures>();
+
+        if (hostQueryResetFeatures.hostQueryReset) {
+            mPhysicalDevice
+                .AddExtensionFeatures<
+                    vk::PhysicalDeviceHostQueryResetFeatures>()
+                .hostQueryReset = true;
+            enabledExtensions.emplace_back(
+                VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME);
+            DBG_LOG_INFO("Host query reset enabled");
+        }
+    }
+
     // For performance queries, we also use host query reset since queryPool resets cannot
     // live in the same command buffer as beginQuery
     if (IsExtensionSupported(VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME)
         && IsExtensionSupported(VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME)) {
         auto performanceQueryFeaturesKhr = mPhysicalDevice.GetExtensionFeatures<
             vk::PhysicalDevicePerformanceQueryFeaturesKHR>();
-        auto hostQueryResetFeatures = mPhysicalDevice.GetExtensionFeatures<
-            vk::PhysicalDeviceHostQueryResetFeatures>();
 
-        if (performanceQueryFeaturesKhr.performanceCounterQueryPools
-            && hostQueryResetFeatures.hostQueryReset) {
+        if (performanceQueryFeaturesKhr.performanceCounterQueryPools) {
             mPhysicalDevice
                 .AddExtensionFeatures<
                     vk::PhysicalDevicePerformanceQueryFeaturesKHR>()
                 .performanceCounterQueryPools = true;
-            mPhysicalDevice
-                .AddExtensionFeatures<
-                    vk::PhysicalDeviceHostQueryResetFeatures>()
-                .hostQueryReset = true;
+
             enabledExtensions.emplace_back(
                 VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME);
-            enabledExtensions.emplace_back(
-                VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME);
+
             DBG_LOG_INFO("Performance query enabled");
         }
     }

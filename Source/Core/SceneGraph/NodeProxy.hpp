@@ -29,21 +29,18 @@ public:
 
     void UploadSeqBuf() override;
 
+    MemoryPool::Type_STLVector<MemoryPool::Type_STLVector<Type_CopyInfo>> const&
+    GetCopyInfos() const;
+
 private:
     MemoryPool::Type_STLVector<SeqBufIDInfo> mSeqBufIDs {};
     Type_pSeqDataBufPool mPool {nullptr};
+    MemoryPool::Type_STLVector<MemoryPool::Type_STLVector<Type_CopyInfo>>
+        mCopyInfos {};
 };
 
 template <class TDGCSeqTemp>
 NodeProxy<TDGCSeqTemp>::~NodeProxy() {
-    for (uint32_t i = 0; i < mSequenceCount; ++i) {
-        auto id = mSeqBufIDs[i].id;
-
-        auto resHandle = mPool->GetResource(id);
-
-        memset(resHandle->ptr, 0, sizeof(TDGCSeqTemp));
-    }
-
     RetrieveIDs();
 }
 
@@ -112,8 +109,19 @@ void NodeProxy<TDGCSeqTemp>::UploadSeqBuf() {
                 pRes->command = mGPUGeoData->GetDrawIndirectCmdBufInfo(i);
             }
             idInfo.dirty = false;
+
+            auto& vecInfos = mCopyInfos.emplace_back();
+            for (uint32_t i = 0; i < 3; ++i) {
+                vecInfos.emplace_back(resHandle->GetCopyInfo(i));
+            }
         }
     }
+}
+
+template <class TDGCSeqTemp>
+MemoryPool::Type_STLVector<MemoryPool::Type_STLVector<Type_CopyInfo>> const&
+NodeProxy<TDGCSeqTemp>::GetCopyInfos() const {
+    return mCopyInfos;
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

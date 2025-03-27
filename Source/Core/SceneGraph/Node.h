@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Utilities/MemoryPool.h"
+#include "Core/Vulkan/Native/DGCSeqDataBufPoolResource.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
 class GPUGeometryData;
@@ -18,6 +19,9 @@ class GPUGeometryDataManager;
 namespace IntelliDesign_NS::Core::SceneGraph {
 
 class Scene;
+
+using Type_CopyInfo =
+    Vulkan::Core::DGCSeqDataBufPoolResource::ResourceHandle::CopyInfo;
 
 class Node {
 public:
@@ -45,6 +49,11 @@ public:
     virtual void RetrieveIDs() {}
 
     virtual void UploadSeqBuf() {}
+
+    virtual MemoryPool::Type_STLVector<
+        MemoryPool::Type_STLVector<Type_CopyInfo>> const&
+    GetCopyInfos()
+        const;
 
 protected:
     MemoryPool::Type_STLString mName;

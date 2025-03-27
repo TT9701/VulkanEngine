@@ -30,6 +30,10 @@ public:
     template <class TDGCSeqTemp>
     Node& AddNodeProxy(const char* name, Type_pSeqDataBufPool pool);
 
+    template <class TDGCSeqTemp>
+    Node& AddNodeProxy(
+        MemoryPool::Type_UniquePtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy);
+
     Node const& GetNode(const char* name) const;
 
     Node& GetNode(const char* name);
@@ -37,6 +41,12 @@ public:
     Type_NodeMap const& GetAllNodes() const;
 
     void RemoveNode(const char* name);
+
+    void CullNode(MathCore::BoundingFrustum const& frustum);
+
+    MemoryPool::Type_STLVector<Node*> const& GetInFrustumNodes() const;
+
+    void ClearInFrustumNodes();
 
 private:
     ::std::pmr::memory_resource* pMemPool;
@@ -46,6 +56,7 @@ private:
     ModelData::ModelDataManager& mModelDataMgr;
 
     Type_NodeMap mNodes;
+    MemoryPool::Type_STLVector<Node*> mInFrustumNodes {};
 };
 
 template <class TDGCSeqTemp>
@@ -62,6 +73,13 @@ Node& Scene::AddNodeProxy(const char* name, Type_pSeqDataBufPool pool) {
     mNodes.emplace(name, std::move(nodeProxy));
 
     return nodeRef;
+}
+
+template <class TDGCSeqTemp>
+Node& Scene::AddNodeProxy(
+    MemoryPool::Type_UniquePtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy) {
+    auto p = mNodes.emplace(nodeProxy->GetName(), ::std::move(nodeProxy));
+    return *p.first->second;
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

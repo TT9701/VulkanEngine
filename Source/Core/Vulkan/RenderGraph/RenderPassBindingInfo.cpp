@@ -349,7 +349,6 @@ void RenderPassBindingInfo_PSO::Update(const char* resName) {
             } else {
                 throw ::std::runtime_error("");
             }
-            
 
             ::std::optional<uint32_t> set;
             vk::DescriptorSetLayoutBinding binding {};
@@ -833,6 +832,21 @@ void RenderPassBindingInfo_Copy::RecordCmd(vk::CommandBuffer cmd) {
 }
 
 void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
+    if (!mBuffersToClear.empty()) {
+        for (auto const& bufferName : mBuffersToClear) {
+            mDrawCallMgr.AddArgument_ResetBuffer(bufferName, 0, VK_WHOLE_SIZE);
+
+            auto dstIdx = mRenderSequence.AddRenderResource(bufferName);
+
+            RenderSequence::Barrier dstBarrier {
+                dstIdx, vk::ImageLayout::eUndefined,
+                vk::AccessFlagBits2::eTransferWrite,
+                vk::PipelineStageFlagBits2::eTransfer};
+
+            AddBarrier(dstBarrier);
+        }
+    }
+
     auto generateBarrier = [this](CopyInfo const& info) mutable {
         auto srcIdx = mRenderSequence.AddRenderResource(info.src.c_str());
         auto dstIdx = mRenderSequence.AddRenderResource(info.dst.c_str());
@@ -865,27 +879,24 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
                 mDrawCallMgr.AddArgument_CopyBufferToBuffer(
                     info.src.c_str(), info.dst.c_str(),
                     ::std::get_if<vk::BufferCopy2>(&info.region));
-                generateBarrier(info);
                 break;
             case Type_Copy::BufferToImage:
                 mDrawCallMgr.AddArgument_CopyBufferToImage(
                     info.src.c_str(), info.dst.c_str(),
                     ::std::get_if<vk::BufferImageCopy2>(&info.region));
-                generateBarrier(info);
                 break;
             case Type_Copy::ImageToImage:
                 mDrawCallMgr.AddArgument_CopyImageToImage(
                     info.src.c_str(), info.dst.c_str(),
                     ::std::get_if<vk::ImageCopy2>(&info.region));
-                generateBarrier(info);
                 break;
             case Type_Copy::ImageToBuffer:
                 mDrawCallMgr.AddArgument_CopyImageToBuffer(
                     info.src.c_str(), info.dst.c_str(),
                     ::std::get_if<vk::BufferImageCopy2>(&info.region));
-                generateBarrier(info);
                 break;
         }
+        generateBarrier(info);
     }
 }
 
@@ -922,6 +933,15 @@ void RenderPassBindingInfo_Copy::CopyImageToImage(
 void RenderPassBindingInfo_Copy::CopyImageToBuffer(
     const char* src, const char* dst, vk::BufferImageCopy2 const& region) {
     mInfos.emplace_back(src, dst, Type_Copy::BufferToBuffer, region);
+}
+
+void RenderPassBindingInfo_Copy::ClearBuffers(
+    Type_STLVector<const char*> const& buffers) {
+    mBuffersToClear = buffers;
+}
+
+DrawCallManager& RenderPassBindingInfo_Copy::GetDrawCallManager() {
+    return mDrawCallMgr;
 }
 
 void RenderPassBindingInfo_Copy::AddBarrier(RenderSequence::Barrier const& b) {

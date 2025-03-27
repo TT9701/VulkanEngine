@@ -20,6 +20,11 @@ void DrawCallMetaData<DrawCallMetaDataType::ClearDepthStencilImage>::RecordCmds(
     cmd.clearDepthStencilImage(image, layout, clearValue, ranges);
 }
 
+void DrawCallMetaData<DrawCallMetaDataType::ResetBuffer>::RecordCmds(
+    vk::CommandBuffer cmd) const {
+    cmd.fillBuffer(buffer, offset, size, 0);
+}
+
 void DrawCallMetaData<DrawCallMetaDataType::MemoryBarrier>::RecordCmds(
     vk::CommandBuffer cmd) const {
     vk::DependencyInfo depInfo {};

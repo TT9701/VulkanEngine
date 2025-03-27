@@ -39,6 +39,19 @@ void DrawCallManager::AddArgument_ClearDepthStencilImage(
     PushResourceMetaDataMapping(imageName, mMetaDatas.size() - 1);
 }
 
+void DrawCallManager::AddArgument_ResetBuffer(const char* bufferName,
+                                              vk::DeviceSize offset,
+                                              vk::DeviceSize size) {
+    auto buffer = mRenderResManager[bufferName].GetBufferHandle();
+
+    DrawCallMetaData<DrawCallMetaDataType::ResetBuffer> metaData;
+    metaData.buffer = buffer;
+    metaData.offset = offset;
+    metaData.size = size;
+
+    mMetaDatas.emplace_back(metaData);
+}
+
 namespace {
 
 void PushBarrierMapping(

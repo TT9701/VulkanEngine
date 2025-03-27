@@ -8,7 +8,8 @@ RenderFrame::RenderFrame(VulkanContext& context)
       mSemaphorePool(MakeUnique<SemaphorePool>(context)),
       mPresentFinished(MakeUnique<Semaphore>(context)),
       mRenderFinished(MakeUnique<Semaphore>(context)),
-      mSwapchainPresent(MakeUnique<Semaphore>(context)) {
+      mSwapchainPresent(MakeUnique<Semaphore>(context)),
+      mQueryPool(MakeUnique<QueryPool>(context)) {
     auto indexMap = mContext.GetDevice().GetQueueFamilyIndices();
 
     for (auto const& [type, index] : indexMap) {
@@ -81,6 +82,10 @@ CmdBufferToBegin RenderFrame::GetTransferCmdBuf() const {
 
 BindlessDescPool& RenderFrame::GetBindlessDescPool() const {
     return *mBindlessDescPool;
+}
+
+QueryPool& RenderFrame::GetQueryPool() const {
+    return *mQueryPool;
 }
 
 void RenderFrame::Reset() {

@@ -3,6 +3,7 @@
 #include "Core/Vulkan/Native/Commands.h"
 #include "Core/Vulkan/Native/Descriptors.h"
 #include "Core/Vulkan/Native/SyncStructures.h"
+#include "Core/Vulkan/Native/QueryPool.h"
 
 #include "Core/System/concurrentqueue.h"
 
@@ -41,11 +42,15 @@ public:
 
     BindlessDescPool& GetBindlessDescPool() const;
 
+    QueryPool& GetQueryPool() const;
+
     void Reset();
 
     void CullRegister(SharedPtr<GPUGeometryData> const& refData);
 
     void ClearGPUGeoDataRefs();
+
+    Type_STLVector<const char*> mCmdStagings {};
 
 private:
     VulkanContext& mContext;
@@ -60,8 +65,11 @@ private:
 
     UniquePtr<Semaphore> mSwapchainPresent;
 
+    UniquePtr<QueryPool> mQueryPool;
+
     SharedPtr<BindlessDescPool> mBindlessDescPool;
 
     Type_STLVector<SharedPtr<GPUGeometryData>> mRefGPUGeoDatas {};
+
 };
 }  // namespace IntelliDesign_NS::Vulkan::Core

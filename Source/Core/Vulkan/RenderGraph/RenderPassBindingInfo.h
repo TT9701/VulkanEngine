@@ -262,6 +262,10 @@ public:
     void CopyImageToBuffer(const char* src, const char* dst,
                            vk::BufferImageCopy2 const& region);
 
+    void ClearBuffers(Type_STLVector<const char*> const& buffers);
+
+    DrawCallManager& GetDrawCallManager();
+
 private:
     void AddBarrier(RenderSequence::Barrier const& b);
 
@@ -272,6 +276,7 @@ private:
     DrawCallManager mDrawCallMgr;
 
     Type_STLVector<CopyInfo> mInfos;
+    Type_STLVector<const char*> mBuffersToClear {};
 };
 
 class RenderPassBindingInfo_Executor : public IRenderPassBindingInfo {

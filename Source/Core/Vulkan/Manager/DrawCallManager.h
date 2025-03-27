@@ -24,6 +24,9 @@ public:
         vk::ClearDepthStencilValue const& clearValue,
         Type_STLVector<vk::ImageSubresourceRange> const& ranges);
 
+    void AddArgument_ResetBuffer(const char* bufferName, vk::DeviceSize offset,
+                                 vk::DeviceSize size);
+
     void AddArgument_Barriers(
         Type_STLVector<Type_STLString> const& names,
         Type_STLVector<vk::ImageMemoryBarrier2> const& imgBarriers = {},

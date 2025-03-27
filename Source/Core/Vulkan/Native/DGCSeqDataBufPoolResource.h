@@ -9,11 +9,21 @@ class RenderResourceManager;
 class DGCSeqManager;
 
 class DGCSeqDataBufPoolResource {
+public:
     class ResourceHandle {
     public:
-        ResourceHandle(void* p, size_t size,
-                       uint64_t id, DGCSeqDataBufPoolResource* poolRes);
+        struct CopyInfo {
+            const char* srcName;
+            const char* dstName;
+            vk::BufferCopy2 info;
+        };
+
+    public:
+        ResourceHandle(void* p, size_t size, uint64_t id,
+                       DGCSeqDataBufPoolResource* poolRes);
         ~ResourceHandle();
+
+        CopyInfo GetCopyInfo(uint32_t idx = 0) const;
 
         void* ptr;
         size_t size;
@@ -45,6 +55,7 @@ private:
 
     uint32_t mSeqStride;
     Type_STLString mBufName {};
+    Type_STLVector<Type_STLString> mStagingBufNames {};
     Type_STLVector<::std::byte> mResources {};
     vk::Buffer mHandle {};
 };

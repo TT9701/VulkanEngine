@@ -96,6 +96,7 @@ class CopyPassConfig : public IPassConfig {
     using Type_Region =
         ::std::variant<vk::BufferCopy2, vk::BufferImageCopy2, vk::ImageCopy2>;
 
+public:
     struct CopyInfo {
         const char* src;
         const char* dst;
@@ -109,6 +110,8 @@ public:
     virtual ~CopyPassConfig() override = default;
 
     Self& SetBinding(CopyInfo const& info);
+    Self& SetBinding(Type_STLVector<CopyInfo> const& info);
+    Self& SetClearBuffer(Type_STLVector<const char*> const& buffers);
 
     Self& SetAsync(bool isAsync);
 
@@ -117,6 +120,7 @@ public:
 private:
     void Compile(RenderSequence& result) override;
 
+    Type_STLVector<const char*> mBuffersToClear {};
     Type_STLVector<CopyInfo> mConfigs;
 
     bool mIsAync {false};

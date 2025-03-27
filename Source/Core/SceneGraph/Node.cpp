@@ -44,4 +44,9 @@ MemoryPool::Type_STLString const& Node::GetName() const {
     return mName;
 }
 
+MemoryPool::Type_STLVector<MemoryPool::Type_STLVector<Type_CopyInfo>> const&
+Node::GetCopyInfos() const {
+    return {};
+}
+
 }  // namespace IntelliDesign_NS::Core::SceneGraph
