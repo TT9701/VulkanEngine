@@ -12,9 +12,7 @@ void AdjustCameraPosition(
     IDC_NS::Camera& camera,
     IntelliDesign_NS::ModelData::AABoundingBox const& bb) {
     auto center = bb.Center.GetSIMD();
-    center = IDCMCore_NS::VectorMultiply(center, {0.01f, 0.01f, 0.01f});
     auto extent = bb.Extents.GetSIMD();
-    extent = IDCMCore_NS::VectorMultiply(extent, {0.01f, 0.01f, 0.01f});
     camera.AdjustPosition(center, extent);
 }
 
@@ -28,7 +26,7 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
       mCopySem(GetVulkanContext()),
       mCmpSem(GetVulkanContext()) {
     mMainCamera = MakeUnique<IDC_NS::Camera>(IDC_NS::PersperctiveInfo {
-        1000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
+        50000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
         (float)spec.width / spec.height});
 
     mModelMgr =
@@ -366,32 +364,64 @@ void DynamicLoading::ResizeToFitAllSeqBufPool() {
 float DynamicLoading::AddNewNode(const char* modelPath) {
     float loadTime;
 
-    GameTimer timer;
-    INTELLI_DS_MEASURE_DURATION_MS_START(timer);
+    Type_STLString path {modelPath};
 
-    auto pBufferPool =
-        GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
-    auto& node = mScene->AddNodeProxy<DrawSequenceTemp>(modelPath, pBufferPool);
+    using Type_Promise = ::std::promise<
+        IDVC_NS::UniquePtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>;
 
-    auto const& modelData = node.SetModel(modelPath);
+    ::std::thread launch(
+        [this, path](Type_Promise& p) {
+            auto pBufferPool =
+                GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
 
-    GetVulkanContext().GetDevice()->waitIdle();
+            auto node = IDCSG_NS::Node {gMemPool, path.c_str(), mScene.get()};
+            auto nodeProxy = MakeUnique<IDCSG_NS::NodeProxy<DrawSequenceTemp>>(
+                ::std::move(node), pBufferPool);
 
-    AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
+            auto const& modelData = nodeProxy->SetModel(path.c_str());
 
-    INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer, loadTime);
+            p.set_value(::std::move(nodeProxy));
+        },
+        ::std::ref(mPromise));
 
-    return loadTime;
+    ::std::thread wait([this]() {
+        auto& node = mScene->AddNodeProxy(mPromise.get_future().get());
+        auto const& modelData = node.GetModel();
+        AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
+        mPromise = Type_Promise {};
+    });
+
+    launch.detach();
+    wait.detach();
+
+    // GameTimer timer;
+    // INTELLI_DS_MEASURE_DURATION_MS_START(timer);
+
+    // auto pBufferPool =
+    //     GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
+    // auto& node = mScene->AddNodeProxy<DrawSequenceTemp>(modelPath, pBufferPool);
+    //
+    // auto const& modelData = node.SetModel(modelPath);
+    //
+    // // GetVulkanContext().GetDevice()->waitIdle();
+    //
+    // AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
+    //
+    // INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer, loadTime);
+
+    return 0.0f;
 }
 
 void DynamicLoading::RemoveNode(const char* nodeName) {
-    GetVulkanContext().GetDevice()->waitIdle();
-    mScene->RemoveNode(nodeName);
+    // GetVulkanContext().GetDevice()->waitIdle();
+    Type_STLString name {nodeName};
+    ::std::thread t([this, name]() { mScene->RemoveNode(name.c_str()); });
+    t.detach();
 }
 
 void DynamicLoading::BeginFrame(IDVC_NS::RenderFrame& frame) {
     Application::BeginFrame(frame);
-    GetUILayer().BeginFrame();
+    GetUILayer().BeginFrame(frame);
 }
 
 void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
@@ -403,23 +433,37 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
 
-    frame.ClearGPUGeoDataRefs();
+    ResizeToFitAllSeqBufPool();
 
-    for (auto& node : mScene->GetAllNodes()) {
+    frame.ClearGPUGeoDataRefs();
+    frame.mCmdStagings.clear();
+
+    mScene->ClearInFrustumNodes();
+    mScene->CullNode(mMainCamera->GetFrustum());
+
+    for (auto& node : mScene->GetInFrustumNodes()) {
         if (true /*bCullPass*/) {
-            frame.CullRegister(node.second->GetGPUGeoDataRef());
+            frame.CullRegister(node->GetGPUGeoDataRef());
+
+            for (auto const& n : node->GetCopyInfos()) {
+                frame.mCmdStagings.push_back(n[mFrameNum % 3].srcName);
+            }
         }
     }
 
-    RecordPasses(mRenderSequence);
-
-    ResizeToFitAllSeqBufPool();
+    RecordPasses(mRenderSequence, frame);
 
     // Compute Draw
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
+        frame.GetQueryPool().ResetPool(cmd.GetHandle(), 6);
+
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "dispatch");
+
         mRenderSequence.RecordPass("DGC_Dispatch", cmd.GetHandle());
+
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "dispatch");
 
         cmd.End();
 
@@ -445,9 +489,17 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         // mRenderSequence.RecordPass("DGC_PrepareDraw", cmd.GetHandle());
 
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
+
+        mRenderSequence.RecordPass("dgc_seq_data_buf_copy", cmd.GetHandle());
+
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "copy");
+
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "draw");
+
         mRenderSequence.RecordPass("DGC_DrawMeshShader", cmd.GetHandle());
 
-        auto cmdHandle = cmd.GetHandle();
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "draw");
 
         cmd.End();
 
@@ -470,6 +522,8 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
 void DynamicLoading::EndFrame(IDVC_NS::RenderFrame& frame) {
     Application::EndFrame(frame);
+
+    frame.GetQueryPool().GetResult();
 }
 
 void DynamicLoading::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
@@ -704,12 +758,36 @@ void DynamicLoading::PrepareUIContext() {
             ImGui::Text("按 WASD 移动相机位置，按住鼠标右键控制相机朝向。");
             ImGui::End();
         })
-        .AddContext([this]() {
+        .AddFrameRelatedContext([this](IDVC_NS::RenderFrame& frame) {
+            static float frameRate {};
+            static float accumulatedTime {};
+
+            static float dispatchTime {};
+            static float copyTime {};
+            static float drawTime {};
+
+            accumulatedTime += 1000.0f / ImGui::GetIO().Framerate;
+
+            if (accumulatedTime > 500.0f) {
+                frameRate = ImGui::GetIO().Framerate;
+                dispatchTime = frame.GetQueryPool().ElapsedTime("dispatch");
+                copyTime = frame.GetQueryPool().ElapsedTime("copy");
+                drawTime = frame.GetQueryPool().ElapsedTime("draw");
+                accumulatedTime = 0.0f;
+            }
+
+            uint32_t totalNodeCount = mScene->GetAllNodes().size();
+            uint32_t inFrustumNodeCount = mScene->GetInFrustumNodes().size();
+
             ImGui::Begin("渲染信息");
             {
                 ImGui::Text("单帧耗时 %.3f ms/frame (%.1f FPS)",
-                            1000.0f / ImGui::GetIO().Framerate,
-                            ImGui::GetIO().Framerate);
+                            1000.0f / frameRate, frameRate);
+
+                ImGui::Text("\tDispatch pass 耗时 %.3f ms/frame.",
+                            dispatchTime);
+                ImGui::Text("\tCopy pass 耗时 %.3f ms/frame.", copyTime);
+                ImGui::Text("\tDraw Model pass 耗时 %.3f ms/frame.", drawTime);
 
                 static float loadTime {};
 
@@ -727,8 +805,6 @@ void DynamicLoading::PrepareUIContext() {
                             ImGuiFileDialog::Instance()->GetFilePathName();
 
                         loadTime = AddNewNode(filePathName.c_str());
-
-                        auto& node = mScene->GetNode(filePathName.c_str());
                     }
 
                     // close
@@ -736,6 +812,9 @@ void DynamicLoading::PrepareUIContext() {
                 }
 
                 ImGui::Text("加载耗时: %.3f s", loadTime / 1000.0f);
+
+                ImGui::Text("Frustum culling models: %d / %d.",
+                            inFrustumNodeCount, totalNodeCount);
             }
             ImGui::End();
         })
@@ -784,6 +863,24 @@ void DynamicLoading::PrepareUIContext() {
                     }
 
                     if (nodeOpen) {
+                        auto const& geo =
+                            *mGeoMgr->GetGPUGeometryData(name.string().c_str());
+
+                        auto modelStats = geo.GetStats();
+
+                        if (ImGui::TreeNode("Stats")) {
+
+                            ImGui::Text("Mesh Count: %d.",
+                                        modelStats.mMeshCount);
+                            ImGui::Text("Meshlet Count: %d.",
+                                        modelStats.mMeshletCount);
+                            ImGui::Text("Meshlet triangle Count: %d.",
+                                        modelStats.mMeshletTriangleCount);
+                            ImGui::Text("Vertex Count: %d.",
+                                        modelStats.mVertexCount);
+                            ImGui::TreePop();
+                        }
+
                         if (ImGui::TreeNode("Hierarchy")) {
                             auto const& node = model.nodes[0];
                             DisplayNode(node, 0, model);
@@ -849,7 +946,8 @@ void DynamicLoading::PrepareUIContext() {
         });
 }
 
-void DynamicLoading::RecordPasses(RenderSequence& sequence) {
+void DynamicLoading::RecordPasses(RenderSequence& sequence,
+                                  IDVC_NS::RenderFrame& frame) {
     sequence.Clear();
 
     auto& drawImage = GetRenderResMgr()["DrawImage"];
@@ -867,16 +965,6 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence) {
         .SetBinding("StorageBuffer", "RWBuffer")
         .SetDGCSeqBufs({"dgc_dispatch_test"});
 
-    // cfg.AddCopyPass("dgc_seq_data_buf_copy")
-    //     .SetBinding(CopyPassConfig::CopyInfo {})
-
-    // cfg.AddRenderPass("DGC_PrepareDraw",
-    //                   dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
-    //                       .GetPipelineLayout())
-    //     .SetBinding("UBO", "prepareDGC_UBO")
-    //     .SetBinding("StorageBuffer", "dgc_draw_test_0")
-    //     .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
-
     auto& drawMeshShaderSeq = dgcMgr.GetSequence<DrawSequenceTemp>();
     auto names =
         drawMeshShaderSeq.GetBufferPool()
@@ -889,6 +977,30 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence) {
                     }
                     return names;
                 });
+
+    Type_STLVector<CopyPassConfig::CopyInfo> copyInfos {};
+    uint32_t idx {0};
+
+    if (!mScene->GetInFrustumNodes().empty())
+        for (auto const& node : mScene->GetInFrustumNodes()) {
+            for (auto const& info : node->GetCopyInfos()) {
+                CopyPassConfig::CopyInfo copyInfo {frame.mCmdStagings[idx++],
+                                                   info[0].dstName,
+                                                   info[0].info, false};
+                copyInfos.push_back(copyInfo);
+            }
+        }
+
+    cfg.AddCopyPass("dgc_seq_data_buf_copy")
+        .SetClearBuffer(names)
+        .SetBinding(copyInfos);
+
+    // cfg.AddRenderPass("DGC_PrepareDraw",
+    //                   dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
+    //                       .GetPipelineLayout())
+    //     .SetBinding("UBO", "prepareDGC_UBO")
+    //     .SetBinding("StorageBuffer", "dgc_draw_test_0")
+    //     .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
 
     cfg.AddRenderPass("DGC_DrawMeshShader",
                       drawMeshShaderSeq.GetPipelineLayout())

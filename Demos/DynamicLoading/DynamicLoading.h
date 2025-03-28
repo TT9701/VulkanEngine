@@ -65,7 +65,8 @@ private:
 
     void PrepareUIContext();
 
-    void RecordPasses(IDVC_NS::RenderSequence& sequence);
+    void RecordPasses(IDVC_NS::RenderSequence& sequence,
+                      IDVC_NS::RenderFrame& frame);
 
 private:
     IDVC_NS::DescriptorSetPool mDescSetPool;
@@ -116,8 +117,9 @@ private:
     float AddNewNode(const char* modelPath);
 
     void RemoveNode(const char* nodeName);
+
+    ::std::promise<IDVC_NS::UniquePtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>
+        mPromise;
 };
-
-
 
 VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);

@@ -10,7 +10,7 @@ enum class CameraMovement : uint32_t { Forward, Backward, Left, Right };
 
 constexpr float CameraYaw = -90.0f;
 constexpr float CameraPitch = 0.0f;
-constexpr float CameraSpeed = 30.f;
+constexpr float CameraSpeed = 3000.f;
 constexpr float CameraSensitivity = 0.1f;
 constexpr float CameraZoom = 45.0f;
 
@@ -52,9 +52,6 @@ public:
            MathCore::Float3 up = MathCore::Float3(0.0f, 1.0f, 0.0f),
            float yaw = CameraYaw, float pitch = CameraPitch);
 
-    Camera(float posX, float posY, float posZ, float upX, float upY, float upZ,
-           float yaw, float pitch);
-
     void SetAspect(float aspect);
 
     MathCore::Mat4 GetViewMatrix() const;
@@ -65,6 +62,8 @@ public:
 
     void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);
 
+    MathCore::BoundingFrustum GetFrustum() const;
+
 private:
     void Update();
 
@@ -74,6 +73,7 @@ private:
     void ProcessMouseScroll(SDL_Event* e);
 
     PersperctiveInfo mPerspectiveInfo;
+    bool mReversedZ {false};
 };
 
 }  // namespace IntelliDesign_NS::Core

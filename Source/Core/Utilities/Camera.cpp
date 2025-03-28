@@ -16,21 +16,13 @@ Camera::Camera(PersperctiveInfo info, MathCore::Float3 position,
       mEulerAngles {yaw, pitch},
       mMovementSpeed(CameraSpeed),
       mMouseSensitivity(CameraSensitivity),
-      mZoom(CameraZoom),
+      mZoom(MathCore::ConvertToDegrees(info.mFov)),
       mPerspectiveInfo(info) {
     Update();
-}
 
-Camera::Camera(float posX, float posY, float posZ, float upX, float upY,
-               float upZ, float yaw, float pitch)
-    : mPosition(posX, posY, posZ),
-      mFront(MathCore::Float3(0.0f, 0.0f, -1.0f)),
-      mWorldUp(MathCore::Float3(upX, upY, upZ)),
-      mEulerAngles {yaw, pitch},
-      mMovementSpeed(CameraSpeed),
-      mMouseSensitivity(CameraSensitivity),
-      mZoom(CameraZoom) {
-    Update();
+    if (mPerspectiveInfo.mNear > mPerspectiveInfo.mFar) {
+        mReversedZ = true;
+    }
 }
 
 void Camera::SetAspect(float aspect) {
@@ -41,13 +33,9 @@ MathCore::Mat4 Camera::GetViewMatrix() const {
     using namespace IDCMCore_NS;
 
     auto position = mPosition.GetSIMD();
-    auto front = mFront.GetSIMD();
-    auto up = mUp.GetSIMD();
-    auto focus = VectorAdd(position, front);
+    auto focus = VectorAdd(position, mFront.GetSIMD());
 
-    Mat4 ret {MatrixLookAt(position, focus, up)};
-
-    return ret;
+    return MatrixLookAt(position, focus, mUp.GetSIMD());
 }
 
 MathCore::Mat4 Camera::GetProjectionMatrix() const {
@@ -75,7 +63,7 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     if (mCaptureMouseMovement)
         ProcessMouseMovement(e);
 
-    ProcessMouseScroll(e);
+    // ProcessMouseScroll(e);
 }
 
 void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
@@ -94,27 +82,43 @@ void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
     Update();
 }
 
-void Camera::Update() {
+MathCore::BoundingFrustum Camera::GetFrustum() const {
     using namespace IDCMCore_NS;
 
-    Float3 front {};
+    float near = mPerspectiveInfo.mNear;
+    float far = mPerspectiveInfo.mFar;
+
+    if (mReversedZ)
+        ::std::swap(near, far);
+
+    BoundingFrustum frustum {
+        Mat4 {MatrixPerspectiveFov(mPerspectiveInfo.mFov,
+                                   mPerspectiveInfo.mAspect, near, far)}
+            .GetSIMD(),
+        true};
+
+    auto invViewMat = MatrixInverse(nullptr, GetViewMatrix().GetSIMD());
+
+    frustum.Transform(frustum, invViewMat);
+
+    return frustum;
+}
+
+void Camera::Update() {
+    using namespace IDCMCore_NS;
 
     auto radYaw = ConvertToRadians(mEulerAngles.mYaw);
     auto radPitch = ConvertToRadians(mEulerAngles.mPitch);
 
-    front.x = cos(radYaw) * cos(radPitch);
-    front.y = sin(radPitch);
-    front.z = sin(radYaw) * cos(radPitch);
-
+    Float3 front {cos(radYaw) * cos(radPitch), sin(radPitch),
+                  sin(radYaw) * cos(radPitch)};
     auto frontVec = front.GetSIMD();
+
     mFront = Vector3Normalize(frontVec);
 
-    auto rightVec =
-        Vector3Normalize(Vector3Cross(frontVec, mWorldUp.GetSIMD()));
+    mRight = Vector3Normalize(Vector3Cross(frontVec, mWorldUp.GetSIMD()));
 
-    mRight = rightVec;
-
-    mUp = Vector3Normalize(Vector3Cross(rightVec, frontVec));
+    mUp = Vector3Normalize(Vector3Cross(mRight.GetSIMD(), frontVec));
 }
 
 void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
@@ -183,9 +187,11 @@ void Camera::ProcessMouseMovement(SDL_Event* e) {
 
 void Camera::ProcessMouseScroll(SDL_Event* e) {
     if (e->type == SDL_MOUSEWHEEL) {
-        mZoom += static_cast<float>(e->wheel.y);
+        mZoom -= static_cast<float>(e->wheel.y);
 
-        mZoom = ::std::clamp(mZoom, 1.0f, 45.0f);
+        mZoom = ::std::clamp(mZoom, 1.0f, 60.0f);
+
+        mPerspectiveInfo.mFov = MathCore::ConvertToRadians(mZoom);
     }
 }
 
