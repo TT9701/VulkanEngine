@@ -232,6 +232,13 @@ void DynamicLoading::Prepare() {
             | vk::BufferUsageFlagBits::eTransferSrc,
         Buffer::MemoryType::DeviceLocal, sizeof(float) * 4);
 
+    renderResMgr.CreateBuffer(
+        "FrustumCullingUBO", sizeof(uint32_t) * 257,
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress
+            | vk::BufferUsageFlagBits::eTransferSrc,
+        Buffer::MemoryType::Staging);
+
     {
         vk::DispatchIndirectCommand cmdBuffer {
             (uint32_t)::std::ceil(window.GetWidth() / 16.0),
@@ -258,8 +265,6 @@ void DynamicLoading::Prepare() {
                             cmdBufCopy);
         }
     }
-
-    // model0 = "29d64ac4-8943-4319-872f-31d275371cf6.fbx.cisdi";
 
     prepare_compute_sequence();
     prepare_dgc_draw_command();
@@ -342,32 +347,37 @@ void DynamicLoading::prepare_draw_mesh_task() {
     auto& dgcMgr = GetDGCSeqMgr();
 
     dgcMgr.CreateSequence<DrawSequenceTemp>(
-        {DGC_MAX_SEQUENCE_COUNT,
+        {2,
          DGC_MAX_DRAW_COUNT,
          maxShaderCount,
          {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
           {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
-          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}},
-         true});
+          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}}});
 }
 
-void DynamicLoading::ResizeToFitAllSeqBufPool() {
-    for (auto const& seq : GetDGCSeqMgr().GetAllSequences()) {
-        seq.second->GetBufferPool()->ResizeToFitIDAllocation();
+void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
+    for (auto& [name, pNode] : mScene->GetAllNodes()) {
+        pNode->RetrieveIDs();
     }
 
-    for (auto& node : mScene->GetAllNodes()) {
-        node.second->UploadSeqBuf();
+    for (auto& pNode : frame.GetInFrustumNodes()) {
+        pNode->RequestSeqBufIDs();
+    }
+
+    for (auto const& [name, pSeq] : GetDGCSeqMgr().GetAllSequences()) {
+        pSeq->GetBufferPool()->ResizeToFitIDAllocation();
+    }
+
+    for (auto& pNode : frame.GetInFrustumNodes()) {
+        pNode->UploadSeqBuf(frame);
     }
 }
 
 float DynamicLoading::AddNewNode(const char* modelPath) {
-    float loadTime;
-
     Type_STLString path {modelPath};
 
     using Type_Promise = ::std::promise<
-        IDVC_NS::UniquePtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>;
+        IDVC_NS::SharedPtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>;
 
     ::std::thread launch(
         [this, path](Type_Promise& p) {
@@ -387,6 +397,7 @@ float DynamicLoading::AddNewNode(const char* modelPath) {
     ::std::thread wait([this]() {
         auto& node = mScene->AddNodeProxy(mPromise.get_future().get());
         auto const& modelData = node.GetModel();
+        // node.RequestSeqBufIDs();
         AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
         mPromise = Type_Promise {};
     });
@@ -394,26 +405,10 @@ float DynamicLoading::AddNewNode(const char* modelPath) {
     launch.detach();
     wait.detach();
 
-    // GameTimer timer;
-    // INTELLI_DS_MEASURE_DURATION_MS_START(timer);
-
-    // auto pBufferPool =
-    //     GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
-    // auto& node = mScene->AddNodeProxy<DrawSequenceTemp>(modelPath, pBufferPool);
-    //
-    // auto const& modelData = node.SetModel(modelPath);
-    //
-    // // GetVulkanContext().GetDevice()->waitIdle();
-    //
-    // AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
-    //
-    // INTELLI_DS_MEASURE_DURATION_MS_END_STORE(timer, loadTime);
-
     return 0.0f;
 }
 
 void DynamicLoading::RemoveNode(const char* nodeName) {
-    // GetVulkanContext().GetDevice()->waitIdle();
     Type_STLString name {nodeName};
     ::std::thread t([this, name]() { mScene->RemoveNode(name.c_str()); });
     t.detach();
@@ -433,23 +428,15 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     const uint64_t computeFinished = graphicsFinished + 1;
     const uint64_t allFinished = graphicsFinished + 2;
 
-    ResizeToFitAllSeqBufPool();
-
-    frame.ClearGPUGeoDataRefs();
     frame.mCmdStagings.clear();
 
-    mScene->ClearInFrustumNodes();
-    mScene->CullNode(mMainCamera->GetFrustum());
+    frame.ClearNodes();
 
-    for (auto& node : mScene->GetInFrustumNodes()) {
-        if (true /*bCullPass*/) {
-            frame.CullRegister(node->GetGPUGeoDataRef());
+    mScene->CullNode(mMainCamera->GetFrustum(), frame);
 
-            for (auto const& n : node->GetCopyInfos()) {
-                frame.mCmdStagings.push_back(n[mFrameNum % 3].srcName);
-            }
-        }
-    }
+    ResizeToFitAllSeqBufPool(frame);
+
+    UpdateFrustumCullingUBO();
 
     RecordPasses(mRenderSequence, frame);
 
@@ -464,6 +451,14 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
         mRenderSequence.RecordPass("DGC_Dispatch", cmd.GetHandle());
 
         frame.GetQueryPool().EndRange(cmd.GetHandle(), "dispatch");
+
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
+
+        mRenderSequence.RecordPass("dgc_seq_data_buf_copy", cmd.GetHandle());
+
+        // mRenderSequence.RecordPass("DGC_PrepareDraw", cmd.GetHandle());
+
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "copy");
 
         cmd.End();
 
@@ -486,14 +481,6 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     // Graphics Draw
     {
         auto cmd = frame.GetGraphicsCmdBuf();
-
-        // mRenderSequence.RecordPass("DGC_PrepareDraw", cmd.GetHandle());
-
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
-
-        mRenderSequence.RecordPass("dgc_seq_data_buf_copy", cmd.GetHandle());
-
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "copy");
 
         frame.GetQueryPool().BeginRange(cmd.GetHandle(), "draw");
 
@@ -696,6 +683,23 @@ void DynamicLoading::UpdateSceneUBO() {
     memcpy(data, &mSceneData, sizeof(mSceneData));
 }
 
+void DynamicLoading::UpdateFrustumCullingUBO() {
+    auto& renderResMgr = GetRenderResMgr();
+    auto data = renderResMgr["FrustumCullingUBO"].GetBufferMappedPtr();
+
+    auto const& nodes = GetCurFrame().GetInFrustumNodes();
+    Type_STLVector<uint32_t> indices;
+    for (auto const& node : nodes) {
+        for (auto id : node->GetIDs()) {
+            indices.push_back(id);
+        }
+    }
+    uint32_t size = indices.size();
+
+    memcpy(data, &size, sizeof(size));
+    memcpy((char*)data + sizeof(size), indices.data(), sizeof(uint32_t) * size);
+}
+
 namespace {
 
 void DisplayNode(const IntelliDesign_NS::ModelData::CISDI_Node& node,
@@ -777,7 +781,7 @@ void DynamicLoading::PrepareUIContext() {
             }
 
             uint32_t totalNodeCount = mScene->GetAllNodes().size();
-            uint32_t inFrustumNodeCount = mScene->GetInFrustumNodes().size();
+            uint32_t inFrustumNodeCount = frame.GetInFrustumNodes().size();
 
             ImGui::Begin("渲染信息");
             {
@@ -979,28 +983,25 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
                 });
 
     Type_STLVector<CopyPassConfig::CopyInfo> copyInfos {};
-    uint32_t idx {0};
-
-    if (!mScene->GetInFrustumNodes().empty())
-        for (auto const& node : mScene->GetInFrustumNodes()) {
-            for (auto const& info : node->GetCopyInfos()) {
-                CopyPassConfig::CopyInfo copyInfo {frame.mCmdStagings[idx++],
-                                                   info[0].dstName,
-                                                   info[0].info, false};
-                copyInfos.push_back(copyInfo);
-            }
-        }
+    for (auto const& [namePair, size] : frame.mCmdStagings) {
+        copyInfos.emplace_back(namePair.first, namePair.second,
+                               vk::BufferCopy2 {0, 0, size}, false);
+    }
 
     cfg.AddCopyPass("dgc_seq_data_buf_copy")
         .SetClearBuffer(names)
         .SetBinding(copyInfos);
 
-    // cfg.AddRenderPass("DGC_PrepareDraw",
-    //                   dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
-    //                       .GetPipelineLayout())
-    //     .SetBinding("UBO", "prepareDGC_UBO")
-    //     .SetBinding("StorageBuffer", "dgc_draw_test_0")
-    //     .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
+    // if (!names.empty() && !frame.mCmdStagings.empty()) {
+    //     cfg.AddRenderPass(
+    //            "DGC_PrepareDraw",
+    //            dgcMgr.GetSequence<PrepareDGCDrawCommandSequenceTemp>()
+    //                .GetPipelineLayout())
+    //         .SetBinding("FrustumCullingResult", "FrustumCullingUBO")
+    //         .SetBinding("AllCmds", frame.mCmdStagings.begin()->first.first)
+    //         .SetBinding("StorageBuffer", names[0])
+    //         .SetDGCSeqBufs({"dgc_dispatch_for_draw"});
+    // }
 
     cfg.AddRenderPass("DGC_DrawMeshShader",
                       drawMeshShaderSeq.GetPipelineLayout())

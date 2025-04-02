@@ -37,15 +37,29 @@ void QueryPool::EndRange(vk::CommandBuffer cmd, const char* name,
 void QueryPool::GetResult() {
     uint32_t count = mCurrentQueryIdx;
 
-    VK_CHECK(mContext.GetDevice()->getQueryPoolResults(
-        mPool, 0, count, sizeof(uint64_t) * count, mValues.data(), sizeof(uint64_t), vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait));
+    auto res = mContext.GetDevice()->getQueryPoolResults(
+        mPool, 0, count, sizeof(uint64_t) * count, mValues.data(),
+        sizeof(uint64_t),
+        vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+
+    if (res == vk::Result::eNotReady)
+        mReady = false;
+    else if (res == vk::Result::eSuccess)
+        mReady = true;
+    else {
+        VK_CHECK(res);
+    }
 }
 
 float QueryPool::ElapsedTime(const char* name) {
+    if (!mReady)
+        return -1.0f;
+
     if (!mRangeMap.contains(name))
         return 0.0f;
 
-    float frequency = mContext.GetPhysicalDevice().GetProperties().limits.timestampPeriod;
+    float frequency =
+        mContext.GetPhysicalDevice().GetProperties().limits.timestampPeriod;
 
     auto query = mRangeMap.at(name);
 

@@ -38,6 +38,8 @@ private:
     ::std::array<uint64_t, MAX_QUERY_COUNT> mValues {};
     uint32_t mCurrentQueryIdx {0};
     Type_STLUnorderedMap_String<::std::pair<uint32_t, uint32_t>> mRangeMap {};
+
+    bool mReady {false};
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

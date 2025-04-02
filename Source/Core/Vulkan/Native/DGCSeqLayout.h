@@ -263,7 +263,7 @@ private:
     template <class TDGCSeqTemplate>
     friend Type_UniquePtr<DGCSeqLayout> CreateLayout(
         VulkanContext& context, vk::PipelineLayout pipelineLayout,
-        bool unorderedSequence, bool explicitPreprocess);
+        bool explicitPreprocess);
 
 private:
     VulkanContext& mContext;
@@ -329,17 +329,12 @@ Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> MakeTokenDatas(
 
 inline vk::IndirectCommandsLayoutCreateInfoEXT MakeDGCLayoutCreateInfo(
     Type_STLVector<vk::IndirectCommandsLayoutTokenEXT> const& tokenDatas,
-    bool unorderedSequence, bool explicitPreprocess,
-    vk::ShaderStageFlags stages, uint32_t stride) {
+    bool explicitPreprocess, vk::ShaderStageFlags stages, uint32_t stride) {
     vk::IndirectCommandsLayoutCreateInfoEXT info {};
-    info.setFlags((explicitPreprocess
-                       ? vk::IndirectCommandsLayoutUsageFlagBitsEXT::
-                             eExplicitPreprocess
-                       : vk::IndirectCommandsLayoutUsageFlagBitsEXT {0})
-                  | (unorderedSequence
-                         ? vk::IndirectCommandsLayoutUsageFlagBitsEXT::
-                               eUnorderedSequences
-                         : vk::IndirectCommandsLayoutUsageFlagBitsEXT {0}))
+    info.setFlags(explicitPreprocess
+                      ? vk::IndirectCommandsLayoutUsageFlagBitsEXT::
+                            eExplicitPreprocess
+                      : vk::IndirectCommandsLayoutUsageFlagBitsEXT {0})
         .setTokens(tokenDatas)
         .setShaderStages(stages)
         .setIndirectStride(stride);
@@ -349,7 +344,6 @@ inline vk::IndirectCommandsLayoutCreateInfoEXT MakeDGCLayoutCreateInfo(
 template <class TDGCSeqTemplate>
 Type_UniquePtr<DGCSeqLayout> CreateLayout(VulkanContext& context,
                                           vk::PipelineLayout pipelineLayout,
-                                          bool unorderedSequence,
                                           bool explicitPreprocess) {
     auto layout = MakeUnique<DGCSeqLayout>(context);
 
@@ -364,8 +358,7 @@ Type_UniquePtr<DGCSeqLayout> CreateLayout(VulkanContext& context,
 
     auto tokenDatas = MakeTokenDatas<TDGCSeqTemplate>(stages, esToken, pcToken);
 
-    auto info = MakeDGCLayoutCreateInfo(tokenDatas, unorderedSequence,
-                                        explicitPreprocess, stages,
+    auto info = MakeDGCLayoutCreateInfo(tokenDatas, explicitPreprocess, stages,
                                         sizeof(TDGCSeqTemplate));
     info.setPipelineLayout(pipelineLayout);
 

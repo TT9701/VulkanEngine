@@ -34,21 +34,25 @@ struct DGCCommand {
     DrawIndirectCountIndirectCommand indirectCommand;
 };
 
-layout (set = 0, binding = 0) uniform UBO
+layout (set = 0, binding = 0) buffer FrustumCullingResult
 {
-    DrawIndirectCountIndirectCommand ubo;
+    uint count;
+    uint indices[256];
 } ubo;
 
-layout (set = 0, binding = 1) buffer StorageBuffer {
-    DGCCommand storageBuffer[];
+layout (set = 0, binding = 1) buffer AllCmds
+{
+    DGCCommand allCmds[256];
+};
+
+layout (set = 0, binding = 2) buffer StorageBuffer {
+    DGCCommand storageBuffer[256];
 };
 
 void main() 
 {
-    for (int i = 0; i < 1; i++) {
-    storageBuffer[i].indirectCommand.bufferAddress = ubo.ubo.bufferAddress;
-    storageBuffer[i].indirectCommand.stride = ubo.ubo.stride;
-    storageBuffer[i].indirectCommand.commandCount = ubo.ubo.commandCount;
+    for (uint i = 0; i < ubo.count; ++i) {
+        storageBuffer[i].constants = allCmds[ubo.indices[i]].constants;
+        storageBuffer[i].indirectCommand = allCmds[ubo.indices[i]].indirectCommand;
     }
-    
 }

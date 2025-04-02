@@ -266,6 +266,22 @@ void DrawCallManager::AddArgument_CopyBufferToBuffer(
         .setPRegions(region);
 }
 
+void DrawCallManager::AddArgument_CopyBufferToBuffer(
+    const char* src, const char* dst,
+    Type_STLVector<vk::BufferCopy2> const& regions) {
+    mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});
+
+    auto& metaData = mMetaDatas.back().Get<DrawCallMetaDataType::Copy>();
+
+    metaData.info.emplace<vk::CopyBufferInfo2>();
+
+    auto& info = ::std::get<vk::CopyBufferInfo2>(metaData.info);
+    info.setSrcBuffer(mRenderResManager[src].GetBufferHandle())
+        .setDstBuffer(mRenderResManager[dst].GetBufferHandle())
+        .setRegions(regions);
+
+}
+
 void DrawCallManager::AddArgument_CopyBufferToImage(
     const char* src, const char* dst, const vk::BufferImageCopy2* region) {
     mMetaDatas.emplace_back(DrawCallMetaData<DrawCallMetaDataType::Copy> {});

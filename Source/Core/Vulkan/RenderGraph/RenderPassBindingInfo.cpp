@@ -307,8 +307,12 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
                     AddBarrier(
                         {.resourceIndex = idx,
                          .layout = vk::ImageLayout::eUndefined,
-                         .access = vk::AccessFlagBits2::eIndirectCommandRead,
-                         .stages = vk::PipelineStageFlagBits2::eDrawIndirect});
+                         .access =
+                             vk::AccessFlagBits2::eCommandPreprocessReadEXT
+                             | vk::AccessFlagBits2::eIndirectCommandRead,
+                         .stages = vk::PipelineStageFlagBits2::eDrawIndirect
+                                 | vk::PipelineStageFlagBits2::
+                                       eCommandPreprocessEXT});
 
                     mDrawCallMgr.AddArgument_DGCSequence(
                         &mRenderSequence.mResMgr[bufName.c_str()]);
@@ -843,7 +847,7 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
                 vk::AccessFlagBits2::eTransferWrite,
                 vk::PipelineStageFlagBits2::eTransfer};
 
-            AddBarrier(dstBarrier);
+            // AddBarrier(dstBarrier);
         }
     }
 
@@ -873,30 +877,52 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
         AddBarrier(dstBarrier);
     };
 
+    // insert to mCopyRegionMap
     for (auto const& info : mInfos) {
-        switch (info.type) {
-            case Type_Copy::BufferToBuffer:
-                mDrawCallMgr.AddArgument_CopyBufferToBuffer(
-                    info.src.c_str(), info.dst.c_str(),
-                    ::std::get_if<vk::BufferCopy2>(&info.region));
-                break;
-            case Type_Copy::BufferToImage:
-                mDrawCallMgr.AddArgument_CopyBufferToImage(
-                    info.src.c_str(), info.dst.c_str(),
-                    ::std::get_if<vk::BufferImageCopy2>(&info.region));
-                break;
-            case Type_Copy::ImageToImage:
-                mDrawCallMgr.AddArgument_CopyImageToImage(
-                    info.src.c_str(), info.dst.c_str(),
-                    ::std::get_if<vk::ImageCopy2>(&info.region));
-                break;
-            case Type_Copy::ImageToBuffer:
-                mDrawCallMgr.AddArgument_CopyImageToBuffer(
-                    info.src.c_str(), info.dst.c_str(),
-                    ::std::get_if<vk::BufferImageCopy2>(&info.region));
-                break;
+        const char* src = info.src.c_str();
+        const char* dst = info.dst.c_str();
+        if (mCopyRegionMap.contains(src)) {
+            auto& subMap = mCopyRegionMap.at(src);
+            if (subMap.contains(dst)) {
+                subMap.at(dst).push_back(info.region);
+            } else {
+                subMap.emplace(dst,
+                               Type_STLVector<Type_CopyRegion> {info.region});
+            }
+        } else {
+            Type_STLUnorderedMap<Type_STLString,
+                                 Type_STLVector<Type_CopyRegion>>
+                subMap {};
+            subMap.emplace(dst, Type_STLVector<Type_CopyRegion> {info.region});
+            mCopyRegionMap.emplace(src, ::std::move(subMap));
         }
-        generateBarrier(info);
+    }
+
+    for (auto const& [src, subMap] : mCopyRegionMap) {
+        for (auto const& [dst, regionVars] : subMap) {
+            if (!regionVars.empty()) {
+                auto& copyInfo = mBufferToBuffers.emplace_back();
+                
+                auto const& firstRegion = regionVars.front();
+                if (::std::get_if<vk::BufferCopy2>(&firstRegion)) {
+                    copyInfo.reserve(regionVars.size());
+                    for (auto const& regionVar : regionVars) {
+                        copyInfo.emplace_back(
+                            ::std::get<vk::BufferCopy2>(regionVar));
+                    }
+
+                    mDrawCallMgr.AddArgument_CopyBufferToBuffer(
+                        src.c_str(), dst.c_str(), copyInfo);
+
+                    generateBarrier(
+                        {src, dst,
+                         DrawCallMetaData<DrawCallMetaDataType::Copy>::Type::
+                             BufferToBuffer});
+                }
+
+                // TODO: other copy types.
+            }
+        }
     }
 }
 
@@ -947,7 +973,7 @@ DrawCallManager& RenderPassBindingInfo_Copy::GetDrawCallManager() {
 void RenderPassBindingInfo_Copy::AddBarrier(RenderSequence::Barrier const& b) {
     VE_ASSERT(mIndex < mRenderSequence.mPassBarrierInfos.size(), "");
 
-    mRenderSequence.mPassBarrierInfos[mIndex].push_back(b);
+    mRenderSequence.mPassBarrierInfos.at(mIndex).push_back(b);
 }
 
 RenderPassBindingInfo_Executor::RenderPassBindingInfo_Executor(

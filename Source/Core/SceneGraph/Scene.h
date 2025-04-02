@@ -13,7 +13,7 @@ class Node;
 
 class Scene {
     using Type_NodeMap = MemoryPool::Type_STLUnorderedMap_String<
-        MemoryPool::Type_UniquePtr<Node>>;
+        MemoryPool::Type_SharedPtr<Node>>;
 
     friend class Node;
 
@@ -23,7 +23,7 @@ public:
           ModelData::ModelDataManager& modelDataMgr,
           ::std::pmr::memory_resource* pMemPool);
 
-    Node& AddNode(MemoryPool::Type_UniquePtr<Node>&& node);
+    Node& AddNode(MemoryPool::Type_SharedPtr<Node>&& node);
 
     Node& AddNode(const char* name);
 
@@ -32,7 +32,7 @@ public:
 
     template <class TDGCSeqTemp>
     Node& AddNodeProxy(
-        MemoryPool::Type_UniquePtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy);
+        MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy);
 
     Node const& GetNode(const char* name) const;
 
@@ -42,11 +42,8 @@ public:
 
     void RemoveNode(const char* name);
 
-    void CullNode(MathCore::BoundingFrustum const& frustum);
-
-    MemoryPool::Type_STLVector<Node*> const& GetInFrustumNodes() const;
-
-    void ClearInFrustumNodes();
+    void CullNode(MathCore::BoundingFrustum const& frustum,
+                  Vulkan::Core::RenderFrame& frame);
 
 private:
     ::std::pmr::memory_resource* pMemPool;
@@ -56,7 +53,6 @@ private:
     ModelData::ModelDataManager& mModelDataMgr;
 
     Type_NodeMap mNodes;
-    MemoryPool::Type_STLVector<Node*> mInFrustumNodes {};
 };
 
 template <class TDGCSeqTemp>
@@ -77,7 +73,7 @@ Node& Scene::AddNodeProxy(const char* name, Type_pSeqDataBufPool pool) {
 
 template <class TDGCSeqTemp>
 Node& Scene::AddNodeProxy(
-    MemoryPool::Type_UniquePtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy) {
+    MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy) {
     auto p = mNodes.emplace(nodeProxy->GetName(), ::std::move(nodeProxy));
     return *p.first->second;
 }

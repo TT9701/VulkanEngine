@@ -16,7 +16,7 @@ Scene::Scene(Vulkan::Core::DGCSeqManager& seqMgr,
       mModelDataMgr(modelDataMgr),
       mNodes(pMemPool) {}
 
-Node& Scene::AddNode(MemoryPool::Type_UniquePtr<Node>&& node) {
+Node& Scene::AddNode(MemoryPool::Type_SharedPtr<Node>&& node) {
     auto name = node->GetName();
     mNodes.emplace(name, ::std::move(node));
     return *mNodes.at(name);
@@ -24,7 +24,7 @@ Node& Scene::AddNode(MemoryPool::Type_UniquePtr<Node>&& node) {
 
 Node& Scene::AddNode(const char* name) {
     mNodes.emplace(
-        name, MemoryPool::New_Unique<Node>(pMemPool, pMemPool, name, this));
+        name, MemoryPool::New_Shared<Node>(pMemPool, pMemPool, name, this));
     return *mNodes.at(name);
 }
 
@@ -43,7 +43,7 @@ Scene::Type_NodeMap const& Scene::GetAllNodes() const {
 void Scene::RemoveNode(const char* name) {
     if (mNodes.contains(name)) {
         auto dataName = mNodes.at(name)->GetModel().name;
-
+        mNodes.at(name)->RetrieveIDs();
         mNodes.erase(name);
 
         mModelDataMgr.Remove_CISDI_3DModel(dataName.c_str());
@@ -53,21 +53,14 @@ void Scene::RemoveNode(const char* name) {
     }
 }
 
-void Scene::CullNode(MathCore::BoundingFrustum const& frustum) {
+void Scene::CullNode(MathCore::BoundingFrustum const& frustum,
+                     Vulkan::Core::RenderFrame& frame) {
     for (auto const& [name, node] : mNodes) {
         auto const& bb = node->GetModel().boundingBox;
         if (frustum.Contains(bb) != MathCore::ContainmentType::DISJOINT) {
-            mInFrustumNodes.push_back(node.get());
+            frame.CullRegister(node);
         }
     }
-}
-
-MemoryPool::Type_STLVector<Node*> const& Scene::GetInFrustumNodes() const {
-    return mInFrustumNodes;
-}
-
-void Scene::ClearInFrustumNodes() {
-    mInFrustumNodes.clear();
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

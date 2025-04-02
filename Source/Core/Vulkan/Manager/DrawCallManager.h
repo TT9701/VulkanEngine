@@ -69,6 +69,10 @@ public:
     void AddArgument_CopyBufferToBuffer(const char* src, const char* dst,
                                         const vk::BufferCopy2* region);
 
+    void AddArgument_CopyBufferToBuffer(
+        const char* src, const char* dst,
+        Type_STLVector<vk::BufferCopy2> const& regions);
+
     void AddArgument_CopyBufferToImage(const char* src, const char* dst,
                                        const vk::BufferImageCopy2* region);
 

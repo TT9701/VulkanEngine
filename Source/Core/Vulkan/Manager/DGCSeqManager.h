@@ -51,7 +51,6 @@ struct DGCSeqInfo_Pipeline {
 
     const char* initialPipelineName = nullptr;
 
-    bool unorderedSequence = false;
     bool explicitPreprocess = false;
 
     const char* pipelineLayoutName = nullptr;
@@ -64,7 +63,6 @@ struct DGCSeqInfo_Shader {
 
     Type_STLVector<ShaderIDInfo> initialShaderIdInfos {};
 
-    bool unorderedSequence = false;
     bool explicitPreprocess = false;
 };
 
@@ -111,27 +109,6 @@ private:
     RenderResourceManager& mRenderResMgr;
 
     Type_Sequences mSequences {};
-
-    // Type_STLUnorderedMap_String<>
-};
-
-template <class Type_Ret, class... Type_Args>
-class CreatorBase {};
-
-template <class TDGCSeqTemp, class Type_Ret, class... Type_Args>
-class DGCSeqTempRelatedCreator : CreatorBase<Type_Ret, Type_Args...> {
-    using Type_Creator = ::std::function<Type_Ret(Type_Args&&...)>;
-
-public:
-    DGCSeqTempRelatedCreator(Type_Creator&& creator)
-        : mCreator(::std::move(creator)) {}
-
-    Type_Ret operator()(Type_Args&&... args) {
-        return mCreator(::std::forward<Type_Args>(args)...);
-    }
-
-private:
-    Type_Creator mCreator;
 };
 
 template <class T>
@@ -147,10 +124,10 @@ DGCSeq_ESPipeline& DGCSeqManager::CreateSequence(
         mContext, mPipelineMgr, info.maxSequenceCount, info.maxDrawCount,
         info.maxPipelineCount);
 
-    ptr->MakeSequenceLayout<TDGCSeqTemplate>(
-        info.pipelineLayoutName ? info.pipelineLayoutName
-                                : info.initialPipelineName,
-        info.unorderedSequence, info.explicitPreprocess);
+    ptr->MakeSequenceLayout<TDGCSeqTemplate>(info.pipelineLayoutName
+                                                 ? info.pipelineLayoutName
+                                                 : info.initialPipelineName,
+                                             info.explicitPreprocess);
 
     for (const auto& name : pipelineNamesInES) {
         ptr->AddPipeline(name);
@@ -179,7 +156,6 @@ DGCSeq_ESShader& DGCSeqManager::CreateSequence(
         info.maxDrawCount, info.maxShaderCount);
 
     ptr->MakeSequenceLayout<TDGCSeqTemplate>(info.initialShaderIdInfos,
-                                             info.unorderedSequence,
                                              info.explicitPreprocess);
 
     for (const auto& idInfo : shaderInfosInES) {

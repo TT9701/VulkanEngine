@@ -9,7 +9,7 @@ class DGCSeqRenderLayout {
 public:
     template <class TDGCSeqTemplate>
     void CreateLayout(VulkanContext& context, PipelineLayout* pipelineLayout,
-                      bool unorderedSequence, bool explicitPreprocess);
+                      bool explicitPreprocess);
 
     PipelineLayout const* GetPipelineLayout() const;
 
@@ -24,13 +24,11 @@ private:
 template <class TDGCSeqTemplate>
 void DGCSeqRenderLayout::CreateLayout(VulkanContext& context,
                                       PipelineLayout* pipelineLayout,
-                                      bool unorderedSequence,
                                       bool explicitPreprocess) {
     mPipelineLayout = pipelineLayout;
 
-    mLayout = IntelliDesign_NS::Vulkan::Core::CreateLayout<TDGCSeqTemplate>(
-        context, pipelineLayout->GetHandle(), unorderedSequence,
-        explicitPreprocess);
+    mLayout = Core::CreateLayout<TDGCSeqTemplate>(
+        context, pipelineLayout->GetHandle(), explicitPreprocess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

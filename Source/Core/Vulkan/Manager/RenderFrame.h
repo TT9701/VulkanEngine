@@ -2,23 +2,26 @@
 
 #include "Core/Vulkan/Native/Commands.h"
 #include "Core/Vulkan/Native/Descriptors.h"
-#include "Core/Vulkan/Native/SyncStructures.h"
 #include "Core/Vulkan/Native/QueryPool.h"
+#include "Core/Vulkan/Native/SyncStructures.h"
 
-#include "Core/System/concurrentqueue.h"
+namespace IntelliDesign_NS::Core::SceneGraph {
+class Node;
+}
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class GPUGeometryData;
 
 class RenderFrame {
-    using Type_Task = ::std::function<void()>;
 public:
-    RenderFrame(VulkanContext& context);
+    RenderFrame(VulkanContext& context, uint32_t idx);
 
     void PrepareBindlessDescPool(
         Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
         vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
+
+    uint32_t GetIndex() const;
 
     FencePool& GetFencePool() const;
 
@@ -46,14 +49,18 @@ public:
 
     void Reset();
 
-    void CullRegister(SharedPtr<GPUGeometryData> const& refData);
+    void CullRegister(SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node> const& node);
 
-    void ClearGPUGeoDataRefs();
+    void ClearNodes();
 
-    Type_STLVector<const char*> mCmdStagings {};
+    Type_STLVector<SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node>>&
+    GetInFrustumNodes();
+
+    Type_STLMap<::std::pair<const char*, const char*>, size_t> mCmdStagings {};
 
 private:
     VulkanContext& mContext;
+    uint32_t mIdx;
 
     Type_STLMap<uint32_t, UniquePtr<CommandPool>> mCmdPools;
 
@@ -69,7 +76,7 @@ private:
 
     SharedPtr<BindlessDescPool> mBindlessDescPool;
 
-    Type_STLVector<SharedPtr<GPUGeometryData>> mRefGPUGeoDatas {};
-
+    Type_STLVector<SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node>>
+        mNodes {};
 };
 }  // namespace IntelliDesign_NS::Vulkan::Core

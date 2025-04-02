@@ -9,32 +9,20 @@ DGCSeqDataBufPoolResource::ResourceHandle::ResourceHandle(
     void* p, size_t size, uint64_t id, DGCSeqDataBufPoolResource* poolRes)
     : ptr(p), size(size), id(id), pPoolResource(poolRes) {}
 
-DGCSeqDataBufPoolResource::ResourceHandle::~ResourceHandle() {
-    for (uint32_t i = 0; i < 3; ++i) {
-        auto& staging =
-            pPoolResource->mResMgr[pPoolResource->mStagingBufNames[i].c_str()];
-
-        void* data = staging.GetBufferMappedPtr();
-        memcpy((char*)data + id * pPoolResource->mSeqStride, ptr, size);
-
-        // auto cmd = pPoolResource->mContext.CreateCmdBufToBegin(
-        //     pPoolResource->mContext.GetQueue(QueueType::Transfer));
-        // vk::BufferCopy cmdBufCopy {};
-        // cmdBufCopy.setSize(size)
-        //     .setSrcOffset(id * pPoolResource->mSeqStride)
-        //     .setDstOffset(id * pPoolResource->mSeqStride);
-        // cmd->copyBuffer(staging.GetBufferHandle(), pPoolResource->mHandle,
-        //                 cmdBufCopy);
-    }
-}
+DGCSeqDataBufPoolResource::ResourceHandle::~ResourceHandle() {}
 
 DGCSeqDataBufPoolResource::ResourceHandle::CopyInfo
 DGCSeqDataBufPoolResource::ResourceHandle::GetCopyInfo(uint32_t idx) const {
     return {pPoolResource->mStagingBufNames[idx].c_str(),
             pPoolResource->mBufName.c_str(),
-            vk::BufferCopy2 {id * pPoolResource->mSeqStride,
-                             id * pPoolResource->mSeqStride,
-                             pPoolResource->mSeqStride}};
+            vk::BufferCopy2 {0, 0, pPoolResource->mSeqStride}};
+}
+
+void* DGCSeqDataBufPoolResource::ResourceHandle::GetStagingMappedPtr(
+    uint32_t idx) const {
+    auto& staging =
+        pPoolResource->mResMgr[pPoolResource->mStagingBufNames[idx].c_str()];
+    return staging.GetBufferMappedPtr();
 }
 
 DGCSeqDataBufPoolResource::DGCSeqDataBufPoolResource(
@@ -60,7 +48,9 @@ DGCSeqDataBufPoolResource::DGCSeqDataBufPoolResource(
                                    + ::std::to_string(i).c_str());
         mResMgr.CreateBuffer(mStagingBufNames.back().c_str(),
                              seqCount * seqStride,
-                             vk::BufferUsageFlagBits::eTransferSrc,
+                             vk::BufferUsageFlagBits::eTransferSrc
+                                 | vk::BufferUsageFlagBits::eShaderDeviceAddress
+                                 | vk::BufferUsageFlagBits::eStorageBuffer,
                              Buffer::MemoryType::Staging, seqStride);
     }
 

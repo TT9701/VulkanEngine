@@ -186,33 +186,45 @@ void DGCSeq_ESPipeline::MakeExecutionSet(const char* initialPipelineName) {
 
 void DGCSeq_ESPipeline::Finalize() {
     Preprocess(mInitialPipeline);
-}
-
-void DGCSeq_ESPipeline::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
-    cmd.bindPipeline(GetPipelineBindPoint(), mInitialPipeline);
-
-    vk::GeneratedCommandsPipelineInfoEXT pipelineInfo {};
 
     vk::GeneratedCommandsInfoEXT info {};
-    info.setIndirectCommandsLayout(mLayout.GetHandle())
+    mInfo.setIndirectCommandsLayout(mLayout.GetHandle())
         .setMaxSequenceCount(mMaxSequenceCount)
         .setMaxDrawCount(mMaxDrawCount)
         .setPreprocessAddress(mPreprocessBuffer.address)
         .setPreprocessSize(mPreprocessBuffer.size)
-        .setIndirectAddress(buffer.GetDeviceAddress())
-        .setIndirectAddressSize(buffer.GetStride())
         .setShaderStages(GetStageFlags());
 
     if (!mUseExecutionSet) {
-        pipelineInfo.setPipeline(mInitialPipeline);
-        info.setPNext(&pipelineInfo);
+        mPipelineInfo.setPipeline(mInitialPipeline);
+        info.setPNext(&mPipelineInfo);
     }
 
     if (mExecutionSet != VK_NULL_HANDLE) {
         info.setIndirectExecutionSet(mExecutionSet);
     }
+}
 
-    cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, info);
+void DGCSeq_ESPipeline::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
+    cmd.bindPipeline(GetPipelineBindPoint(), mInitialPipeline);
+
+    mInfo.setIndirectAddress(buffer.GetDeviceAddress())
+        .setIndirectAddressSize(buffer.GetStride());
+
+    cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, mInfo);
+}
+
+void DGCSeq_ESPipeline::ExecutePrerocess(vk::CommandBuffer cmd,
+                                         Buffer const& buffer,
+                                         vk::CommandBuffer preprocessCmd) {
+    assert(mExplicitPreprocess);
+
+    mInfo.setIndirectAddress(buffer.GetDeviceAddress())
+        .setIndirectAddressSize(buffer.GetStride());
+
+    preprocessCmd.preprocessGeneratedCommandsEXT(mInfo, cmd);
+
+
 }
 
 DGCSeq_ESShader::DGCSeq_ESShader(VulkanContext& context,
@@ -331,33 +343,42 @@ void DGCSeq_ESShader::MakeExecutionSet(
 
 void DGCSeq_ESShader::Finalize() {
     Preprocess(mInitialShaders);
+
+    mInfo.setIndirectCommandsLayout(mLayout.GetHandle())
+        .setMaxSequenceCount(mMaxSequenceCount)
+        .setMaxDrawCount(mMaxDrawCount)
+        .setPreprocessAddress(mPreprocessBuffer.address)
+        .setPreprocessSize(mPreprocessBuffer.size)
+        .setShaderStages(GetStageFlags());
+
+    if (!mUseExecutionSet) {
+        mShaderInfo.setShaders(mInitialShaders);
+        mInfo.setPNext(&mShaderInfo);
+    }
+
+    if (mExecutionSet != VK_NULL_HANDLE) {
+        mInfo.setIndirectExecutionSet(mExecutionSet);
+    }
 }
 
 void DGCSeq_ESShader::Execute(vk::CommandBuffer cmd, Buffer const& buffer) {
     cmd.bindShadersEXT(GetStageFlagBitArray(), mInitialShaders);
 
-    vk::GeneratedCommandsShaderInfoEXT shaderInfo {};
+    mInfo.setIndirectAddress(buffer.GetDeviceAddress())
+        .setIndirectAddressSize(buffer.GetStride());
 
-    vk::GeneratedCommandsInfoEXT info {};
-    info.setIndirectCommandsLayout(mLayout.GetHandle())
-        .setMaxSequenceCount(mMaxSequenceCount)
-        .setMaxDrawCount(mMaxDrawCount)
-        .setPreprocessAddress(mPreprocessBuffer.address)
-        .setPreprocessSize(mPreprocessBuffer.size)
-        .setIndirectAddress(buffer.GetDeviceAddress())
-        .setIndirectAddressSize(buffer.GetStride())
-        .setShaderStages(GetStageFlags());
+    cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, mInfo);
+}
 
-    if (!mUseExecutionSet) {
-        shaderInfo.setShaders(mInitialShaders);
-        info.setPNext(&shaderInfo);
-    }
+void DGCSeq_ESShader::ExecutePrerocess(vk::CommandBuffer cmd,
+                                       Buffer const& buffer,
+                                       vk::CommandBuffer preprocessCmd) {
+    assert(mExplicitPreprocess);
 
-    if (mExecutionSet != VK_NULL_HANDLE) {
-        info.setIndirectExecutionSet(mExecutionSet);
-    }
+    mInfo.setIndirectAddress(buffer.GetDeviceAddress())
+        .setIndirectAddressSize(buffer.GetStride());
 
-    cmd.executeGeneratedCommandsEXT(mExplicitPreprocess, info);
+    preprocessCmd.preprocessGeneratedCommandsEXT(mInfo, cmd);
 }
 
 uint32_t DGCSeq_ESShader::ShaderStageToIdx(

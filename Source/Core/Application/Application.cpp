@@ -147,7 +147,7 @@ void Application::UpdateScene() {}
 
 void Application::Prepare() {
     for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
-        mFrames.emplace_back(*mVulkanContext);
+        mFrames.emplace_back(*mVulkanContext, i);
     }
 }
 

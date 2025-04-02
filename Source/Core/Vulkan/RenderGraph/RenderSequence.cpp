@@ -104,8 +104,10 @@ RenderSequence::GetRenderToSwapchainPass() {
 }
 
 void RenderSequence::RecordPass(const char* name, vk::CommandBuffer cmd) {
-    auto& pass = mPasses[mPassNameToIndex[name]];
-    pass.RecordCmd(cmd);
+    if (mPassNameToIndex.contains(name)) {
+        auto& pass = mPasses[mPassNameToIndex.at(name)];
+        pass.RecordCmd(cmd);
+    }
 }
 
 uint32_t RenderSequence::AddRenderResource(const char* name) {

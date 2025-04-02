@@ -277,6 +277,15 @@ private:
 
     Type_STLVector<CopyInfo> mInfos;
     Type_STLVector<const char*> mBuffersToClear {};
+
+    Type_STLUnorderedMap<
+        Type_STLString,
+        Type_STLUnorderedMap<Type_STLString, Type_STLVector<Type_CopyRegion>>>
+        mCopyRegionMap {};
+
+    Type_STLVector<Type_STLVector<vk::BufferCopy2>> mBufferToBuffers {};
+    Type_STLVector<Type_STLVector<vk::BufferImageCopy2>> mBufferImageCopy {};
+    Type_STLVector<Type_STLVector<vk::ImageCopy2>> mImageToImage {};
 };
 
 class RenderPassBindingInfo_Executor : public IRenderPassBindingInfo {

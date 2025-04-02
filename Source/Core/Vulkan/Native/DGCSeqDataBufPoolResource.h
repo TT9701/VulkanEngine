@@ -25,11 +25,14 @@ public:
 
         CopyInfo GetCopyInfo(uint32_t idx = 0) const;
 
+        void* GetStagingMappedPtr(uint32_t idx) const;
+
+    public:
         void* ptr;
         size_t size;
+        uint64_t id;
 
     private:
-        uint64_t id;
         DGCSeqDataBufPoolResource* pPoolResource;
     };
 
@@ -48,9 +51,10 @@ public:
 
     Type_STLString const& GetName() const;
 
+    RenderResourceManager& mResMgr;
+
 private:
     VulkanContext& mContext;
-    RenderResourceManager& mResMgr;
     DGCSeqManager& mSeqMgr;
 
     uint32_t mSeqStride;
@@ -59,5 +63,6 @@ private:
     Type_STLVector<::std::byte> mResources {};
     vk::Buffer mHandle {};
 };
+
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

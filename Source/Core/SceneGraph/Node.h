@@ -4,17 +4,15 @@
 #include "Core/Vulkan/Native/DGCSeqDataBufPoolResource.h"
 
 namespace IntelliDesign_NS::Vulkan::Core {
+class GPUGeometryDataManager;
 class GPUGeometryData;
-}
+class RenderFrame;
+}  // namespace IntelliDesign_NS::Vulkan::Core
 
 namespace IntelliDesign_NS::ModelData {
 struct CISDI_3DModel;
 class ModelDataManager;
 }  // namespace IntelliDesign_NS::ModelData
-
-namespace IntelliDesign_NS::Vulkan::Core {
-class GPUGeometryDataManager;
-}
 
 namespace IntelliDesign_NS::Core::SceneGraph {
 
@@ -48,12 +46,15 @@ public:
 
     virtual void RetrieveIDs() {}
 
-    virtual void UploadSeqBuf() {}
+    virtual void UploadSeqBuf(Vulkan::Core::RenderFrame& frame) {}
 
     virtual MemoryPool::Type_STLVector<
         MemoryPool::Type_STLVector<Type_CopyInfo>> const&
-    GetCopyInfos()
-        const;
+    GetCopyInfos() const;
+
+    virtual MemoryPool::Type_STLVector<uint64_t> const& GetIDs() const {
+        return {};
+    }
 
 protected:
     MemoryPool::Type_STLString mName;

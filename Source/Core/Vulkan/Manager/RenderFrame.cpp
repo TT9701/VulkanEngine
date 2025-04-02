@@ -2,8 +2,9 @@
 
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderFrame::RenderFrame(VulkanContext& context)
+RenderFrame::RenderFrame(VulkanContext& context, uint32_t idx)
     : mContext(context),
+      mIdx(idx),
       mFencePool(MakeUnique<FencePool>(context)),
       mSemaphorePool(MakeUnique<SemaphorePool>(context)),
       mPresentFinished(MakeUnique<Semaphore>(context)),
@@ -21,6 +22,10 @@ void RenderFrame::PrepareBindlessDescPool(
     Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
     vk::DescriptorType type) {
     mBindlessDescPool = MakeShared<BindlessDescPool>(mContext, pso, type);
+}
+
+uint32_t RenderFrame::GetIndex() const {
+    return mIdx;
 }
 
 FencePool& RenderFrame::GetFencePool() const {
@@ -99,12 +104,18 @@ void RenderFrame::Reset() {
     mSemaphorePool->Reset();
 }
 
-void RenderFrame::CullRegister(SharedPtr<GPUGeometryData> const& refData) {
-    mRefGPUGeoDatas.push_back(refData);
+void RenderFrame::CullRegister(
+    SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node> const& node) {
+    mNodes.push_back(node);
 }
 
-void RenderFrame::ClearGPUGeoDataRefs() {
-    mRefGPUGeoDatas.clear();
+void RenderFrame::ClearNodes() {
+    mNodes.clear();
+}
+
+Type_STLVector<SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node>>&
+RenderFrame::GetInFrustumNodes() {
+    return mNodes;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

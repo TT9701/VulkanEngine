@@ -26,8 +26,9 @@ class DGCSeqBase {
 public:
     using SequenceDataBufferPool =
         IntelliDesign_NS::Core::IDDeferredResourcePool<
-            DGCSeqDataBufPoolResource, VulkanContext&, RenderResourceManager&,
-            DGCSeqManager&, const char*, uint32_t>;
+            IntelliDesign_NS::Core::IDPool_Simple, DGCSeqDataBufPoolResource,
+            VulkanContext&, RenderResourceManager&, DGCSeqManager&, const char*,
+            uint32_t>;
 
 public:
     DGCSeqBase(VulkanContext& context, PipelineManager& pipelineMgr,
@@ -47,6 +48,9 @@ public:
     virtual void Finalize();
 
     virtual void Execute(vk::CommandBuffer cmd, Buffer const& buffer) = 0;
+
+    virtual void ExecutePrerocess(vk::CommandBuffer cmd, Buffer const& buffer,
+                                  vk::CommandBuffer preprocessCmd) = 0;
 
 protected:
     vk::PipelineBindPoint GetPipelineBindPoint();
@@ -95,7 +99,6 @@ public:
 
     template <class TDGCSeqTemplate>
     void MakeSequenceLayout(const char* pipelineLayoutName,
-                            bool unorderedSequence = false,
                             bool explicitPreprocess = false);
 
     void MakeExecutionSet(const char* initialPipelineName);
@@ -104,8 +107,14 @@ public:
 
     void Execute(vk::CommandBuffer cmd, Buffer const& buffer) override;
 
+    void ExecutePrerocess(vk::CommandBuffer cmd, Buffer const& buffer,
+                          vk::CommandBuffer preprocessCmd) override;
+
 private:
     vk::Pipeline mInitialPipeline;
+
+    vk::GeneratedCommandsPipelineInfoEXT mPipelineInfo {};
+    vk::GeneratedCommandsInfoEXT mInfo {};
 };
 
 class DGCSeq_ESShader : public DGCSeqBase {
@@ -118,7 +127,6 @@ public:
 
     template <class TDGCSeqTemplate>
     void MakeSequenceLayout(Type_STLVector<ShaderIDInfo> const& idInfos,
-                            bool unorderedSequence = false,
                             bool explicitPreprocess = false);
 
     void MakeExecutionSet(
@@ -128,6 +136,9 @@ public:
 
     void Execute(vk::CommandBuffer cmd, Buffer const& buffer) override;
 
+    void ExecutePrerocess(vk::CommandBuffer cmd, Buffer const& buffer,
+                          vk::CommandBuffer preprocessCmd) override;
+
 private:
     enum { TaskShaderIdx = 0, MeshShaderIdx = 1, FragmentShaderIdx = 2 };
 
@@ -135,7 +146,6 @@ private:
 
     template <class TDGCSeqTemplate>
     void MakeSequenceLayout(ShaderIDInfo const& idInfo,
-                            bool unorderedSequence = false,
                             bool explicitPreprocess = false);
 
     void MakeExecutionSet(ShaderIDInfo const& initialShaderIdInfo);
@@ -146,14 +156,16 @@ private:
     uint32_t mShaderCount;
 
     Type_STLVector<vk::ShaderEXT> mInitialShaders {};
+
+    vk::GeneratedCommandsShaderInfoEXT mShaderInfo {};
+    vk::GeneratedCommandsInfoEXT mInfo {};
 };
 
 template <class TDGCSeqTemplate>
 void DGCSeq_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
-                                           bool unorderedSequence,
                                            bool explicitPreprocess) {
     mLayout.CreateLayout<TDGCSeqTemplate>(
-        mContext, mPipelineMgr.GetLayout(pipelineLayoutName), unorderedSequence,
+        mContext, mPipelineMgr.GetLayout(pipelineLayoutName),
         explicitPreprocess);
 
     mExplicitPreprocess = explicitPreprocess;
@@ -163,8 +175,7 @@ void DGCSeq_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
 
 template <class TDGCSeqTemplate>
 void DGCSeq_ESShader::MakeSequenceLayout(
-    Type_STLVector<ShaderIDInfo> const& idInfos, bool unorderedSequence,
-    bool explicitPreprocess) {
+    Type_STLVector<ShaderIDInfo> const& idInfos, bool explicitPreprocess) {
     mUseExecutionSet = TDGCSeqTemplate::_UseExecutionSet_ ? true : false;
     mIsCompute = TDGCSeqTemplate::_IsCompute_ ? true : false;
     mShaderCount = TDGCSeqTemplate::_IsCompute_ ? 1 : 3;
@@ -174,8 +185,7 @@ void DGCSeq_ESShader::MakeSequenceLayout(
               "Invalid number of shaders for the sequence.");
 
     if (idInfos.size() == 1) {
-        MakeSequenceLayout<TDGCSeqTemplate>(idInfos[0], unorderedSequence,
-                                            explicitPreprocess);
+        MakeSequenceLayout<TDGCSeqTemplate>(idInfos[0], explicitPreprocess);
         return;
     }
 
@@ -199,13 +209,12 @@ void DGCSeq_ESShader::MakeSequenceLayout(
     auto pipelineLayout =
         mPipelineMgr.CreateLayout(typeid(TDGCSeqTemplate).name(), program);
 
-    mLayout.CreateLayout<TDGCSeqTemplate>(
-        mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
+    mLayout.CreateLayout<TDGCSeqTemplate>(mContext, pipelineLayout,
+                                          explicitPreprocess);
 }
 
 template <class TDGCSeqTemplate>
 void DGCSeq_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
-                                         bool unorderedSequence,
                                          bool explicitPreprocess) {
     VE_ASSERT(idInfo.stage == vk::ShaderStageFlagBits::eCompute,
               "Invalid shader stage for the sequence.");
@@ -219,8 +228,8 @@ void DGCSeq_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
     auto pipelineLayout =
         mPipelineMgr.CreateLayout(typeid(TDGCSeqTemplate).name(), program);
 
-    mLayout.CreateLayout<TDGCSeqTemplate>(
-        mContext, pipelineLayout, unorderedSequence, explicitPreprocess);
+    mLayout.CreateLayout<TDGCSeqTemplate>(mContext, pipelineLayout,
+                                          explicitPreprocess);
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

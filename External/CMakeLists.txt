@@ -34,22 +34,6 @@ set_target_properties(spirv-cross-c PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 add_subdirectory(imgui)
 set_target_properties(imgui PROPERTIES FOLDER ${LIB_FOLDER_NAME})
 
-
-# install (TARGETS SDL2
-#     CONFIGURATIONS Debug
-#         RUNTIME DESTINATION ${BIN_DIR}
-#         LIBRARY DESTINATION ${DEBUG_LIB_DIR}
-#         ARCHIVE DESTINATION ${DEBUG_LIB_DIR})
-
-# install (TARGETS SDL2
-#     CONFIGURATIONS Release
-#         RUNTIME DESTINATION ${BIN_DIR}
-#         LIBRARY DESTINATION ${RELEASE_LIB_DIR}
-#         ARCHIVE DESTINATION ${RELEASE_LIB_DIR})
-
-# install (DIRECTORY ${SDL2_SOURCE_DIR}/include 
-#     DESTINATION ${INCLUDE_DIR}/SDL)
-
 include (../CMake/FindFBX.cmake)
 
 add_subdirectory(ImGuiFileDialog)

@@ -109,17 +109,16 @@ private:
     using DrawSequenceTemp = DGCSeqTemplate<false, DGCExecutionSetType::None,
                                             IDVC_NS::MeshletPushConstants>;
 
-    const char* model0 {nullptr};
-    const char* model1 {nullptr};
-
-    void ResizeToFitAllSeqBufPool();
+    void ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame);
 
     float AddNewNode(const char* modelPath);
 
     void RemoveNode(const char* nodeName);
 
-    ::std::promise<IDVC_NS::UniquePtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>
+    ::std::promise<IDVC_NS::SharedPtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>
         mPromise;
+
+    void UpdateFrustumCullingUBO();
 };
 
 VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);
