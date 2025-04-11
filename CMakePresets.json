@@ -1,6 +1,6 @@
 {
-    "version": 3,
-    "cmakeMinimumRequired": {
+  "version": 3,
+  "cmakeMinimumRequired": {
     "major": 3,
     "minor": 21,
     "patch": 0
@@ -49,4 +49,28 @@
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/Install/${presetName}",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
       }
-    }]}
+    },
+    {
+      "name": "x64-RelWithDebInfo",
+      "hidden": false,
+      "generator": "Ninja",
+      "description": "x64 RelWithDebInfo build",
+      "binaryDir": "${sourceDir}/Build/${presetName}",
+      "toolset": {
+        "value": "v143,host=x64",
+        "strategy": "external"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/Install/${presetName}",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
+      }
+    }
+  ]
+}

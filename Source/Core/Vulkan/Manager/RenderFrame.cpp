@@ -1,9 +1,14 @@
 #include "RenderFrame.h"
 
+#include "Core/Vulkan/Native/Buffer.h"
+#include "RenderResourceManager.h"
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
-RenderFrame::RenderFrame(VulkanContext& context, uint32_t idx)
+RenderFrame::RenderFrame(VulkanContext& context,
+                         RenderResourceManager& renderResMgr, uint32_t idx)
     : mContext(context),
+      mRenderResMgr(renderResMgr),
       mIdx(idx),
       mFencePool(MakeUnique<FencePool>(context)),
       mSemaphorePool(MakeUnique<SemaphorePool>(context)),
@@ -16,6 +21,14 @@ RenderFrame::RenderFrame(VulkanContext& context, uint32_t idx)
     for (auto const& [type, index] : indexMap) {
         mCmdPools.emplace(index, MakeUnique<CommandPool>(mContext, index));
     }
+
+    mReadbackBufferName = "Frame Readback Buffer ";
+    mReadbackBufferName = mReadbackBufferName + ::std::to_string(mIdx).c_str();
+    mRenderResMgr.CreateBuffer(
+        mReadbackBufferName.c_str(), 64ui64 * 1024,
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        Buffer::MemoryType::ReadBack);
 }
 
 void RenderFrame::PrepareBindlessDescPool(
@@ -116,6 +129,14 @@ void RenderFrame::ClearNodes() {
 Type_STLVector<SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node>>&
 RenderFrame::GetInFrustumNodes() {
     return mNodes;
+}
+
+const char* RenderFrame::GetReadbackBufferName() const {
+    return mReadbackBufferName.c_str();
+}
+
+RenderResource const& RenderFrame::GetReadbackBuffer() const {
+    return mRenderResMgr[mReadbackBufferName.c_str()];
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

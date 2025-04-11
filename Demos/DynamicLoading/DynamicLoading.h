@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Core/System/FuturePromiseTaskCoarse.hpp>
+#include <random>
+
 #include "Core/Application/Application.h"
 #include "Core/Application/EntryPoint.h"
 
@@ -10,8 +13,7 @@
 
 #include "Core/Model/GPUGeometryDataManager.h"
 #include "Core/Model/ModelDataManager.h"
-
-#include "Core/System/IDDeferredResourcePool.hpp"
+#include "Core/Utilities/Threading/Thread.hpp"
 
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
@@ -111,14 +113,30 @@ private:
 
     void ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame);
 
-    float AddNewNode(const char* modelPath);
+    bool AddNewNode(const char* modelPath);
 
-    void RemoveNode(const char* nodeName);
-
-    ::std::promise<IDVC_NS::SharedPtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>
-        mPromise;
+    bool RemoveNode(const char* nodeName);
 
     void UpdateFrustumCullingUBO();
+
+    ::std::random_device rd;
+    ::std::mt19937 gen {rd()};
+
+    IDVC_NS::Type_STLVector<IDVC_NS::Type_STLString> mModelPathes {};
+
+    IDC_NS::Thread mModelLoadingThread {::std::pmr::get_default_resource()};
+
+    // IDC_NS::Thread mResourceManagerThread {::std::pmr::get_default_resource()};
+
+    using Type_TaskMap = IDVC_NS::Type_STLUnorderedMap_String<
+        IDVC_NS::SharedPtr<IDC_NS::TaskRequestHandleCoarse<void>>>;
+
+    ::std::mutex mAddTaskMapMutex;
+    Type_TaskMap mAddTaskMap {::std::pmr::get_default_resource()};
+
+    ::std::mutex mRemoveTaskSetMutex;
+    IDCMP_NS::Type_STLUnorderedSet<IDCMP_NS::Type_STLString> mRemoveTaskSet {
+        ::std::pmr::get_default_resource()};
 };
 
 VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);

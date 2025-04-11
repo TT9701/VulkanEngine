@@ -51,6 +51,8 @@ public:
 
     Type_STLString const& GetName() const;
 
+    Type_STLString const& GetStaginBufferName(uint32_t id) const;
+
     RenderResourceManager& mResMgr;
 
 private:

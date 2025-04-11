@@ -18,22 +18,25 @@ Scene::Scene(Vulkan::Core::DGCSeqManager& seqMgr,
 
 Node& Scene::AddNode(MemoryPool::Type_SharedPtr<Node>&& node) {
     auto name = node->GetName();
+
+    ::std::unique_lock lock {mNodeMapMutex};
+
     mNodes.emplace(name, ::std::move(node));
     return *mNodes.at(name);
 }
 
 Node& Scene::AddNode(const char* name) {
+    ::std::unique_lock lock {mNodeMapMutex};
+
     mNodes.emplace(
         name, MemoryPool::New_Shared<Node>(pMemPool, pMemPool, name, this));
     return *mNodes.at(name);
 }
 
-Node const& Scene::GetNode(const char* name) const {
-    return *mNodes.at(name);
-}
+MemoryPool::Type_SharedPtr<Node> Scene::GetNode(const char* name) {
+    ::std::unique_lock lock {mNodeMapMutex};
 
-Node& Scene::GetNode(const char* name) {
-    return *mNodes.at(name);
+    return mNodes.at(name);
 }
 
 Scene::Type_NodeMap const& Scene::GetAllNodes() const {
@@ -41,6 +44,7 @@ Scene::Type_NodeMap const& Scene::GetAllNodes() const {
 }
 
 void Scene::RemoveNode(const char* name) {
+    ::std::unique_lock lock {mNodeMapMutex};
     if (mNodes.contains(name)) {
         auto dataName = mNodes.at(name)->GetModel().name;
         mNodes.at(name)->RetrieveIDs();
@@ -55,12 +59,27 @@ void Scene::RemoveNode(const char* name) {
 
 void Scene::CullNode(MathCore::BoundingFrustum const& frustum,
                      Vulkan::Core::RenderFrame& frame) {
+    ::std::unique_lock lock {mNodeMapMutex};
     for (auto const& [name, node] : mNodes) {
         auto const& bb = node->GetModel().boundingBox;
         if (frustum.Contains(bb) != MathCore::ContainmentType::DISJOINT) {
             frame.CullRegister(node);
         }
     }
+}
+
+void Scene::VisitAllNodes(std::function<void(Node* node)> const& func) {
+    ::std::unique_lock lock {mNodeMapMutex};
+
+    for (auto const& pNode : mNodes) {
+        func(pNode.second.get());
+    }
+}
+
+uint32_t Scene::GetNodeCount() {
+    ::std::unique_lock lock {mNodeMapMutex};
+
+    return mNodes.size();
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

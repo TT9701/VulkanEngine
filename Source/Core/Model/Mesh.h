@@ -20,6 +20,7 @@ struct GPUMeshBuffers {
 
     SharedPtr<Buffer> mMaterialBuf {nullptr};
     SharedPtr<Buffer> mMeshMaterialIdxBuf {nullptr};
+    SharedPtr<Buffer> mStatsBuffer {nullptr};
 };
 
 #ifdef CUDA_VULKAN_INTEROP

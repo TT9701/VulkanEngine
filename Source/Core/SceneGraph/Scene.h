@@ -3,6 +3,8 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "NodeProxy.hpp"
 
+#include <mutex>
+
 namespace IntelliDesign_NS::Vulkan::Core {
 class DGCSeqManager;
 }
@@ -34,9 +36,7 @@ public:
     Node& AddNodeProxy(
         MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy);
 
-    Node const& GetNode(const char* name) const;
-
-    Node& GetNode(const char* name);
+    MemoryPool::Type_SharedPtr<Node> GetNode(const char* name);
 
     Type_NodeMap const& GetAllNodes() const;
 
@@ -45,6 +45,10 @@ public:
     void CullNode(MathCore::BoundingFrustum const& frustum,
                   Vulkan::Core::RenderFrame& frame);
 
+    void VisitAllNodes(::std::function<void(Node* node)> const& func);
+
+    uint32_t GetNodeCount();
+
 private:
     ::std::pmr::memory_resource* pMemPool;
 
@@ -52,14 +56,16 @@ private:
     Vulkan::Core::GPUGeometryDataManager& mGPUGeoDataMgr;
     ModelData::ModelDataManager& mModelDataMgr;
 
+    ::std::mutex mNodeMapMutex {};
     Type_NodeMap mNodes;
 };
 
 template <class TDGCSeqTemp>
 Node& Scene::AddNodeProxy(const char* name, Type_pSeqDataBufPool pool) {
-    if (mNodes.contains(name)) {
+    ::std::unique_lock lock {mNodeMapMutex};
+
+    if (mNodes.contains(name))
         return *mNodes.at(name);
-    }
 
     auto nodeProxy = MemoryPool::New_Unique<NodeProxy<TDGCSeqTemp>>(
         pMemPool, Node {pMemPool, name, this}, pool);
@@ -74,6 +80,8 @@ Node& Scene::AddNodeProxy(const char* name, Type_pSeqDataBufPool pool) {
 template <class TDGCSeqTemp>
 Node& Scene::AddNodeProxy(
     MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy) {
+    ::std::unique_lock lock {mNodeMapMutex};
+
     auto p = mNodes.emplace(nodeProxy->GetName(), ::std::move(nodeProxy));
     return *p.first->second;
 }

@@ -15,7 +15,7 @@ public:
     ~FencePool();
 
 public:
-    static constexpr uint64_t TIME_OUT_NANO_SECONDS = 1000000000;
+    static constexpr uint64_t TIME_OUT_NANO_SECONDS = 10000000000;
 
     vk::Fence RequestFence(vk::FenceCreateFlags flags = {});
 

@@ -1,7 +1,12 @@
 ﻿#include "DynamicLoading.h"
 
+#include "Core/System/FuturePromiseTaskCoarse.hpp"
 #include "Core/System/GameTimer.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
+
+#include "tracy/Tracy.hpp"
+
+#define SHADER_VALIDITY_CHECK
 
 using namespace IDVC_NS;
 
@@ -14,6 +19,28 @@ void AdjustCameraPosition(
     auto center = bb.Center.GetSIMD();
     auto extent = bb.Extents.GetSIMD();
     camera.AdjustPosition(center, extent);
+}
+
+Type_STLVector<Type_STLString> ReadLinesFromFile(
+    Type_STLString const& filePath) {
+    Type_STLVector<Type_STLString> lines;
+    std::ifstream file(filePath.c_str());
+
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filePath.c_str()
+                  << std::endl;
+        return lines;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (!line.empty()) {
+            lines.push_back(line.c_str());
+        }
+    }
+
+    file.close();
+    return lines;
 }
 
 }  // namespace
@@ -37,6 +64,10 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
 
     mScene = MakeShared<IDCSG_NS::Scene>(GetDGCSeqMgr(), *mGeoMgr, *mModelMgr,
                                          gMemPool);
+
+    Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
+
+    mModelPathes = ReadLinesFromFile(testModelPathes);
 }
 
 DynamicLoading::~DynamicLoading() = default;
@@ -85,6 +116,11 @@ void DynamicLoading::LoadShaders() {
     meshMacros.emplace(
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
+
+#ifdef SHADER_VALIDITY_CHECK
+    meshMacros.emplace("SHADER_VALIDITY_CHECK", "1");
+#endif
+
     shaderMgr.CreateShaderFromGLSL(
         "Mesh shader mesh", SHADER_PATH_CSTR("MeshShader.mesh"),
         vk::ShaderStageFlagBits::eMeshEXT, true, meshMacros);
@@ -136,8 +172,6 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
             ::std::filesystem::path path {e->drop.file};
 
             AddNewNode(path.string().c_str());
-
-            auto& node = mScene->GetNode(path.string().c_str());
 
             SDL_free(e->drop.file);
         } break;
@@ -342,6 +376,10 @@ void DynamicLoading::prepare_draw_mesh_task() {
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
 
+#ifdef SHADER_VALIDITY_CHECK
+    meshMacros.emplace("SHADER_VALIDITY_CHECK", "1");
+#endif
+
     const uint32_t maxShaderCount = 1;
 
     auto& dgcMgr = GetDGCSeqMgr();
@@ -356,9 +394,7 @@ void DynamicLoading::prepare_draw_mesh_task() {
 }
 
 void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
-    for (auto& [name, pNode] : mScene->GetAllNodes()) {
-        pNode->RetrieveIDs();
-    }
+    mScene->VisitAllNodes([](IDCSG_NS::Node* node) { node->RetrieveIDs(); });
 
     for (auto& pNode : frame.GetInFrustumNodes()) {
         pNode->RequestSeqBufIDs();
@@ -368,55 +404,120 @@ void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
         pSeq->GetBufferPool()->ResizeToFitIDAllocation();
     }
 
+    for (auto const& [name, pSeq] : GetDGCSeqMgr().GetAllSequences()) {
+        pSeq->GetBufferPool()->VisitPoolResources<void>(
+            [&frame](
+                DGCSeqBase::SequenceDataBufferPool::Type_PoolResources const&
+                    resources) {
+                Type_STLVector<const char*> names {};
+                for (auto const& res : resources) {
+                    auto name = res->GetStaginBufferName(frame.GetIndex());
+                    auto const& buf = res->mResMgr[name.c_str()];
+                    auto ptr = buf.GetBufferMappedPtr();
+                    auto size = buf.GetBufferSize();
+                    memset(ptr, 0, size);
+                }
+            });
+    }
+
     for (auto& pNode : frame.GetInFrustumNodes()) {
         pNode->UploadSeqBuf(frame);
     }
 }
 
-float DynamicLoading::AddNewNode(const char* modelPath) {
+bool DynamicLoading::AddNewNode(const char* modelPath) {
     Type_STLString path {modelPath};
 
-    using Type_Promise = ::std::promise<
-        IDVC_NS::SharedPtr<IDCSG_NS::NodeProxy<DrawSequenceTemp>>>;
+    {
+        ::std::unique_lock lock {mAddTaskMapMutex};
+        if (mAddTaskMap.contains(path))
+            return false;
+    }
 
-    ::std::thread launch(
-        [this, path](Type_Promise& p) {
-            auto pBufferPool =
-                GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
+    {
+        ::std::unique_lock lock {mRemoveTaskSetMutex};
+        if (mRemoveTaskSet.contains(path))
+            return false;
+    }
 
-            auto node = IDCSG_NS::Node {gMemPool, path.c_str(), mScene.get()};
-            auto nodeProxy = MakeUnique<IDCSG_NS::NodeProxy<DrawSequenceTemp>>(
-                ::std::move(node), pBufferPool);
+    auto pTask = mModelLoadingThread.Submit(true, true, [this, path]() {
+        auto pBufferPool =
+            GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
 
-            auto const& modelData = nodeProxy->SetModel(path.c_str());
+        auto node = IDCSG_NS::Node {gMemPool, path.c_str(), mScene.get()};
+        auto nodeProxy = MakeShared<IDCSG_NS::NodeProxy<DrawSequenceTemp>>(
+            ::std::move(node), pBufferPool);
 
-            p.set_value(::std::move(nodeProxy));
-        },
-        ::std::ref(mPromise));
+        auto const& modelData = nodeProxy->SetModel(path.c_str());
 
-    ::std::thread wait([this]() {
-        auto& node = mScene->AddNodeProxy(mPromise.get_future().get());
-        auto const& modelData = node.GetModel();
-        // node.RequestSeqBufIDs();
+        mScene->AddNodeProxy(::std::move(nodeProxy));
+
         AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
-        mPromise = Type_Promise {};
     });
 
-    launch.detach();
-    wait.detach();
+    {
+        ::std::unique_lock lock {mAddTaskMapMutex};
+        mAddTaskMap.emplace(path, pTask);
+    }
 
-    return 0.0f;
+    return true;
 }
 
-void DynamicLoading::RemoveNode(const char* nodeName) {
+bool DynamicLoading::RemoveNode(const char* nodeName) {
     Type_STLString name {nodeName};
-    ::std::thread t([this, name]() { mScene->RemoveNode(name.c_str()); });
-    t.detach();
+
+    {
+        ::std::unique_lock lock {mAddTaskMapMutex};
+
+        if (!mAddTaskMap.contains(name))
+            return false;
+
+        if (!mAddTaskMap.at(name)->IsReady())
+            return false;
+    }
+
+    {
+        ::std::unique_lock lock {mRemoveTaskSetMutex};
+        if (mRemoveTaskSet.contains(name))
+            return false;
+
+        mRemoveTaskSet.emplace(name);
+    }
+
+    mModelLoadingThread.Submit(true, false, [this, name]() {
+        {
+            ::std::unique_lock lock {mAddTaskMapMutex};
+            mAddTaskMap.erase(name);
+        }
+        mScene->RemoveNode(name.c_str());
+
+        {
+            ::std::unique_lock lock {mRemoveTaskSetMutex};
+            mRemoveTaskSet.erase(name);
+        }
+    });
+
+    return true;
 }
 
 void DynamicLoading::BeginFrame(IDVC_NS::RenderFrame& frame) {
     Application::BeginFrame(frame);
     GetUILayer().BeginFrame(frame);
+
+    // static uint32_t loadCount = 0;
+    // static uint32_t unloadCount = 0;
+    //
+    // ::std::uniform_int_distribution<uint32_t> distrib(0,
+    //                                                   mModelPathes.size() - 1);
+    //
+    // auto idx = distrib(gen);
+    //
+    // if (AddNewNode(mModelPathes[idx].c_str())) {
+    //     printf("Loading no.%d: %s.\n", loadCount++, mModelPathes[idx].c_str());
+    // } else if (RemoveNode(mModelPathes[idx].c_str())) {
+    //     printf("Unloading no.%d: %s.\n", unloadCount++,
+    //            mModelPathes[idx].c_str());
+    // }
 }
 
 void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
@@ -436,7 +537,7 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
     ResizeToFitAllSeqBufPool(frame);
 
-    UpdateFrustumCullingUBO();
+    // UpdateFrustumCullingUBO();
 
     RecordPasses(mRenderSequence, frame);
 
@@ -453,6 +554,8 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
         frame.GetQueryPool().EndRange(cmd.GetHandle(), "dispatch");
 
         frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
+
+        mRenderSequence.RecordPass("dgc_seq_data_buf_clear", cmd.GetHandle());
 
         mRenderSequence.RecordPass("dgc_seq_data_buf_copy", cmd.GetHandle());
 
@@ -511,6 +614,19 @@ void DynamicLoading::EndFrame(IDVC_NS::RenderFrame& frame) {
     Application::EndFrame(frame);
 
     frame.GetQueryPool().GetResult();
+
+    auto const& readback = frame.GetReadbackBuffer();
+
+    auto ptr = (uint32_t*)readback.GetBufferMappedPtr();
+
+    uint32_t outOfBounds_vertex = ptr[0];
+    uint32_t outOfBounds_meshlet = ptr[1];
+    uint32_t outOfBounds_triangle = ptr[2];
+    uint32_t outOfBounds_material = ptr[3];
+
+    if (outOfBounds_vertex || outOfBounds_meshlet || outOfBounds_triangle
+        || outOfBounds_material)
+        throw;
 }
 
 void DynamicLoading::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
@@ -623,6 +739,10 @@ void DynamicLoading::CreateMeshShaderPipeline() {
         "MAX_PRIMITIVES",
         std::to_string(NV_PREFERRED_MESH_SHADER_MAX_PRIMITIVES).c_str());
 
+#ifdef SHADER_VALIDITY_CHECK
+    macros.emplace("SHADER_VALIDITY_CHECK", "1");
+#endif
+
     auto mesh = shaderMgr.GetShader("Mesh shader mesh",
                                     vk::ShaderStageFlagBits::eMeshEXT, macros);
 
@@ -702,9 +822,9 @@ void DynamicLoading::UpdateFrustumCullingUBO() {
 
 namespace {
 
-void DisplayNode(const IntelliDesign_NS::ModelData::CISDI_Node& node,
+void DisplayNode(IntelliDesign_NS::ModelData::CISDI_Node const& node,
                  uint32_t idx,
-                 const IntelliDesign_NS::ModelData::CISDI_3DModel& model) {
+                 IntelliDesign_NS::ModelData::CISDI_3DModel const& model) {
     if (ImGui::TreeNode(
             (node.name + "##" + std::to_string(idx).c_str()).c_str())) {
         if (node.meshIdx != -1) {
@@ -751,6 +871,36 @@ void DisplayNode(const IntelliDesign_NS::ModelData::CISDI_Node& node,
     }
 }
 
+void DisplayStats(GPUGeometryData::MeshDatas::Stats const& stats) {
+    ImGui::Text("Mesh Count: %d.", stats.mMeshCount);
+    ImGui::Text("Meshlet Count: %d.", stats.mMeshletCount);
+    ImGui::Text("Meshlet triangle Count: %d.", stats.mMeshletTriangleCount);
+    ImGui::Text("Vertex Count: %d.", stats.mVertexCount);
+}
+
+void DisplayMaterial(
+    IntelliDesign_NS::ModelData::CISDI_Material::Data const& matData) {
+    ImGui::Text("Ambient: (%.3f, %.3f, %.3f)", matData.ambient.x,
+                matData.ambient.y, matData.ambient.z);
+    ImGui::Text("AmbientFactor: %.3f", matData.ambient.w);
+    ImGui::Text("Diffuse: (%.3f, %.3f, %.3f)", matData.diffuse.x,
+                matData.diffuse.y, matData.diffuse.z);
+    ImGui::Text("DiffuseFactor: %.3f", matData.diffuse.w);
+    ImGui::Text("Specular: (%.3f, %.3f, %.3f)", matData.specular.x,
+                matData.specular.y, matData.specular.z);
+    ImGui::Text("SpecularFactor: %.3f", matData.specular.w);
+    ImGui::Text("Emissive: (%.3f, %.3f, %.3f)", matData.emissive.x,
+                matData.emissive.y, matData.emissive.z);
+    ImGui::Text("EmissiveFactor: %.3f", matData.emissive.w);
+    ImGui::Text("Reflection: (%.3f, %.3f, %.3f)", matData.reflection.x,
+                matData.reflection.y, matData.reflection.z);
+    ImGui::Text("ReflectionFactor: %.3f", matData.reflection.w);
+    ImGui::Text("Transparency: (%.3f, %.3f, %.3f)", matData.transparency.x,
+                matData.transparency.y, matData.transparency.z);
+    ImGui::Text("TransparencyFactor: %.3f", matData.transparency.w);
+    ImGui::Text("Shininess: %.3f", matData.shininess);
+}
+
 }  // namespace
 
 void DynamicLoading::PrepareUIContext() {
@@ -780,7 +930,7 @@ void DynamicLoading::PrepareUIContext() {
                 accumulatedTime = 0.0f;
             }
 
-            uint32_t totalNodeCount = mScene->GetAllNodes().size();
+            uint32_t totalNodeCount = mScene->GetNodeCount();
             uint32_t inFrustumNodeCount = frame.GetInFrustumNodes().size();
 
             ImGui::Begin("渲染信息");
@@ -848,11 +998,10 @@ void DynamicLoading::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("Model stats:"))
-                for (auto const& [n, pNode] : mScene->GetAllNodes()) {
-                    ::std::filesystem::path name {n.c_str()};
+                mScene->VisitAllNodes([this](IDCSG_NS::Node * node) {
+                    ::std::filesystem::path name {node->GetName().c_str()};
                     name = name.stem().stem();
-                    auto const& model = pNode->GetModel();
-
+                    auto const& model = node->GetModel();
                     bool nodeOpen = ImGui::TreeNode(name.string().c_str());
 
                     bool deleted = false;
@@ -862,7 +1011,7 @@ void DynamicLoading::PrepareUIContext() {
                     Type_STLString buttonLabel =
                         Type_STLString {"删除##"} + name.string().c_str();
                     if (ImGui::Button(buttonLabel.c_str())) {
-                        RemoveNode(n.c_str());
+                        RemoveNode(node->GetName().c_str());
                         deleted = true;
                     }
 
@@ -873,67 +1022,19 @@ void DynamicLoading::PrepareUIContext() {
                         auto modelStats = geo.GetStats();
 
                         if (ImGui::TreeNode("Stats")) {
-
-                            ImGui::Text("Mesh Count: %d.",
-                                        modelStats.mMeshCount);
-                            ImGui::Text("Meshlet Count: %d.",
-                                        modelStats.mMeshletCount);
-                            ImGui::Text("Meshlet triangle Count: %d.",
-                                        modelStats.mMeshletTriangleCount);
-                            ImGui::Text("Vertex Count: %d.",
-                                        modelStats.mVertexCount);
+                            DisplayStats(modelStats);
                             ImGui::TreePop();
                         }
 
                         if (ImGui::TreeNode("Hierarchy")) {
-                            auto const& node = model.nodes[0];
-                            DisplayNode(node, 0, model);
+                            auto const& n = model.nodes[0];
+                            DisplayNode(n, 0, model);
                             ImGui::TreePop();
                         }
                         if (ImGui::TreeNode("Materials")) {
                             for (auto const& material : model.materials) {
                                 if (ImGui::TreeNode(material.name.c_str())) {
-                                    ImGui::Text("Ambient: (%.3f, %.3f, %.3f)",
-                                                material.data.ambient.x,
-                                                material.data.ambient.y,
-                                                material.data.ambient.z);
-                                    ImGui::Text("AmbientFactor: %.3f",
-                                                material.data.ambient.w);
-                                    ImGui::Text("Diffuse: (%.3f, %.3f, %.3f)",
-                                                material.data.diffuse.x,
-                                                material.data.diffuse.y,
-                                                material.data.diffuse.z);
-                                    ImGui::Text("DiffuseFactor: %.3f",
-                                                material.data.diffuse.w);
-                                    ImGui::Text("Specular: (%.3f, %.3f, %.3f)",
-                                                material.data.specular.x,
-                                                material.data.specular.y,
-                                                material.data.specular.z);
-                                    ImGui::Text("SpecularFactor: %.3f",
-                                                material.data.specular.w);
-                                    ImGui::Text("Emissive: (%.3f, %.3f, %.3f)",
-                                                material.data.emissive.x,
-                                                material.data.emissive.y,
-                                                material.data.emissive.z);
-                                    ImGui::Text("EmissiveFactor: %.3f",
-                                                material.data.emissive.w);
-                                    ImGui::Text(
-                                        "Reflection: (%.3f, %.3f, %.3f)",
-                                        material.data.reflection.x,
-                                        material.data.reflection.y,
-                                        material.data.reflection.z);
-                                    ImGui::Text("ReflectionFactor: %.3f",
-                                                material.data.reflection.w);
-                                    ImGui::Text(
-                                        "Transparency: (%.3f, %.3f, %.3f)",
-                                        material.data.transparency.x,
-                                        material.data.transparency.y,
-                                        material.data.transparency.z);
-                                    ImGui::Text("TransparencyFactor: %.3f",
-                                                material.data.transparency.w);
-                                    ImGui::Text("Shininess: %.3f",
-                                                material.data.shininess);
-
+                                    DisplayMaterial(material.data);
                                     ImGui::TreePop();
                                 }
                             }
@@ -942,9 +1043,9 @@ void DynamicLoading::PrepareUIContext() {
                         ImGui::TreePop();
                     }
                     if (deleted) {
-                        break;
+                        return;
                     }
-                }
+                });
 
             ImGui::End();
         });
@@ -988,9 +1089,9 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
                                vk::BufferCopy2 {0, 0, size}, false);
     }
 
-    cfg.AddCopyPass("dgc_seq_data_buf_copy")
-        .SetClearBuffer(names)
-        .SetBinding(copyInfos);
+    cfg.AddCopyPass("dgc_seq_data_buf_clear").SetClearBuffer(names);
+
+    cfg.AddCopyPass("dgc_seq_data_buf_copy").SetBinding(copyInfos);
 
     // if (!names.empty() && !frame.mCmdStagings.empty()) {
     //     cfg.AddRenderPass(
@@ -1008,6 +1109,7 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
         .SetBinding("UBO", "SceneUniformBuffer")
         .SetBinding("outFragColor", "DrawImage")
         .SetBinding("_Depth_", "DepthImage")
+        .SetBinding("ReadbackBuffer", frame.GetReadbackBufferName())
         .SetDGCPipelineInfo(DGCPipelineInfo {
             .colorBlendInfo = {0,
                                {vk::True},

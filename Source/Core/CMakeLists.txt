@@ -16,6 +16,7 @@ set (UTILITIES_SRC
         Utilities/Timer.cpp
         Utilities/GUI.h
         Utilities/GUI.cpp
+        Utilities/Threading/Thread.hpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 

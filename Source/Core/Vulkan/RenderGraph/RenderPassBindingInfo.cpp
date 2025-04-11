@@ -845,9 +845,9 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
             RenderSequence::Barrier dstBarrier {
                 dstIdx, vk::ImageLayout::eUndefined,
                 vk::AccessFlagBits2::eTransferWrite,
-                vk::PipelineStageFlagBits2::eTransfer};
+                vk::PipelineStageFlagBits2::eClear};
 
-            // AddBarrier(dstBarrier);
+            AddBarrier(dstBarrier);
         }
     }
 
@@ -871,7 +871,7 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
                 ? vk::ImageLayout::eUndefined
                 : vk::ImageLayout::eTransferDstOptimal,
             vk::AccessFlagBits2::eTransferWrite,
-            vk::PipelineStageFlagBits2::eTransfer};
+            vk::PipelineStageFlagBits2::eCopy};
 
         AddBarrier(srcBarrier);
         AddBarrier(dstBarrier);

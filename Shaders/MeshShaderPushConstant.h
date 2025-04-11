@@ -7,7 +7,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 
 struct UInt16Pos {
-    uint16_t x, y, z;
+    uint16_t x, y, z, w;
 };
 
 struct Norm {
@@ -22,16 +22,16 @@ struct Tex {
 // use vec3 will round up to vec4
 // see https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf setion 7.6.2.2, page 146
 // use struct to bypass this. (page 147)
-layout(buffer_reference, std430) readonly buffer VertexPosBuffer{
-// vec3 position[];
+layout(buffer_reference, std430) readonly buffer VertexPosBuffer {
+    // vec3 position[];
     UInt16Pos position[];
 };
 
-layout(buffer_reference, std430) readonly buffer VertexNormBuffer{
+layout(buffer_reference, std430) readonly buffer VertexNormBuffer {
     Norm normal[];
 };
 
-layout(buffer_reference, std430) readonly buffer VertexTexBuffer{
+layout(buffer_reference, std430) readonly buffer VertexTexBuffer {
     Tex texcoords[];
 };
 
@@ -42,27 +42,27 @@ struct Meshlet {
     uint triangleCount;
 };
 
-layout(buffer_reference, std430) readonly buffer MeshletBuffer{
+layout(buffer_reference, std430) readonly buffer MeshletBuffer {
     Meshlet meshlets[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshletTriangleBuffer{
+layout(buffer_reference, std430) readonly buffer MeshletTriangleBuffer {
     uint8_t meshletTriangles[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshOffsetBuffer{
+layout(buffer_reference, std430) readonly buffer MeshOffsetBuffer {
     uint meshOffsets[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshletOffsetBuffer{
+layout(buffer_reference, std430) readonly buffer MeshletOffsetBuffer {
     uint meshletOffsets[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshletTriangleOffsetBuffer{
+layout(buffer_reference, std430) readonly buffer MeshletTriangleOffsetBuffer {
     uint meshletTriangleOffsets[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshletCountBuffer{
+layout(buffer_reference, std430) readonly buffer MeshletCountBuffer {
     uint meshletCounts[];
 };
 
@@ -75,21 +75,31 @@ struct BoundingBox {
     Vec3 extent;
 };
 
-layout(buffer_reference, std430) readonly buffer BoundingBoxBuffer{
+layout(buffer_reference, std430) readonly buffer BoundingBoxBuffer {
     BoundingBox boundingBoxes[];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshMaterialIndexBuffer{
+layout(buffer_reference, std430) readonly buffer MeshMaterialIndexBuffer {
     uint materialIndices[];
 };
 
-layout(buffer_reference, std430) readonly buffer MaterialBuffer
-{
+layout(buffer_reference, std430) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
-layout(push_constant) uniform PushConstants
-{
+struct Statistics {
+    uint vertexCount;
+    uint meshletCount;
+    uint triangleCount;
+    uint materialCount;
+};
+
+layout(buffer_reference, std430) readonly buffer StatsBuffer {
+
+    Statistics stats;
+};
+
+layout(push_constant) uniform PushConstants {
     mat4 modelMatrix;
 
     VertexPosBuffer posBuffer;
@@ -104,9 +114,13 @@ layout(push_constant) uniform PushConstants
     MeshletCountBuffer meshletCountBuffer;
     BoundingBoxBuffer boundingBoxBuffer;
     BoundingBoxBuffer meshletBoundingBoxBuffer;
-    
+
     MeshMaterialIndexBuffer meshMaterialIndexBuffer;
     MaterialBuffer materialBuffer;
-} constants;
+
+    StatsBuffer statsBuffer;
+}
+
+constants;
 
 #endif

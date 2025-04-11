@@ -70,6 +70,9 @@ void NodeProxy<TDGCSeqTemp>::UploadSeqBuf(Vulkan::Core::RenderFrame& frame) {
     // if (!dirty)
     //     return;
 
+    if (mSeqBufIDs.empty())
+        return;
+
     for (uint32_t i = 0; i < mSequenceCount; ++i) {
         auto resHandle = mPool->GetResource(mSeqBufIDs[i]);
 

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/Commands.h"
 #include "Core/Vulkan/Native/Descriptors.h"
 #include "Core/Vulkan/Native/QueryPool.h"
+#include "Core/Vulkan/Native/RenderResource.h"
 #include "Core/Vulkan/Native/SyncStructures.h"
 
 namespace IntelliDesign_NS::Core::SceneGraph {
@@ -12,10 +14,12 @@ class Node;
 namespace IntelliDesign_NS::Vulkan::Core {
 
 class GPUGeometryData;
+class RenderResourceManager;
 
 class RenderFrame {
 public:
-    RenderFrame(VulkanContext& context, uint32_t idx);
+    RenderFrame(VulkanContext& context, RenderResourceManager& renderResMgr,
+                uint32_t idx);
 
     void PrepareBindlessDescPool(
         Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
@@ -49,17 +53,24 @@ public:
 
     void Reset();
 
-    void CullRegister(SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node> const& node);
+    void CullRegister(
+        SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node> const& node);
 
     void ClearNodes();
 
     Type_STLVector<SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node>>&
     GetInFrustumNodes();
 
+    const char* GetReadbackBufferName() const;
+
+    RenderResource const& GetReadbackBuffer() const;
+
     Type_STLMap<::std::pair<const char*, const char*>, size_t> mCmdStagings {};
 
 private:
     VulkanContext& mContext;
+    RenderResourceManager& mRenderResMgr;
+
     uint32_t mIdx;
 
     Type_STLMap<uint32_t, UniquePtr<CommandPool>> mCmdPools;
@@ -73,6 +84,8 @@ private:
     UniquePtr<Semaphore> mSwapchainPresent;
 
     UniquePtr<QueryPool> mQueryPool;
+
+    Type_STLString mReadbackBufferName;
 
     SharedPtr<BindlessDescPool> mBindlessDescPool;
 

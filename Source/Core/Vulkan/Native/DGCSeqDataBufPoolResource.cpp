@@ -79,4 +79,9 @@ Type_STLString const& DGCSeqDataBufPoolResource::GetName() const {
     return mBufName;
 }
 
+Type_STLString const& DGCSeqDataBufPoolResource::GetStaginBufferName(
+    uint32_t id) const {
+    return mStagingBufNames[id];
+}
+
 }  // namespace IntelliDesign_NS::Vulkan::Core

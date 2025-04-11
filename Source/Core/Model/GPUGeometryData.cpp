@@ -1,4 +1,4 @@
-#include "GPUGeometryData.h"
+﻿#include "GPUGeometryData.h"
 
 #include "Core/Application/Application.h"
 #include "Core/Utilities/VulkanUtilities.h"
@@ -24,13 +24,18 @@ GPUGeometryData::GPUGeometryData(VulkanContext& context,
 
 namespace {
 
+size_t RoundUpTo256(size_t value) {
+    return (value + 255) & ~255;
+}
+
 template <class T>
 SharedPtr<Buffer> CreateStorageBuffer_WithData(
     VulkanContext& context, const char* name, uint32_t count, const T* data,
     vk::BufferUsageFlags usage = (vk::BufferUsageFlags)0) {
     size_t size = sizeof(T) * count;
+    size_t roundupSize = RoundUpTo256(sizeof(T) * count);
     auto ptr = context.CreateStorageBuffer(
-        name, size,
+        name, roundupSize,
         usage | vk::BufferUsageFlagBits::eTransferDst
             | vk::BufferUsageFlagBits::eShaderDeviceAddress);
     ptr->CopyData(data, size);
@@ -85,10 +90,29 @@ void GPUGeometryData::GenerateMeshletBuffers(
         auto const& meshData = mMeshDatas[seqIdx];
         auto& buffer = mBuffers[seqIdx];
 
-        auto tmp =
-            ExtractVertexAttribute<ModelData::VertexAttributeEnum::Position>(
-                model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
-                meshData.stats.mVertexCount);
+        // auto tmp =
+        //     ExtractVertexAttribute<ModelData::VertexAttributeEnum::Position>(
+        //         model, seqIdx * maxMeshCount, meshData.stats.mMeshCount,
+        //         meshData.stats.mVertexCount);
+
+        using Type = Type_STLVector<ModelData::UInt16_4>;
+        Type tmp {};
+        tmp.reserve(meshData.stats.mVertexCount);
+        for (uint32_t meshIdx = seqIdx * maxMeshCount;
+             meshIdx < seqIdx * maxMeshCount + meshData.stats.mMeshCount;
+             ++meshIdx) {
+            auto const& mesh = model.meshes[meshIdx];
+            for (auto const& vertices :
+                 mesh.meshlets.GetProperty<
+                     ModelData::MeshletPropertyTypeEnum::Vertex>()) {
+                auto const& data = vertices.GetProperty<
+                    ModelData::VertexAttributeEnum::Position>();
+
+                for (auto const& d : data) {
+                    tmp.emplace_back(d.x, d.y, d.z, 0);
+                }
+            }
+        }
 
         buffer.mVPBuf = CreateStorageBuffer_WithData(
             context, (mName + " Vertex Position").c_str(),
@@ -271,6 +295,28 @@ void GPUGeometryData::GenerateMeshletBuffers(
         pc.mMeshletOffsetBufAddr = pc.mVertOffsetBufAddr + meshCountSize;
         pc.mMeshletTrioffsetBufAddr = pc.mVertOffsetBufAddr + meshCountSize * 2;
         pc.mMeshletCountBufAddr = pc.mVertOffsetBufAddr + meshCountSize * 3;
+    }
+
+    // stats buffer
+    {
+        GeoStatistics stats {};
+
+        for (auto const& data : mMeshDatas) {
+            stats.vertexCount += data.stats.mVertexCount;
+            stats.meshletCount += data.stats.mMeshletCount;
+            stats.triangleCount += data.stats.mMeshletTriangleCount;
+            stats.materialCount += model.materials.size();
+        }
+
+        for (uint32_t seqIdx = 0; seqIdx < mSequenceCount; ++seqIdx) {
+            auto& buffer = mBuffers[seqIdx];
+            auto& pc = mMeshletConstants[seqIdx];
+
+            buffer.mStatsBuffer = CreateStorageBuffer_WithData(
+                context, (mName + "stats").c_str(), 1, &stats);
+
+            pc.mStatsBufferAddr = buffer.mStatsBuffer->GetDeviceAddress();
+        }
     }
 
     // indirect mesh task command buffer

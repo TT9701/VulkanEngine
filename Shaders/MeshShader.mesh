@@ -16,6 +16,18 @@ layout (set = 0, binding = 0) uniform UBO
 	SceneData data;
 } ubo;
 
+struct Readback {
+	uint meshlet_OutofBounds;
+	uint vertex_OutofBounds;
+	uint triangle_OutofBounds;
+	uint material_OutofBounds;
+};
+
+layout (set = 0, binding = 1) buffer ReadbackBuffer
+{
+	Readback data;
+} readbackBuffer;
+
 layout(local_size_x = MESH_INVOCATION_COUNT) in;
 layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_PRIMITIVES) out;
 
@@ -41,18 +53,26 @@ float rand(vec2 co)
 
 void main()
 {
-	uint meshletID = IN.baseID + gl_WorkGroupID.x;
+	uint meshletID_InMesh = IN.baseID + gl_WorkGroupID.x;
 
-	if (meshletID >= constants.meshletCountBuffer.meshletCounts[IN.drawID]) {
+	if (meshletID_InMesh >= constants.meshletCountBuffer.meshletCounts[IN.drawID]) {
 		SetMeshOutputsEXT(0, 0);		
 		return;
 	}
 
-	uint meshVertexOffset = constants.meshOffsetBuffer.meshOffsets[IN.drawID];
-	uint meshletOffset = constants.meshletOffsetBuffer.meshletOffsets[IN.drawID];
-	uint meshletTriangleOffset = constants.meshletTriangleOffsetBuffer.meshletTriangleOffsets[IN.drawID];
+	uint vertexOffset_PerMesh = constants.meshOffsetBuffer.meshOffsets[IN.drawID];
+	uint meshletOffset_PerMesh = constants.meshletOffsetBuffer.meshletOffsets[IN.drawID];
+	uint meshletTriangleOffset_PerMesh = constants.meshletTriangleOffsetBuffer.meshletTriangleOffsets[IN.drawID];
+
+	uint meshletID = meshletOffset_PerMesh + meshletID_InMesh;
+
+#if SHADER_VALIDITY_CHECK
+	if (meshletID >= constants.statsBuffer.stats.vertexCount) {
+		readbackBuffer.data.meshlet_OutofBounds = 1;
+	}
+#endif
 	
-	Meshlet meshlet = constants.meshletBuffer.meshlets[meshletOffset + meshletID];
+	Meshlet meshlet = constants.meshletBuffer.meshlets[meshletID];
 	uint vertCount = meshlet.vertexCount;
 	uint triCount = meshlet.triangleCount;
 
@@ -64,11 +84,23 @@ void main()
 	for (uint i = 0; i < MESHLET_VERTEX_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
 
-		uint verticesID =  meshlet.vertexOffset + idx;
+		if (idx >= vertCount) {
+			break;
+		}
 
-		UInt16Pos encodedPos = constants.posBuffer.position[meshVertexOffset + verticesID];
+		uint verticesID_InMesh =  meshlet.vertexOffset + idx;
 
-		BoundingBox box = constants.meshletBoundingBoxBuffer.boundingBoxes[meshletOffset + meshletID];
+		uint verticesID = vertexOffset_PerMesh + verticesID_InMesh;
+#if SHADER_VALIDITY_CHECK
+		if (verticesID >= constants.statsBuffer.stats.vertexCount) {
+			readbackBuffer.data.vertex_OutofBounds = 1;
+			return;
+		}
+#endif
+
+		UInt16Pos encodedPos = constants.posBuffer.position[verticesID];
+
+		BoundingBox box = constants.meshletBoundingBoxBuffer.boundingBoxes[meshletID];
 		vec3 boxCenter = vec3(box.center.x, box.center.y, box.center.z);
 		vec3 boxExtent = vec3(box.extent.x, box.extent.y, box.extent.z);
 		vec3 boxMin = boxCenter - boxExtent;
@@ -81,31 +113,40 @@ void main()
 		gl_MeshVerticesEXT[idx].gl_Position = hPos;
 		OutPos[idx] = wPos.xyz;
 
-		Norm packedNorm = constants.normBuffer.normal[meshVertexOffset + verticesID];
+		Norm packedNorm = constants.normBuffer.normal[verticesID];
 		vec2 octNorm = vec2(UnpackSnorm16(packedNorm.x), UnpackSnorm16(packedNorm.y));
 		vec3 normal = OctahedronToUnitVector(octNorm);
 		OutNormal[idx] = normalize((constants.modelMatrix * vec4(normal, 0.0)).xyz);
 
 		OutColor[idx] = vec4(rand(vec2(meshletID, IN.drawID)), rand(vec2(gl_WorkGroupID.x, IN.drawID)), rand(vec2(meshletID, IN.baseID)), 1.0);
 
-		Tex tex = constants.texBuffer.texcoords[meshVertexOffset + verticesID];
+		Tex tex = constants.texBuffer.texcoords[verticesID];
 		OutUV[idx] = vec2(UnpackUnorm16(tex.x), UnpackUnorm16(tex.y));
 
 		OutMeshIdx[idx].index = IN.drawID;
-
 	}
 
 	UNROLL_LOOP
 	for (uint i = 0; i < MESHLET_PRIMITIVE_ITERATIONS; ++i) {
 		uint idx = i * MESH_INVOCATION_COUNT + gl_LocalInvocationID.x;
 
-		uint temp = meshletTriangleOffset + meshlet.triangleOffset + idx * 3;
+		if (idx >= triCount) {
+			break;
+		}
+
+		uint triIdx = meshletTriangleOffset_PerMesh + meshlet.triangleOffset + idx * 3;
+#if SHADER_VALIDITY_CHECK
+		if (triIdx + 2 >= constants.statsBuffer.stats.triangleCount) {
+			readbackBuffer.data.triangle_OutofBounds = 1;
+			return;
+		}
+#endif
 
 		MeshletTriangleBuffer triBuffer = constants.meshletTriangleBuffer;
 
-		uint triID_0 = triBuffer.meshletTriangles[temp];
-		uint triID_1 = triBuffer.meshletTriangles[temp + 1];
-		uint triID_2 = triBuffer.meshletTriangles[temp + 2];
+		uint triID_0 = triBuffer.meshletTriangles[triIdx];
+		uint triID_1 = triBuffer.meshletTriangles[triIdx + 1];
+		uint triID_2 = triBuffer.meshletTriangles[triIdx + 2];
 
 		gl_PrimitiveTriangleIndicesEXT[idx] = uvec3(triID_0, triID_1, triID_2);
 	}

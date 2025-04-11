@@ -33,9 +33,19 @@ struct MeshletPushConstants {
 
     vk::DeviceAddress mMeshMaterialIdxBufAddr {};
     vk::DeviceAddress mMaterialBufAddr {};
+
+    vk::DeviceAddress mStatsBufferAddr {};
+};
+
+struct GeoStatistics {
+    uint32_t vertexCount {0};
+    uint32_t meshletCount {0};
+    uint32_t triangleCount {0};
+    uint32_t materialCount {0};
 };
 
 class GPUGeometryData {
+public:
     struct MeshDatas {
         struct Stats {
             uint32_t mVertexCount {0};
