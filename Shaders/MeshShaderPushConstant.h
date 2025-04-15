@@ -119,6 +119,8 @@ layout(push_constant) uniform PushConstants {
     MaterialBuffer materialBuffer;
 
     StatsBuffer statsBuffer;
+    uint objectIndex;
+    uint padding;
 }
 
 constants;

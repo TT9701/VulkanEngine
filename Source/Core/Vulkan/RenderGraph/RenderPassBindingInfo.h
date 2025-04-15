@@ -94,6 +94,9 @@ public:
     void SetPipeline(const char* pipelineName,
                      const char* pipelineLayoutName = nullptr);
 
+    void SetRTVClearValues(
+        Type_STLVector<::std::optional<vk::ClearColorValue>> const& values);
+
     void GenerateLayoutData();
 
     Type_BindingValue& operator[](RenderPassBinding::Type type);
@@ -145,7 +148,9 @@ private:
         mBuiltInInfos {};
     Type_STLUnorderedMap_String<Type_BindingValue> mDescInfos {};
     Type_STLUnorderedMap_String<Type_BindingValue> mBindlessDescInfos {};
+
     Type_STLVector<::std::pair<Type_STLString, Type_BindingValue>> mRTVInfos {};
+    Type_STLVector<::std::optional<vk::ClearColorValue>> mRTVClearValues{};
 
     Type_STLString mPipelineName;
     Type_STLString mPipelineLayoutName;
@@ -284,8 +289,9 @@ private:
         mCopyRegionMap {};
 
     Type_STLVector<Type_STLVector<vk::BufferCopy2>> mBufferToBuffers {};
-    Type_STLVector<Type_STLVector<vk::BufferImageCopy2>> mBufferImageCopy {};
-    Type_STLVector<Type_STLVector<vk::ImageCopy2>> mImageToImage {};
+    Type_STLVector<Type_STLVector<vk::BufferImageCopy2>> mBufferToImages {};
+    Type_STLVector<Type_STLVector<vk::BufferImageCopy2>> mImageToBuffers {};
+    Type_STLVector<Type_STLVector<vk::ImageCopy2>> mImageToImages {};
 };
 
 class RenderPassBindingInfo_Executor : public IRenderPassBindingInfo {

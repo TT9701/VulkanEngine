@@ -61,9 +61,12 @@ public:
     Type_STLVector<SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node>>&
     GetInFrustumNodes();
 
-    const char* GetReadbackBufferName() const;
+    const char* GetOutOfBoundsCheckBufferName() const;
 
-    RenderResource const& GetReadbackBuffer() const;
+    RenderResource const& GetOutOfBoundsCheckBuffer() const;
+
+    const char* GetModelIDBufferName() const;
+
 
     Type_STLMap<::std::pair<const char*, const char*>, size_t> mCmdStagings {};
 
@@ -85,7 +88,9 @@ private:
 
     UniquePtr<QueryPool> mQueryPool;
 
-    Type_STLString mReadbackBufferName;
+    Type_STLString mOutOfBoundsCheckBufferName;
+
+    Type_STLString mModelIDBufferName;
 
     SharedPtr<BindlessDescPool> mBindlessDescPool;
 

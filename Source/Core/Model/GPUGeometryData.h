@@ -35,6 +35,7 @@ struct MeshletPushConstants {
     vk::DeviceAddress mMaterialBufAddr {};
 
     vk::DeviceAddress mStatsBufferAddr {};
+    uint32_t mObjectIndex {~0ui32};
 };
 
 struct GeoStatistics {

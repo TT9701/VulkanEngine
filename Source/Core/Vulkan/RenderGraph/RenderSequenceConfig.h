@@ -68,6 +68,8 @@ public:
     Self& SetScissor(vk::Rect2D const& scissor);
     Self& SetDGCPipelineInfo(DGCPipelineInfo const& info);
     Self& SetDGCSeqBufs(Type_STLVector<const char*> const& buffers);
+    Self& SetRTVClearValues(
+        Type_STLVector<::std::optional<vk::ClearColorValue>> const& values);
 
     friend RenderSequenceConfig;
 
@@ -89,6 +91,7 @@ private:
     ::std::optional<vk::Viewport> mViewport;
     ::std::optional<vk::Rect2D> mScissor;
     ::std::optional<DGCPipelineInfo> mDgcPipelineInfo;
+    Type_STLVector<::std::optional<vk::ClearColorValue>> mRTVClearValues;
 };
 
 class CopyPassConfig : public IPassConfig {

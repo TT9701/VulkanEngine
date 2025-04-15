@@ -97,6 +97,12 @@ RenderPassConfig::Self& RenderPassConfig::SetDGCSeqBufs(
     return *this;
 }
 
+RenderPassConfig::Self& RenderPassConfig::SetRTVClearValues(
+    Type_STLVector<std::optional<vk::ClearColorValue>> const& values) {
+    mRTVClearValues = values;
+    return *this;
+}
+
 void RenderPassConfig::Compile(RenderSequence& result) {
     if (mPipelineLayout) {
         result.AddRenderPass(mPassName.c_str(), mPipelineLayout)
@@ -147,6 +153,10 @@ void RenderPassConfig::Compile(RenderSequence& result) {
             tmp.emplace_back(buf);
         }
         pso[RenderPassBinding::Type::DGCSeqBuf] = tmp;
+    }
+
+    if (!mRTVClearValues.empty()) {
+        pso.SetRTVClearValues(mRTVClearValues);
     }
 
     pso.GenerateMetaData();

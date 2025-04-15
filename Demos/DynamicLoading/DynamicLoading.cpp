@@ -4,8 +4,6 @@
 #include "Core/System/GameTimer.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
 
-#include "tracy/Tracy.hpp"
-
 #define SHADER_VALIDITY_CHECK
 
 using namespace IDVC_NS;
@@ -68,6 +66,8 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
     Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
 
     mModelPathes = ReadLinesFromFile(testModelPathes);
+
+    mSelectedNodeIdx.resize(1);
 }
 
 DynamicLoading::~DynamicLoading() = default;
@@ -175,6 +175,15 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
 
             SDL_free(e->drop.file);
         } break;
+
+        case SDL_MOUSEBUTTONDOWN: {
+            if (e->button.button == SDL_BUTTON_LEFT) {
+                if (!GetUILayer().WantCaptureMouse()) {
+                    mSelectedNodeIdx[0] =
+                        GetObjectIDFromScreenPos(e->motion.x, e->motion.y);
+                }
+            }
+        }
         default: break;
     }
 
@@ -225,6 +234,8 @@ void DynamicLoading::UpdateScene() {
     mSceneData.view = mMainCamera->GetViewMatrix();
     mSceneData.proj = mMainCamera->GetProjectionMatrix();
     mSceneData.viewProj = mMainCamera->GetViewProjMatrix();
+
+    mSceneData.selectedObjectIndex = mSelectedNodeIdx[0];
 
     UpdateSceneUBO();
 }
@@ -306,7 +317,9 @@ void DynamicLoading::Prepare() {
 
     PrepareUIContext();
 
-    // RecordPasses(mRenderSequence);
+    RecordPasses(mRenderSequence, GetFrames()[0]);
+
+    mRenderSequence.ExecutePreRenderBarriers();
 }
 
 void DynamicLoading::prepare_dgc_draw_command() {
@@ -444,9 +457,8 @@ bool DynamicLoading::AddNewNode(const char* modelPath) {
         auto pBufferPool =
             GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
 
-        auto node = IDCSG_NS::Node {gMemPool, path.c_str(), mScene.get()};
         auto nodeProxy = MakeShared<IDCSG_NS::NodeProxy<DrawSequenceTemp>>(
-            ::std::move(node), pBufferPool);
+            mScene->MakeNode(path.c_str()), pBufferPool);
 
         auto const& modelData = nodeProxy->SetModel(path.c_str());
 
@@ -591,6 +603,8 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         frame.GetQueryPool().EndRange(cmd.GetHandle(), "draw");
 
+        mRenderSequence.RecordPass("CopyModelID", cmd.GetHandle());
+
         cmd.End();
 
         Type_STLVector<SemSubmitInfo> waits = {
@@ -615,7 +629,7 @@ void DynamicLoading::EndFrame(IDVC_NS::RenderFrame& frame) {
 
     frame.GetQueryPool().GetResult();
 
-    auto const& readback = frame.GetReadbackBuffer();
+    auto const& readback = frame.GetOutOfBoundsCheckBuffer();
 
     auto ptr = (uint32_t*)readback.GetBufferMappedPtr();
 
@@ -639,26 +653,27 @@ void DynamicLoading::CreateDrawImage() {
     vk::Extent3D drawImageExtent {static_cast<uint32_t>(window.GetWidth()),
                                   static_cast<uint32_t>(window.GetHeight()), 1};
 
-    vk::ImageUsageFlags drawImageUsage {};
-    drawImageUsage |= vk::ImageUsageFlagBits::eTransferSrc;
-    drawImageUsage |= vk::ImageUsageFlagBits::eTransferDst;
-    drawImageUsage |= vk::ImageUsageFlagBits::eStorage;
-    drawImageUsage |= vk::ImageUsageFlagBits::eColorAttachment;
-    drawImageUsage |= vk::ImageUsageFlagBits::eSampled;
+    vk::ImageUsageFlags drawImageUsage {
+        vk::ImageUsageFlagBits::eTransferSrc
+        | vk::ImageUsageFlagBits::eTransferDst
+        | vk::ImageUsageFlagBits::eStorage
+        | vk::ImageUsageFlagBits::eColorAttachment
+        | vk::ImageUsageFlagBits::eSampled};
 
-    auto& ref = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
+    auto& colorImageRef = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
         "DrawImage", RenderResource::Type::Texture2D,
         vk::Format::eR16G16B16A16Sfloat, drawImageExtent, drawImageUsage);
-    ref.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
+    colorImageRef.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 
-    auto& vkCtx = GetVulkanContext();
-    {
-        auto cmd =
-            vkCtx.CreateCmdBufToBegin(vkCtx.GetQueue(QueueType::Graphics));
-        Utils::TransitionImageLayout(cmd.mHandle, ref.GetTexHandle(),
-                                     vk::ImageLayout::eUndefined,
-                                     vk::ImageLayout::eShaderReadOnlyOptimal);
-    }
+    vk::ImageUsageFlags modelIDImageUsage {
+        vk::ImageUsageFlagBits::eTransferSrc
+        | vk::ImageUsageFlagBits::eColorAttachment};
+
+    auto& modelIDImageRef = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
+        "ModelIDImage", RenderResource::Type::Texture2D, vk::Format::eR32Uint,
+        drawImageExtent, modelIDImageUsage);
+    modelIDImageRef.CreateTexView("Color-Whole",
+                                  vk::ImageAspectFlagBits::eColor);
 }
 
 void DynamicLoading::CreateDepthImage() {
@@ -676,15 +691,6 @@ void DynamicLoading::CreateDepthImage() {
         vk::Format::eD24UnormS8Uint, depthImageExtent, depthImageUsage);
     ref.CreateTexView("Depth-Whole", vk::ImageAspectFlagBits::eDepth
                                          | vk::ImageAspectFlagBits::eStencil);
-
-    auto& vkCtx = GetVulkanContext();
-    {
-        auto cmd =
-            vkCtx.CreateCmdBufToBegin(vkCtx.GetQueue(QueueType::Graphics));
-        Utils::TransitionImageLayout(
-            cmd.mHandle, ref.GetTexHandle(), vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eDepthStencilAttachmentOptimal);
-    }
 }
 
 void DynamicLoading::CreateBackgroundComputePipeline() {
@@ -810,7 +816,7 @@ void DynamicLoading::UpdateFrustumCullingUBO() {
     auto const& nodes = GetCurFrame().GetInFrustumNodes();
     Type_STLVector<uint32_t> indices;
     for (auto const& node : nodes) {
-        for (auto id : node->GetIDs()) {
+        for (auto id : node->GetSeqBufIDs()) {
             indices.push_back(id);
         }
     }
@@ -822,9 +828,9 @@ void DynamicLoading::UpdateFrustumCullingUBO() {
 
 namespace {
 
-void DisplayNode(IntelliDesign_NS::ModelData::CISDI_Node const& node,
-                 uint32_t idx,
-                 IntelliDesign_NS::ModelData::CISDI_3DModel const& model) {
+void DisplayNodeHierarchy(
+    IntelliDesign_NS::ModelData::CISDI_Node const& node, uint32_t idx,
+    IntelliDesign_NS::ModelData::CISDI_3DModel const& model) {
     if (ImGui::TreeNode(
             (node.name + "##" + std::to_string(idx).c_str()).c_str())) {
         if (node.meshIdx != -1) {
@@ -865,7 +871,7 @@ void DisplayNode(IntelliDesign_NS::ModelData::CISDI_Node const& node,
         }
 
         for (const auto& childIdx : node.childrenIdx) {
-            DisplayNode(model.nodes[childIdx], childIdx, model);
+            DisplayNodeHierarchy(model.nodes[childIdx], childIdx, model);
         }
         ImGui::TreePop();
     }
@@ -902,6 +908,64 @@ void DisplayMaterial(
 }
 
 }  // namespace
+
+void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
+    ::std::filesystem::path name {node->GetName().c_str()};
+    name = name.stem().stem();
+    auto const& model = node->GetModel();
+    bool nodeOpen = ImGui::TreeNodeEx(name.string().c_str(),
+                                      ImGuiTreeNodeFlags_OpenOnArrow);
+
+    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+        && ImGui::IsItemHovered()) {
+        AdjustCameraPosition(*mMainCamera, model.boundingBox);
+    }
+
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+        mSelectedNodeIdx.at(0) = node->GetID();
+    }
+
+    bool deleted = false;
+
+    ImGui::SameLine();
+
+    Type_STLString buttonLabel =
+        Type_STLString {"删除##"} + name.string().c_str();
+    if (ImGui::Button(buttonLabel.c_str())) {
+        RemoveNode(node->GetName().c_str());
+        deleted = true;
+    }
+
+    if (nodeOpen) {
+        auto const& geo = *mGeoMgr->GetGPUGeometryData(name.string().c_str());
+
+        auto modelStats = geo.GetStats();
+
+        if (ImGui::TreeNode("Stats")) {
+            DisplayStats(modelStats);
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Hierarchy")) {
+            auto const& n = model.nodes[0];
+            DisplayNodeHierarchy(n, 0, model);
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Materials")) {
+            for (auto const& material : model.materials) {
+                if (ImGui::TreeNode(material.name.c_str())) {
+                    DisplayMaterial(material.data);
+                    ImGui::TreePop();
+                }
+            }
+            ImGui::TreePop();
+        }
+        ImGui::TreePop();
+    }
+    if (deleted) {
+        return;
+    }
+}
 
 void DynamicLoading::PrepareUIContext() {
     auto& renderResMgr = GetRenderResMgr();
@@ -997,57 +1061,21 @@ void DynamicLoading::PrepareUIContext() {
             ImGui::End();
         })
         .AddContext([&]() {
-            if (ImGui::Begin("Model stats:"))
-                mScene->VisitAllNodes([this](IDCSG_NS::Node * node) {
-                    ::std::filesystem::path name {node->GetName().c_str()};
-                    name = name.stem().stem();
-                    auto const& model = node->GetModel();
-                    bool nodeOpen = ImGui::TreeNode(name.string().c_str());
+            if (ImGui::Begin("Model stats:")) {
+                mScene->VisitAllNodes(
+                    [this](IDCSG_NS::Node const* node) { DisplayNode(node); });
+                ImGui::End();
+            }
 
-                    bool deleted = false;
-
-                    ImGui::SameLine();
-
-                    Type_STLString buttonLabel =
-                        Type_STLString {"删除##"} + name.string().c_str();
-                    if (ImGui::Button(buttonLabel.c_str())) {
-                        RemoveNode(node->GetName().c_str());
-                        deleted = true;
-                    }
-
-                    if (nodeOpen) {
-                        auto const& geo =
-                            *mGeoMgr->GetGPUGeometryData(name.string().c_str());
-
-                        auto modelStats = geo.GetStats();
-
-                        if (ImGui::TreeNode("Stats")) {
-                            DisplayStats(modelStats);
-                            ImGui::TreePop();
-                        }
-
-                        if (ImGui::TreeNode("Hierarchy")) {
-                            auto const& n = model.nodes[0];
-                            DisplayNode(n, 0, model);
-                            ImGui::TreePop();
-                        }
-                        if (ImGui::TreeNode("Materials")) {
-                            for (auto const& material : model.materials) {
-                                if (ImGui::TreeNode(material.name.c_str())) {
-                                    DisplayMaterial(material.data);
-                                    ImGui::TreePop();
-                                }
-                            }
-                            ImGui::TreePop();
-                        }
-                        ImGui::TreePop();
-                    }
-                    if (deleted) {
-                        return;
+            if (ImGui::Begin("Selected Model:")) {
+                mScene->VisitAllNodes([this](IDCSG_NS::Node const* node) {
+                    for (auto idx : mSelectedNodeIdx) {
+                        if (idx == node->GetID())
+                            DisplayNode(node);
                     }
                 });
-
-            ImGui::End();
+                ImGui::End();
+            }
         });
 }
 
@@ -1108,23 +1136,58 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
                       drawMeshShaderSeq.GetPipelineLayout())
         .SetBinding("UBO", "SceneUniformBuffer")
         .SetBinding("outFragColor", "DrawImage")
+        .SetBinding("outModelID", "ModelIDImage")
         .SetBinding("_Depth_", "DepthImage")
-        .SetBinding("ReadbackBuffer", frame.GetReadbackBufferName())
+        .SetBinding("ReadbackBuffer", frame.GetOutOfBoundsCheckBufferName())
         .SetDGCPipelineInfo(DGCPipelineInfo {
             .colorBlendInfo = {0,
-                               {vk::True},
+                               {vk::True, vk::False},
                                {{vk::BlendFactor::eOneMinusSrcAlpha,
                                  vk::BlendFactor::eSrcAlpha, vk::BlendOp::eAdd,
                                  vk::BlendFactor::eOne, vk::BlendFactor::eZero,
-                                 vk::BlendOp::eAdd}}},
+                                 vk::BlendOp::eAdd},
+                                {}},
+                               {vk::ColorComponentFlagBits::eR
+                                    | vk::ColorComponentFlagBits::eG
+                                    | vk::ColorComponentFlagBits::eB
+                                    | vk::ColorComponentFlagBits::eA,
+                                vk::ColorComponentFlagBits::eR}},
             .viewport = {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f},
             .scissor = {{0, 0}, {width, height}}})
         .SetRenderArea({{0, 0}, {width, height}})
+        .SetRTVClearValues(
+            {::std::nullopt,
+             vk::ClearColorValue {::std::array<uint32_t, 4> {~0ui32, 0, 0, 0}}})
         .SetDGCSeqBufs(names);
+
+    CopyPassConfig::CopyInfo copyInfo {
+        "ModelIDImage", frame.GetModelIDBufferName(),
+        vk::BufferImageCopy2 {0, 0, 0,
+                              vk::ImageSubresourceLayers {
+                                  vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+                              vk::Offset3D {0, 0, 0},
+                              vk::Extent3D {width, height, 1}},
+        false};
+
+    cfg.AddCopyPass("CopyModelID").SetBinding(copyInfo);
 
     cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")
         .SetBinding("outFragColor", "_Swapchain_");
 
     cfg.Compile(sequence);
+}
+
+uint32_t DynamicLoading::GetObjectIDFromScreenPos(int x, int y) {
+    auto& window = GetSDLWindow();
+
+    auto width = static_cast<uint32_t>(window.GetWidth());
+
+    auto const& buf = GetRenderResMgr()[GetCurFrame().GetModelIDBufferName()];
+
+    auto ptr = buf.GetBufferMappedPtr();
+
+    auto pID = (uint32_t*)ptr + width * y + x;
+
+    return *pID;
 }

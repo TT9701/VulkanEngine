@@ -9,12 +9,13 @@
 
 namespace IntelliDesign_NS::Core::SceneGraph {
 Node::Node(::std::pmr::memory_resource* pMemPool, const char* name,
-           Scene const* pScene)
-    : mName(name, pMemPool), mpScene(pScene) {}
+           Scene const* pScene, uint32_t id)
+    : mName(name, pMemPool), mpScene(pScene), mID(id) {}
 
 Node::Node(Node&& other) noexcept
     : mName(std::move(other.mName)),
       mpScene(std::move(other.mpScene)),
+      mID(std::move(other.mID)),
       mModelData(std::move(other.mModelData)),
       mSequenceCount(other.mSequenceCount) {}
 
@@ -47,6 +48,10 @@ MemoryPool::Type_STLString const& Node::GetName() const {
 MemoryPool::Type_STLVector<MemoryPool::Type_STLVector<Type_CopyInfo>> const&
 Node::GetCopyInfos() const {
     return {};
+}
+
+uint32_t Node::GetID() const {
+    return mID;
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

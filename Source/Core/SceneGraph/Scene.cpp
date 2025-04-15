@@ -28,9 +28,14 @@ Node& Scene::AddNode(MemoryPool::Type_SharedPtr<Node>&& node) {
 Node& Scene::AddNode(const char* name) {
     ::std::unique_lock lock {mNodeMapMutex};
 
-    mNodes.emplace(
-        name, MemoryPool::New_Shared<Node>(pMemPool, pMemPool, name, this));
+    mNodes.emplace(name,
+                   MemoryPool::New_Shared<Node>(pMemPool, pMemPool, name, this,
+                                                mIDQueue.RequestID()));
     return *mNodes.at(name);
+}
+
+Node Scene::MakeNode(const char* name) {
+    return Node {pMemPool, name, this, mIDQueue.RequestID()};
 }
 
 MemoryPool::Type_SharedPtr<Node> Scene::GetNode(const char* name) {
@@ -46,8 +51,12 @@ Scene::Type_NodeMap const& Scene::GetAllNodes() const {
 void Scene::RemoveNode(const char* name) {
     ::std::unique_lock lock {mNodeMapMutex};
     if (mNodes.contains(name)) {
-        auto dataName = mNodes.at(name)->GetModel().name;
-        mNodes.at(name)->RetrieveIDs();
+        auto node = mNodes.at(name);
+
+        mIDQueue.RetrieveID(node->GetID());
+
+        auto dataName = node->GetModel().name;
+        node->RetrieveIDs();
         mNodes.erase(name);
 
         mModelDataMgr.Remove_CISDI_3DModel(dataName.c_str());

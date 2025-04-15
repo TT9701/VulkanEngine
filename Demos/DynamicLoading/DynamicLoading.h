@@ -33,6 +33,7 @@ struct SceneData {
     IDCMCore_NS::Float4 objColor {0.7f, 0.7f, 0.7f, 1.0f};
     IDCMCore_NS::Float4 metallicRoughness {0.5f, 0.0f, 0.0f, 0.0f};
     int32_t texIndex {0};
+    uint32_t selectedObjectIndex {~0ui32};
 };
 
 class DynamicLoading : public IDVC_NS::Application {
@@ -69,6 +70,8 @@ private:
 
     void RecordPasses(IDVC_NS::RenderSequence& sequence,
                       IDVC_NS::RenderFrame& frame);
+
+    uint32_t GetObjectIDFromScreenPos(int x, int y);
 
 private:
     IDVC_NS::DescriptorSetPool mDescSetPool;
@@ -119,6 +122,8 @@ private:
 
     void UpdateFrustumCullingUBO();
 
+    void DisplayNode(IDCSG_NS::Node const* node);
+
     ::std::random_device rd;
     ::std::mt19937 gen {rd()};
 
@@ -137,6 +142,8 @@ private:
     ::std::mutex mRemoveTaskSetMutex;
     IDCMP_NS::Type_STLUnorderedSet<IDCMP_NS::Type_STLString> mRemoveTaskSet {
         ::std::pmr::get_default_resource()};
+
+    IDCMP_NS::Type_STLVector<uint32_t> mSelectedNodeIdx;
 };
 
 VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);

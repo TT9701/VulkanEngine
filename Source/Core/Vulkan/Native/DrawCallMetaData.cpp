@@ -94,6 +94,8 @@ void DrawCallMetaData<DrawCallMetaDataType::DGCPipelineInfo>::RecordCmds(
                                pipelineInfo.colorBlendInfo.enableColorBlend);
     cmd.setColorBlendEquationEXT(pipelineInfo.colorBlendInfo.firstAttachment,
                                  pipelineInfo.colorBlendInfo.equations);
+    cmd.setColorWriteMaskEXT(pipelineInfo.colorBlendInfo.firstAttachment,
+                             pipelineInfo.colorBlendInfo.writeMasks);
     cmd.setDepthTestEnableEXT(pipelineInfo.enableDepthTest);
     cmd.setDepthWriteEnableEXT(pipelineInfo.enableDepthWrite);
     cmd.setDepthCompareOpEXT(pipelineInfo.depthCompareOp);

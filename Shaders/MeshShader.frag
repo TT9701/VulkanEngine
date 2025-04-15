@@ -9,9 +9,11 @@ layout (location = 2) in vec3 InPos;
 layout (location = 3) in vec2 InUV;
 layout (location = 4) in MeshIndex {
     flat uint index;
+    flat uint objectID;
 } InMeshIdx;
 
 layout(location = 0) out vec4 outFragColor;
+layout(location = 1) out uint outModelID;
 
 #include "Include/Structures.glsl"
 #include "MeshShaderPushConstant.h"
@@ -27,6 +29,10 @@ void main()
 {
     uint InMaterialIdx = constants.meshMaterialIndexBuffer.materialIndices[InMeshIdx.index];
     Material material = constants.materialBuffer.materials[InMaterialIdx];
+
+    if (InMeshIdx.objectID == ubo.data.selectedObjectID){
+        material.diffuse.xyz *= vec3(2.0);
+    }
 
     // vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
 
@@ -84,4 +90,5 @@ void main()
     ubo.data.sunLightColor.xyz);
 
     outFragColor = color;
+    outModelID = InMeshIdx.objectID;
 }

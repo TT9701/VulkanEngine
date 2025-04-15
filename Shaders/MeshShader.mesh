@@ -37,6 +37,7 @@ layout (location = 2) out vec3 OutPos[];
 layout (location = 3) out vec2 OutUV[];
 layout (location = 4) out MeshIndex {
 	flat uint index;
+	flat uint objectID;
 } OutMeshIdx[];
 
 struct Task {
@@ -124,6 +125,7 @@ void main()
 		OutUV[idx] = vec2(UnpackUnorm16(tex.x), UnpackUnorm16(tex.y));
 
 		OutMeshIdx[idx].index = IN.drawID;
+		OutMeshIdx[idx].objectID = constants.objectIndex;
 	}
 
 	UNROLL_LOOP

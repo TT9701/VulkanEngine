@@ -54,6 +54,18 @@ MathCore::Mat4 Camera::GetViewProjMatrix() const {
     return GetViewMatrix().GetSIMD() * GetProjectionMatrix().GetSIMD();
 }
 
+MathCore::Mat4 Camera::GetInvViewMatrix() const {
+    return MathCore::MatrixInverse(nullptr, GetViewMatrix().GetSIMD());
+}
+
+MathCore::Mat4 Camera::GetInvProjectionMatrix() const {
+    return MathCore::MatrixInverse(nullptr, GetProjectionMatrix().GetSIMD());
+}
+
+MathCore::Mat4 Camera::GetInvViewProjMatrix() const {
+    return MathCore::MatrixInverse(nullptr, GetViewProjMatrix().GetSIMD());
+}
+
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     if (mCaptureKeyboard)
         ProcessKeyboard(e, deltaTime);

@@ -22,12 +22,22 @@ RenderFrame::RenderFrame(VulkanContext& context,
         mCmdPools.emplace(index, MakeUnique<CommandPool>(mContext, index));
     }
 
-    mReadbackBufferName = "Frame Readback Buffer ";
-    mReadbackBufferName = mReadbackBufferName + ::std::to_string(mIdx).c_str();
+    mOutOfBoundsCheckBufferName = "Frame Readback Buffer ";
+    mOutOfBoundsCheckBufferName =
+        mOutOfBoundsCheckBufferName + ::std::to_string(mIdx).c_str();
     mRenderResMgr.CreateBuffer(
-        mReadbackBufferName.c_str(), 64ui64 * 1024,
+        mOutOfBoundsCheckBufferName.c_str(), 4 * sizeof(uint32_t),
         vk::BufferUsageFlagBits::eStorageBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        Buffer::MemoryType::ReadBack);
+
+    mModelIDBufferName = "ModelID Readback Buffer";
+    mModelIDBufferName = mModelIDBufferName + ::std::to_string(mIdx).c_str();
+    mRenderResMgr.CreateBuffer(
+        mModelIDBufferName.c_str(), 1600 * 900 * sizeof(uint32_t),
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress
+            | vk::BufferUsageFlagBits::eTransferDst,
         Buffer::MemoryType::ReadBack);
 }
 
@@ -131,12 +141,16 @@ RenderFrame::GetInFrustumNodes() {
     return mNodes;
 }
 
-const char* RenderFrame::GetReadbackBufferName() const {
-    return mReadbackBufferName.c_str();
+const char* RenderFrame::GetOutOfBoundsCheckBufferName() const {
+    return mOutOfBoundsCheckBufferName.c_str();
 }
 
-RenderResource const& RenderFrame::GetReadbackBuffer() const {
-    return mRenderResMgr[mReadbackBufferName.c_str()];
+RenderResource const& RenderFrame::GetOutOfBoundsCheckBuffer() const {
+    return mRenderResMgr[mOutOfBoundsCheckBufferName.c_str()];
+}
+
+const char* RenderFrame::GetModelIDBufferName() const {
+    return mModelIDBufferName.c_str();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

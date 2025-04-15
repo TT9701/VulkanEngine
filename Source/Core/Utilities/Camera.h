@@ -58,6 +58,10 @@ public:
     MathCore::Mat4 GetProjectionMatrix() const;
     MathCore::Mat4 GetViewProjMatrix() const;
 
+    MathCore::Mat4 GetInvViewMatrix() const;
+    MathCore::Mat4 GetInvProjectionMatrix() const;
+    MathCore::Mat4 GetInvViewProjMatrix() const;
+
     void ProcessSDLEvent(SDL_Event* e, float deltaTime);
 
     void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);

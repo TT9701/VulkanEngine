@@ -13,6 +13,9 @@ struct DGCColorBlendInfo {
     uint32_t firstAttachment {0};
     Type_STLVector<vk::Bool32> enableColorBlend {vk::False};
     Type_STLVector<vk::ColorBlendEquationEXT> equations {1};
+    Type_STLVector<vk::ColorComponentFlags> writeMasks {
+        vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
+        | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
 };
 
 struct DGCPipelineInfo {
@@ -95,8 +98,7 @@ struct DrawCallMetaData<DrawCallMetaDataType::ClearDepthStencilImage>
 };
 
 template <>
-struct DrawCallMetaData<DrawCallMetaDataType::ResetBuffer>
-    : IDrawCallMetaData {
+struct DrawCallMetaData<DrawCallMetaDataType::ResetBuffer> : IDrawCallMetaData {
     vk::Buffer buffer;
     vk::DeviceSize offset;
     vk::DeviceSize size;

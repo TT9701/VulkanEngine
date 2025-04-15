@@ -86,6 +86,8 @@ UniquePtr<VulkanContext> Application::CreateContext() {
     Type_STLVector<Type_STLString> enabledDeivceExtensions {};
 
     enabledDeivceExtensions.emplace_back(vk::KHRSwapchainExtensionName);
+    // enabledDeivceExtensions.emplace_back(
+    //     vk::EXTDeviceAddressBindingReportExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTDescriptorBufferExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTMeshShaderExtensionName);
     enabledDeivceExtensions.emplace_back(vk::KHRMaintenance5ExtensionName);

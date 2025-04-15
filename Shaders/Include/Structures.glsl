@@ -15,6 +15,7 @@ struct SceneData
     vec4 objColor;
     vec4 metallicRoughness;
     int texIndex;
+    uint selectedObjectID;
 };
 
 const uint ShadingModel_Lambert = 0;

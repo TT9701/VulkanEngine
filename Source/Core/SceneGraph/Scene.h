@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/System/IDDeferredResourcePool.hpp"
 #include "Core/Utilities/MemoryPool.h"
 #include "NodeProxy.hpp"
 
@@ -28,6 +29,8 @@ public:
     Node& AddNode(MemoryPool::Type_SharedPtr<Node>&& node);
 
     Node& AddNode(const char* name);
+
+    Node MakeNode(const char* name);
 
     template <class TDGCSeqTemp>
     Node& AddNodeProxy(const char* name, Type_pSeqDataBufPool pool);
@@ -58,6 +61,8 @@ private:
 
     ::std::mutex mNodeMapMutex {};
     Type_NodeMap mNodes;
+
+    IDPool_Queue<uint32_t> mIDQueue {};
 };
 
 template <class TDGCSeqTemp>
@@ -68,7 +73,7 @@ Node& Scene::AddNodeProxy(const char* name, Type_pSeqDataBufPool pool) {
         return *mNodes.at(name);
 
     auto nodeProxy = MemoryPool::New_Unique<NodeProxy<TDGCSeqTemp>>(
-        pMemPool, Node {pMemPool, name, this}, pool);
+        pMemPool, MakeNode(name), pool);
 
     Node& nodeRef = *nodeProxy;
 

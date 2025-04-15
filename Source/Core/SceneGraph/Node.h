@@ -24,7 +24,7 @@ using Type_CopyInfo =
 class Node {
 public:
     Node(::std::pmr::memory_resource* pMemPool, const char* name,
-         Scene const* pScene);
+         Scene const* pScene, uint32_t id);
 
     Node(Node&& other) noexcept;
 
@@ -52,13 +52,16 @@ public:
         MemoryPool::Type_STLVector<Type_CopyInfo>> const&
     GetCopyInfos() const;
 
-    virtual MemoryPool::Type_STLVector<uint64_t> const& GetIDs() const {
+    virtual MemoryPool::Type_STLVector<uint64_t> const& GetSeqBufIDs() const {
         return {};
     }
+
+    uint32_t GetID() const;
 
 protected:
     MemoryPool::Type_STLString mName;
     Scene const* mpScene;
+    uint32_t mID;
 
     MemoryPool::Type_SharedPtr<ModelData::CISDI_3DModel const> mModelData {
         nullptr};

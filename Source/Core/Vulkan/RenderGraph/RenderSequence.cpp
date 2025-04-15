@@ -235,8 +235,6 @@ void RenderSequence::GeneratePreRenderBarriers() {
     for (uint32_t i = 0; i < passCount; ++i) {
         for (auto const& invalidate : mPassBarrierInfos[i]) {
             uint32_t invalidateResIdx = invalidate.resourceIndex;
-            if (resIdxToBarInfoMap.contains(invalidateResIdx))
-                continue;
 
             resIdxToBarInfoMap[invalidateResIdx] = invalidate;
         }

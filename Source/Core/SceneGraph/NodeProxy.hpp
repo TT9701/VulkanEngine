@@ -29,12 +29,11 @@ public:
 
     void UploadSeqBuf(Vulkan::Core::RenderFrame& frame) override;
 
-    MemoryPool::Type_STLVector<uint64_t> const& GetIDs() const override;
+    MemoryPool::Type_STLVector<uint64_t> const& GetSeqBufIDs() const override;
 
 private:
     MemoryPool::Type_STLVector<uint64_t> mSeqBufIDs {};
     Type_pSeqDataBufPool mPool {nullptr};
-    int dirty = 3;
 };
 
 template <class TDGCSeqTemp>
@@ -46,7 +45,6 @@ void NodeProxy<TDGCSeqTemp>::RequestSeqBufIDs() {
     for (uint32_t i = 0; i < mSequenceCount; ++i) {
         mSeqBufIDs.emplace_back(mPool->RequestID());
     }
-    int dirty = 3;
 }
 
 template <class TDGCSeqTemp>
@@ -67,9 +65,6 @@ ModelData::CISDI_3DModel const& NodeProxy<TDGCSeqTemp>::SetModel(
 
 template <class TDGCSeqTemp>
 void NodeProxy<TDGCSeqTemp>::UploadSeqBuf(Vulkan::Core::RenderFrame& frame) {
-    // if (!dirty)
-    //     return;
-
     if (mSeqBufIDs.empty())
         return;
 
@@ -90,6 +85,8 @@ void NodeProxy<TDGCSeqTemp>::UploadSeqBuf(Vulkan::Core::RenderFrame& frame) {
         if constexpr (!::std::is_same_v<
                           typename TDGCSeqTemp::_Type_PushConstant_, void>) {
             auto pc = mGPUGeoData->GetMeshletPushContants(i);
+
+            pc.mObjectIndex = mID;
 
             if constexpr (!::std::is_same_v<
                               typename TDGCSeqTemp::_Type_PushConstant_,
@@ -118,12 +115,10 @@ void NodeProxy<TDGCSeqTemp>::UploadSeqBuf(Vulkan::Core::RenderFrame& frame) {
             frame.mCmdStagings.emplace(key, resHandle->size);
         }
     }
-
-    // dirty--;
 }
 
 template <class TDGCSeqTemp>
-MemoryPool::Type_STLVector<uint64_t> const& NodeProxy<TDGCSeqTemp>::GetIDs()
+MemoryPool::Type_STLVector<uint64_t> const& NodeProxy<TDGCSeqTemp>::GetSeqBufIDs()
     const {
     return mSeqBufIDs;
 }

@@ -60,6 +60,11 @@ void RenderPassBindingInfo_PSO::SetPipeline(const char* pipelineName,
     GeneratePipelineMetaData(mPipelineName);
 }
 
+void RenderPassBindingInfo_PSO::SetRTVClearValues(
+    Type_STLVector<std::optional<vk::ClearColorValue>> const& values) {
+    mRTVClearValues = values;
+}
+
 void RenderPassBindingInfo_PSO::GenerateLayoutData() {
     // auto pSeq = mDGCSeqBuf->GetBufferDGCSequence();
     //
@@ -176,6 +181,7 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
     RenderPassBinding::RenderInfo renderInfo {};
 
     // color attachment
+    uint32_t rtvCount {0};
     for (auto const& [_, info] : mRTVInfos) {
         const char* imageName;
         const char* viewName;
@@ -211,10 +217,21 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
             }
         }
 
+        bool clear = false;
+        if (!mRTVClearValues.empty() && mRTVClearValues.at(rtvCount)) {
+            clear = true;
+        }
+
         vk::RenderingAttachmentInfo color {};
         color.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal)
-            .setLoadOp(vk::AttachmentLoadOp::eDontCare)
             .setStoreOp(vk::AttachmentStoreOp::eStore);
+
+        if (clear) {
+            color.setLoadOp(vk::AttachmentLoadOp::eClear)
+                .setClearValue(*mRTVClearValues.at(rtvCount));
+        } else {
+            color.setLoadOp(vk::AttachmentLoadOp::eDontCare);
+        }
 
         auto idx = mRenderSequence.AddRenderResource(imageName);
 
@@ -223,12 +240,13 @@ void RenderPassBindingInfo_PSO::GenerateMetaData(void* descriptorPNext) {
 
         // if (color.loadOp != vk::AttachmentLoadOp::eClear) {
         AddBarrier({idx, vk::ImageLayout::eColorAttachmentOptimal,
-                    vk::AccessFlagBits2::eColorAttachmentRead
-                        | vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::AccessFlagBits2::eColorAttachmentWrite,
                     vk::PipelineStageFlagBits2::eColorAttachmentOutput});
         // }
 
         colors.emplace_back(imageName, viewName, color);
+
+        rtvCount++;
     }
 
     for (auto& [type, v] : mBuiltInInfos) {
@@ -901,23 +919,91 @@ void RenderPassBindingInfo_Copy::GenerateMetaData(void*) {
     for (auto const& [src, subMap] : mCopyRegionMap) {
         for (auto const& [dst, regionVars] : subMap) {
             if (!regionVars.empty()) {
-                auto& copyInfo = mBufferToBuffers.emplace_back();
-                
-                auto const& firstRegion = regionVars.front();
-                if (::std::get_if<vk::BufferCopy2>(&firstRegion)) {
-                    copyInfo.reserve(regionVars.size());
-                    for (auto const& regionVar : regionVars) {
-                        copyInfo.emplace_back(
-                            ::std::get<vk::BufferCopy2>(regionVar));
+                auto srcType = mRenderSequence.mResMgr[src.c_str()].GetType();
+                auto dstType = mRenderSequence.mResMgr[dst.c_str()].GetType();
+
+                if (srcType == dstType) {
+                    if (srcType == RenderResource::Type::Buffer) {
+                        auto& copyInfo = mBufferToBuffers.emplace_back();
+
+                        auto const& firstRegion = regionVars.front();
+                        if (::std::get_if<vk::BufferCopy2>(&firstRegion)) {
+                            copyInfo.reserve(regionVars.size());
+                            for (auto const& regionVar : regionVars) {
+                                copyInfo.emplace_back(
+                                    ::std::get<vk::BufferCopy2>(regionVar));
+                            }
+
+                            mDrawCallMgr.AddArgument_CopyBufferToBuffer(
+                                src.c_str(), dst.c_str(), copyInfo);
+
+                            generateBarrier(
+                                {src, dst,
+                                 DrawCallMetaData<DrawCallMetaDataType::Copy>::
+                                     Type::BufferToBuffer});
+                        }
+                    } else {
+                        auto& copyInfo = mImageToImages.emplace_back();
+
+                        auto const& firstRegion = regionVars.front();
+                        if (::std::get_if<vk::ImageCopy2>(&firstRegion)) {
+                            copyInfo.reserve(regionVars.size());
+                            for (auto const& regionVar : regionVars) {
+                                copyInfo.emplace_back(
+                                    ::std::get<vk::ImageCopy2>(regionVar));
+                            }
+
+                            mDrawCallMgr.AddArgument_CopyImageToImage(
+                                src.c_str(), dst.c_str(), copyInfo);
+
+                            generateBarrier(
+                                {src, dst,
+                                 DrawCallMetaData<DrawCallMetaDataType::Copy>::
+                                     Type::ImageToImage});
+                        }
                     }
+                } else {
+                    if (srcType == RenderResource::Type::Buffer) {
+                        auto& copyInfo = mBufferToImages.emplace_back();
 
-                    mDrawCallMgr.AddArgument_CopyBufferToBuffer(
-                        src.c_str(), dst.c_str(), copyInfo);
+                        auto const& firstRegion = regionVars.front();
+                        if (::std::get_if<vk::BufferImageCopy2>(&firstRegion)) {
+                            copyInfo.reserve(regionVars.size());
+                            for (auto const& regionVar : regionVars) {
+                                copyInfo.emplace_back(
+                                    ::std::get<vk::BufferImageCopy2>(
+                                        regionVar));
+                            }
 
-                    generateBarrier(
-                        {src, dst,
-                         DrawCallMetaData<DrawCallMetaDataType::Copy>::Type::
-                             BufferToBuffer});
+                            mDrawCallMgr.AddArgument_CopyBufferToImage(
+                                src.c_str(), dst.c_str(), copyInfo);
+
+                            generateBarrier(
+                                {src, dst,
+                                 DrawCallMetaData<DrawCallMetaDataType::Copy>::
+                                     Type::BufferToImage});
+                        }
+                    } else {
+                        auto& copyInfo = mImageToBuffers.emplace_back();
+
+                        auto const& firstRegion = regionVars.front();
+                        if (::std::get_if<vk::BufferImageCopy2>(&firstRegion)) {
+                            copyInfo.reserve(regionVars.size());
+                            for (auto const& regionVar : regionVars) {
+                                copyInfo.emplace_back(
+                                    ::std::get<vk::BufferImageCopy2>(
+                                        regionVar));
+                            }
+
+                            mDrawCallMgr.AddArgument_CopyImageToBuffer(
+                                src.c_str(), dst.c_str(), copyInfo);
+
+                            generateBarrier(
+                                {src, dst,
+                                 DrawCallMetaData<DrawCallMetaDataType::Copy>::
+                                     Type::ImageToBuffer});
+                        }
+                    }
                 }
 
                 // TODO: other copy types.

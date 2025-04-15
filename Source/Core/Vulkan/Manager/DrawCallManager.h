@@ -73,14 +73,17 @@ public:
         const char* src, const char* dst,
         Type_STLVector<vk::BufferCopy2> const& regions);
 
-    void AddArgument_CopyBufferToImage(const char* src, const char* dst,
-                                       const vk::BufferImageCopy2* region);
+    void AddArgument_CopyBufferToImage(
+        const char* src, const char* dst,
+        Type_STLVector<vk::BufferImageCopy2> const& regions);
 
-    void AddArgument_CopyImageToBuffer(const char* src, const char* dst,
-                                       const vk::BufferImageCopy2* region);
+    void AddArgument_CopyImageToBuffer(
+        const char* src, const char* dst,
+        Type_STLVector<vk::BufferImageCopy2> const& regions);
 
-    void AddArgument_CopyImageToImage(const char* src, const char* dst,
-                                      const vk::ImageCopy2* region);
+    void AddArgument_CopyImageToImage(
+        const char* src, const char* dst,
+        Type_STLVector<vk::ImageCopy2> const& regions);
 
     /*
      *   Update Argument methods

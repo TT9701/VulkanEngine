@@ -72,6 +72,10 @@ bool GUI::WantCaptureKeyboard() const {
     return ImGui::GetIO().WantCaptureKeyboard;
 }
 
+bool GUI::WantCaptureMouse() const {
+    return ImGui::GetIO().WantCaptureMouse;
+}
+
 void GUI::PrepareContext() {
     ImGui::CreateContext();
     ImGui_ImplSDL2_InitForVulkan(mWindow.GetPtr());

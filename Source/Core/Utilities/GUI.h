@@ -33,6 +33,7 @@ public:
     GUI& AddFrameRelatedContext(::std::function<void(RenderFrame&)>&& ctx);
 
     bool WantCaptureKeyboard() const;
+    bool WantCaptureMouse() const;
 
 private:
     void PrepareContext();
