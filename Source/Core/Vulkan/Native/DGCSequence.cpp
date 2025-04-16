@@ -24,8 +24,16 @@ DGCSeqBase::~DGCSeqBase() {
         mContext.GetDevice()->freeMemory(mPreprocessBuffer.memory);
 }
 
+Type_STLString DGCSeqBase::GetName() const {
+    return mName;
+}
+
 uint32_t DGCSeqBase::GetSequenceCount() const {
     return mMaxSequenceCount;
+}
+
+void DGCSeqBase::SetName(const char* name) {
+    mName = name;
 }
 
 PipelineLayout const* DGCSeqBase::GetPipelineLayout() const {
@@ -223,8 +231,6 @@ void DGCSeq_ESPipeline::ExecutePrerocess(vk::CommandBuffer cmd,
         .setIndirectAddressSize(buffer.GetStride());
 
     preprocessCmd.preprocessGeneratedCommandsEXT(mInfo, cmd);
-
-
 }
 
 DGCSeq_ESShader::DGCSeq_ESShader(VulkanContext& context,

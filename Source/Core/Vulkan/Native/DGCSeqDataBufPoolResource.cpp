@@ -27,7 +27,8 @@ void* DGCSeqDataBufPoolResource::ResourceHandle::GetStagingMappedPtr(
 
 DGCSeqDataBufPoolResource::DGCSeqDataBufPoolResource(
     uint32_t seqCount, uint32_t resIdx, VulkanContext& context,
-    RenderResourceManager& resMgr, DGCSeqManager& seqMgr, const char* seqName,
+    RenderResourceManager& resMgr, DGCSeqManager& seqMgr,
+    Type_STLString const& seqName,
     uint32_t seqStride)
     : mContext(context),
       mResMgr(resMgr),
@@ -61,7 +62,7 @@ DGCSeqDataBufPoolResource::DGCSeqDataBufPoolResource(
                                  | vk::BufferUsageFlagBits::eTransferDst,
                              Buffer::MemoryType::DeviceLocal, seqStride);
 
-    buf.SetBufferDGCSequence(mSeqMgr.GetSequenceRef(seqName));
+    buf.SetBufferDGCSequence(mSeqMgr.GetSequenceRef(seqName.c_str()));
 
     mHandle = buf.GetBufferHandle();
 }

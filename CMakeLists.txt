@@ -9,6 +9,8 @@ endif ()
 
 project (VulkanEngine)
 
+set (CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/Install")
+
 if (CUDA_VULKAN_INTEROP)
     enable_language (CUDA)
 endif ()

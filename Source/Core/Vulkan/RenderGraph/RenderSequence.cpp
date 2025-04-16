@@ -264,9 +264,7 @@ void RenderSequence::GeneratePreRenderBarriers() {
                  .dstStageMask = barInfo.stages,
                  .dstAccessMask = barInfo.access,
                  .oldLayout = vk::ImageLayout::eUndefined,
-                 .newLayout = barInfo.layout == vk::ImageLayout::eGeneral
-                                ? vk::ImageLayout::eShaderReadOnlyOptimal
-                                : barInfo.layout,
+                 .newLayout = barInfo.layout,
                  .aspect =
                      resource->GetTexUsage()
                              & vk::ImageUsageFlagBits::eDepthStencilAttachment

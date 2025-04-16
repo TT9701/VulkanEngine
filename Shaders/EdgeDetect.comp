@@ -1,0 +1,50 @@
+#version 460
+
+#extension GL_ARB_shading_language_include : require
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout (rgba16f,set = 0, binding = 0) uniform image2D ColorTex;
+
+layout (r32ui, set = 0, binding = 1) uniform uimage2D ModelIDTex;
+
+#include "Include/Structures.glsl"
+
+layout (set = 1, binding = 0) uniform UBO
+{
+    SceneData data;
+} ubo;
+
+void main() 
+{
+    if (ubo.data.selectedObjectID == -1) {
+        return;
+    }
+
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+
+    uint modelID_center = imageLoad(ModelIDTex, texelCoord).x;
+    if (modelID_center != ubo.data.selectedObjectID) {
+        return;
+    }
+
+	ivec2 size = imageSize(ColorTex);
+
+    if (texelCoord.x >= size.x || texelCoord.y >= size.y) {
+        return;
+    }
+
+    for (int x = -2; x <= 2; x++){
+        for (int y = -2; y <= 2; y++){
+            ivec2 coord = texelCoord + ivec2(x, y);
+            if (coord.x < 0 || coord.x >= size.x || coord.y < 0 || coord.y >= size.y) {
+                continue;
+            }
+            uint modelID = imageLoad(ModelIDTex, coord).x;
+            if (modelID != modelID_center) {
+                imageStore(ColorTex, texelCoord, vec4(1.0, 1.0, 0.0, 1.0));
+                return;
+            }
+        }
+    }
+}

@@ -33,12 +33,12 @@ RenderFrame::RenderFrame(VulkanContext& context,
 
     mModelIDBufferName = "ModelID Readback Buffer";
     mModelIDBufferName = mModelIDBufferName + ::std::to_string(mIdx).c_str();
-    mRenderResMgr.CreateBuffer(
+    mRenderResMgr.CreateBuffer_ScreenSizeRelated(
         mModelIDBufferName.c_str(), 1600 * 900 * sizeof(uint32_t),
         vk::BufferUsageFlagBits::eStorageBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress
             | vk::BufferUsageFlagBits::eTransferDst,
-        Buffer::MemoryType::ReadBack);
+        Buffer::MemoryType::ReadBack, sizeof(uint32_t));
 }
 
 void RenderFrame::PrepareBindlessDescPool(

@@ -27,8 +27,8 @@ public:
     using SequenceDataBufferPool =
         IntelliDesign_NS::Core::IDDeferredResourcePool<
             IntelliDesign_NS::Core::IDPool_Simple, DGCSeqDataBufPoolResource,
-            VulkanContext&, RenderResourceManager&, DGCSeqManager&, const char*,
-            uint32_t>;
+            VulkanContext&, RenderResourceManager&, DGCSeqManager&,
+            Type_STLString, uint32_t>;
 
 public:
     DGCSeqBase(VulkanContext& context, PipelineManager& pipelineMgr,
@@ -36,6 +36,8 @@ public:
                uint32_t maxESObjectCount);
 
     virtual ~DGCSeqBase();
+
+    Type_STLString GetName() const;
 
     uint32_t GetSequenceCount() const;
 
@@ -53,6 +55,8 @@ public:
                                   vk::CommandBuffer preprocessCmd) = 0;
 
 protected:
+    void SetName(const char* name);
+
     vk::PipelineBindPoint GetPipelineBindPoint();
 
     Type_STLVector<vk::ShaderStageFlagBits> GetStageFlagBitArray();
@@ -67,6 +71,8 @@ protected:
 protected:
     VulkanContext& mContext;
     PipelineManager& mPipelineMgr;
+
+    Type_STLString mName;
 
     uint32_t mMaxSequenceCount;
     uint32_t mMaxESObjectCount;
@@ -87,6 +93,20 @@ protected:
 
     UniquePtr<SequenceDataBufferPool> mSeqDataBufPool {
         nullptr};  ///<- filled by DGCSeqManager
+};
+
+struct DGCSeqInfo_Pipeline {
+    uint32_t maxSequenceCount {0};
+    uint32_t maxDrawCount {0};
+    uint32_t maxPipelineCount {0};
+
+    Type_STLString initialPipelineName;
+
+    bool explicitPreprocess = false;
+
+    Type_STLString pipelineLayoutName;
+
+    Type_STLVector<Type_STLString> pipelineNamesInES {};
 };
 
 class DGCSeq_ESPipeline : public DGCSeqBase {
@@ -117,6 +137,18 @@ private:
     vk::GeneratedCommandsInfoEXT mInfo {};
 };
 
+struct DGCSeqInfo_Shader {
+    uint32_t maxSequenceCount {0};
+    uint32_t maxDrawCount {0};
+    uint32_t maxShaderCount {0};
+
+    Type_STLVector<ShaderIDInfo> initialShaderIdInfos {};
+
+    bool explicitPreprocess = false;
+
+    Type_STLVector<ShaderIDInfo> shaderInfosInES {};
+};
+
 class DGCSeq_ESShader : public DGCSeqBase {
 public:
     DGCSeq_ESShader(VulkanContext& context, PipelineManager& pipelineMgr,
@@ -126,8 +158,7 @@ public:
     DGCSeq_ESShader& AddShader(ShaderIDInfo const& idInfo);
 
     template <class TDGCSeqTemplate>
-    void MakeSequenceLayout(Type_STLVector<ShaderIDInfo> const& idInfos,
-                            bool explicitPreprocess = false);
+    void MakeSequenceLayout(DGCSeqInfo_Shader const& info);
 
     void MakeExecutionSet(
         Type_STLVector<ShaderIDInfo> const& initialShaderIdInfos);
@@ -145,8 +176,7 @@ private:
     uint32_t ShaderStageToIdx(vk::ShaderStageFlagBits stage) const;
 
     template <class TDGCSeqTemplate>
-    void MakeSequenceLayout(ShaderIDInfo const& idInfo,
-                            bool explicitPreprocess = false);
+    void _MakeSequenceLayout(DGCSeqInfo_Shader const& info);
 
     void MakeExecutionSet(ShaderIDInfo const& initialShaderIdInfo);
 
@@ -162,6 +192,12 @@ private:
 };
 
 template <class TDGCSeqTemplate>
+Type_STLString GetDGCSeqName(DGCSeqInfo_Pipeline const& info);
+
+template <class TDGCSeqTemplate>
+Type_STLString GetDGCSeqName(DGCSeqInfo_Shader const& info);
+
+template <class TDGCSeqTemplate>
 void DGCSeq_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
                                            bool explicitPreprocess) {
     mLayout.CreateLayout<TDGCSeqTemplate>(
@@ -174,18 +210,19 @@ void DGCSeq_ESPipeline::MakeSequenceLayout(const char* pipelineLayoutName,
 }
 
 template <class TDGCSeqTemplate>
-void DGCSeq_ESShader::MakeSequenceLayout(
-    Type_STLVector<ShaderIDInfo> const& idInfos, bool explicitPreprocess) {
+void DGCSeq_ESShader::MakeSequenceLayout(DGCSeqInfo_Shader const& info) {
     mUseExecutionSet = TDGCSeqTemplate::_UseExecutionSet_ ? true : false;
     mIsCompute = TDGCSeqTemplate::_IsCompute_ ? true : false;
     mShaderCount = TDGCSeqTemplate::_IsCompute_ ? 1 : 3;
     mInitialShaders.resize(mShaderCount);
 
+    auto const& idInfos = info.initialShaderIdInfos;
+
     VE_ASSERT(mShaderCount == idInfos.size(),
               "Invalid number of shaders for the sequence.");
 
     if (idInfos.size() == 1) {
-        MakeSequenceLayout<TDGCSeqTemplate>(idInfos[0], explicitPreprocess);
+        _MakeSequenceLayout<TDGCSeqTemplate>(info);
         return;
     }
 
@@ -202,34 +239,76 @@ void DGCSeq_ESShader::MakeSequenceLayout(
         }
     }
 
+    auto seqName = GetDGCSeqName<TDGCSeqTemplate>(info);
+
     auto program = mShaderMgr.CreateProgram(
-        typeid(TDGCSeqTemplate).name(), shaderObjects[TaskShaderIdx],
+        seqName.c_str(), shaderObjects[TaskShaderIdx],
         shaderObjects[MeshShaderIdx], shaderObjects[FragmentShaderIdx]);
 
-    auto pipelineLayout =
-        mPipelineMgr.CreateLayout(typeid(TDGCSeqTemplate).name(), program);
+    auto pipelineLayout = mPipelineMgr.CreateLayout(seqName.c_str(), program);
 
     mLayout.CreateLayout<TDGCSeqTemplate>(mContext, pipelineLayout,
-                                          explicitPreprocess);
+                                          info.explicitPreprocess);
 }
 
 template <class TDGCSeqTemplate>
-void DGCSeq_ESShader::MakeSequenceLayout(ShaderIDInfo const& idInfo,
-                                         bool explicitPreprocess) {
+void DGCSeq_ESShader::_MakeSequenceLayout(DGCSeqInfo_Shader const& info) {
+    auto const& idInfo = info.initialShaderIdInfos[0];
+
     VE_ASSERT(idInfo.stage == vk::ShaderStageFlagBits::eCompute,
               "Invalid shader stage for the sequence.");
 
     auto shader = mShaderMgr.GetShaderObject(idInfo.name, idInfo.stage,
                                              idInfo.macros, idInfo.entry);
 
-    auto program =
-        mShaderMgr.CreateProgram(typeid(TDGCSeqTemplate).name(), shader);
+    auto seqName = GetDGCSeqName<TDGCSeqTemplate>(info);
 
-    auto pipelineLayout =
-        mPipelineMgr.CreateLayout(typeid(TDGCSeqTemplate).name(), program);
+    auto program = mShaderMgr.CreateProgram(seqName.c_str(), shader);
+
+    auto pipelineLayout = mPipelineMgr.CreateLayout(seqName.c_str(), program);
 
     mLayout.CreateLayout<TDGCSeqTemplate>(mContext, pipelineLayout,
-                                          explicitPreprocess);
+                                          info.explicitPreprocess);
+}
+
+template <class TDGCSeqTemplate>
+Type_STLString GetDGCSeqName(DGCSeqInfo_Pipeline const& info) {
+    Type_STLString name {typeid(TDGCSeqTemplate).name()};
+
+    name = name + "_";
+    name = name + info.initialPipelineName;
+
+    for (const auto& objName : info.pipelineNamesInES) {
+        name = name + "_";
+        name = name + objName;
+    }
+
+    name = name + "_" + std::to_string(info.maxSequenceCount).c_str() + "_"
+         + std::to_string(info.maxDrawCount).c_str() + "_"
+         + std::to_string(info.maxPipelineCount).c_str();
+
+    return name;
+}
+
+template <class TDGCSeqTemplate>
+Type_STLString GetDGCSeqName(DGCSeqInfo_Shader const& info) {
+    Type_STLString name {typeid(TDGCSeqTemplate).name()};
+
+    for (const auto& shaderIdInfo : info.initialShaderIdInfos) {
+        name = name + "_";
+        name = name + shaderIdInfo.name;
+    }
+
+    for (const auto& shaderIdInfo : info.shaderInfosInES) {
+        name = name + "_";
+        name = name + shaderIdInfo.name;
+    }
+
+    name = name + "_" + std::to_string(info.maxSequenceCount).c_str() + "_"
+         + std::to_string(info.maxDrawCount).c_str() + "_"
+         + std::to_string(info.maxShaderCount).c_str();
+
+    return name;
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

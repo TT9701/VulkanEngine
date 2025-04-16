@@ -30,9 +30,9 @@ void main()
     uint InMaterialIdx = constants.meshMaterialIndexBuffer.materialIndices[InMeshIdx.index];
     Material material = constants.materialBuffer.materials[InMaterialIdx];
 
-    if (InMeshIdx.objectID == ubo.data.selectedObjectID){
-        material.diffuse.xyz *= vec3(2.0);
-    }
+    // if (InMeshIdx.objectID == ubo.data.selectedObjectID){
+    //     material.diffuse.xyz *= vec3(2.0);
+    // }
 
     // vec3 texColor = texture(sceneTexs[ubo.data.texIndex], InUV).xyz;
 

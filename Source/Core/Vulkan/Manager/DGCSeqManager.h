@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <initializer_list>
+#include "Core/System/MemoryPool/MemoryPool.h"
 #include "Core/Vulkan/Manager/RenderResourceManager.h"
 #include "Core/Vulkan/Native/DGCSequence.h"
 
@@ -44,28 +47,6 @@ private:
     RenderResource& buffer;
 };
 
-struct DGCSeqInfo_Pipeline {
-    uint32_t maxSequenceCount {0};
-    uint32_t maxDrawCount {0};
-    uint32_t maxPipelineCount {0};
-
-    const char* initialPipelineName = nullptr;
-
-    bool explicitPreprocess = false;
-
-    const char* pipelineLayoutName = nullptr;
-};
-
-struct DGCSeqInfo_Shader {
-    uint32_t maxSequenceCount {0};
-    uint32_t maxDrawCount {0};
-    uint32_t maxShaderCount {0};
-
-    Type_STLVector<ShaderIDInfo> initialShaderIdInfos {};
-
-    bool explicitPreprocess = false;
-};
-
 class DGCSeqManager {
     using Type_Sequences = Type_STLUnorderedMap_String<SharedPtr<DGCSeqBase>>;
 
@@ -76,17 +57,14 @@ public:
 
 public:
     template <class TDGCSeqTemplate>
-    DGCSeq_ESPipeline& CreateSequence(
-        DGCSeqInfo_Pipeline const& info,
-        ::std::initializer_list<const char*> pipelineNamesInES = {});
+    DGCSeq_ESPipeline& CreateSequence(DGCSeqInfo_Pipeline const& info);
 
     template <class TDGCSeqTemplate>
-    DGCSeq_ESShader& CreateSequence(
-        DGCSeqInfo_Shader const& info,
-        ::std::initializer_list<ShaderIDInfo> shaderInfosInES = {});
+    DGCSeq_ESShader& CreateSequence(DGCSeqInfo_Shader const& info);
 
     template <class TDGCSeqTemplate>
-    DGCSeqDataBuffer::Data<TDGCSeqTemplate> CreateDataBuffer(const char* name);
+    DGCSeqDataBuffer::Data<TDGCSeqTemplate> CreateDataBuffer(
+        const char* name, DGCSeqBase const& seq);
 
 private:
     template <class TDGCSeqTemplate>
@@ -94,7 +72,10 @@ private:
 
 public:
     template <class TDGCSeqTemplate>
-    DGCSeqBase& GetSequence();
+    DGCSeqBase& GetSequence(DGCSeqInfo_Pipeline const& info);
+
+    template <class TDGCSeqTemplate>
+    DGCSeqBase& GetSequence(DGCSeqInfo_Shader const& info);
 
     DGCSeqBase& GetSequence(const char* name);
 
@@ -118,28 +99,30 @@ DGCSeqDataBuffer::Data<T>::~Data() {
 
 template <class TDGCSeqTemplate>
 DGCSeq_ESPipeline& DGCSeqManager::CreateSequence(
-    DGCSeqInfo_Pipeline const& info,
-    std::initializer_list<const char*> pipelineNamesInES) {
+    DGCSeqInfo_Pipeline const& info) {
     auto ptr = MakeShared<DGCSeq_ESPipeline>(
         mContext, mPipelineMgr, info.maxSequenceCount, info.maxDrawCount,
         info.maxPipelineCount);
 
-    ptr->MakeSequenceLayout<TDGCSeqTemplate>(info.pipelineLayoutName
-                                                 ? info.pipelineLayoutName
-                                                 : info.initialPipelineName,
-                                             info.explicitPreprocess);
+    ptr->MakeSequenceLayout<TDGCSeqTemplate>(
+        info.pipelineLayoutName ? info.pipelineLayoutName.c_str()
+                                : info.initialPipelineName.c_str(),
+        info.explicitPreprocess);
 
-    for (const auto& name : pipelineNamesInES) {
-        ptr->AddPipeline(name);
+    for (const auto& name : info.pipelineNamesInES) {
+        ptr->AddPipeline(name.c_str());
     }
 
-    ptr->MakeExecutionSet(info.initialPipelineName);
+    ptr->MakeExecutionSet(info.initialPipelineName.c_str());
     ptr->Finalize();
 
     const auto pRes = ptr.get();
 
-    auto const& [it, success] =
-        mSequences.try_emplace(typeid(TDGCSeqTemplate).name(), std::move(ptr));
+    Type_STLString name = GetDGCSeqName<TDGCSeqTemplate>(info);
+
+    ptr->SetName(name.c_str());
+
+    auto const& [it, success] = mSequences.try_emplace(name, std::move(ptr));
 
     // create related buffer pool
     CreateSequenceBufferPool<TDGCSeqTemplate>(pRes);
@@ -148,17 +131,14 @@ DGCSeq_ESPipeline& DGCSeqManager::CreateSequence(
 }
 
 template <class TDGCSeqTemplate>
-DGCSeq_ESShader& DGCSeqManager::CreateSequence(
-    DGCSeqInfo_Shader const& info,
-    std::initializer_list<ShaderIDInfo> shaderInfosInES) {
+DGCSeq_ESShader& DGCSeqManager::CreateSequence(DGCSeqInfo_Shader const& info) {
     auto ptr = MakeShared<DGCSeq_ESShader>(
         mContext, mPipelineMgr, mShaderMgr, info.maxSequenceCount,
         info.maxDrawCount, info.maxShaderCount);
 
-    ptr->MakeSequenceLayout<TDGCSeqTemplate>(info.initialShaderIdInfos,
-                                             info.explicitPreprocess);
+    ptr->MakeSequenceLayout<TDGCSeqTemplate>(info);
 
-    for (const auto& idInfo : shaderInfosInES) {
+    for (const auto& idInfo : info.shaderInfosInES) {
         ptr->AddShader(idInfo);
     }
 
@@ -167,8 +147,11 @@ DGCSeq_ESShader& DGCSeqManager::CreateSequence(
 
     const auto pRes = ptr.get();
 
-    auto const& [it, success] =
-        mSequences.try_emplace(typeid(TDGCSeqTemplate).name(), std::move(ptr));
+    Type_STLString name = GetDGCSeqName<TDGCSeqTemplate>(info);
+
+    ptr->SetName(name.c_str());
+
+    auto const& [it, success] = mSequences.try_emplace(name, std::move(ptr));
 
     // create related buffer pool
     CreateSequenceBufferPool<TDGCSeqTemplate>(pRes);
@@ -178,8 +161,8 @@ DGCSeq_ESShader& DGCSeqManager::CreateSequence(
 
 template <class TDGCSeqTemplate>
 DGCSeqDataBuffer::Data<TDGCSeqTemplate> DGCSeqManager::CreateDataBuffer(
-    const char* name) {
-    auto seqTemplateName = typeid(TDGCSeqTemplate).name();
+    const char* name, DGCSeqBase const& seq) {
+    auto seqTemplateName = seq.GetName();
     auto sequencePtr = mSequences.at(seqTemplateName).get();
 
     auto stride = sizeof(TDGCSeqTemplate);
@@ -192,7 +175,7 @@ DGCSeqDataBuffer::Data<TDGCSeqTemplate> DGCSeqManager::CreateDataBuffer(
             | vk::BufferUsageFlagBits::eTransferDst,
         Buffer::MemoryType::DeviceLocal, stride);
 
-    buf.SetBufferDGCSequence(mSequences.at(typeid(TDGCSeqTemplate).name()));
+    buf.SetBufferDGCSequence(mSequences.at(seqTemplateName));
 
     return DGCSeqDataBuffer::GetData<TDGCSeqTemplate>(
         MakeUnique<DGCSeqDataBuffer>(mContext, buf, sequenceCount, stride));
@@ -202,12 +185,19 @@ template <class TDGCSeqTemplate>
 void DGCSeqManager::CreateSequenceBufferPool(DGCSeqBase* seq) {
     seq->mSeqDataBufPool = MakeUnique<DGCSeqBase::SequenceDataBufferPool>(
         seq->GetSequenceCount(), mContext, mRenderResMgr, *this,
-        typeid(TDGCSeqTemplate).name(), sizeof(TDGCSeqTemplate));
+        seq->GetName(), sizeof(TDGCSeqTemplate));
 }
 
 template <class TDGCSeqTemplate>
-DGCSeqBase& DGCSeqManager::GetSequence() {
-    return GetSequence(typeid(TDGCSeqTemplate).name());
+DGCSeqBase& DGCSeqManager::GetSequence(DGCSeqInfo_Pipeline const& info) {
+    auto name = GetDGCSeqName<TDGCSeqTemplate>(info);
+    return GetSequence(name.c_str());
+}
+
+template <class TDGCSeqTemplate>
+DGCSeqBase& DGCSeqManager::GetSequence(DGCSeqInfo_Shader const& info) {
+    auto name = GetDGCSeqName<TDGCSeqTemplate>(info);
+    return GetSequence(name.c_str());
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

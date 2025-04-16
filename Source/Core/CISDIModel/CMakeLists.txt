@@ -66,26 +66,26 @@ set_target_properties (INTELLI_DS_MemoryPool
 function (AddExternalLibrary targetName type libName)
     if (NOT TARGET ${targetName})
         add_library (${targetName} ${type} IMPORTED)
+
         if (type STREQUAL "SHARED")
-            set_target_properties (${targetName} PROPERTIES 
+            set_target_properties (${targetName} PROPERTIES
                 IMPORTED_LOCATION_DEBUG ${INTELLIGENDESIGN_EXTERNAL_LIB_PATH}/${libName}d.dll
                 IMPORTED_IMPLIB_DEBUG ${INTELLIGENDESIGN_EXTERNAL_LIB_PATH}/${libName}d.lib
                 IMPORTED_LOCATION ${INTELLIGENDESIGN_EXTERNAL_LIB_PATH}/${libName}.dll
                 IMPORTED_IMPLIB ${INTELLIGENDESIGN_EXTERNAL_LIB_PATH}/${libName}.lib)
         else ()
-            set_target_properties (${targetName} PROPERTIES 
+            set_target_properties (${targetName} PROPERTIES
                 IMPORTED_LOCATION_DEBUG ${INTELLIGENDESIGN_EXTERNAL_LIB_PATH}/${libName}d.lib
                 IMPORTED_LOCATION ${INTELLIGENDESIGN_EXTERNAL_LIB_PATH}/${libName}.lib)
-        endif()
+        endif ()
     endif ()
-endfunction()
+endfunction ()
 
-AddExternalLibrary(EXTERNAL_ASSIMP SHARED "assimp-vc143-mt")
-AddExternalLibrary(EXTERNAL_MESHOPTIMIZER SHARED "meshoptimizer")
-AddExternalLibrary(EXTERNAL_FBXSDK SHARED "libfbxsdk")
+AddExternalLibrary (EXTERNAL_ASSIMP SHARED "assimp-vc143-mt")
+AddExternalLibrary (EXTERNAL_MESHOPTIMIZER SHARED "meshoptimizer")
+AddExternalLibrary (EXTERNAL_FBXSDK SHARED "libfbxsdk")
 
-target_compile_definitions(EXTERNAL_FBXSDK INTERFACE FBXSDK_SHARED)
-
+target_compile_definitions (EXTERNAL_FBXSDK INTERFACE FBXSDK_SHARED)
 
 target_link_libraries (CISDI_ModelData
     PRIVATE

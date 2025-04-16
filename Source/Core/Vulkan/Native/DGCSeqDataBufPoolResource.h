@@ -44,7 +44,7 @@ public:
     DGCSeqDataBufPoolResource(uint32_t seqCount, uint32_t resIdx,
                               VulkanContext& context,
                               RenderResourceManager& resMgr,
-                              DGCSeqManager& seqMgr, const char* seqName,
+                              DGCSeqManager& seqMgr, Type_STLString const& seqName,
                               uint32_t seqStride);
 
     ::std::optional<_Type_Resource_> _Get_Resource_(size_t id);

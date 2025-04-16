@@ -509,7 +509,7 @@ void ShaderBase::GLSLReflect(Type_ANSIString const& source) {
 void ShaderBase::GLSLReflect_DescriptorBindingName(
     Type_STLVector<Type_ANSIString> const& layouts) {
     ::std::regex reg(
-        R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*(.*)\)\s*(buffer|uniform)\s*(image2D|sampler2D)*\s+(\w*)[;|{|\s]*)");
+        R"(.*(set)\s*=\s*([0-9])+,\s*(binding)\s*=\s*([0-9])+\s*(.*)\)\s*(buffer|uniform)\s*(image2D|sampler2D|uimage2D)*\s+(\w*)[;|{|\s]*)");
     ::std::smatch m;
     for (auto const& layout : layouts) {
         auto pos = layout.cbegin();
