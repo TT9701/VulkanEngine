@@ -95,6 +95,7 @@ private:
     using PrepareDGCDrawCommandSequenceTemp =
         DGCSeqTemplate<true, DGCExecutionSetType::None>;
     void prepare_dgc_draw_command();
+    IDVC_NS::DGCSeqInfo_Shader mDGCDrawCmdInfo {};
 
     /**
      *  dgc dispath without execution set
@@ -105,6 +106,7 @@ private:
 
     using DispatchSequenceTemp =
         DGCSeqTemplate<true, DGCExecutionSetType::None, IDCMCore_NS::Float3>;
+    IDVC_NS::DGCSeqInfo_Shader mDGCDispatchInfo {};
 
     /**
      *  dgc draw mesh task
@@ -113,6 +115,18 @@ private:
 
     using DrawSequenceTemp = DGCSeqTemplate<false, DGCExecutionSetType::None,
                                             IDVC_NS::MeshletPushConstants>;
+    IDVC_NS::DGCSeqInfo_Shader mDGCDrawInfo {};
+
+    /*
+     * edge detect
+     */
+    void PrepareEdgeDetectSequence();
+
+    using EdgeDetectSequenceTemp =
+        DGCSeqTemplate<true, DGCExecutionSetType::None>;
+    IDVC_NS::DGCSeqInfo_Shader mDGCEdgeDetectInfo {};
+
+
 
     void ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame);
 

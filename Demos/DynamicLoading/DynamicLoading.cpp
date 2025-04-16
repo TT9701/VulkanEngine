@@ -1,5 +1,6 @@
 ﻿#include "DynamicLoading.h"
 
+#include "Core/Application/Application.h"
 #include "Core/System/FuturePromiseTaskCoarse.hpp"
 #include "Core/System/GameTimer.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
@@ -63,9 +64,9 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
     mScene = MakeShared<IDCSG_NS::Scene>(GetDGCSeqMgr(), *mGeoMgr, *mModelMgr,
                                          gMemPool);
 
-    Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
+    // Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
 
-    mModelPathes = ReadLinesFromFile(testModelPathes);
+    // mModelPathes = ReadLinesFromFile(testModelPathes);
 
     mSelectedNodeIdx.resize(1);
 }
@@ -161,6 +162,11 @@ void DynamicLoading::LoadShaders() {
     shaderMgr.CreateShaderObjectFromGLSL(
         "prepareDGC", SHADER_PATH_CSTR("PrepareGDCBuffer_test.comp"),
         vk::ShaderStageFlagBits::eCompute);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "EdgeDetect", SHADER_PATH_CSTR("EdgeDetect.comp"),
+        vk::ShaderStageFlagBits::eCompute,
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable, true);
 }
 
 void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
@@ -201,13 +207,14 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
 void DynamicLoading::Update_OnResize() {
     Application::Update_OnResize();
 
+    auto& vulkanContext = GetVulkanContext();
     auto& window = GetSDLWindow();
     auto& renderResMgr = GetRenderResMgr();
 
     vk::Extent2D extent = {static_cast<uint32_t>(window.GetWidth()),
                            static_cast<uint32_t>(window.GetHeight())};
 
-    mMainCamera->SetAspect(extent.width / extent.height);
+    mMainCamera->SetAspect((float)extent.width / extent.height);
 
     renderResMgr.ResizeResources_ScreenSizeRelated(extent);
 
@@ -224,6 +231,37 @@ void DynamicLoading::Update_OnResize() {
 
     mRenderSequence.GeneratePreRenderBarriers();
     mRenderSequence.ExecutePreRenderBarriers();
+
+    auto& dgcDispatchTestBuf = renderResMgr["dgc_dispatch_test"];
+
+    auto& dgcEdgeDetectBuf = renderResMgr["dgc_edge_detect"];
+
+    auto stagingDispatchTest = vulkanContext.CreateStagingBuffer(
+        "", dgcDispatchTestBuf.GetBufferSize());
+    auto ptr = (DispatchSequenceTemp*)stagingDispatchTest->GetMapPtr();
+    ptr->command = vk::DispatchIndirectCommand {
+        (uint32_t)::std::ceil(extent.width / 16.0),
+        (uint32_t)::std::ceil(extent.height / 16.0), 1};
+
+    auto stagingEdgeDetect =
+        vulkanContext.CreateStagingBuffer("", dgcEdgeDetectBuf.GetBufferSize());
+    auto ptr2 = (EdgeDetectSequenceTemp*)stagingEdgeDetect->GetMapPtr();
+    ptr2->command = vk::DispatchIndirectCommand {
+        (uint32_t)::std::ceil(extent.width / 16.0),
+        (uint32_t)::std::ceil(extent.height / 16.0), 1};
+
+    {
+        auto cmd = vulkanContext.CreateCmdBufToBegin(
+            vulkanContext.GetQueue(QueueType::Transfer));
+        vk::BufferCopy cmdBufCopy {};
+        cmdBufCopy.setSize(dgcDispatchTestBuf.GetBufferSize());
+        cmd->copyBuffer(stagingDispatchTest->GetHandle(),
+                        dgcDispatchTestBuf.GetBufferHandle(), cmdBufCopy);
+
+        cmdBufCopy.setSize(dgcEdgeDetectBuf.GetBufferSize());
+        cmd->copyBuffer(stagingEdgeDetect->GetHandle(),
+                        dgcEdgeDetectBuf.GetBufferHandle(), cmdBufCopy);
+    }
 }
 
 void DynamicLoading::UpdateScene() {
@@ -314,6 +352,7 @@ void DynamicLoading::Prepare() {
     prepare_compute_sequence();
     prepare_dgc_draw_command();
     prepare_draw_mesh_task();
+    PrepareEdgeDetectSequence();
 
     PrepareUIContext();
 
@@ -323,22 +362,21 @@ void DynamicLoading::Prepare() {
 }
 
 void DynamicLoading::prepare_dgc_draw_command() {
-    const uint32_t sequenceCount = 1;
-    const uint32_t maxShaderCount = 1;
-    const uint32_t maxDrawCount = 1;
+    mDGCDrawCmdInfo.maxDrawCount = 1;
+    mDGCDrawCmdInfo.maxSequenceCount = 1;
+    mDGCDrawCmdInfo.maxShaderCount = 1;
+    mDGCDrawCmdInfo.initialShaderIdInfos = {
+        {"prepareDGC", vk::ShaderStageFlagBits::eCompute}};
 
     auto& dgcMgr = GetDGCSeqMgr();
 
     auto& sequence = dgcMgr.CreateSequence<PrepareDGCDrawCommandSequenceTemp>(
-        {sequenceCount,
-         maxDrawCount,
-         maxShaderCount,
-         {{"prepareDGC", vk::ShaderStageFlagBits::eCompute}}});
+        mDGCDrawCmdInfo);
 
     // buffers
     {
         auto data = dgcMgr.CreateDataBuffer<PrepareDGCDrawCommandSequenceTemp>(
-            "dgc_dispatch_for_draw");
+            "dgc_dispatch_for_draw", sequence);
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].command = vk::DispatchIndirectCommand {1, 1, 1};
@@ -347,28 +385,29 @@ void DynamicLoading::prepare_dgc_draw_command() {
 }
 
 void DynamicLoading::prepare_compute_sequence() {
-    const uint32_t sequenceCount = 1;
-    const uint32_t maxPipelineCount = 1;
-    const uint32_t maxDrawCount = 1;
+    auto& window = GetSDLWindow();
+
+    mDGCDispatchInfo.maxDrawCount = 1;
+    mDGCDispatchInfo.maxSequenceCount = 1;
+    mDGCDispatchInfo.maxShaderCount = 1;
+    mDGCDispatchInfo.initialShaderIdInfos = {
+        {"computeDraw", vk::ShaderStageFlagBits::eCompute}};
 
     auto& dgcMgr = GetDGCSeqMgr();
 
-    auto& sequence = dgcMgr.CreateSequence<DispatchSequenceTemp>(
-        {sequenceCount,
-         maxDrawCount,
-         maxPipelineCount,
-         {{"computeDraw", vk::ShaderStageFlagBits::eCompute}}});
+    auto& sequence =
+        dgcMgr.CreateSequence<DispatchSequenceTemp>(mDGCDispatchInfo);
 
     // buffers
     {
-        auto data =
-            dgcMgr.CreateDataBuffer<DispatchSequenceTemp>("dgc_dispatch_test");
+        auto data = dgcMgr.CreateDataBuffer<DispatchSequenceTemp>(
+            "dgc_dispatch_test", sequence);
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].pushConstant = _baseColorFactor;
             data.data[i]
-                .command.setX((uint32_t)std::ceil(1600 / 16.0))
-                .setY((uint32_t)std::ceil(900 / 16.0))
+                .command.setX((uint32_t)std::ceil(window.GetWidth() / 16.0))
+                .setY((uint32_t)std::ceil(window.GetHeight() / 16.0))
                 .setZ(1);
         }
     }
@@ -393,17 +432,45 @@ void DynamicLoading::prepare_draw_mesh_task() {
     meshMacros.emplace("SHADER_VALIDITY_CHECK", "1");
 #endif
 
-    const uint32_t maxShaderCount = 1;
+    mDGCDrawInfo.maxDrawCount = DGC_MAX_DRAW_COUNT;
+    mDGCDrawInfo.maxSequenceCount = 2;
+    mDGCDrawInfo.maxShaderCount = 1;
+    mDGCDrawInfo.initialShaderIdInfos = {
+        {"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
+        {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
+        {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}};
 
     auto& dgcMgr = GetDGCSeqMgr();
 
-    dgcMgr.CreateSequence<DrawSequenceTemp>(
-        {2,
-         DGC_MAX_DRAW_COUNT,
-         maxShaderCount,
-         {{"Mesh shader task", vk::ShaderStageFlagBits::eTaskEXT, taskMacros},
-          {"Mesh shader mesh", vk::ShaderStageFlagBits::eMeshEXT, meshMacros},
-          {"Mesh shader fragment", vk::ShaderStageFlagBits::eFragment}}});
+    dgcMgr.CreateSequence<DrawSequenceTemp>(mDGCDrawInfo);
+}
+
+void DynamicLoading::PrepareEdgeDetectSequence() {
+    auto& window = GetSDLWindow();
+
+    mDGCEdgeDetectInfo.maxDrawCount = 1;
+    mDGCEdgeDetectInfo.maxSequenceCount = 1;
+    mDGCEdgeDetectInfo.maxShaderCount = 1;
+    mDGCEdgeDetectInfo.initialShaderIdInfos = {
+        {"EdgeDetect", vk::ShaderStageFlagBits::eCompute}};
+
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence =
+        dgcMgr.CreateSequence<EdgeDetectSequenceTemp>(mDGCEdgeDetectInfo);
+
+    // buffers
+    {
+        auto data = dgcMgr.CreateDataBuffer<EdgeDetectSequenceTemp>(
+            "dgc_edge_detect", sequence);
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i]
+                .command.setX((uint32_t)std::ceil(window.GetWidth() / 16.0))
+                .setY((uint32_t)std::ceil(window.GetHeight() / 16.0))
+                .setZ(1);
+        }
+    }
 }
 
 void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
@@ -454,8 +521,9 @@ bool DynamicLoading::AddNewNode(const char* modelPath) {
     }
 
     auto pTask = mModelLoadingThread.Submit(true, true, [this, path]() {
-        auto pBufferPool =
-            GetDGCSeqMgr().GetSequence<DrawSequenceTemp>().GetBufferPool();
+        auto pBufferPool = GetDGCSeqMgr()
+                               .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
+                               .GetBufferPool();
 
         auto nodeProxy = MakeShared<IDCSG_NS::NodeProxy<DrawSequenceTemp>>(
             mScene->MakeNode(path.c_str()), pBufferPool);
@@ -557,7 +625,7 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
-        frame.GetQueryPool().ResetPool(cmd.GetHandle(), 6);
+        frame.GetQueryPool().ResetPool(cmd.GetHandle(), 10);
 
         frame.GetQueryPool().BeginRange(cmd.GetHandle(), "dispatch");
 
@@ -603,7 +671,17 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         frame.GetQueryPool().EndRange(cmd.GetHandle(), "draw");
 
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "CopyModelID");
+
         mRenderSequence.RecordPass("CopyModelID", cmd.GetHandle());
+
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "CopyModelID");
+
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "EdgeDetect");
+
+        mRenderSequence.RecordPass("DGC_EdgeDetect", cmd.GetHandle());
+
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "EdgeDetect");
 
         cmd.End();
 
@@ -666,8 +744,9 @@ void DynamicLoading::CreateDrawImage() {
     colorImageRef.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 
     vk::ImageUsageFlags modelIDImageUsage {
-        vk::ImageUsageFlagBits::eTransferSrc
-        | vk::ImageUsageFlagBits::eColorAttachment};
+        vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage
+        | vk::ImageUsageFlagBits::eColorAttachment
+        | vk::ImageUsageFlagBits::eSampled};
 
     auto& modelIDImageRef = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
         "ModelIDImage", RenderResource::Type::Texture2D, vk::Format::eR32Uint,
@@ -983,6 +1062,8 @@ void DynamicLoading::PrepareUIContext() {
             static float dispatchTime {};
             static float copyTime {};
             static float drawTime {};
+            static float copyModelIDTime {};
+            static float edgedetectTime {};
 
             accumulatedTime += 1000.0f / ImGui::GetIO().Framerate;
 
@@ -991,6 +1072,9 @@ void DynamicLoading::PrepareUIContext() {
                 dispatchTime = frame.GetQueryPool().ElapsedTime("dispatch");
                 copyTime = frame.GetQueryPool().ElapsedTime("copy");
                 drawTime = frame.GetQueryPool().ElapsedTime("draw");
+                copyModelIDTime =
+                    frame.GetQueryPool().ElapsedTime("CopyModelID");
+                edgedetectTime = frame.GetQueryPool().ElapsedTime("EdgeDetect");
                 accumulatedTime = 0.0f;
             }
 
@@ -1006,6 +1090,10 @@ void DynamicLoading::PrepareUIContext() {
                             dispatchTime);
                 ImGui::Text("\tCopy pass 耗时 %.3f ms/frame.", copyTime);
                 ImGui::Text("\tDraw Model pass 耗时 %.3f ms/frame.", drawTime);
+                ImGui::Text("\tCopy ModelID pass 耗时 %.3f ms/frame.",
+                            copyModelIDTime);
+                ImGui::Text("\tEdge Detect pass 耗时 %.3f ms/frame.",
+                            edgedetectTime);
 
                 static float loadTime {};
 
@@ -1064,8 +1152,8 @@ void DynamicLoading::PrepareUIContext() {
             if (ImGui::Begin("Model stats:")) {
                 mScene->VisitAllNodes(
                     [this](IDCSG_NS::Node const* node) { DisplayNode(node); });
-                ImGui::End();
             }
+            ImGui::End();
 
             if (ImGui::Begin("Selected Model:")) {
                 mScene->VisitAllNodes([this](IDCSG_NS::Node const* node) {
@@ -1074,8 +1162,8 @@ void DynamicLoading::PrepareUIContext() {
                             DisplayNode(node);
                     }
                 });
-                ImGui::End();
             }
+            ImGui::End();
         });
 }
 
@@ -1093,12 +1181,14 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
 
     cfg.AddRenderPass(
            "DGC_Dispatch",
-           dgcMgr.GetSequence<DispatchSequenceTemp>().GetPipelineLayout())
+                      dgcMgr.GetSequence<DispatchSequenceTemp>(mDGCDispatchInfo)
+                          .GetPipelineLayout())
         .SetBinding("image", "DrawImage")
         .SetBinding("StorageBuffer", "RWBuffer")
         .SetDGCSeqBufs({"dgc_dispatch_test"});
 
-    auto& drawMeshShaderSeq = dgcMgr.GetSequence<DrawSequenceTemp>();
+    auto& drawMeshShaderSeq =
+        dgcMgr.GetSequence<DrawSequenceTemp>(mDGCDrawInfo);
     auto names =
         drawMeshShaderSeq.GetBufferPool()
             ->VisitPoolResources<Type_STLVector<const char*>>(
@@ -1170,6 +1260,15 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
         false};
 
     cfg.AddCopyPass("CopyModelID").SetBinding(copyInfo);
+
+    cfg.AddRenderPass(
+           "DGC_EdgeDetect",
+           dgcMgr.GetSequence<EdgeDetectSequenceTemp>(mDGCEdgeDetectInfo)
+               .GetPipelineLayout())
+        .SetBinding("ColorTex", "DrawImage")
+        .SetBinding("ModelIDTex", "ModelIDImage")
+        .SetBinding("UBO", "SceneUniformBuffer")
+        .SetDGCSeqBufs({"dgc_edge_detect"});
 
     cfg.AddRenderPass("DrawQuad", "QuadDraw")
         .SetBinding("tex", "DrawImage")

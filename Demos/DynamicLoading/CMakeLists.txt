@@ -17,5 +17,10 @@ set_target_properties (DynamicLoading PROPERTIES FOLDER ${EXECUTABLE_FOLDER_NAME
 
 target_link_libraries (DynamicLoading
     PUBLIC
-    Core
-    Tracy::TracyClient)
+    Core)
+
+INSTALL (TARGETS DynamicLoading assimp CISDI_ModelData meshoptimizer SDL2
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
