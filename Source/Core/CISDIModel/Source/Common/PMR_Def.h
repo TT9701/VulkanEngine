@@ -47,7 +47,11 @@
 
 #pragma once
 
-#include <memory_resource>
+#ifdef INTELLI_DS_EXPORT_PMR_API
+#define INTELLI_DS_PMR_API __declspec(dllexport)
+#else
+#define INTELLI_DS_PMR_API __declspec(dllimport)
+#endif
 
 #include "CodeGenDef.h"
 
@@ -57,11 +61,12 @@
 #define INTELLI_DS_PMR_ELEMENT_INIT(Name) Name(_allocator_)
 
 #define INTELLI_DS_PMR_ELEMENT_DEFAULT_CTOR_SIG(Name) \
-    explicit Name(allocator_type _allocator_ = {})
+    INTELLI_DS_PMR_API explicit Name(allocator_type _allocator_ = {})
 
 #define INTELLI_DS_PMR_ELEMENT_CTOR_SIG(Name, ...) \
     INTELLI_DS_PMR_ELEMENT_DECL_ALLOCATOR_TYPE;    \
-    explicit Name(__VA_ARGS__, allocator_type _allocator_ = {})
+    INTELLI_DS_PMR_API explicit Name(__VA_ARGS__,  \
+                                     allocator_type _allocator_ = {})
 
 #define INTELLI_DS_PMR_ELEMENT_CTOR_DEFAULT_INIT_LIST(...) \
     INTELLI_DS_MACRO_EXPAND(                               \
@@ -81,7 +86,7 @@
     }
 
 #define INTELLI_DS_PMR_ELEMENT_COPY_CTOR_SIG(Name) \
-    Name(Name const& _other_, allocator_type _allocator_)
+    INTELLI_DS_PMR_API Name(Name const& _other_, allocator_type _allocator_)
 
 #define INTELLI_DS_PMR_ELEMENT_COPY_CTOR_DEFAULT_INIT_LIST(...) \
     INTELLI_DS_MACRO_EXPAND(                                    \
@@ -103,7 +108,7 @@
     }
 
 #define INTELLI_DS_PMR_ELEMENT_MOVE_CTOR_SIG(Name) \
-    Name(Name&& _other_, allocator_type _allocator_)
+    INTELLI_DS_PMR_API Name(Name&& _other_, allocator_type _allocator_)
 
 #define INTELLI_DS_PMR_ELEMENT_MOVE_CTOR_DEFAULT_INIT_LIST(...) \
     INTELLI_DS_MACRO_EXPAND(                                    \

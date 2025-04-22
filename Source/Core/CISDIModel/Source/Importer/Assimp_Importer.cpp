@@ -26,6 +26,10 @@ uint32_t CalcNodeCount(aiNode* node) {
     return nodeCount;
 }
 
+Type_STLString ToSTLString(aiString const& string) {
+    return string.C_Str();
+}
+
 }  // namespace
 
 Importer::Importer(std::pmr::memory_resource* pMemPool, const char* path,
@@ -79,7 +83,9 @@ void Importer::ExtractMaterials(CISDI_3DModel& outData) {
     for (uint32_t i = 0; i < mScene->mNumMaterials; ++i) {
         auto material = mScene->mMaterials[i];
         CISDI_Material cisdiMaterial {pMemPool};
-        material->Get(AI_MATKEY_NAME, cisdiMaterial.name);
+        aiString name;
+        material->Get(AI_MATKEY_NAME, name);
+        cisdiMaterial.name = ToSTLString(name);
         aiColor3D color;
         float opacity;
         material->Get(AI_MATKEY_COLOR_AMBIENT, color);

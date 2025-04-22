@@ -82,11 +82,7 @@ inline uint16_t PackUnorm16(float v) {
  * @brief 将 float 值转换为 int16_t 类型的 snorm16
  */
 inline int16_t PackSnorm16(float v) {
-    int16_t const topack =
-        static_cast<int16_t>(round(Clamp(v, -1.0f, 1.0f) * 32767.0f));
-    int16_t packed = 0;
-    memcpy(&packed, &topack, sizeof(packed));
-    return packed;
+    return static_cast<int16_t>(round(Clamp(v, -1.0f, 1.0f) * 32767.0f));
 }
 
 /* Unpack in shader. examples in glsl:

@@ -13,12 +13,7 @@
 #pragma once
 
 #include "Source/Common/Common.h"
-
-#ifdef CISDI_MODEL_DATA_EXPORTS
-#define CISDI_MODEL_DATA_API __declspec(dllexport)
-#else
-#define CISDI_MODEL_DATA_API __declspec(dllimport)
-#endif
+#include "_DllDef_.h"
 
 constexpr bool bUseCombinedImport = true;
 
@@ -55,13 +50,13 @@ struct CISDI_3DModel {
     struct CISDI_Mesh {
 
         /**
-         * @brief CISDI_Mesh::MeshHeader 包含网格的头部信息，包括顶点总数、meshlet 总数、meshlet 三角形总数。
+         * @brief CISDI_Mesh::MeshHeader 包含网格的头部信息，包括顶点总数、meshlet 总数、meshlet 三角形索引总数。
          */
         struct MeshHeader {
             uint32_t vertexCount {0};   ///<- 该mesh的顶点总数
             uint32_t meshletCount {0};  ///<- 该mesh的 meshlet 总数
             uint32_t meshletTriangleCount {
-                0};  ///<- 该mesh的 meshlet 三角形总数
+                0};  ///<- 该mesh的 meshlet 三角形*索引*总数
         };
 
         MeshHeader header {};  ///<- 网格头部信息

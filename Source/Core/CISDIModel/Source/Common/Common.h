@@ -13,6 +13,8 @@
 
 #include "BaseTypes.h"
 
+#include <variant>
+
 #define CISDI_3DModel_Subfix_Str ".cisdi"
 #define CISDI_3DModel_Subfix_WStr L".cisdi"
 

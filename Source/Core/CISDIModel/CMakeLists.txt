@@ -4,6 +4,7 @@ set (CMAKE_CXX_STANDARD 20)
 
 set (MODEL_SRC
     CISDI_3DModelData.h
+    _DllDef_.h
     Source/Common/Common.h
     Source/Common/Math.h
     Source/Common/BaseTypes.h
@@ -92,4 +93,5 @@ target_link_libraries (CISDI_ModelData
     INTELLI_DS_MemoryPool
     EXTERNAL_ASSIMP
     EXTERNAL_MESHOPTIMIZER
-    EXTERNAL_FBXSDK)
+    EXTERNAL_FBXSDK
+    assimp)
