@@ -4,6 +4,8 @@
 #include "Core/Model/ModelDataManager.h"
 #include "Core/Utilities/Logger.h"
 
+using namespace IntelliDesign_NS::Core::MemoryPool;
+
 namespace IntelliDesign_NS::Core::SceneGraph {
 
 Scene::Scene(Vulkan::Core::DGCSeqManager& seqMgr,
@@ -14,56 +16,89 @@ Scene::Scene(Vulkan::Core::DGCSeqManager& seqMgr,
       mDGCSeqMgr(seqMgr),
       mGPUGeoDataMgr(gpuGeoDataMgr),
       mModelDataMgr(modelDataMgr),
-      mNodes(pMemPool) {}
+      mNodes(pMemPool),
+      mAddTaskMap(pMemPool),
+      mRemoveTaskSet(pMemPool) {}
 
-Node& Scene::AddNode(MemoryPool::Type_SharedPtr<Node>&& node) {
-    auto name = node->GetName();
-
-    ::std::unique_lock lock {mNodeMapMutex};
-
-    mNodes.emplace(name, ::std::move(node));
-    return *mNodes.at(name);
-}
-
-Node& Scene::AddNode(const char* name) {
-    ::std::unique_lock lock {mNodeMapMutex};
-
-    mNodes.emplace(name,
-                   MemoryPool::New_Shared<Node>(pMemPool, pMemPool, name, this,
-                                                mIDQueue.RequestID()));
-    return *mNodes.at(name);
-}
-
-Node Scene::MakeNode(const char* name) {
+Node Scene::MakeNodeInstance(const char* name) {
     return Node {pMemPool, name, this, mIDQueue.RequestID()};
 }
 
-MemoryPool::Type_SharedPtr<Node> Scene::GetNode(const char* name) {
+Type_SharedPtr<Node> Scene::GetNode(const char* name) {
     ::std::unique_lock lock {mNodeMapMutex};
+
+    if (!mNodes.contains(name))
+        return nullptr;
 
     return mNodes.at(name);
 }
 
-Scene::Type_NodeMap const& Scene::GetAllNodes() const {
-    return mNodes;
-}
-
-void Scene::RemoveNode(const char* name) {
+void Scene::RemoveNode_Sync(const char* name) {
     ::std::unique_lock lock {mNodeMapMutex};
     if (mNodes.contains(name)) {
-        auto node = mNodes.at(name);
+        auto& node = mNodes.at(name);
+
+        auto path = mModelDataMgr.Get_CISDI_3DModel_Path(node->GetModel());
+
+        bool deleteResource = mModelUsedCountMap.at(path)->GetUsedCount() == 1;
 
         mIDQueue.RetrieveID(node->GetID());
 
         auto dataName = node->GetModel().name;
         node->RetrieveIDs();
+
+        UnregisterModel(*node);
+
         mNodes.erase(name);
 
-        mModelDataMgr.Remove_CISDI_3DModel(dataName.c_str());
-        mGPUGeoDataMgr.RemoveGPUGeometryData(dataName.c_str());
+        if (deleteResource) {
+            mModelDataMgr.Remove_CISDI_3DModel(dataName.c_str());
+            mGPUGeoDataMgr.RemoveGPUGeometryData(dataName.c_str());
+        }
     } else {
         DBG_LOG_INFO("Scene::RemoveNode: Node %s not found.", name);
     }
+}
+
+bool Scene::RemoveNode_Async(const char* name, Thread& workerThread) {
+    auto node = GetNode(name);
+    if (!node) {
+        return false;
+    }
+
+    auto path = mModelDataMgr.Get_CISDI_3DModel_Path(node->GetModel());
+
+    if (path.empty())
+        return false;
+
+    // loading this model
+    {
+        ::std::unique_lock lock {mAddTaskMapMutex};
+
+        if (mAddTaskMap.contains(path))
+            return false;
+    }
+
+    {
+        ::std::unique_lock lock {mRemoveTaskSetMutex};
+
+        // already removing this model
+        if (mRemoveTaskSet.contains(path))
+            return false;
+
+        mRemoveTaskSet.emplace(path);
+    }
+
+    workerThread.Submit(true, false, [this, path, name]() {
+        RemoveNode_Sync(name);
+
+        {
+            ::std::unique_lock lock {mRemoveTaskSetMutex};
+            mRemoveTaskSet.erase(path);
+        }
+    });
+
+    return true;
 }
 
 void Scene::CullNode(MathCore::BoundingFrustum const& frustum,
@@ -89,6 +124,70 @@ uint32_t Scene::GetNodeCount() {
     ::std::unique_lock lock {mNodeMapMutex};
 
     return mNodes.size();
+}
+
+void Scene::WriteToJSON() const {
+    using json = nlohmann::json;
+
+    json j;
+
+    j["Nodes"] = json::array();
+    for (auto const& [name, node] : mNodes) {
+        json nodeJson;
+        nodeJson["name"] = name.c_str();
+
+        auto path = mModelDataMgr.Get_CISDI_3DModel_Path(node->GetModel());
+        nodeJson["path"] = path.c_str();
+
+        nodeJson["model_ref_idx"] = node->GetRefIdx();
+
+        auto modelMatrixInfo = node->GetModelMatrixInfo();
+
+        nodeJson["scale_vec"] = modelMatrixInfo.scaleVec;
+        nodeJson["transform_vec"] = modelMatrixInfo.transformVec;
+        nodeJson["rotation_quat"] = modelMatrixInfo.rotationQuat;
+
+        j["Nodes"].push_back(nodeJson);
+    }
+
+    ::std::ofstream ofs("scene_data.json");
+
+    ofs << j;
+
+    ofs.close();
+}
+
+void Scene::RegisterModel(Node& node, const char* path) {
+    ::std::unique_lock lock {mModelUsedCountMapMutex};
+
+    if (mModelUsedCountMap.contains(path)) {
+        auto& pool = mModelUsedCountMap.at(path);
+        node.SetRefIdx(pool->RequestID());
+    } else {
+        auto [it, success] = mModelUsedCountMap.emplace(
+            path, MemoryPool::New_Unique<IDPool_Queue<uint32_t>>(pMemPool));
+        if (!success) {
+            throw ::std::runtime_error("RegisterModel: failed to emplace.");
+        }
+        auto& pool = it->second;
+        node.SetRefIdx(pool->RequestID());
+    }
+}
+
+void Scene::UnregisterModel(Node& node) {
+    ::std::unique_lock lock {mModelUsedCountMapMutex};
+
+    auto path =
+        mModelDataMgr.Get_CISDI_3DModel_Path(node.GetModel().name.c_str());
+
+    if (mModelUsedCountMap.contains(path)) {
+        auto& pool = mModelUsedCountMap.at(path);
+        pool->RetrieveID(node.GetRefIdx());
+
+        if (pool->GetUsedCount() == 0) {
+            mModelUsedCountMap.erase(path);
+        }
+    }
 }
 
 }  // namespace IntelliDesign_NS::Core::SceneGraph

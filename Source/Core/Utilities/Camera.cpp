@@ -94,6 +94,10 @@ void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
     Update();
 }
 
+void Camera::AdjustPosition(MathCore::BoundingBox const& boundingBox) {
+    AdjustPosition(boundingBox.Center, boundingBox.Extents);
+}
+
 MathCore::BoundingFrustum Camera::GetFrustum() const {
     using namespace IDCMCore_NS;
 

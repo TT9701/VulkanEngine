@@ -5,20 +5,14 @@
 #include "Core/System/GameTimer.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
 
+#include "tracy/TracyVulkan.hpp"
+
 #define SHADER_VALIDITY_CHECK
 
 using namespace IDVC_NS;
 
 namespace {
 ::std::pmr::memory_resource* gMemPool = ::std::pmr::get_default_resource();
-
-void AdjustCameraPosition(
-    IDC_NS::Camera& camera,
-    IntelliDesign_NS::ModelData::AABoundingBox const& bb) {
-    auto center = bb.Center.GetSIMD();
-    auto extent = bb.Extents.GetSIMD();
-    camera.AdjustPosition(center, extent);
-}
 
 Type_STLVector<Type_STLString> ReadLinesFromFile(
     Type_STLString const& filePath) {
@@ -64,9 +58,9 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
     mScene = MakeShared<IDCSG_NS::Scene>(GetDGCSeqMgr(), *mGeoMgr, *mModelMgr,
                                          gMemPool);
 
-    // Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
+    Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
 
-    // mModelPathes = ReadLinesFromFile(testModelPathes);
+    mModelPathes = ReadLinesFromFile(testModelPathes);
 
     mSelectedNodeIdx.resize(1);
 }
@@ -177,7 +171,13 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
             DBG_LOG_INFO("Dropped file: %s", e->drop.file);
             ::std::filesystem::path path {e->drop.file};
 
-            AddNewNode(path.string().c_str());
+            auto pBufferPool = GetDGCSeqMgr()
+                                   .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
+                                   .GetBufferPool();
+
+            mScene->AddNodeProxy_Async<DrawSequenceTemp>(
+                path.string().c_str(), pBufferPool, mModelLoadingThread,
+                mMainCamera.get());
 
             SDL_free(e->drop.file);
         } break;
@@ -505,99 +505,36 @@ void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
     }
 }
 
-bool DynamicLoading::AddNewNode(const char* modelPath) {
-    Type_STLString path {modelPath};
-
-    {
-        ::std::unique_lock lock {mAddTaskMapMutex};
-        if (mAddTaskMap.contains(path))
-            return false;
-    }
-
-    {
-        ::std::unique_lock lock {mRemoveTaskSetMutex};
-        if (mRemoveTaskSet.contains(path))
-            return false;
-    }
-
-    auto pTask = mModelLoadingThread.Submit(true, true, [this, path]() {
-        auto pBufferPool = GetDGCSeqMgr()
-                               .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
-                               .GetBufferPool();
-
-        auto nodeProxy = MakeShared<IDCSG_NS::NodeProxy<DrawSequenceTemp>>(
-            mScene->MakeNode(path.c_str()), pBufferPool);
-
-        auto const& modelData = nodeProxy->SetModel(path.c_str());
-
-        mScene->AddNodeProxy(::std::move(nodeProxy));
-
-        AdjustCameraPosition(*mMainCamera, modelData.boundingBox);
-    });
-
-    {
-        ::std::unique_lock lock {mAddTaskMapMutex};
-        mAddTaskMap.emplace(path, pTask);
-    }
-
-    return true;
-}
-
-bool DynamicLoading::RemoveNode(const char* nodeName) {
-    Type_STLString name {nodeName};
-
-    {
-        ::std::unique_lock lock {mAddTaskMapMutex};
-
-        if (!mAddTaskMap.contains(name))
-            return false;
-
-        if (!mAddTaskMap.at(name)->IsReady())
-            return false;
-    }
-
-    {
-        ::std::unique_lock lock {mRemoveTaskSetMutex};
-        if (mRemoveTaskSet.contains(name))
-            return false;
-
-        mRemoveTaskSet.emplace(name);
-    }
-
-    mModelLoadingThread.Submit(true, false, [this, name]() {
-        {
-            ::std::unique_lock lock {mAddTaskMapMutex};
-            mAddTaskMap.erase(name);
-        }
-        mScene->RemoveNode(name.c_str());
-
-        {
-            ::std::unique_lock lock {mRemoveTaskSetMutex};
-            mRemoveTaskSet.erase(name);
-        }
-    });
-
-    return true;
-}
-
 void DynamicLoading::BeginFrame(IDVC_NS::RenderFrame& frame) {
     Application::BeginFrame(frame);
     GetUILayer().BeginFrame(frame);
 
     // static uint32_t loadCount = 0;
     // static uint32_t unloadCount = 0;
-    //
+
     // ::std::uniform_int_distribution<uint32_t> distrib(0,
     //                                                   mModelPathes.size() - 1);
-    //
+
     // auto idx = distrib(gen);
-    //
-    // if (AddNewNode(mModelPathes[idx].c_str())) {
+
+    // auto pBufferPool = GetDGCSeqMgr()
+    //                        .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
+    //                        .GetBufferPool();
+
+    // if (mScene->AddNodeProxy_Async<DrawSequenceTemp>(
+    //         mModelPathes[idx].c_str(), pBufferPool, mModelLoadingThread)) {
     //     printf("Loading no.%d: %s.\n", loadCount++, mModelPathes[idx].c_str());
-    // } else if (RemoveNode(mModelPathes[idx].c_str())) {
-    //     printf("Unloading no.%d: %s.\n", unloadCount++,
-    //            mModelPathes[idx].c_str());
     // }
+
+    // mScene->VisitAllNodes([idx, this](IDCSG_NS::Node* node) {
+    //     if (idx % 2) {
+    //         if (mScene->RemoveNode_Async(node->GetName().c_str(),
+    //                                      mModelLoadingThread)) {
+    //             printf("Unloading no.%d: %s.\n", unloadCount++,
+    //                    node->GetName().c_str());
+    //         }
+    //     }
+    // });
 }
 
 void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
@@ -719,6 +656,8 @@ void DynamicLoading::EndFrame(IDVC_NS::RenderFrame& frame) {
     if (outOfBounds_vertex || outOfBounds_meshlet || outOfBounds_triangle
         || outOfBounds_material)
         throw;
+
+    FrameMark;
 }
 
 void DynamicLoading::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
@@ -989,15 +928,14 @@ void DisplayMaterial(
 }  // namespace
 
 void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
-    ::std::filesystem::path name {node->GetName().c_str()};
-    name = name.stem().stem();
     auto const& model = node->GetModel();
-    bool nodeOpen = ImGui::TreeNodeEx(name.string().c_str(),
-                                      ImGuiTreeNodeFlags_OpenOnArrow);
+    auto name = node->GetName();
+    bool nodeOpen =
+        ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_OpenOnArrow);
 
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
         && ImGui::IsItemHovered()) {
-        AdjustCameraPosition(*mMainCamera, model.boundingBox);
+        mMainCamera->AdjustPosition(model.boundingBox);
     }
 
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
@@ -1008,15 +946,14 @@ void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
 
     ImGui::SameLine();
 
-    Type_STLString buttonLabel =
-        Type_STLString {"删除##"} + name.string().c_str();
+    Type_STLString buttonLabel = Type_STLString {"删除##"} + name.c_str();
     if (ImGui::Button(buttonLabel.c_str())) {
-        RemoveNode(node->GetName().c_str());
+        mScene->RemoveNode_Async(node->GetName().c_str(), mModelLoadingThread);
         deleted = true;
     }
 
     if (nodeOpen) {
-        auto const& geo = *mGeoMgr->GetGPUGeometryData(name.string().c_str());
+        auto const& geo = *mGeoMgr->GetGPUGeometryData(name.c_str());
 
         auto modelStats = geo.GetStats();
 
@@ -1097,24 +1034,32 @@ void DynamicLoading::PrepareUIContext() {
 
                 static float loadTime {};
 
+                static ImGuiFileDialog loadModelDialog;
                 if (ImGui::Button("浏览文件列表")) {
                     IGFD::FileDialogConfig config;
                     config.path = "../../../Models/股份数字化";
-                    ImGuiFileDialog::Instance()->OpenDialog(
-                        "ChooseFileDlgKey", "选择文件", ".cisdi,.fbx", config);
+                    loadModelDialog.OpenDialog("ChooseFileDlgKey", "选择文件",
+                                               ".cisdi,.fbx", config);
                 }
 
                 // display
-                if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey")) {
-                    if (ImGuiFileDialog::Instance()->IsOk()) {  // action if OK
+                if (loadModelDialog.Display("ChooseFileDlgKey")) {
+                    if (loadModelDialog.IsOk()) {  // action if OK
                         std::string filePathName =
-                            ImGuiFileDialog::Instance()->GetFilePathName();
+                            loadModelDialog.GetFilePathName();
 
-                        loadTime = AddNewNode(filePathName.c_str());
+                        auto pBufferPool =
+                            GetDGCSeqMgr()
+                                .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
+                                .GetBufferPool();
+
+                        loadTime = mScene->AddNodeProxy_Async<DrawSequenceTemp>(
+                            filePathName.c_str(), pBufferPool,
+                            mModelLoadingThread, mMainCamera.get());
                     }
 
                     // close
-                    ImGuiFileDialog::Instance()->Close();
+                    loadModelDialog.Close();
                 }
 
                 ImGui::Text("加载耗时: %.3f s", loadTime / 1000.0f);
@@ -1146,6 +1091,40 @@ void DynamicLoading::PrepareUIContext() {
                 mSceneData.sunLightPos = {sin(theta) * sin(phi), cos(theta),
                                           cos(phi) * sin(theta), 1.0f};
             }
+
+            if (ImGui::Button("导出场景文件")) {
+                mScene->WriteToJSON();
+            }
+
+            static ImGuiFileDialog loadSceneFileDialog;
+
+            ImGui::SameLine();
+            if (ImGui::Button("导入场景文件")) {
+                IGFD::FileDialogConfig config;
+                config.path = ".";
+                loadSceneFileDialog.OpenDialog(
+                    "ChooseFileDlgKey", "选择场景文件文件", ".json", config);
+            }
+
+            if (loadSceneFileDialog.Display("ChooseFileDlgKey")) {
+                if (loadSceneFileDialog.IsOk()) {  // action if OK
+                    std::string filePathName =
+                        loadSceneFileDialog.GetFilePathName();
+
+                    auto pBufferPool =
+                        GetDGCSeqMgr()
+                            .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
+                            .GetBufferPool();
+
+                    mScene->ReadFromJSON<DrawSequenceTemp>(
+                        filePathName.c_str(), pBufferPool,
+                        &mModelLoadingThread);
+                }
+
+                // close
+                loadSceneFileDialog.Close();
+            }
+
             ImGui::End();
         })
         .AddContext([&]() {
@@ -1169,6 +1148,8 @@ void DynamicLoading::PrepareUIContext() {
 
 void DynamicLoading::RecordPasses(RenderSequence& sequence,
                                   IDVC_NS::RenderFrame& frame) {
+    ZoneScoped;
+
     sequence.Clear();
 
     auto& drawImage = GetRenderResMgr()["DrawImage"];
@@ -1179,8 +1160,7 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
 
     RenderSequenceConfig cfg {};
 
-    cfg.AddRenderPass(
-           "DGC_Dispatch",
+    cfg.AddRenderPass("DGC_Dispatch",
                       dgcMgr.GetSequence<DispatchSequenceTemp>(mDGCDispatchInfo)
                           .GetPipelineLayout())
         .SetBinding("image", "DrawImage")

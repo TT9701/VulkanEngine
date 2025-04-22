@@ -67,7 +67,6 @@ public:
 
     const char* GetModelIDBufferName() const;
 
-
     Type_STLMap<::std::pair<const char*, const char*>, size_t> mCmdStagings {};
 
 private:

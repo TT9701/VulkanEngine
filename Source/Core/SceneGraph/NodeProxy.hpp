@@ -25,8 +25,6 @@ public:
 
     void RetrieveIDs() override;
 
-    ModelData::CISDI_3DModel const& SetModel(const char* modelPath) override;
-
     void UploadSeqBuf(Vulkan::Core::RenderFrame& frame) override;
 
     MemoryPool::Type_STLVector<uint64_t> const& GetSeqBufIDs() const override;
@@ -53,14 +51,6 @@ void NodeProxy<TDGCSeqTemp>::RetrieveIDs() {
         mPool->RetrieveID(id);
     }
     mSeqBufIDs.clear();
-}
-
-template <class TDGCSeqTemp>
-ModelData::CISDI_3DModel const& NodeProxy<TDGCSeqTemp>::SetModel(
-    const char* modelPath) {
-    auto const& cisdiModel = Node::SetModel(modelPath);
-
-    return cisdiModel;
 }
 
 template <class TDGCSeqTemp>

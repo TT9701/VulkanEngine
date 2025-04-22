@@ -33,12 +33,7 @@ SharedPtr<GPUGeometryData> GPUGeometryDataManager::GetGPUGeometryData(
 void GPUGeometryDataManager::RemoveGPUGeometryData(const char* name) {
     if (mGeometries.contains(name)) {
         mGeometries.erase(name);
-    } else {
-        DBG_LOG_INFO(
-            "GPUGeometryDataManager::RemoveGPUGeometryData: GPUGeometryData %s "
-            "not found.",
-            name);
-    }
+    } 
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

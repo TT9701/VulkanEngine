@@ -150,6 +150,7 @@ add_library (Core STATIC
         ${MODEL_SRC}
         ${APPLICATION_SRC}
         ${SCENE_GRAPH_SRC}
+        ../../External/tracy/public/TracyClient.cpp
 )
 
 set_target_properties (Core PROPERTIES FOLDER ${LIB_FOLDER_NAME})
@@ -168,7 +169,8 @@ target_compile_definitions (Core
 
 target_compile_definitions (Core
         PUBLIC
-        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        TRACY_ENABLE=1)
 
 target_link_libraries (Core
         PUBLIC
@@ -177,7 +179,8 @@ target_link_libraries (Core
 
 target_include_directories (Core
         PUBLIC
-        ${PROJECT_SOURCE_DIR}/Source)
+        ${PROJECT_SOURCE_DIR}/Source
+        ${PROJECT_SOURCE_DIR}/External/tracy/public)
 
 # target_include_directories(Core
 # PUBLIC

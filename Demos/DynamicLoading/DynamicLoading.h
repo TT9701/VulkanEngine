@@ -15,6 +15,8 @@
 #include "Core/Model/ModelDataManager.h"
 #include "Core/Utilities/Threading/Thread.hpp"
 
+#include "tracy/Tracy.hpp"
+
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 
@@ -126,13 +128,7 @@ private:
         DGCSeqTemplate<true, DGCExecutionSetType::None>;
     IDVC_NS::DGCSeqInfo_Shader mDGCEdgeDetectInfo {};
 
-
-
     void ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame);
-
-    bool AddNewNode(const char* modelPath);
-
-    bool RemoveNode(const char* nodeName);
 
     void UpdateFrustumCullingUBO();
 
@@ -144,18 +140,6 @@ private:
     IDVC_NS::Type_STLVector<IDVC_NS::Type_STLString> mModelPathes {};
 
     IDC_NS::Thread mModelLoadingThread {::std::pmr::get_default_resource()};
-
-    // IDC_NS::Thread mResourceManagerThread {::std::pmr::get_default_resource()};
-
-    using Type_TaskMap = IDVC_NS::Type_STLUnorderedMap_String<
-        IDVC_NS::SharedPtr<IDC_NS::TaskRequestHandleCoarse<void>>>;
-
-    ::std::mutex mAddTaskMapMutex;
-    Type_TaskMap mAddTaskMap {::std::pmr::get_default_resource()};
-
-    ::std::mutex mRemoveTaskSetMutex;
-    IDCMP_NS::Type_STLUnorderedSet<IDCMP_NS::Type_STLString> mRemoveTaskSet {
-        ::std::pmr::get_default_resource()};
 
     IDCMP_NS::Type_STLVector<uint32_t> mSelectedNodeIdx;
 };

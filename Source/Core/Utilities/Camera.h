@@ -65,6 +65,7 @@ public:
     void ProcessSDLEvent(SDL_Event* e, float deltaTime);
 
     void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);
+    void AdjustPosition(MathCore::BoundingBox const& boundingBox);
 
     MathCore::BoundingFrustum GetFrustum() const;
 
