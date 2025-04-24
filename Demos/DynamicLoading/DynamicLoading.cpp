@@ -11,6 +11,8 @@
 
 using namespace IDVC_NS;
 
+bool gUseFXAA = true;
+
 namespace {
 ::std::pmr::memory_resource* gMemPool = ::std::pmr::get_default_resource();
 
@@ -46,7 +48,7 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
       mCopySem(GetVulkanContext()),
       mCmpSem(GetVulkanContext()) {
     mMainCamera = MakeUnique<IDC_NS::Camera>(IDC_NS::PersperctiveInfo {
-        50000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
+        1000.0f, 0.01f, IDCMCore_NS::ConvertToRadians(45.0f),
         (float)spec.width / spec.height});
 
     mModelMgr =
@@ -62,7 +64,7 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
 
     mModelPathes = ReadLinesFromFile(testModelPathes);
 
-    mSelectedNodeIdx.resize(1);
+    mSelectedNodeIdx.resize(1, ~0ui32);
 }
 
 DynamicLoading::~DynamicLoading() = default;
@@ -161,6 +163,11 @@ void DynamicLoading::LoadShaders() {
         "EdgeDetect", SHADER_PATH_CSTR("EdgeDetect.comp"),
         vk::ShaderStageFlagBits::eCompute,
         vk::ShaderCreateFlagBitsEXT::eIndirectBindable, true);
+
+    shaderMgr.CreateShaderObjectFromGLSL(
+        "FXAA", SHADER_PATH_CSTR("Fxaa.comp"),
+        vk::ShaderStageFlagBits::eCompute,
+        vk::ShaderCreateFlagBitsEXT::eIndirectBindable, true);
 }
 
 void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
@@ -176,8 +183,7 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
                                    .GetBufferPool();
 
             mScene->AddNodeProxy_Async<DrawSequenceTemp>(
-                path.string().c_str(), pBufferPool, mModelLoadingThread,
-                mMainCamera.get());
+                path.string().c_str(), pBufferPool, mMainCamera.get());
 
             SDL_free(e->drop.file);
         } break;
@@ -265,10 +271,12 @@ void DynamicLoading::Update_OnResize() {
 }
 
 void DynamicLoading::UpdateScene() {
+    mMainCamera->UpdateViewMatrix();
+
     Application::UpdateScene();
 
-    mSceneData.cameraPos = {mMainCamera->mPosition.x, mMainCamera->mPosition.y,
-                            mMainCamera->mPosition.z, 1.0f};
+    auto pos = mMainCamera->GetPosition();
+    mSceneData.cameraPos = {pos.x, pos.y, pos.z, 1.0f};
     mSceneData.view = mMainCamera->GetViewMatrix();
     mSceneData.proj = mMainCamera->GetProjectionMatrix();
     mSceneData.viewProj = mMainCamera->GetViewProjMatrix();
@@ -353,6 +361,7 @@ void DynamicLoading::Prepare() {
     prepare_dgc_draw_command();
     prepare_draw_mesh_task();
     PrepareEdgeDetectSequence();
+    PrepareFXAASequence();
 
     PrepareUIContext();
 
@@ -380,6 +389,33 @@ void DynamicLoading::prepare_dgc_draw_command() {
 
         for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
             data.data[i].command = vk::DispatchIndirectCommand {1, 1, 1};
+        }
+    }
+}
+
+void DynamicLoading::PrepareFXAASequence() {
+    auto& window = GetSDLWindow();
+
+    mDGCFXAAInfo.maxDrawCount = 1;
+    mDGCFXAAInfo.maxSequenceCount = 1;
+    mDGCFXAAInfo.maxShaderCount = 1;
+    mDGCFXAAInfo.initialShaderIdInfos = {
+        {"FXAA", vk::ShaderStageFlagBits::eCompute}};
+
+    auto& dgcMgr = GetDGCSeqMgr();
+
+    auto& sequence = dgcMgr.CreateSequence<FXAASequenceTemp>(mDGCFXAAInfo);
+
+    // buffers
+    {
+        auto data =
+            dgcMgr.CreateDataBuffer<FXAASequenceTemp>("dgc_fxaa", sequence);
+
+        for (uint32_t i = 0; i < sequence.GetSequenceCount(); ++i) {
+            data.data[i]
+                .command.setX((uint32_t)std::ceil(window.GetWidth() / 16.0))
+                .setY((uint32_t)std::ceil(window.GetHeight() / 16.0))
+                .setZ(1);
         }
     }
 }
@@ -562,7 +598,7 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
-        frame.GetQueryPool().ResetPool(cmd.GetHandle(), 10);
+        frame.GetQueryPool().ResetPool(cmd.GetHandle(), 12);
 
         frame.GetQueryPool().BeginRange(cmd.GetHandle(), "dispatch");
 
@@ -619,6 +655,13 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
         mRenderSequence.RecordPass("DGC_EdgeDetect", cmd.GetHandle());
 
         frame.GetQueryPool().EndRange(cmd.GetHandle(), "EdgeDetect");
+
+        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "FXAA");
+
+        if (gUseFXAA)
+            mRenderSequence.RecordPass("DGC_FXAA", cmd.GetHandle());
+
+        frame.GetQueryPool().EndRange(cmd.GetHandle(), "FXAA");
 
         cmd.End();
 
@@ -692,6 +735,14 @@ void DynamicLoading::CreateDrawImage() {
         drawImageExtent, modelIDImageUsage);
     modelIDImageRef.CreateTexView("Color-Whole",
                                   vk::ImageAspectFlagBits::eColor);
+
+    vk::ImageUsageFlags fxaaImageUsage {vk::ImageUsageFlagBits::eStorage
+                                        | vk::ImageUsageFlagBits::eSampled};
+
+    auto& fxaaImageRef = GetRenderResMgr().CreateTexture_ScreenSizeRelated(
+        "FXAAImage", RenderResource::Type::Texture2D,
+        vk::Format::eR8G8B8A8Unorm, drawImageExtent, fxaaImageUsage);
+    fxaaImageRef.CreateTexView("Color-Whole", vk::ImageAspectFlagBits::eColor);
 }
 
 void DynamicLoading::CreateDepthImage() {
@@ -935,7 +986,8 @@ void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
 
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
         && ImGui::IsItemHovered()) {
-        mMainCamera->AdjustPosition(model.boundingBox);
+        mMainCamera->AdjustPosition(model.boundingBox,
+                                    node->GetModelMatrixInfo().scaleVec);
     }
 
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
@@ -948,7 +1000,7 @@ void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
 
     Type_STLString buttonLabel = Type_STLString {"删除##"} + name.c_str();
     if (ImGui::Button(buttonLabel.c_str())) {
-        mScene->RemoveNode_Async(node->GetName().c_str(), mModelLoadingThread);
+        mScene->RemoveNode_Async(node->GetName().c_str());
         deleted = true;
     }
 
@@ -1001,6 +1053,7 @@ void DynamicLoading::PrepareUIContext() {
             static float drawTime {};
             static float copyModelIDTime {};
             static float edgedetectTime {};
+            static float fxaaTime {};
 
             accumulatedTime += 1000.0f / ImGui::GetIO().Framerate;
 
@@ -1012,6 +1065,7 @@ void DynamicLoading::PrepareUIContext() {
                 copyModelIDTime =
                     frame.GetQueryPool().ElapsedTime("CopyModelID");
                 edgedetectTime = frame.GetQueryPool().ElapsedTime("EdgeDetect");
+                fxaaTime = frame.GetQueryPool().ElapsedTime("FXAA");
                 accumulatedTime = 0.0f;
             }
 
@@ -1031,6 +1085,7 @@ void DynamicLoading::PrepareUIContext() {
                             copyModelIDTime);
                 ImGui::Text("\tEdge Detect pass 耗时 %.3f ms/frame.",
                             edgedetectTime);
+                ImGui::Text("\tFXAA pass 耗时 %.3f ms/frame.", fxaaTime);
 
                 static float loadTime {};
 
@@ -1055,7 +1110,7 @@ void DynamicLoading::PrepareUIContext() {
 
                         loadTime = mScene->AddNodeProxy_Async<DrawSequenceTemp>(
                             filePathName.c_str(), pBufferPool,
-                            mModelLoadingThread, mMainCamera.get());
+                            mMainCamera.get());
                     }
 
                     // close
@@ -1071,9 +1126,11 @@ void DynamicLoading::PrepareUIContext() {
         })
         .AddContext([&]() {
             if (ImGui::Begin("场景信息")) {
-                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]",
-                            mMainCamera->mPosition.x, mMainCamera->mPosition.y,
-                            mMainCamera->mPosition.z);
+                auto camPos = mMainCamera->GetPosition();
+                ImGui::Text("相机位置 [%.3f, %.3f, %.3f]", camPos.x, camPos.y,
+                            camPos.z);
+                auto camLookAt = mMainCamera->GetLookAt();
+                ImGui::Checkbox("Use FXAA", &gUseFXAA);
 
                 IDCMCore_NS::Float3 lightPos {IDCMCore_NS::Vector3Normalize(
                     {mSceneData.sunLightPos.x, mSceneData.sunLightPos.y,
@@ -1116,9 +1173,8 @@ void DynamicLoading::PrepareUIContext() {
                             .GetSequence<DrawSequenceTemp>(mDGCDrawInfo)
                             .GetBufferPool();
 
-                    mScene->ReadFromJSON<DrawSequenceTemp>(
-                        filePathName.c_str(), pBufferPool,
-                        &mModelLoadingThread);
+                    mScene->ReadFromJSON<DrawSequenceTemp>(filePathName.c_str(),
+                                                           pBufferPool);
                 }
 
                 // close
@@ -1143,6 +1199,93 @@ void DynamicLoading::PrepareUIContext() {
                 });
             }
             ImGui::End();
+        })
+        .AddContext([&]() {
+            static ImGuizmo::OPERATION mCurrentGizmoOperation(ImGuizmo::ROTATE);
+            static ImGuizmo::MODE mCurrentGizmoMode(ImGuizmo::WORLD);
+
+            auto matrix = IDCMCore_NS::Identity4x4();
+
+            if (ImGui::Begin("Selected Gizmo:")) {
+                if (ImGui::RadioButton("Translate", mCurrentGizmoOperation
+                                                        == ImGuizmo::TRANSLATE))
+                    mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+                ImGui::SameLine();
+                if (ImGui::RadioButton(
+                        "Rotate", mCurrentGizmoOperation == ImGuizmo::ROTATE))
+                    mCurrentGizmoOperation = ImGuizmo::ROTATE;
+                ImGui::SameLine();
+                if (ImGui::RadioButton(
+                        "Scale", mCurrentGizmoOperation == ImGuizmo::SCALE))
+                    mCurrentGizmoOperation = ImGuizmo::SCALE;
+
+                float matrixTranslation[3], matrixRotation[3], matrixScale[3];
+                ImGuizmo::DecomposeMatrixToComponents(
+                    (const float*)&matrix, matrixTranslation, matrixRotation,
+                    matrixScale);
+                ImGui::InputFloat3("Tr", matrixTranslation);
+                ImGui::InputFloat3("Rt", matrixRotation);
+                ImGui::InputFloat3("Sc", matrixScale);
+                ImGuizmo::RecomposeMatrixFromComponents(
+                    matrixTranslation, matrixRotation, matrixScale,
+                    (float*)&matrix);
+
+                if (mCurrentGizmoOperation != ImGuizmo::SCALE) {
+                    if (ImGui::RadioButton(
+                            "Local", mCurrentGizmoMode == ImGuizmo::LOCAL))
+                        mCurrentGizmoMode = ImGuizmo::LOCAL;
+                    ImGui::SameLine();
+                    if (ImGui::RadioButton(
+                            "World", mCurrentGizmoMode == ImGuizmo::WORLD))
+                        mCurrentGizmoMode = ImGuizmo::WORLD;
+                }
+            }
+            ImGui::End();
+
+            {
+                ImGuiIO& io = ImGui::GetIO();
+                ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+                auto viewMat = mMainCamera->GetViewMatrix();
+                auto projMat = mMainCamera->GetProjectionMatrix();
+
+                projMat.m[1][1] *= -1.f;  // flip Y axis
+
+                if (mSceneData.selectedObjectIndex != ~0ui32) {
+                    mScene->VisitAllNodes([this, viewMat,
+                                           projMat](IDCSG_NS::Node* node) {
+                        if (node->GetID() == mSceneData.selectedObjectIndex) {
+                            auto modelInfo = node->GetModelMatrixInfo();
+                            auto matrix = modelInfo.ToMatrix();
+
+                            if (ImGuizmo::Manipulate((const float*)&viewMat,
+                                                     (const float*)&projMat,
+                                                     mCurrentGizmoOperation,
+                                                     mCurrentGizmoMode,
+                                                     (float*)&matrix)) {
+                                modelInfo.FromMatrix(matrix);
+                                node->SetModelMatrixInfo(modelInfo);
+                            }
+                        }
+                    });
+                }
+
+                float viewManipulateRight = io.DisplaySize.x;
+                float viewManipulateTop = 0;
+
+                ImGuizmo::ViewManipulate(
+                    (float*)&viewMat, 0.1f,
+                    ImVec2(viewManipulateRight - 128, viewManipulateTop),
+                    ImVec2(128, 128), 0x10101010);
+
+                // ImGuizmo::ViewManipulate(
+                //     (float*)&viewMat, (const float*)&projMat, ImGuizmo::ROTATE,
+                //     ImGuizmo::LOCAL, (float*)&matrix_identity, 0.001f,
+                //     ImVec2(viewManipulateRight - 128, viewManipulateTop),
+                //     ImVec2(128, 128), 0x10101010);
+
+                mMainCamera->SetViewMatrix(viewMat);
+            }
         });
 }
 
@@ -1250,9 +1393,22 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
         .SetBinding("UBO", "SceneUniformBuffer")
         .SetDGCSeqBufs({"dgc_edge_detect"});
 
-    cfg.AddRenderPass("DrawQuad", "QuadDraw")
-        .SetBinding("tex", "DrawImage")
-        .SetBinding("outFragColor", "_Swapchain_");
+    if (gUseFXAA)
+        cfg.AddRenderPass("DGC_FXAA",
+                          dgcMgr.GetSequence<FXAASequenceTemp>(mDGCFXAAInfo)
+                              .GetPipelineLayout())
+            .SetBinding("inputTexture", "DrawImage")
+            .SetBinding("outputTexture", "FXAAImage")
+            .SetDGCSeqBufs({"dgc_fxaa"});
+
+    auto& quadPass = cfg.AddRenderPass("DrawQuad", "QuadDraw")
+                         .SetBinding("outFragColor", "_Swapchain_");
+
+    if (gUseFXAA) {
+        quadPass.SetBinding("tex", "FXAAImage");
+    } else {
+        quadPass.SetBinding("tex", "DrawImage");
+    }
 
     cfg.Compile(sequence);
 }

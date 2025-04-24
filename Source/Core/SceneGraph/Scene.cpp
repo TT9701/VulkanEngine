@@ -17,6 +17,7 @@ Scene::Scene(Vulkan::Core::DGCSeqManager& seqMgr,
       mGPUGeoDataMgr(gpuGeoDataMgr),
       mModelDataMgr(modelDataMgr),
       mNodes(pMemPool),
+      mWokerThread(pMemPool),
       mAddTaskMap(pMemPool),
       mRemoveTaskSet(pMemPool) {}
 
@@ -31,6 +32,12 @@ Type_SharedPtr<Node> Scene::GetNode(const char* name) {
         return nullptr;
 
     return mNodes.at(name);
+}
+
+Type_SharedPtr<Node> Scene::GetNode(uint32_t id) {
+    ::std::unique_lock lock {mNodeMapMutex};
+
+    return nullptr;
 }
 
 void Scene::RemoveNode_Sync(const char* name) {
@@ -60,7 +67,7 @@ void Scene::RemoveNode_Sync(const char* name) {
     }
 }
 
-bool Scene::RemoveNode_Async(const char* name, Thread& workerThread) {
+bool Scene::RemoveNode_Async(const char* name) {
     auto node = GetNode(name);
     if (!node) {
         return false;
@@ -89,7 +96,7 @@ bool Scene::RemoveNode_Async(const char* name, Thread& workerThread) {
         mRemoveTaskSet.emplace(path);
     }
 
-    workerThread.Submit(true, false, [this, path, name]() {
+    mWokerThread.Submit(true, false, [this, path, name]() {
         RemoveNode_Sync(name);
 
         {
@@ -106,7 +113,9 @@ void Scene::CullNode(MathCore::BoundingFrustum const& frustum,
     ::std::unique_lock lock {mNodeMapMutex};
     for (auto const& [name, node] : mNodes) {
         auto const& bb = node->GetModel().boundingBox;
-        if (frustum.Contains(bb) != MathCore::ContainmentType::DISJOINT) {
+        MathCore::BoundingBox transformedBB {};
+        bb.Transform(transformedBB, node->GetModelMatrixInfo().ToMatrix().GetSIMD());
+        if (frustum.Contains(transformedBB) != MathCore::ContainmentType::DISJOINT) {
             frame.CullRegister(node);
         }
     }
@@ -143,9 +152,19 @@ void Scene::WriteToJSON() const {
 
         auto modelMatrixInfo = node->GetModelMatrixInfo();
 
-        nodeJson["scale_vec"] = modelMatrixInfo.scaleVec;
-        nodeJson["transform_vec"] = modelMatrixInfo.transformVec;
-        nodeJson["rotation_quat"] = modelMatrixInfo.rotationQuat;
+        ::std::array<float, 3> scaleVec{modelMatrixInfo.scaleVec.x,
+                                        modelMatrixInfo.scaleVec.y,
+                                        modelMatrixInfo.scaleVec.z};
+        nodeJson["scale"] = scaleVec;
+
+        ::std::array<float, 3> translationVec{
+            modelMatrixInfo.translationVec.x, modelMatrixInfo.translationVec.y,
+            modelMatrixInfo.translationVec.z};
+        nodeJson["translation"] = translationVec;
+        ::std::array<float, 4> rotationQuat{
+            modelMatrixInfo.rotationQuat.x, modelMatrixInfo.rotationQuat.y,
+            modelMatrixInfo.rotationQuat.z, modelMatrixInfo.rotationQuat.w};
+        nodeJson["rotation"] = rotationQuat;
 
         j["Nodes"].push_back(nodeJson);
     }

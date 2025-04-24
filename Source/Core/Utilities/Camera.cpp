@@ -9,16 +9,13 @@ namespace IntelliDesign_NS::Core {
 namespace IDCMCore_NS = CMCore_NS;
 
 Camera::Camera(PersperctiveInfo info, MathCore::Float3 position,
-               MathCore::Float3 up, float yaw, float pitch)
+               MathCore::Float3 up)
     : mPosition(position),
-      mFront(MathCore::Float3(0.0f, 0.0f, -1.0f)),
-      mWorldUp(up),
-      mEulerAngles {yaw, pitch},
       mMovementSpeed(CameraSpeed),
       mMouseSensitivity(CameraSensitivity),
       mZoom(MathCore::ConvertToDegrees(info.mFov)),
       mPerspectiveInfo(info) {
-    Update();
+    SetAspect(info.mAspect);
 
     if (mPerspectiveInfo.mNear > mPerspectiveInfo.mFar) {
         mReversedZ = true;
@@ -27,42 +24,135 @@ Camera::Camera(PersperctiveInfo info, MathCore::Float3 position,
 
 void Camera::SetAspect(float aspect) {
     mPerspectiveInfo.mAspect = aspect;
+
+    mProj = MathCore::MatrixPerspectiveFov(mPerspectiveInfo.mFov, aspect,
+                                           mPerspectiveInfo.mNear,
+                                           mPerspectiveInfo.mFar);
+
+    mProj(1, 1) *= -1.0f;
+
+    mInvProj = MathCore::MatrixInverse(nullptr, mProj.GetSIMD());
 }
 
-MathCore::Mat4 Camera::GetViewMatrix() const {
+void Camera::SetViewMatrix(MathCore::Mat4 const& viewMatrix) {
     using namespace IDCMCore_NS;
 
-    auto position = mPosition.GetSIMD();
-    auto focus = VectorAdd(position, mFront.GetSIMD());
+    Mat4 invView = MatrixInverse(nullptr, viewMatrix.GetSIMD());
 
-    return MatrixLookAt(position, focus, mUp.GetSIMD());
+    mRight = Float3 {invView.m[0][0], invView.m[0][1], invView.m[0][2]};
+    mUp = Float3 {invView.m[1][0], invView.m[1][1], invView.m[1][2]};
+    mLook = Float3 {-invView.m[2][0], -invView.m[2][1], -invView.m[2][2]};
+    mPosition = Float3 {invView.m[3][0], invView.m[3][1], invView.m[3][2]};
+
+    mViewDirty = true;
+}
+
+void Camera::Strafe(float d) {
+    // mPosition += d*mRight
+    auto s = DirectX::XMVectorReplicate(d);
+    auto r = mRight.GetSIMD();
+    auto p = mPosition.GetSIMD();
+    mPosition = IDCMCore_NS::VectorMultiplyAdd(s, r, p);
+
+    mViewDirty = true;
+}
+
+void Camera::Walk(float d) {
+    // mPosition += d*mLook
+    auto s = DirectX::XMVectorReplicate(d);
+    auto l = mLook.GetSIMD();
+    auto p = mPosition.GetSIMD();
+    mPosition = IDCMCore_NS::VectorMultiplyAdd(s, l, p);
+
+    mViewDirty = true;
+}
+
+void Camera::JumpUp(float d) {
+    mPosition.y += d;
+
+    mViewDirty = true;
+}
+
+void Camera::Pitch(float angle) {
+    // Rotate up and look vector about the right vector.
+
+    auto R = DirectX::XMMatrixRotationAxis(mRight.GetSIMD(), angle);
+
+    mUp = XMVector3TransformNormal(mUp.GetSIMD(), R);
+    mLook = XMVector3TransformNormal(mLook.GetSIMD(), R);
+
+    mViewDirty = true;
+}
+
+void Camera::RotateY(float angle) {
+    // Rotate the basis vectors about the world y-axis.
+
+    auto R = DirectX::XMMatrixRotationY(angle);
+
+    mRight = XMVector3TransformNormal(mRight.GetSIMD(), R);
+    mUp = XMVector3TransformNormal(mUp.GetSIMD(), R);
+    mLook = XMVector3TransformNormal(mLook.GetSIMD(), R);
+
+    mViewDirty = true;
+}
+
+void Camera::LookAt(const MathCore::Float3& pos, const MathCore::Float3& target,
+                    const MathCore::Float3& up) {
+    auto L = IDCMCore_NS::Vector3Normalize(
+        IDCMCore_NS::VectorSubtract(target.GetSIMD(), pos.GetSIMD()));
+    auto R = IDCMCore_NS::Vector3Normalize(
+        IDCMCore_NS::Vector3Cross(L, up.GetSIMD()));
+    auto U = IDCMCore_NS::Vector3Cross(R, L);
+
+    mPosition = pos;
+    mLook = L;
+    mRight = R;
+    mUp = U;
+
+    mViewDirty = true;
+}
+
+MathCore::Float3 Camera::GetPosition() const {
+    return mPosition;
+}
+
+MathCore::Float3 Camera::GetLookAt() {
+    if (mViewDirty) {
+        UpdateViewMatrix();
+    }
+
+    return mLook;
+}
+
+MathCore::Mat4 Camera::GetViewMatrix() {
+    if (mViewDirty) {
+        UpdateViewMatrix();
+    }
+
+    return mView;
 }
 
 MathCore::Mat4 Camera::GetProjectionMatrix() const {
-    using namespace IDCMCore_NS;
-
-    Mat4 mat {
-        MatrixPerspectiveFov(mPerspectiveInfo.mFov, mPerspectiveInfo.mAspect,
-                             mPerspectiveInfo.mNear, mPerspectiveInfo.mFar)};
-
-    mat(1, 1) *= -1.0f;
-
-    return mat;
+    return mProj;
 }
 
-MathCore::Mat4 Camera::GetViewProjMatrix() const {
+MathCore::Mat4 Camera::GetViewProjMatrix() {
     return GetViewMatrix().GetSIMD() * GetProjectionMatrix().GetSIMD();
 }
 
-MathCore::Mat4 Camera::GetInvViewMatrix() const {
-    return MathCore::MatrixInverse(nullptr, GetViewMatrix().GetSIMD());
+MathCore::Mat4 Camera::GetInvViewMatrix() {
+    if (mViewDirty) {
+        UpdateViewMatrix();
+    }
+
+    return mInvView;
 }
 
 MathCore::Mat4 Camera::GetInvProjectionMatrix() const {
-    return MathCore::MatrixInverse(nullptr, GetProjectionMatrix().GetSIMD());
+    return mInvProj;
 }
 
-MathCore::Mat4 Camera::GetInvViewProjMatrix() const {
+MathCore::Mat4 Camera::GetInvViewProjMatrix() {
     return MathCore::MatrixInverse(nullptr, GetViewProjMatrix().GetSIMD());
 }
 
@@ -80,25 +170,25 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
 
 void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
     using namespace IDCMCore_NS;
+    auto mul = DirectX::XMVectorReplicate(2.0f);
+    auto length = DirectX::XMVector2Length(extent.GetSIMD());
+    length = VectorMultiply(length, mul);
+    mPosition = VectorSubtract(lookAt.GetSIMD(),
+                               (VectorMultiply(mLook.GetSIMD(), length)));
 
-    mEulerAngles = {CameraYaw, CameraPitch};
-
-    auto aspect = extent.x / extent.y > mPerspectiveInfo.mAspect
-                    ? extent.x / mPerspectiveInfo.mAspect
-                    : extent.y;
-
-    auto dist = aspect / tan(mPerspectiveInfo.mFov * 0.5f);
-
-    mPosition = VectorAdd(lookAt.GetSIMD(), {0.0f, 0.0f, extent.z + dist});
-
-    Update();
+    mViewDirty = true;
 }
 
-void Camera::AdjustPosition(MathCore::BoundingBox const& boundingBox) {
-    AdjustPosition(boundingBox.Center, boundingBox.Extents);
+void Camera::AdjustPosition(MathCore::BoundingBox const& boundingBox, MathCore::Float3 scale) {
+    using namespace IDCMCore_NS;
+
+    auto center = VectorMultiply(boundingBox.Center.GetSIMD(), scale.GetSIMD());
+    auto extents = VectorMultiply(boundingBox.Extents.GetSIMD(), scale.GetSIMD());
+
+    AdjustPosition(center, extents);
 }
 
-MathCore::BoundingFrustum Camera::GetFrustum() const {
+MathCore::BoundingFrustum Camera::GetFrustum() {
     using namespace IDCMCore_NS;
 
     float near = mPerspectiveInfo.mNear;
@@ -120,21 +210,32 @@ MathCore::BoundingFrustum Camera::GetFrustum() const {
     return frustum;
 }
 
-void Camera::Update() {
+void Camera::UpdateViewMatrix() {
     using namespace IDCMCore_NS;
 
-    auto radYaw = ConvertToRadians(mEulerAngles.mYaw);
-    auto radPitch = ConvertToRadians(mEulerAngles.mPitch);
+    if (!mViewDirty)
+        return;
 
-    Float3 front {cos(radYaw) * cos(radPitch), sin(radPitch),
-                  sin(radYaw) * cos(radPitch)};
-    auto frontVec = front.GetSIMD();
+    auto R = mRight.GetSIMD();
+    auto L = mLook.GetSIMD();
+    auto P = mPosition.GetSIMD();
 
-    mFront = Vector3Normalize(frontVec);
+    L = Vector3Normalize(L);
+    auto U = Vector3Normalize(Vector3Cross(R, L));
 
-    mRight = Vector3Normalize(Vector3Cross(frontVec, mWorldUp.GetSIMD()));
+    R = Vector3Cross(L, U);
 
-    mUp = Vector3Normalize(Vector3Cross(mRight.GetSIMD(), frontVec));
+    mRight = R;
+    mUp = U;
+    mLook = L;
+
+    auto view = MatrixLookAt(P, VectorAdd(P, L), U);
+    mView = view;
+
+    auto invView = MatrixInverse(nullptr, view);
+    mInvView = invView;
+
+    mViewDirty = false;
 }
 
 void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
@@ -144,30 +245,21 @@ void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
         mMovementSpeed += mMovementSpeed * 0.05f;
 
         float velocity = mMovementSpeed * deltaTime;
-        SIMD_Vec posVelocityVec {velocity, velocity, velocity};
-        SIMD_Vec negVelocityVec {-velocity, -velocity, -velocity};
-
-        auto position = mPosition.GetSIMD();
 
         if (e->key.keysym.sym == SDLK_w) {
-            mPosition =
-                VectorMultiplyAdd(mFront.GetSIMD(), posVelocityVec, position);
+            Walk(velocity);
         }
         if (e->key.keysym.sym == SDLK_s) {
-            mPosition =
-                VectorMultiplyAdd(mFront.GetSIMD(), negVelocityVec, position);
+            Walk(-velocity);
         }
         if (e->key.keysym.sym == SDLK_a) {
-            mPosition =
-                VectorMultiplyAdd(mRight.GetSIMD(), negVelocityVec, position);
+            Strafe(-velocity);
         }
         if (e->key.keysym.sym == SDLK_d) {
-            mPosition =
-                VectorMultiplyAdd(mRight.GetSIMD(), posVelocityVec, position);
+            Strafe(velocity);
         }
         if (e->key.keysym.sym == SDLK_SPACE) {
-            mPosition =
-                VectorMultiplyAdd(mUp.GetSIMD(), posVelocityVec, position);
+            JumpUp(velocity);
         }
     }
 
@@ -192,13 +284,9 @@ void Camera::ProcessMouseButton(SDL_Event* e) {
 
 void Camera::ProcessMouseMovement(SDL_Event* e) {
     if (e->type == SDL_MOUSEMOTION) {
-        mEulerAngles.mYaw += (float)e->motion.xrel * mMouseSensitivity;
-        mEulerAngles.mPitch -= (float)e->motion.yrel * mMouseSensitivity;
+        Pitch(-(float)e->motion.yrel * mMouseSensitivity);
+        RotateY(-(float)e->motion.xrel * mMouseSensitivity);
     }
-
-    mEulerAngles.mPitch = std::clamp(mEulerAngles.mPitch, -89.0f, 89.0f);
-
-    Update();
 }
 
 void Camera::ProcessMouseScroll(SDL_Event* e) {

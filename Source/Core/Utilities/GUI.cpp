@@ -28,6 +28,8 @@ void GUI::BeginFrame(RenderFrame& frame) {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    ImGuizmo::BeginFrame();
+
     // ImGui::ShowDemoWindow();
 
     for (auto const& ctx : mUIContexts)
@@ -77,7 +79,10 @@ bool GUI::WantCaptureMouse() const {
 }
 
 void GUI::PrepareContext() {
-    ImGui::CreateContext();
+    auto context = ImGui::CreateContext();
+
+    // ImGuizmo::SetImGuiContext(context);
+
     ImGui_ImplSDL2_InitForVulkan(mWindow.GetPtr());
 
     auto swapchainImageFormat = mSwapchain.GetFormat();

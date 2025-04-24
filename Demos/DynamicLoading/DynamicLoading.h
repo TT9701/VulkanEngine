@@ -128,6 +128,13 @@ private:
         DGCSeqTemplate<true, DGCExecutionSetType::None>;
     IDVC_NS::DGCSeqInfo_Shader mDGCEdgeDetectInfo {};
 
+    /**
+     *  FXAA 
+     */
+    void PrepareFXAASequence();
+    using FXAASequenceTemp = DGCSeqTemplate<true, DGCExecutionSetType::None>;
+    IDVC_NS::DGCSeqInfo_Shader mDGCFXAAInfo {};
+
     void ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame);
 
     void UpdateFrustumCullingUBO();
@@ -138,8 +145,6 @@ private:
     ::std::mt19937 gen {rd()};
 
     IDVC_NS::Type_STLVector<IDVC_NS::Type_STLString> mModelPathes {};
-
-    IDC_NS::Thread mModelLoadingThread {::std::pmr::get_default_resource()};
 
     IDCMP_NS::Type_STLVector<uint32_t> mSelectedNodeIdx;
 };

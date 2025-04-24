@@ -44,3 +44,5 @@ target_link_libraries (ImGuiFileDialog
     PUBLIC
     imgui
 )
+
+add_subdirectory(ImGuizmo)

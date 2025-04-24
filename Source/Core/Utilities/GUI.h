@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <ImGuiFileDialog.h>
+#include <ImGuizmo.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>

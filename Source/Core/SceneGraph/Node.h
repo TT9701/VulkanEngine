@@ -3,6 +3,8 @@
 #include "Core/Utilities/MemoryPool.h"
 #include "Core/Vulkan/Native/DGCSeqDataBufPoolResource.h"
 
+#include "Core/Math/MathCore.h"
+
 namespace IntelliDesign_NS::Vulkan::Core {
 class GPUGeometryDataManager;
 class GPUGeometryData;
@@ -17,9 +19,15 @@ class ModelDataManager;
 namespace IntelliDesign_NS::Core::SceneGraph {
 
 struct ModelMatrixInfo {
-    ::std::array<float, 3> scaleVec {1.0f, 1.0f, 1.0f};
-    ::std::array<float, 3> transformVec {0.0f, 0.0f, 0.0f};
-    ::std::array<float, 4> rotationQuat {0.0f, 0.0f, 0.0f, 1.0f};
+    ModelMatrixInfo() = default;
+
+    MathCore::Float3 scaleVec {0.01f, 0.01f, 0.01f};
+    MathCore::Float3 translationVec {0.0f, 0.0f, 0.0f};
+    MathCore::Float4 rotationQuat {0.0f, 0.0f, 0.0f, 1.0f};
+
+    MathCore::Mat4 ToMatrix();
+
+    void FromMatrix(MathCore::Mat4 const& mat);
 };
 
 class Scene;

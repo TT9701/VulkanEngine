@@ -191,7 +191,8 @@ target_link_libraries (Core
         PUBLIC
         SDL2::SDL2
         spirv-cross-c
-        ImGuiFileDialog)
+        ImGuiFileDialog
+        ImGuizmo)
 
 # include("../../External/Output/lib/cmake/assimp-5.4/assimpConfig.cmake")
 set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")

@@ -76,6 +76,8 @@ void NodeProxy<TDGCSeqTemp>::UploadSeqBuf(Vulkan::Core::RenderFrame& frame) {
                           typename TDGCSeqTemp::_Type_PushConstant_, void>) {
             auto pc = mGPUGeoData->GetMeshletPushContants(i);
 
+            pc.mModelMatrix = mModelMatrixInfo.ToMatrix();
+
             pc.mObjectIndex = mID;
 
             if constexpr (!::std::is_same_v<

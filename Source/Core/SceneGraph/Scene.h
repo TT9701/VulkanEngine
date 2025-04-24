@@ -36,23 +36,15 @@ public:
      *  make & add & remove node
      */
 
-    Node MakeNodeInstance(const char* name = nullptr);
-
     template <class TDGCSeqTemp>
     MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>> MakeNodeProxy(
         Type_pSeqDataBufPool pool);
 
     template <class TDGCSeqTemp>
     bool AddNodeProxy_Async(const char* path, Type_pSeqDataBufPool pool,
-                            Thread& workerThread, Camera* camera = nullptr);
+                            Camera* camera = nullptr);
 
-    template <class TDGCSeqTemp>
-    Node& EmplaceNodeProxy(
-        MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy);
-
-    void RemoveNode_Sync(const char* name);
-
-    bool RemoveNode_Async(const char* name, Thread& workerThread);
+    bool RemoveNode_Async(const char* name);
 
     /**
      *  frustum culling
@@ -67,6 +59,8 @@ public:
 
     MemoryPool::Type_SharedPtr<Node> GetNode(const char* name);
 
+    MemoryPool::Type_SharedPtr<Node> GetNode(uint32_t id);
+
     void VisitAllNodes(::std::function<void(Node* node)> const& func);
 
     uint32_t GetNodeCount();
@@ -78,10 +72,17 @@ public:
     void WriteToJSON() const;
 
     template <class TDGCSeqTemp>
-    void ReadFromJSON(const char* jsonFile, Type_pSeqDataBufPool pool,
-                      Thread* workingThread = nullptr);
+    void ReadFromJSON(const char* jsonFile, Type_pSeqDataBufPool pool);
 
 private:
+    Node MakeNodeInstance(const char* name = nullptr);
+
+    template <class TDGCSeqTemp>
+    Node& EmplaceNodeProxy(
+        MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>>&& nodeProxy);
+
+    void RemoveNode_Sync(const char* name);
+
     void RegisterModel(Node& node, const char* path);
 
     void UnregisterModel(Node& node);
@@ -104,6 +105,7 @@ private:
     /**
      *  async load related
      */
+    Thread mWokerThread;
 
     ::std::mutex mAddTaskMapMutex;
     Type_TaskMap mAddTaskMap;
@@ -128,7 +130,7 @@ MemoryPool::Type_SharedPtr<NodeProxy<TDGCSeqTemp>> Scene::MakeNodeProxy(
 
 template <class TDGCSeqTemp>
 bool Scene::AddNodeProxy_Async(const char* path, Type_pSeqDataBufPool pool,
-                               Thread& workerThread, Camera* camera) {
+                               Camera* camera) {
     MemoryPool::Type_STLString pathStr {path};
 
     auto loadNewModel = [this, pathStr, pool, camera]() {
@@ -138,8 +140,10 @@ bool Scene::AddNodeProxy_Async(const char* path, Type_pSeqDataBufPool pool,
 
         auto const& modelData = nodeProxy->SetModel(pathStr.c_str());
 
-        if (camera)
-            camera->AdjustPosition(modelData.boundingBox);
+        if (camera) {
+            auto scale = nodeProxy->GetModelMatrixInfo().scaleVec;
+            camera->AdjustPosition(modelData.boundingBox, scale);
+        }
 
         EmplaceNodeProxy(::std::move(nodeProxy));
 
@@ -155,14 +159,17 @@ bool Scene::AddNodeProxy_Async(const char* path, Type_pSeqDataBufPool pool,
         ::std::unique_lock lock {mAddTaskMapMutex};
         if (mAddTaskMap.contains(pathStr)) {
             // already loaded model
-            workerThread.Submit(
+            mWokerThread.Submit(
                 true, false, [this, pathStr, pool, camera, loadNewModel]() {
                     if (auto pModel = mModelDataMgr.Get_CISDI_3DModel_FromPath(
                             pathStr.c_str())) {
-                        if (camera)
-                            camera->AdjustPosition(pModel->boundingBox);
 
                         auto nodeProxy = MakeNodeProxy<TDGCSeqTemp>(pool);
+
+                        if (camera)
+                            camera->AdjustPosition(
+                                pModel->boundingBox,
+                                nodeProxy->GetModelMatrixInfo().scaleVec);
 
                         RegisterModel(*nodeProxy, pathStr.c_str());
 
@@ -185,7 +192,7 @@ bool Scene::AddNodeProxy_Async(const char* path, Type_pSeqDataBufPool pool,
     }
 
     // load a new model from disk
-    auto pTask = workerThread.Submit(true, true, loadNewModel);
+    auto pTask = mWokerThread.Submit(true, true, loadNewModel);
 
     {
         ::std::unique_lock lock {mAddTaskMapMutex};
@@ -207,8 +214,7 @@ Node& Scene::EmplaceNodeProxy(
 }
 
 template <class TDGCSeqTemp>
-void Scene::ReadFromJSON(const char* jsonFile, Type_pSeqDataBufPool pool,
-                         Thread* workerThread) {
+void Scene::ReadFromJSON(const char* jsonFile, Type_pSeqDataBufPool pool) {
     ::std::ifstream ifs(jsonFile);
 
     using json = nlohmann::json;
@@ -225,19 +231,21 @@ void Scene::ReadFromJSON(const char* jsonFile, Type_pSeqDataBufPool pool,
 
         ModelMatrixInfo modelMatrixInfo;
 
-        modelMatrixInfo.scaleVec =
-            j["Nodes"][i].at("scale_vec").get<::std::array<float, 3>>();
+        auto scale = j["Nodes"][i].at("scale").get<::std::array<float, 3>>();
+        modelMatrixInfo.scaleVec = MathCore::Float3 {scale.data()};
 
-        modelMatrixInfo.transformVec =
-            j["Nodes"][i].at("transform_vec").get<::std::array<float, 3>>();
+        auto translation =
+            j["Nodes"][i].at("translation").get<::std::array<float, 3>>();
+        modelMatrixInfo.translationVec = MathCore::Float3 {translation.data()};
 
-        modelMatrixInfo.rotationQuat =
-            j["Nodes"][i].at("rotation_quat").get<::std::array<float, 4>>();
+        auto rotation =
+            j["Nodes"][i].at("rotation").get<::std::array<float, 4>>();
+        modelMatrixInfo.rotationQuat = MathCore::Float4 {rotation.data()};
 
-        if (workerThread) {
-            AddNodeProxy_Async<TDGCSeqTemp>(path.c_str(), pool, *workerThread);
+        {
+            AddNodeProxy_Async<TDGCSeqTemp>(path.c_str(), pool);
 
-            workerThread->Submit(
+            mWokerThread.Submit(
                 true, false, [this, name, refIdx, modelMatrixInfo]() {
                     auto node = GetNode(name.c_str());
                     if (node) {
