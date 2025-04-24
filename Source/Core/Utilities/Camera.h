@@ -17,13 +17,8 @@ enum class CameraMovement : uint32_t {
 
 constexpr float CameraYaw = -90.0f;
 constexpr float CameraPitch = 0.0f;
-constexpr float CameraSpeed = 30.f;
+constexpr float CameraSpeed = 1.f;
 constexpr float CameraSensitivity = 0.005f;
-
-struct EulerAngles {
-    float mYaw;
-    float mPitch;
-};
 
 struct PersperctiveInfo {
     float mNear;
@@ -34,22 +29,6 @@ struct PersperctiveInfo {
 
 class Camera {
 public:
-    // camera Attributes
-
-    // MathCore::Float3 mPosition;
-    // MathCore::Float3 mFront;
-    // MathCore::Float3 mUp;
-    // MathCore::Float3 mRight;
-    // MathCore::Float3 mWorldUp;
-
-    // euler Angles
-    // EulerAngles mEulerAngles;
-
-    // camera options
-    float mMovementSpeed;
-    float mMouseSensitivity;
-    float mZoom;
-
     bool mCaptureMouseMovement {false};
     bool mCaptureKeyboard {true};
 
@@ -85,6 +64,7 @@ public:
     MathCore::Mat4 GetInvViewProjMatrix();
 
     void ProcessSDLEvent(SDL_Event* e, float deltaTime);
+    void ProcessInput();
 
     void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);
     void AdjustPosition(MathCore::BoundingBox const& boundingBox,
@@ -100,6 +80,14 @@ private:
     void ProcessMouseButton(SDL_Event* e);
     void ProcessMouseMovement(SDL_Event* e);
     void ProcessMouseScroll(SDL_Event* e);
+
+    float mMovementSpeed;
+    float mMouseSensitivity;
+    float mZoom;
+
+    float mXVelocity {0.0f};
+    float mYVelocity {0.0f};
+    float mZVelocity {0.0f};
 
     PersperctiveInfo mPerspectiveInfo;
 

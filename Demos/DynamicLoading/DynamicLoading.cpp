@@ -271,6 +271,7 @@ void DynamicLoading::Update_OnResize() {
 }
 
 void DynamicLoading::UpdateScene() {
+    mMainCamera->ProcessInput();
     mMainCamera->UpdateViewMatrix();
 
     Application::UpdateScene();
@@ -288,6 +289,10 @@ void DynamicLoading::UpdateScene() {
 
 void DynamicLoading::Prepare() {
     Application::Prepare();
+
+    for (auto& frame : GetFrames()) {
+        frame.PrepareGlobalUniformBuffer(sizeof(SceneData));
+    }
 
     auto& window = GetSDLWindow();
 
@@ -312,8 +317,8 @@ void DynamicLoading::Prepare() {
         "SceneUniformBuffer", sizeof(SceneData),
         vk::BufferUsageFlagBits::eUniformBuffer
             | vk::BufferUsageFlagBits::eShaderDeviceAddress
-            | vk::BufferUsageFlagBits::eTransferSrc,
-        Buffer::MemoryType::Staging);
+            | vk::BufferUsageFlagBits::eTransferDst,
+        Buffer::MemoryType::DeviceLocal);
 
     renderResMgr.CreateBuffer_ScreenSizeRelated(
         "RWBuffer", sizeof(float) * 4 * window.GetWidth() * window.GetHeight(),
@@ -608,6 +613,8 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
 
+        mRenderSequence.RecordPass("global_uniform_buffer_copy", cmd.GetHandle());
+
         mRenderSequence.RecordPass("dgc_seq_data_buf_clear", cmd.GetHandle());
 
         mRenderSequence.RecordPass("dgc_seq_data_buf_copy", cmd.GetHandle());
@@ -873,8 +880,9 @@ void DynamicLoading::CreateDrawQuadPipeline() {
 }
 
 void DynamicLoading::UpdateSceneUBO() {
+    auto globalUniformBufferName = GetCurFrame().GetGlobalUniformBufferName();
     auto& renderResMgr = GetRenderResMgr();
-    auto data = renderResMgr["SceneUniformBuffer"].GetBufferMappedPtr();
+    auto data = renderResMgr[globalUniformBufferName].GetBufferMappedPtr();
     memcpy(data, &mSceneData, sizeof(mSceneData));
 }
 
@@ -1309,6 +1317,16 @@ void DynamicLoading::RecordPasses(RenderSequence& sequence,
         .SetBinding("image", "DrawImage")
         .SetBinding("StorageBuffer", "RWBuffer")
         .SetDGCSeqBufs({"dgc_dispatch_test"});
+
+    {
+        auto globalUniformBufferName = frame.GetGlobalUniformBufferName();
+        CopyPassConfig::CopyInfo globalUniformCopyInfo {
+            globalUniformBufferName, "SceneUniformBuffer",
+            vk::BufferCopy2 {0, 0, sizeof(mSceneData)}, false};
+
+        cfg.AddCopyPass("global_uniform_buffer_copy")
+            .SetBinding(globalUniformCopyInfo);
+    }
 
     auto& drawMeshShaderSeq =
         dgcMgr.GetSequence<DrawSequenceTemp>(mDGCDrawInfo);

@@ -25,6 +25,8 @@ public:
         Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
         vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler);
 
+    void PrepareGlobalUniformBuffer(uint32_t size);
+
     uint32_t GetIndex() const;
 
     FencePool& GetFencePool() const;
@@ -67,6 +69,8 @@ public:
 
     const char* GetModelIDBufferName() const;
 
+    const char* GetGlobalUniformBufferName() const;
+
     Type_STLMap<::std::pair<const char*, const char*>, size_t> mCmdStagings {};
 
 private:
@@ -90,6 +94,8 @@ private:
     Type_STLString mOutOfBoundsCheckBufferName;
 
     Type_STLString mModelIDBufferName;
+
+    Type_STLString mGlobalUniformBufferName;
 
     SharedPtr<BindlessDescPool> mBindlessDescPool;
 

@@ -39,12 +39,25 @@ RenderFrame::RenderFrame(VulkanContext& context,
             | vk::BufferUsageFlagBits::eShaderDeviceAddress
             | vk::BufferUsageFlagBits::eTransferDst,
         Buffer::MemoryType::ReadBack, sizeof(uint32_t));
+
+    mGlobalUniformBufferName = "GlobalUniformBuffer";
+    mGlobalUniformBufferName =
+        mGlobalUniformBufferName + ::std::to_string(mIdx).c_str();
 }
 
 void RenderFrame::PrepareBindlessDescPool(
     Type_STLVector<RenderPassBindingInfo_PSO*> const& pso,
     vk::DescriptorType type) {
     mBindlessDescPool = MakeShared<BindlessDescPool>(mContext, pso, type);
+}
+
+void RenderFrame::PrepareGlobalUniformBuffer(uint32_t size) {
+    mRenderResMgr.CreateBuffer(
+        mGlobalUniformBufferName.c_str(), size,
+        vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eShaderDeviceAddress
+            | vk::BufferUsageFlagBits::eTransferSrc,
+        Buffer::MemoryType::Staging);
 }
 
 uint32_t RenderFrame::GetIndex() const {
@@ -151,6 +164,10 @@ RenderResource const& RenderFrame::GetOutOfBoundsCheckBuffer() const {
 
 const char* RenderFrame::GetModelIDBufferName() const {
     return mModelIDBufferName.c_str();
+}
+
+const char* RenderFrame::GetGlobalUniformBufferName() const {
+    return mGlobalUniformBufferName.c_str();
 }
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

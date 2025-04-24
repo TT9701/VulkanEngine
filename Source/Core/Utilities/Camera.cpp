@@ -165,7 +165,14 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     if (mCaptureMouseMovement)
         ProcessMouseMovement(e);
 
-    // ProcessMouseScroll(e);
+    ProcessMouseScroll(e);
+}
+
+void Camera::ProcessInput()
+{
+    Walk(mZVelocity);
+    Strafe(mXVelocity);
+    JumpUp(mYVelocity);
 }
 
 void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
@@ -242,29 +249,51 @@ void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
     using namespace IDCMCore_NS;
 
     if (e->type == SDL_KEYDOWN) {
-        mMovementSpeed += mMovementSpeed * 0.05f;
-
         float velocity = mMovementSpeed * deltaTime;
 
         if (e->key.keysym.sym == SDLK_w) {
-            Walk(velocity);
+            mZVelocity += velocity;
         }
         if (e->key.keysym.sym == SDLK_s) {
-            Walk(-velocity);
+            mZVelocity -= velocity;
         }
         if (e->key.keysym.sym == SDLK_a) {
-            Strafe(-velocity);
+            mXVelocity -= velocity;
         }
         if (e->key.keysym.sym == SDLK_d) {
-            Strafe(velocity);
+            mXVelocity += velocity;
         }
         if (e->key.keysym.sym == SDLK_SPACE) {
-            JumpUp(velocity);
+            mYVelocity += velocity;
         }
     }
 
     if (e->type == SDL_KEYUP) {
-        mMovementSpeed = CameraSpeed;
+        if (e->key.keysym.sym == SDLK_w) {
+            if (mZVelocity > 0.0f) {
+                mZVelocity = 0.0f;
+            }
+        }
+        if (e->key.keysym.sym == SDLK_s) {
+            if (mZVelocity < 0.0f) {
+                mZVelocity = 0.0f;
+            }
+        }
+        if (e->key.keysym.sym == SDLK_a) {
+            if (mXVelocity < 0.0f) {
+                mXVelocity = 0.0f;
+            }
+        }
+        if (e->key.keysym.sym == SDLK_d) {
+            if (mXVelocity > 0.0f) {
+                mXVelocity = 0.0f;
+            }
+        }
+        if (e->key.keysym.sym == SDLK_SPACE) {
+            if (mYVelocity > 0.0f) {
+                mYVelocity = 0.0f;
+            }
+        }
     }
 }
 
@@ -291,11 +320,7 @@ void Camera::ProcessMouseMovement(SDL_Event* e) {
 
 void Camera::ProcessMouseScroll(SDL_Event* e) {
     if (e->type == SDL_MOUSEWHEEL) {
-        mZoom -= static_cast<float>(e->wheel.y);
-
-        mZoom = ::std::clamp(mZoom, 1.0f, 60.0f);
-
-        mPerspectiveInfo.mFov = MathCore::ConvertToRadians(mZoom);
+        Walk((float)e->wheel.y);
     }
 }
 
