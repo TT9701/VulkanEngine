@@ -47,7 +47,7 @@ void Application::Run() {
         if (mStopRendering) {
             SDL_Delay(100);
         } else {
-            UpdateScene();
+            UpdateScene(deltaTime);
 
             auto& frame = GetCurFrame();
             BeginFrame(frame);
@@ -145,7 +145,7 @@ void Application::CreatePipelines() {}
 
 void Application::LoadShaders() {}
 
-void Application::UpdateScene() {}
+void Application::UpdateScene(float deltaTime) {}
 
 void Application::Prepare() {
     for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {

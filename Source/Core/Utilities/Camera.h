@@ -15,10 +15,8 @@ enum class CameraMovement : uint32_t {
     Down
 };
 
-constexpr float CameraYaw = -90.0f;
-constexpr float CameraPitch = 0.0f;
-constexpr float CameraSpeed = 1.f;
-constexpr float CameraSensitivity = 0.005f;
+constexpr float CameraAccel = 500.f;
+constexpr float CameraSensitivity = 0.002f;
 
 struct PersperctiveInfo {
     float mNear;
@@ -64,7 +62,7 @@ public:
     MathCore::Mat4 GetInvViewProjMatrix();
 
     void ProcessSDLEvent(SDL_Event* e, float deltaTime);
-    void ProcessInput();
+    void ProcessInput(float deltaTime);
 
     void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);
     void AdjustPosition(MathCore::BoundingBox const& boundingBox,
@@ -76,18 +74,22 @@ public:
     void UpdateViewMatrix();
 
 private:
-    void ProcessKeyboard(SDL_Event* e, float deltaTime);
     void ProcessMouseButton(SDL_Event* e);
     void ProcessMouseMovement(SDL_Event* e);
     void ProcessMouseScroll(SDL_Event* e);
 
-    float mMovementSpeed;
+    float mAccel;
     float mMouseSensitivity;
     float mZoom;
 
     float mXVelocity {0.0f};
     float mYVelocity {0.0f};
     float mZVelocity {0.0f};
+
+    // for interpolation
+    MathCore::Float3 mTargetPosition;  
+    MathCore::Float3 mTargetLook;  
+    float mInterpolationSpeed;  
 
     PersperctiveInfo mPerspectiveInfo;
 

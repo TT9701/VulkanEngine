@@ -60,9 +60,9 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
     mScene = MakeShared<IDCSG_NS::Scene>(GetDGCSeqMgr(), *mGeoMgr, *mModelMgr,
                                          gMemPool);
 
-    Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
+    // Type_STLString testModelPathes {MODEL_PATH_CSTR("ModelTest/test.txt")};
 
-    mModelPathes = ReadLinesFromFile(testModelPathes);
+    // mModelPathes = ReadLinesFromFile(testModelPathes);
 
     mSelectedNodeIdx.resize(1, ~0ui32);
 }
@@ -186,6 +186,7 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
                 path.string().c_str(), pBufferPool, mMainCamera.get());
 
             SDL_free(e->drop.file);
+
         } break;
 
         case SDL_MOUSEBUTTONDOWN: {
@@ -242,6 +243,8 @@ void DynamicLoading::Update_OnResize() {
 
     auto& dgcEdgeDetectBuf = renderResMgr["dgc_edge_detect"];
 
+    auto& dgcFXAABuf = renderResMgr["dgc_fxaa"];
+
     auto stagingDispatchTest = vulkanContext.CreateStagingBuffer(
         "", dgcDispatchTestBuf.GetBufferSize());
     auto ptr = (DispatchSequenceTemp*)stagingDispatchTest->GetMapPtr();
@@ -256,6 +259,13 @@ void DynamicLoading::Update_OnResize() {
         (uint32_t)::std::ceil(extent.width / 16.0),
         (uint32_t)::std::ceil(extent.height / 16.0), 1};
 
+    auto stagingFXAA =
+        vulkanContext.CreateStagingBuffer("", dgcFXAABuf.GetBufferSize());
+    auto ptr3 = (FXAASequenceTemp*)stagingFXAA->GetMapPtr();
+    ptr3->command = vk::DispatchIndirectCommand {
+        (uint32_t)::std::ceil(extent.width / 16.0),
+        (uint32_t)::std::ceil(extent.height / 16.0), 1};
+
     {
         auto cmd = vulkanContext.CreateCmdBufToBegin(
             vulkanContext.GetQueue(QueueType::Transfer));
@@ -267,14 +277,18 @@ void DynamicLoading::Update_OnResize() {
         cmdBufCopy.setSize(dgcEdgeDetectBuf.GetBufferSize());
         cmd->copyBuffer(stagingEdgeDetect->GetHandle(),
                         dgcEdgeDetectBuf.GetBufferHandle(), cmdBufCopy);
+
+        cmdBufCopy.setSize(dgcFXAABuf.GetBufferSize());
+        cmd->copyBuffer(stagingFXAA->GetHandle(), dgcFXAABuf.GetBufferHandle(),
+                        cmdBufCopy);
     }
 }
 
-void DynamicLoading::UpdateScene() {
-    mMainCamera->ProcessInput();
+void DynamicLoading::UpdateScene(float deltaTime) {
+    mMainCamera->ProcessInput(deltaTime);
     mMainCamera->UpdateViewMatrix();
 
-    Application::UpdateScene();
+    Application::UpdateScene(deltaTime);
 
     auto pos = mMainCamera->GetPosition();
     mSceneData.cameraPos = {pos.x, pos.y, pos.z, 1.0f};
@@ -613,7 +627,8 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
 
-        mRenderSequence.RecordPass("global_uniform_buffer_copy", cmd.GetHandle());
+        mRenderSequence.RecordPass("global_uniform_buffer_copy",
+                                   cmd.GetHandle());
 
         mRenderSequence.RecordPass("dgc_seq_data_buf_clear", cmd.GetHandle());
 

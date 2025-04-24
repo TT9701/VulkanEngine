@@ -68,7 +68,7 @@ protected:
     virtual void LoadShaders();
     virtual void PollEvents(SDL_Event* e, float deltaTime);
     virtual void Update_OnResize();
-    virtual void UpdateScene();
+    virtual void UpdateScene(float deltaTime);
     virtual void Prepare();
 
     virtual void BeginFrame(Core::RenderFrame& frame);

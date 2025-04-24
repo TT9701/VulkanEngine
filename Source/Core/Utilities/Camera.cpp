@@ -11,7 +11,7 @@ namespace IDCMCore_NS = CMCore_NS;
 Camera::Camera(PersperctiveInfo info, MathCore::Float3 position,
                MathCore::Float3 up)
     : mPosition(position),
-      mMovementSpeed(CameraSpeed),
+      mAccel(CameraAccel),
       mMouseSensitivity(CameraSensitivity),
       mZoom(MathCore::ConvertToDegrees(info.mFov)),
       mPerspectiveInfo(info) {
@@ -157,9 +157,6 @@ MathCore::Mat4 Camera::GetInvViewProjMatrix() {
 }
 
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
-    if (mCaptureKeyboard)
-        ProcessKeyboard(e, deltaTime);
-
     ProcessMouseButton(e);
 
     if (mCaptureMouseMovement)
@@ -168,11 +165,45 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     ProcessMouseScroll(e);
 }
 
-void Camera::ProcessInput()
-{
-    Walk(mZVelocity);
-    Strafe(mXVelocity);
-    JumpUp(mYVelocity);
+void Camera::ProcessInput(float deltaTime) {
+    using namespace IDCMCore_NS;
+
+    if (!mCaptureKeyboard)
+        return;
+
+    auto factor = mAccel * deltaTime;
+
+    auto keyState = SDL_GetKeyboardState(nullptr);
+
+    if (keyState[SDL_SCANCODE_W]) {
+        mZVelocity += factor;
+    } else if (mZVelocity > 0.0f) {
+        mZVelocity *= 0.3f;
+    }
+    if (keyState[SDL_SCANCODE_A]) {
+        mXVelocity -= factor;
+    } else if (mXVelocity < 0.0f) {
+        mXVelocity *= 0.3f;
+    }
+    if (keyState[SDL_SCANCODE_S]) {
+        mZVelocity -= factor;
+    } else if (mZVelocity < 0.0f) {
+        mZVelocity *= 0.3f;
+    }
+    if (keyState[SDL_SCANCODE_D]) {
+        mXVelocity += factor;
+    } else if (mXVelocity > 0.0f) {
+        mXVelocity *= 0.3f;
+    }
+    if (keyState[SDL_SCANCODE_SPACE]) {
+        mYVelocity += factor;
+    } else if (mYVelocity > 0.0f) {
+        mYVelocity *= 0.3f;
+    }
+
+    Walk(deltaTime * mZVelocity);
+    Strafe(deltaTime * mXVelocity);
+    JumpUp(deltaTime * mYVelocity);
 }
 
 void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
@@ -186,11 +217,13 @@ void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
     mViewDirty = true;
 }
 
-void Camera::AdjustPosition(MathCore::BoundingBox const& boundingBox, MathCore::Float3 scale) {
+void Camera::AdjustPosition(MathCore::BoundingBox const& boundingBox,
+                            MathCore::Float3 scale) {
     using namespace IDCMCore_NS;
 
     auto center = VectorMultiply(boundingBox.Center.GetSIMD(), scale.GetSIMD());
-    auto extents = VectorMultiply(boundingBox.Extents.GetSIMD(), scale.GetSIMD());
+    auto extents =
+        VectorMultiply(boundingBox.Extents.GetSIMD(), scale.GetSIMD());
 
     AdjustPosition(center, extents);
 }
@@ -243,58 +276,6 @@ void Camera::UpdateViewMatrix() {
     mInvView = invView;
 
     mViewDirty = false;
-}
-
-void Camera::ProcessKeyboard(SDL_Event* e, float deltaTime) {
-    using namespace IDCMCore_NS;
-
-    if (e->type == SDL_KEYDOWN) {
-        float velocity = mMovementSpeed * deltaTime;
-
-        if (e->key.keysym.sym == SDLK_w) {
-            mZVelocity += velocity;
-        }
-        if (e->key.keysym.sym == SDLK_s) {
-            mZVelocity -= velocity;
-        }
-        if (e->key.keysym.sym == SDLK_a) {
-            mXVelocity -= velocity;
-        }
-        if (e->key.keysym.sym == SDLK_d) {
-            mXVelocity += velocity;
-        }
-        if (e->key.keysym.sym == SDLK_SPACE) {
-            mYVelocity += velocity;
-        }
-    }
-
-    if (e->type == SDL_KEYUP) {
-        if (e->key.keysym.sym == SDLK_w) {
-            if (mZVelocity > 0.0f) {
-                mZVelocity = 0.0f;
-            }
-        }
-        if (e->key.keysym.sym == SDLK_s) {
-            if (mZVelocity < 0.0f) {
-                mZVelocity = 0.0f;
-            }
-        }
-        if (e->key.keysym.sym == SDLK_a) {
-            if (mXVelocity < 0.0f) {
-                mXVelocity = 0.0f;
-            }
-        }
-        if (e->key.keysym.sym == SDLK_d) {
-            if (mXVelocity > 0.0f) {
-                mXVelocity = 0.0f;
-            }
-        }
-        if (e->key.keysym.sym == SDLK_SPACE) {
-            if (mYVelocity > 0.0f) {
-                mYVelocity = 0.0f;
-            }
-        }
-    }
 }
 
 void Camera::ProcessMouseButton(SDL_Event* e) {

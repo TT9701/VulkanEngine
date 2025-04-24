@@ -49,7 +49,7 @@ private:
     void LoadShaders() override;
     void PollEvents(SDL_Event* e, float deltaTime) override;
     void Update_OnResize() override;
-    void UpdateScene() override;
+    void UpdateScene(float deltaTime) override;
     void Prepare() override;
 
     void BeginFrame(IDVC_NS::RenderFrame& frame) override;
