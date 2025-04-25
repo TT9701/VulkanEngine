@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Model/GPUGeometryData.h"
+#include "Core/Platform/Input.h"
 #include "Core/Platform/Window.h"
 #include "Core/Utilities/Camera.h"
 #include "Core/Utilities/Defines.h"
@@ -91,6 +92,8 @@ protected:
     Type_STLVector<Core::RenderFrame> const& GetFrames() const;
     Type_STLVector<Core::RenderFrame>& GetFrames();
 
+    IntelliDesign_NS::Core::Input::KeyboardInput& GetKeyboardInput();
+
     bool mStopRendering {false};
     uint64_t mFrameNum {0};
     IntelliDesign_NS::Core::Utils::FrameTimer mFrameTimer;
@@ -124,6 +127,10 @@ private:
     UniquePtr<ShaderManager> CreateShaderManager();
     UniquePtr<DGCSeqManager> CreateDGCSeqManager();
 
+private:
+    ::std::pmr::memory_resource* pMemPool {::std::pmr::get_default_resource()};
+    bool bQuit {false};
+
     UniquePtr<SDLWindow> mWindow;
     UniquePtr<VulkanContext> mVulkanContext;
     UniquePtr<Swapchain> mSwapchain;
@@ -135,7 +142,9 @@ private:
 
     GUI mGui;
 
-    Type_STLVector<Core::RenderFrame> mFrames {::std::pmr::get_default_resource()};
+    Type_STLVector<Core::RenderFrame> mFrames {pMemPool};
+
+    IntelliDesign_NS::Core::Input::KeyboardInput mKeyboardInput {pMemPool};
 };
 
 // To be defined in CLIENT

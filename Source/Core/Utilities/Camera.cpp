@@ -2,19 +2,19 @@
 
 #include <algorithm>
 
+#include "Core/Platform/Input.h"
 #include "MemoryPool.h"
 
 namespace IntelliDesign_NS::Core {
 
 namespace IDCMCore_NS = CMCore_NS;
 
+static constexpr float MinVel = 0.01f;
+static constexpr float DampFactor = 0.3f;
+
 Camera::Camera(PersperctiveInfo info, MathCore::Float3 position,
                MathCore::Float3 up)
-    : mPosition(position),
-      mAccel(CameraAccel),
-      mMouseSensitivity(CameraSensitivity),
-      mZoom(MathCore::ConvertToDegrees(info.mFov)),
-      mPerspectiveInfo(info) {
+    : mPosition(position), mPerspectiveInfo(info) {
     SetAspect(info.mAspect);
 
     if (mPerspectiveInfo.mNear > mPerspectiveInfo.mFar) {
@@ -39,10 +39,10 @@ void Camera::SetViewMatrix(MathCore::Mat4 const& viewMatrix) {
 
     Mat4 invView = MatrixInverse(nullptr, viewMatrix.GetSIMD());
 
-    mRight = Float3 {invView.m[0][0], invView.m[0][1], invView.m[0][2]};
-    mUp = Float3 {invView.m[1][0], invView.m[1][1], invView.m[1][2]};
-    mLook = Float3 {-invView.m[2][0], -invView.m[2][1], -invView.m[2][2]};
-    mPosition = Float3 {invView.m[3][0], invView.m[3][1], invView.m[3][2]};
+    mRight = Float3 {invView(0, 0), invView(0, 1), invView(0, 2)};
+    mUp = Float3 {invView(1, 0), invView(1, 1), invView(1, 2)};
+    mLook = Float3 {-invView(2, 0), -invView(2, 1), -invView(2, 2)};
+    mPosition = Float3 {invView(3, 0), invView(3, 1), invView(3, 2)};
 
     mViewDirty = true;
 }
@@ -165,45 +165,59 @@ void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     ProcessMouseScroll(e);
 }
 
-void Camera::ProcessInput(float deltaTime) {
+void Camera::RespondToKeyboardInput(Input::KeyboardInput const& input,
+                                    float deltaTime) {
     using namespace IDCMCore_NS;
 
     if (!mCaptureKeyboard)
         return;
 
-    auto factor = mAccel * deltaTime;
+    float duration = 0.0f;
 
-    auto keyState = SDL_GetKeyboardState(nullptr);
-
-    if (keyState[SDL_SCANCODE_W]) {
-        mZVelocity += factor;
-    } else if (mZVelocity > 0.0f) {
-        mZVelocity *= 0.3f;
-    }
-    if (keyState[SDL_SCANCODE_A]) {
-        mXVelocity -= factor;
-    } else if (mXVelocity < 0.0f) {
-        mXVelocity *= 0.3f;
-    }
-    if (keyState[SDL_SCANCODE_S]) {
-        mZVelocity -= factor;
-    } else if (mZVelocity < 0.0f) {
-        mZVelocity *= 0.3f;
-    }
-    if (keyState[SDL_SCANCODE_D]) {
-        mXVelocity += factor;
-    } else if (mXVelocity > 0.0f) {
-        mXVelocity *= 0.3f;
-    }
-    if (keyState[SDL_SCANCODE_SPACE]) {
-        mYVelocity += factor;
-    } else if (mYVelocity > 0.0f) {
-        mYVelocity *= 0.3f;
+    if (input.IsKeyHeld(SDL_SCANCODE_W, &duration)) {
+        mZVelocity = CameraAccel * duration;
+    } else {
+        if (mZVelocity > MinVel)
+        mZVelocity *= DampFactor;
     }
 
-    Walk(deltaTime * mZVelocity);
-    Strafe(deltaTime * mXVelocity);
-    JumpUp(deltaTime * mYVelocity);
+    if (input.IsKeyHeld(SDL_SCANCODE_S, &duration)) {
+        mZVelocity = -CameraAccel * duration;
+    } else {
+        if (mZVelocity < -MinVel)
+            mZVelocity *= DampFactor;
+    }
+
+    if (input.IsKeyHeld(SDL_SCANCODE_A, &duration)) {
+        mXVelocity = -CameraAccel * duration;
+    } else {
+        if (mXVelocity < -MinVel)
+            mXVelocity *= DampFactor;
+    }
+
+    if (input.IsKeyHeld(SDL_SCANCODE_D, &duration)) {
+        mXVelocity = CameraAccel * duration;
+    } else {
+        if (mXVelocity > MinVel)
+            mXVelocity *= DampFactor;
+    }
+
+    if (input.IsKeyHeld(SDL_SCANCODE_SPACE, &duration)) {
+        mYVelocity = CameraAccel * duration;
+    } else {
+        if (mYVelocity > MinVel)
+            mYVelocity *= DampFactor;
+    }
+
+    if (::std::abs(mZVelocity) > MinVel) {
+        Walk(deltaTime * mZVelocity);
+    }
+    if (::std::abs(mXVelocity) > MinVel) {
+        Strafe(deltaTime * mXVelocity);
+    }
+    if (::std::abs(mYVelocity) > MinVel) {
+        JumpUp(deltaTime * mYVelocity);
+    }
 }
 
 void Camera::AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent) {
@@ -294,8 +308,8 @@ void Camera::ProcessMouseButton(SDL_Event* e) {
 
 void Camera::ProcessMouseMovement(SDL_Event* e) {
     if (e->type == SDL_MOUSEMOTION) {
-        Pitch(-(float)e->motion.yrel * mMouseSensitivity);
-        RotateY(-(float)e->motion.xrel * mMouseSensitivity);
+        Pitch(-(float)e->motion.yrel * CameraRotationSensitivity);
+        RotateY(-(float)e->motion.xrel * CameraRotationSensitivity);
     }
 }
 

@@ -148,5 +148,3 @@ private:
 
     IDCMP_NS::Type_STLVector<uint32_t> mSelectedNodeIdx;
 };
-
-VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);

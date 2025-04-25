@@ -4,6 +4,8 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
 
+using namespace IntelliDesign_NS::Core;
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 Application::Application(ApplicationSpecification const& spec)
@@ -26,6 +28,12 @@ Application::Application(ApplicationSpecification const& spec)
     CreateCUDASyncStructures();
     CreateExternalTriangleData();
 #endif
+
+    mKeyboardInput.RegisterKeyEvent(SDL_SCANCODE_ESCAPE,
+                                    {Input::KeyEventInfos {
+                                        Input::KeyEvent::OnPress,
+                                        [&](float) { bQuit = true; },
+                                    }});
 }
 
 Application::~Application() {
@@ -35,7 +43,6 @@ Application::~Application() {
 void Application::Run() {
     Prepare();
 
-    bool bQuit = false;
     while (!bQuit) {
         auto deltaTime = static_cast<float>(mFrameTimer.Frame());
 
@@ -293,6 +300,10 @@ Type_STLVector<Core::RenderFrame> const& Application::GetFrames() const {
 
 Type_STLVector<Core::RenderFrame>& Application::GetFrames() {
     return mFrames;
+}
+
+IntelliDesign_NS::Core::Input::KeyboardInput& Application::GetKeyboardInput() {
+    return mKeyboardInput;
 }
 
 void Application::PollEvents(SDL_Event* e, float deltaTime) {}

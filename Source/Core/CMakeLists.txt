@@ -24,6 +24,7 @@ set (APPLICATION_SRC
         Application/Application.h
         Application/Application.cpp
         Application/EntryPoint.h
+        Application/EntryPoint.cpp
 )
 set (APPLICATION_SRC_GROUP_NAME "Application")
 
@@ -112,6 +113,8 @@ set (VULKAN_CORE_SRC_GROUP_NAME "Vulkan")
 set (PLATFORM_SRC
         Platform/Window.h
         Platform/Window.cpp
+        Platform/Input.h
+        Platform/Input.cpp
 )
 set (PLATFORM_SRC_GROUP_NAME "Platform")
 

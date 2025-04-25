@@ -13,6 +13,8 @@ using namespace IDVC_NS;
 
 bool gUseFXAA = true;
 
+VE_CREATE_APPLICATION(DynamicLoading, 1600, 900);
+
 namespace {
 ::std::pmr::memory_resource* gMemPool = ::std::pmr::get_default_resource();
 
@@ -65,6 +67,14 @@ DynamicLoading::DynamicLoading(ApplicationSpecification const& spec)
     // mModelPathes = ReadLinesFromFile(testModelPathes);
 
     mSelectedNodeIdx.resize(1, ~0ui32);
+
+    auto& keyboardInput = GetKeyboardInput();
+
+    keyboardInput.RegisterKey(SDL_SCANCODE_W);
+    keyboardInput.RegisterKey(SDL_SCANCODE_S);
+    keyboardInput.RegisterKey(SDL_SCANCODE_A);
+    keyboardInput.RegisterKey(SDL_SCANCODE_D);
+    keyboardInput.RegisterKey(SDL_SCANCODE_SPACE);
 }
 
 DynamicLoading::~DynamicLoading() = default;
@@ -172,6 +182,8 @@ void DynamicLoading::LoadShaders() {
 
 void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
     Application::PollEvents(e, deltaTime);
+
+    GetKeyboardInput().PollEvents(e);
 
     switch (e->type) {
         case SDL_DROPFILE: {
@@ -285,7 +297,9 @@ void DynamicLoading::Update_OnResize() {
 }
 
 void DynamicLoading::UpdateScene(float deltaTime) {
-    mMainCamera->ProcessInput(deltaTime);
+    GetKeyboardInput().Update(deltaTime);
+
+    mMainCamera->RespondToKeyboardInput(GetKeyboardInput(), deltaTime);
     mMainCamera->UpdateViewMatrix();
 
     Application::UpdateScene(deltaTime);
@@ -1004,8 +1018,15 @@ void DisplayMaterial(
 void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
     auto const& model = node->GetModel();
     auto name = node->GetName();
-    bool nodeOpen =
-        ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_OpenOnArrow);
+
+    int treeNodeFlags = ImGuiTreeNodeFlags_OpenOnArrow;
+
+    for (auto idx : mSelectedNodeIdx) {
+        if (idx == node->GetID())
+            treeNodeFlags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    bool nodeOpen = ImGui::TreeNodeEx(name.c_str(), treeNodeFlags);
 
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
         && ImGui::IsItemHovered()) {
@@ -1300,12 +1321,6 @@ void DynamicLoading::PrepareUIContext() {
                     (float*)&viewMat, 0.1f,
                     ImVec2(viewManipulateRight - 128, viewManipulateTop),
                     ImVec2(128, 128), 0x10101010);
-
-                // ImGuizmo::ViewManipulate(
-                //     (float*)&viewMat, (const float*)&projMat, ImGuizmo::ROTATE,
-                //     ImGuizmo::LOCAL, (float*)&matrix_identity, 0.001f,
-                //     ImVec2(viewManipulateRight - 128, viewManipulateTop),
-                //     ImVec2(128, 128), 0x10101010);
 
                 mMainCamera->SetViewMatrix(viewMat);
             }

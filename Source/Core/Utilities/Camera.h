@@ -6,7 +6,11 @@
 
 namespace IntelliDesign_NS::Core {
 
-enum class CameraMovement : uint32_t {
+namespace Input {
+class KeyboardInput;
+}
+
+enum class CameraMovementFlags : uint32_t {
     Forward,
     Backward,
     Left,
@@ -14,9 +18,6 @@ enum class CameraMovement : uint32_t {
     Up,
     Down
 };
-
-constexpr float CameraAccel = 500.f;
-constexpr float CameraSensitivity = 0.002f;
 
 struct PersperctiveInfo {
     float mNear;
@@ -27,8 +28,15 @@ struct PersperctiveInfo {
 
 class Camera {
 public:
+    static constexpr float CameraAccel = 300.f;
+    static constexpr float CameraRotationSensitivity = 0.002f;
+
     bool mCaptureMouseMovement {false};
     bool mCaptureKeyboard {true};
+
+    float mXVelocity {0.0f};
+    float mYVelocity {0.0f};
+    float mZVelocity {0.0f};
 
     Camera(PersperctiveInfo info,
            MathCore::Float3 position = MathCore::Float3(0.0f, 0.0f, 0.0f),
@@ -62,7 +70,7 @@ public:
     MathCore::Mat4 GetInvViewProjMatrix();
 
     void ProcessSDLEvent(SDL_Event* e, float deltaTime);
-    void ProcessInput(float deltaTime);
+    void RespondToKeyboardInput(Input::KeyboardInput const& input, float deltaTime);
 
     void AdjustPosition(MathCore::Float3 lookAt, MathCore::Float3 extent);
     void AdjustPosition(MathCore::BoundingBox const& boundingBox,
@@ -78,18 +86,10 @@ private:
     void ProcessMouseMovement(SDL_Event* e);
     void ProcessMouseScroll(SDL_Event* e);
 
-    float mAccel;
-    float mMouseSensitivity;
-    float mZoom;
-
-    float mXVelocity {0.0f};
-    float mYVelocity {0.0f};
-    float mZVelocity {0.0f};
-
     // for interpolation
-    MathCore::Float3 mTargetPosition;  
-    MathCore::Float3 mTargetLook;  
-    float mInterpolationSpeed;  
+    MathCore::Float3 mTargetPosition;
+    MathCore::Float3 mTargetLook;
+    float mInterpolationSpeed;
 
     PersperctiveInfo mPerspectiveInfo;
 

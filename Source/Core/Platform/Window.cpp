@@ -55,12 +55,6 @@ void SDLWindow::PollEvents(bool& quit, bool& stopRendering,
                     default: break;
                 }
                 break;
-            case SDL_KEYDOWN:
-                switch (mEvent->key.keysym.sym) {
-                    case SDLK_ESCAPE: quit = true; break;
-                    default: break;
-                }
-                break;
             default: break;
         }
         func(mEvent);
