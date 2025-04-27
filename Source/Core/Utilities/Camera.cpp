@@ -159,7 +159,7 @@ MathCore::Mat4 Camera::GetInvViewProjMatrix() {
 void Camera::ProcessSDLEvent(SDL_Event* e, float deltaTime) {
     ProcessMouseButton(e);
 
-    if (mCaptureMouseMovement)
+    if (mCaptureMouseMovement) 
         ProcessMouseMovement(e);
 
     ProcessMouseScroll(e);
@@ -307,6 +307,9 @@ void Camera::ProcessMouseButton(SDL_Event* e) {
 }
 
 void Camera::ProcessMouseMovement(SDL_Event* e) {
+    if (!mCaptureMouse)
+        return;
+
     if (e->type == SDL_MOUSEMOTION) {
         Pitch(-(float)e->motion.yrel * CameraRotationSensitivity);
         RotateY(-(float)e->motion.xrel * CameraRotationSensitivity);
@@ -314,6 +317,9 @@ void Camera::ProcessMouseMovement(SDL_Event* e) {
 }
 
 void Camera::ProcessMouseScroll(SDL_Event* e) {
+    if (!mCaptureMouse)
+        return;
+    
     if (e->type == SDL_MOUSEWHEEL) {
         Walk((float)e->wheel.y);
     }

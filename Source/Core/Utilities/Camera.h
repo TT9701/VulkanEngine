@@ -32,6 +32,8 @@ public:
     static constexpr float CameraRotationSensitivity = 0.002f;
 
     bool mCaptureMouseMovement {false};
+
+    bool mCaptureMouse {true};
     bool mCaptureKeyboard {true};
 
     float mXVelocity {0.0f};

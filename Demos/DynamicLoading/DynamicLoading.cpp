@@ -220,6 +220,12 @@ void DynamicLoading::PollEvents(SDL_Event* e, float deltaTime) {
         mMainCamera->mCaptureKeyboard = true;
     }
 
+    if (GetUILayer().WantCaptureMouse()) {
+        mMainCamera->mCaptureMouse = false;
+    } else {
+        mMainCamera->mCaptureMouse = true;
+    }
+
     mMainCamera->ProcessSDLEvent(e, deltaTime);
 }
 
