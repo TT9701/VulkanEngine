@@ -1,14 +1,17 @@
 ﻿#include "CISDIModel_BatchGenerator.h"
 
+#include "JSON//NlohmannJSON_v3_11_3/json.hpp"
+#include "Core/System/MemoryPool/MemoryPool.h"
+
 #include <codecvt>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
-constexpr const char8_t* GENERATOR_EXECUTABLE_NAME =
-    u8"CISDIModel_Generator.exe";
+using namespace IntelliDesign_NS::Core::MemoryPool;
 
-constexpr const char8_t* DEFAULT_MODEL_PATH = u8"../../../Models/股份数字化/";
+constexpr const char* GENERATOR_EXECUTABLE_NAME = "CISDIModel_Generator.exe";
 
 constexpr int MAX_PROCESS_COUNT = 8;
 
@@ -20,14 +23,15 @@ void WaitAllProcess(
             procHandles.push_back(proc.mProcessInfo.hProcess);
     }
 
-    printf("Wait all process executing...\n");
-    WaitForMultipleObjects(procHandles.size(), procHandles.data(), TRUE,
-                           INFINITE);
-    printf("All process finished.\n");
+    auto processCount = procHandles.size();
+
+    printf("%d processes executing...\n", processCount);
+    WaitForMultipleObjects(processCount, procHandles.data(), TRUE, INFINITE);
+    printf("Finished.\n");
 }
 
 CISDIModel_GeneratorProcess::CISDIModel_GeneratorProcess(
-    const char8_t* commandLine)
+    const char* commandLine)
     : mCommandLine((char*)commandLine) {
     ZeroMemory(&mStartupInfo, sizeof(mStartupInfo));
     mStartupInfo.cb = sizeof(mStartupInfo);
@@ -65,12 +69,35 @@ DWORD CISDIModel_GeneratorProcess::Wait() {
 }
 
 void ReadModelNameFromDirectory(const ::std::filesystem::path& path,
-                                ::std::vector<::std::u8string>& modelPathes) {
+                                ::std::vector<Type_STLString>& modelPathes) {
     for (const auto& entry : ::std::filesystem::directory_iterator(path)) {
         if (entry.path().extension() == ".fbx") {
-            modelPathes.push_back(entry.path().u8string());
+            modelPathes.push_back(entry.path().string().c_str());
         }
     }
+}
+
+void ReadModelNameFromJSON(const ::std::filesystem::path& jsonFile,
+                           ::std::vector<Type_STLString>& inModelPathes,
+                           Type_STLString& outModelPath) {
+    ::std::ifstream ifs(jsonFile);
+
+    using json = nlohmann::json;
+    json j;
+
+    ifs >> j;
+
+    for (uint32_t i = 0; i < j["input_pathes"].size(); ++i) {
+        auto pathStr = j["input_pathes"][i].get<Type_STLString>();
+        auto path = ::std::filesystem::path(pathStr.c_str());
+        if (::std::filesystem::is_directory(path)) {
+            ReadModelNameFromDirectory(path, inModelPathes);
+        } else {
+            inModelPathes.push_back(path.string().c_str());
+        }
+    }
+
+    outModelPath = j["output_path"].get<Type_STLString>();
 }
 
 int main(int argc, char* argv[]) {
@@ -78,21 +105,40 @@ int main(int argc, char* argv[]) {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
-    ::std::vector<::std::u8string> modelPathes;
+    ::std::vector<Type_STLString> modelPathes;
+    Type_STLString outModelPath;
 
-    if (argc < 2) {
+    if (argc != 2) {
         printf("No model path specified.\n");
-        printf("Loading Models from default path: %s.\n", DEFAULT_MODEL_PATH);
-
-        ReadModelNameFromDirectory(DEFAULT_MODEL_PATH, modelPathes);
+        printf("usage: %s <model_path.json>\n", argv[0]);
+        printf(
+            "\t .json example: \n\t{\n\t\t\"input_pathes\": "
+            "[\"model1.fbx\",\"model_dir\"], \n\t\t\"output_path\": "
+            "\"output_dir\"\n\t}\n");
+        return -1;
     } else {
-        for (int i = 1; i < argc; ++i) {
-            ::std::filesystem::path path(argv[i]);
-            if (std::filesystem::is_directory(path)) {
-                ReadModelNameFromDirectory(path, modelPathes);
-            } else {
-                modelPathes.push_back(path.u8string());
+        ::std::filesystem::path path(argv[1]);
+        if (::std::filesystem::exists(path)) {
+            ReadModelNameFromJSON(path, modelPathes, outModelPath);
+
+            printf("Output path: %s\n", outModelPath.c_str());
+            if (!::std::filesystem::exists(outModelPath.c_str())) {
+                printf(
+                    "Output path %s does not exist. Create a new one.\n",
+                    outModelPath
+                        .c_str());  // Updated to use string() for correct output
+
+                // Create the output directory if it doesn't exist
+                ::std::filesystem::create_directories(outModelPath.c_str());
             }
+
+            printf("Number of models found: %zu\n", modelPathes.size());
+            for (auto&& modelPath : modelPathes) {
+                printf("Model path: %s\n", modelPath.c_str());
+            }
+        } else {
+            printf("File not found: %s\n", path.string().c_str());
+            return -1;
         }
     }
 
@@ -100,7 +146,7 @@ int main(int argc, char* argv[]) {
                          ? MAX_PROCESS_COUNT
                          : modelPathes.size();
 
-    ::std::vector<::std::vector<::std::u8string>> modelPathesList(processCount);
+    ::std::vector<::std::vector<Type_STLString>> modelPathesList(processCount);
 
     for (int i = 0; i < modelPathes.size(); ++i) {
         modelPathesList[i % processCount].push_back(modelPathes[i]);
@@ -109,17 +155,17 @@ int main(int argc, char* argv[]) {
     ::std::vector<CISDIModel_GeneratorProcess> processes;
 
     for (int i = 0; i < processCount; ++i) {
-        ::std::u8string commandLine = GENERATOR_EXECUTABLE_NAME;
+        Type_STLString commandLine = GENERATOR_EXECUTABLE_NAME;
         for (auto&& path : modelPathesList[i]) {
-            commandLine += u8" ";
+            commandLine = commandLine + " ";
             commandLine += path;
         }
+        commandLine = commandLine + " ";
+        commandLine += outModelPath;
         processes.emplace_back(commandLine.c_str());
     }
 
     WaitAllProcess(processes);
-
-    printf("Sucess.\n");
 
     return 0;
 }

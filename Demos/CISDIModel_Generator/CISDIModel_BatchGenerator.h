@@ -2,7 +2,7 @@
 #include <Windows.h>
 
 struct CISDIModel_GeneratorProcess {
-    CISDIModel_GeneratorProcess(const char8_t* commandLine);
+    CISDIModel_GeneratorProcess(const char* commandLine);
     ~CISDIModel_GeneratorProcess();
 
     DWORD Wait();
