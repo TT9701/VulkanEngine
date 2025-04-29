@@ -4,6 +4,8 @@
 #include "CUDA/CUDAVulkan.h"
 #endif
 
+using namespace IntelliDesign_NS::Core;
+
 namespace IntelliDesign_NS::Vulkan::Core {
 
 VulkanContext::VulkanContext(
@@ -46,6 +48,8 @@ VulkanContext::VulkanContext(
     mFencePool = MakeUnique<FencePool>(*this);
     mCommandPool = MakeUnique<CommandPool>(
         *this, GetQueue(QueueType::Graphics).GetFamilyIndex());
+
+    mProfiler = MakeUnique<TracyProfiler>(*this);
 }
 
 SharedPtr<Texture> VulkanContext::CreateTexture2D(
@@ -235,6 +239,10 @@ FencePool& VulkanContext::GetFencePool() const {
 
 CommandPool& VulkanContext::GetCommandPool() const {
     return *mCommandPool;
+}
+
+IntelliDesign_NS::Core::TracyProfiler& VulkanContext::GetProfiler() const {
+    return *mProfiler;
 }
 
 UniquePtr<Instance> VulkanContext::CreateInstance(

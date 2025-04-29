@@ -23,6 +23,8 @@ Swapchain::~Swapchain() {
 }
 
 uint32_t Swapchain::AcquireNextImageIndex(RenderFrame& frame) {
+    ZoneScoped;
+
     frame.Reset();
 
     VK_CHECK(mContex.GetDevice()->acquireNextImageKHR(
@@ -34,6 +36,8 @@ uint32_t Swapchain::AcquireNextImageIndex(RenderFrame& frame) {
 }
 
 void Swapchain::Present(RenderFrame& frame, vk::Queue queue) {
+    ZoneScoped;
+
     auto sem = frame.GetSwapchainPresentSemaphore().GetHandle();
 
     vk::PresentInfoKHR presentInfo {};
@@ -46,6 +50,8 @@ void Swapchain::Present(RenderFrame& frame, vk::Queue queue) {
 
 vk::SwapchainKHR Swapchain::RecreateSwapchain(vk::Extent2D extent,
                                               vk::SwapchainKHR old) {
+    ZoneScoped;
+    
     mExtent2D = extent;
     mCreateInfo.setSurface(mContex.GetSurface().GetHandle())
         .setMinImageCount(3u)

@@ -110,6 +110,8 @@ bool Scene::RemoveNode_Async(const char* name) {
 
 void Scene::CullNode(MathCore::BoundingFrustum const& frustum,
                      Vulkan::Core::RenderFrame& frame) {
+    ZoneScoped;
+    
     ::std::unique_lock lock {mNodeMapMutex};
     for (auto const& [name, node] : mNodes) {
         auto const& bb = node->GetModel().boundingBox;

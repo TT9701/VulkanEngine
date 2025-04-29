@@ -15,8 +15,6 @@
 #include "Core/Model/ModelDataManager.h"
 #include "Core/Utilities/Threading/Thread.hpp"
 
-#include "tracy/Tracy.hpp"
-
 namespace IDVC_NS = IntelliDesign_NS::Vulkan::Core;
 namespace IDCMP_NS = IntelliDesign_NS::Core::MemoryPool;
 

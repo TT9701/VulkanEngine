@@ -12,6 +12,8 @@ ModelDataManager::ModelDataManager(std::pmr::memory_resource* pMemPool)
 
 Core::MemoryPool::Type_SharedPtr<CISDI_3DModel const>
 ModelDataManager::Create_CISDI_3DModel(const char* path) {
+    ZoneScopedS(10);
+
     auto modelPath = ::std::filesystem::path {path};
 
     if (mModels.contains(path))
@@ -30,11 +32,17 @@ ModelDataManager::Create_CISDI_3DModel(const char* path) {
         };
 
     if (modelPath.extension() == CISDI_3DModel_Subfix_Str) {
-        Load(ptr.get(), path, pMemPool);
+        {
+            ZoneScopedNS("Load CISDI Model", 10);
+            Load(ptr.get(), path, pMemPool);
+        }
         return emplacePtr(::std::move(ptr));
     }
 
-    Convert(ptr.get(), path, false, pMemPool, nullptr);
+    {
+        ZoneScopedNS("Convert CISDI Model", 10);
+        Convert(ptr.get(), path, false, pMemPool, nullptr);
+    }
     return emplacePtr(::std::move(ptr));
 }
 
@@ -77,6 +85,7 @@ void ModelDataManager::Remove_CISDI_3DModel(const char* name) {
     if (mPaths.contains(name)) {
         auto const& path = mPaths.at(name);
         if (mModels.contains(path)) {
+            ZoneScopedNS("Remove_CISDI_3DModel", 10);
             mModels.erase(path);
         }
         mPaths.erase(name);

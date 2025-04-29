@@ -194,6 +194,8 @@ void Texture::Resize(vk::Extent2D extent) {
 }
 
 vk::Image Texture::CreateImage() {
+    ZoneScopedS(10);
+
     VkImage image {};
 
     vk::ImageType type {};
@@ -277,6 +279,8 @@ void ImageView::Destroy() {
 }
 
 vk::ImageView ImageView::CreateImageView() const {
+    ZoneScopedS(10);
+    
     vk::ImageViewCreateInfo info {};
     info.setImage(mImageHandle)
         .setFormat(mFormat)

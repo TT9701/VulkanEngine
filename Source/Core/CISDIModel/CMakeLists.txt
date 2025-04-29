@@ -93,5 +93,4 @@ target_link_libraries (CISDI_ModelData
     INTELLI_DS_MemoryPool
     EXTERNAL_ASSIMP
     EXTERNAL_MESHOPTIMIZER
-    EXTERNAL_FBXSDK
-    assimp)
+    EXTERNAL_FBXSDK)

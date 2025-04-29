@@ -22,7 +22,7 @@ std::string ProcessOutputPath(const char* input, const char* output) {
         outputPath = ::std::filesystem::canonical(output);
         if (::std::filesystem::is_directory(outputPath)) {
             outputPath = outputPath.wstring().append(L"/").append(
-                inPath.wstring().append(CISDI_3DModel_Subfix_WStr));
+                inPath.filename().wstring().append(CISDI_3DModel_Subfix_WStr));
         } else {
             throw ::std::runtime_error(
                 "ERROR::CISDI_3DMODELDATA::CONVERT: Output is not a "

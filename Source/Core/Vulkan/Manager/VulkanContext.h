@@ -8,6 +8,7 @@
 #ifndef NDEBUG
 #include "Core/Vulkan/Native/DebugUtils.h"
 #endif
+#include "Core/Utilities/Profiler.h"
 #include "Core/Vulkan/Native/Commands.h"
 #include "Core/Vulkan/Native/Instance.h"
 #include "Core/Vulkan/Native/MemoryAllocator.h"
@@ -72,6 +73,8 @@ public:
         CmdToBegin(Device& device, vk::CommandBuffer cmd, vk::CommandPool pool,
                    vk::Queue queue, vk::Semaphore signal);
         ~CmdToBegin();
+
+        vk::CommandBuffer GetHandle() const { return mHandle; }
 
         vk::CommandBuffer const* operator->() const;
 
@@ -247,6 +250,12 @@ public:
      */
     CommandPool& GetCommandPool() const;
 
+    /**
+     * @brief 
+     * @return 
+     */
+    IntelliDesign_NS::Core::TracyProfiler& GetProfiler() const;
+
 private:
     /**
      * @brief 
@@ -311,6 +320,8 @@ private:
 
     UniquePtr<FencePool> mFencePool;
     UniquePtr<CommandPool> mCommandPool;
+
+    UniquePtr<IntelliDesign_NS::Core::TracyProfiler> mProfiler;
 };
 
 }  // namespace IntelliDesign_NS::Vulkan::Core

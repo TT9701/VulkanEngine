@@ -73,6 +73,8 @@ void Buffer::Resize(size_t newSize) {
 }
 
 void Buffer::CopyData(const void* data, size_t size, size_t offset) {
+    ZoneScopedS(10);
+
     if (bMapped) {
         memcpy(static_cast<char*>(mAllocationInfo.pMappedData) + offset, data,
                size);
@@ -82,6 +84,8 @@ void Buffer::CopyData(const void* data, size_t size, size_t offset) {
         memcpy(stagingData, data, size);
         auto cmd = mContext.CreateCmdBufToBegin(
             mContext.GetQueue(QueueType::Transfer));
+        TracyVkZone(mContext.GetProfiler().GetTracyCtx(), cmd.GetHandle(),
+                    "Buffer Copy");
         vk::BufferCopy cmdBufCopy {};
         cmdBufCopy.setSize(size).setDstOffset(offset);
         cmd->copyBuffer(staging->GetHandle(), mHandle, cmdBufCopy);
@@ -89,6 +93,9 @@ void Buffer::CopyData(const void* data, size_t size, size_t offset) {
 }
 
 void Buffer::Execute(vk::CommandBuffer cmd) const {
+    ZoneScopedS(10);
+    TracyVkZone(mContext.GetProfiler().GetTracyCtx(), cmd, "Buffer Execute");
+
     VE_ASSERT(mDGCSequence != nullptr,
               "DGCSequence is not set for this buffer.");
 
@@ -96,6 +103,8 @@ void Buffer::Execute(vk::CommandBuffer cmd) const {
 }
 
 vk::Buffer Buffer::CreateBufferResource() {
+    ZoneScopedS(10);
+
     bMapped = mMemoryType != MemoryType::DeviceLocal;
     if (mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddress
         || mUsageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddressEXT
@@ -135,6 +144,7 @@ vk::Buffer Buffer::CreateBufferResource() {
 }
 
 void Buffer::Destroy() {
+    ZoneScopedS(10);
     vmaDestroyBuffer(mContext.GetVmaAllocator().GetHandle(), mHandle,
                      mAllocation);
 }

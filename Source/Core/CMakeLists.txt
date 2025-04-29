@@ -17,6 +17,8 @@ set (UTILITIES_SRC
         Utilities/GUI.h
         Utilities/GUI.cpp
         Utilities/Threading/Thread.hpp
+        Utilities/Profiler.h
+        Utilities/Profiler.cpp
 )
 set (UTILITIES_SRC_GROUP_NAME "Utilities")
 
@@ -173,7 +175,8 @@ target_compile_definitions (Core
 target_compile_definitions (Core
         PUBLIC
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-        TRACY_ENABLE=1)
+        TRACY_ENABLE=1
+        TRACY_VK_USE_SYMBOL_TABLE=1)
 
 target_link_libraries (Core
         PUBLIC

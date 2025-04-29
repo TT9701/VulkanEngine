@@ -142,6 +142,8 @@ void RenderFrame::Reset() {
 
 void RenderFrame::CullRegister(
     SharedPtr<IntelliDesign_NS::Core::SceneGraph::Node> const& node) {
+    ZoneScoped;
+    
     mNodes.push_back(node);
 }
 

@@ -5,8 +5,6 @@
 #include "Core/System/GameTimer.h"
 #include "Core/System/MemoryPool/MemoryPool.h"
 
-#include "tracy/TracyVulkan.hpp"
-
 #define SHADER_VALIDITY_CHECK
 
 using namespace IDVC_NS;
@@ -388,11 +386,21 @@ void DynamicLoading::Prepare() {
         {
             auto cmd = GetVulkanContext().CreateCmdBufToBegin(
                 GetVulkanContext().GetQueue(QueueType::Transfer));
-            vk::BufferCopy cmdBufCopy {};
-            cmdBufCopy.setSize(bufSize);
-            cmd->copyBuffer(staging->GetHandle(),
-                            mDispatchIndirectCmdBuffer->GetHandle(),
-                            cmdBufCopy);
+
+            {
+                auto tracyCtx = GetVulkanContext().GetProfiler().GetTracyCtx();
+
+                TracyVkZone(tracyCtx, cmd.GetHandle(),
+                            "copy dispatch command buffer");
+
+                vk::BufferCopy cmdBufCopy {};
+                cmdBufCopy.setSize(bufSize);
+                cmd->copyBuffer(staging->GetHandle(),
+                                mDispatchIndirectCmdBuffer->GetHandle(),
+                                cmdBufCopy);
+
+                TracyVkCollect(tracyCtx, cmd.GetHandle());
+            }
         }
     }
 
@@ -549,6 +557,8 @@ void DynamicLoading::PrepareEdgeDetectSequence() {
 }
 
 void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
+    ZoneScoped;
+
     mScene->VisitAllNodes([](IDCSG_NS::Node* node) { node->RetrieveIDs(); });
 
     for (auto& pNode : frame.GetInFrustumNodes()) {
@@ -581,6 +591,8 @@ void DynamicLoading::ResizeToFitAllSeqBufPool(IDVC_NS::RenderFrame& frame) {
 }
 
 void DynamicLoading::BeginFrame(IDVC_NS::RenderFrame& frame) {
+    ZoneScopedS(10);
+
     Application::BeginFrame(frame);
     GetUILayer().BeginFrame(frame);
 
@@ -613,9 +625,12 @@ void DynamicLoading::BeginFrame(IDVC_NS::RenderFrame& frame) {
 }
 
 void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
+    ZoneScopedS(10);
+
     auto& vkCtx = GetVulkanContext();
     auto& timelineSem = vkCtx.GetTimelineSemphore();
     auto& cmdMgr = GetCmdMgr();
+    auto tracyCtx = vkCtx.GetProfiler().GetTracyCtx();
 
     const uint64_t graphicsFinished = timelineSem.GetValue();
     const uint64_t computeFinished = graphicsFinished + 1;
@@ -639,24 +654,36 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
 
         frame.GetQueryPool().ResetPool(cmd.GetHandle(), 12);
 
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "dispatch");
+        {
+            TracyVkZone(tracyCtx, cmd.GetHandle(), "Background Pass");
 
-        mRenderSequence.RecordPass("DGC_Dispatch", cmd.GetHandle());
+            frame.GetQueryPool().BeginRange(cmd.GetHandle(), "dispatch");
 
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "dispatch");
+            mRenderSequence.RecordPass("DGC_Dispatch", cmd.GetHandle());
 
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
+            frame.GetQueryPool().EndRange(cmd.GetHandle(), "dispatch");
+        }
 
-        mRenderSequence.RecordPass("global_uniform_buffer_copy",
-                                   cmd.GetHandle());
+        {
+            TracyVkZone(tracyCtx, cmd.GetHandle(), "Buffer Copy");
 
-        mRenderSequence.RecordPass("dgc_seq_data_buf_clear", cmd.GetHandle());
+            frame.GetQueryPool().BeginRange(cmd.GetHandle(), "copy");
 
-        mRenderSequence.RecordPass("dgc_seq_data_buf_copy", cmd.GetHandle());
+            mRenderSequence.RecordPass("global_uniform_buffer_copy",
+                                       cmd.GetHandle());
 
-        // mRenderSequence.RecordPass("DGC_PrepareDraw", cmd.GetHandle());
+            mRenderSequence.RecordPass("dgc_seq_data_buf_clear",
+                                       cmd.GetHandle());
 
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "copy");
+            mRenderSequence.RecordPass("dgc_seq_data_buf_copy",
+                                       cmd.GetHandle());
+
+            // mRenderSequence.RecordPass("DGC_PrepareDraw", cmd.GetHandle());
+
+            frame.GetQueryPool().EndRange(cmd.GetHandle(), "copy");
+        }
+
+        TracyVkCollect(tracyCtx, cmd.GetHandle());
 
         cmd.End();
 
@@ -680,30 +707,53 @@ void DynamicLoading::RenderFrame(IDVC_NS::RenderFrame& frame) {
     {
         auto cmd = frame.GetGraphicsCmdBuf();
 
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "draw");
+        {
+            TracyVkZoneC(tracyCtx, cmd.GetHandle(), "Draw Mesh Pass",
+                         0x101000FF);
 
-        mRenderSequence.RecordPass("DGC_DrawMeshShader", cmd.GetHandle());
+            frame.GetQueryPool().BeginRange(cmd.GetHandle(), "draw");
 
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "draw");
+            mRenderSequence.RecordPass("DGC_DrawMeshShader", cmd.GetHandle());
 
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "CopyModelID");
+            frame.GetQueryPool().EndRange(cmd.GetHandle(), "draw");
+        }
 
-        mRenderSequence.RecordPass("CopyModelID", cmd.GetHandle());
+        {
+            TracyVkZone(tracyCtx, cmd.GetHandle(), "Edge Detect Pass");
 
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "CopyModelID");
+            {
+                TracyVkZone(tracyCtx, cmd.GetHandle(), "Copy Model ID");
 
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "EdgeDetect");
+                frame.GetQueryPool().BeginRange(cmd.GetHandle(), "CopyModelID");
 
-        mRenderSequence.RecordPass("DGC_EdgeDetect", cmd.GetHandle());
+                mRenderSequence.RecordPass("CopyModelID", cmd.GetHandle());
 
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "EdgeDetect");
+                frame.GetQueryPool().EndRange(cmd.GetHandle(), "CopyModelID");
+            }
 
-        frame.GetQueryPool().BeginRange(cmd.GetHandle(), "FXAA");
+            {
+                TracyVkZone(tracyCtx, cmd.GetHandle(), "Edge Detect Dispatch");
 
-        if (gUseFXAA)
-            mRenderSequence.RecordPass("DGC_FXAA", cmd.GetHandle());
+                frame.GetQueryPool().BeginRange(cmd.GetHandle(), "EdgeDetect");
 
-        frame.GetQueryPool().EndRange(cmd.GetHandle(), "FXAA");
+                mRenderSequence.RecordPass("DGC_EdgeDetect", cmd.GetHandle());
+
+                frame.GetQueryPool().EndRange(cmd.GetHandle(), "EdgeDetect");
+            }
+        }
+
+        {
+            TracyVkZone(tracyCtx, cmd.GetHandle(), "FXAA Pass");
+
+            frame.GetQueryPool().BeginRange(cmd.GetHandle(), "FXAA");
+
+            if (gUseFXAA)
+                mRenderSequence.RecordPass("DGC_FXAA", cmd.GetHandle());
+
+            frame.GetQueryPool().EndRange(cmd.GetHandle(), "FXAA");
+        }
+
+        TracyVkCollect(tracyCtx, cmd.GetHandle());
 
         cmd.End();
 
@@ -743,6 +793,7 @@ void DynamicLoading::EndFrame(IDVC_NS::RenderFrame& frame) {
         throw;
 
     FrameMark;
+    ZoneScopedS(10);
 }
 
 void DynamicLoading::RenderToSwapchainBindings(vk::CommandBuffer cmd) {
@@ -1055,9 +1106,9 @@ void DynamicLoading::DisplayNode(IDCSG_NS::Node const* node) {
     }
 
     if (nodeOpen) {
-        auto const& geo = *mGeoMgr->GetGPUGeometryData(name.c_str());
+        auto const& geo = node->GetGPUGeoDataRef();
 
-        auto modelStats = geo.GetStats();
+        auto modelStats = geo->GetStats();
 
         if (ImGui::TreeNode("Stats")) {
             DisplayStats(modelStats);
@@ -1335,7 +1386,7 @@ void DynamicLoading::PrepareUIContext() {
 
 void DynamicLoading::RecordPasses(RenderSequence& sequence,
                                   IDVC_NS::RenderFrame& frame) {
-    ZoneScoped;
+    ZoneScopedC(0xFF00FF00);
 
     sequence.Clear();
 

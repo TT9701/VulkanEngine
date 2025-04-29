@@ -15,6 +15,7 @@ GPUGeometryDataManager::GPUGeometryDataManager(
 
 SharedPtr<GPUGeometryData> GPUGeometryDataManager::CreateGPUGeometryData(
     ModelData::CISDI_3DModel const& model) {
+    ZoneScopedS(10);
     if (mGeometries.contains(model.name)) 
         return mGeometries.at(model.name);
     
@@ -31,6 +32,7 @@ SharedPtr<GPUGeometryData> GPUGeometryDataManager::GetGPUGeometryData(
 }
 
 void GPUGeometryDataManager::RemoveGPUGeometryData(const char* name) {
+    ZoneScopedS(10);
     if (mGeometries.contains(name)) {
         mGeometries.erase(name);
     } 

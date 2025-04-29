@@ -107,6 +107,7 @@ UniquePtr<VulkanContext> Application::CreateContext() {
     enabledDeivceExtensions.emplace_back(
         vk::EXTDeviceGeneratedCommandsExtensionName);
     enabledDeivceExtensions.emplace_back(vk::EXTShaderObjectExtensionName);
+    enabledDeivceExtensions.emplace_back(vk::EXTCalibratedTimestampsExtensionName);
 
 #ifdef CUDA_VULKAN_INTEROP
     enabledDeivceExtensions.emplace_back(
