@@ -28,6 +28,8 @@ namespace Assimp {
  *
  */
 class Importer {
+    INTELLI_DS_DEFINE_STANDARD_CLASS_UNIQUE(Importer);
+
     using Type_InternalMeshDatas =
         ModelData::Type_STLVector<ModelData::InternalMeshData>;
     using Type_Indices =

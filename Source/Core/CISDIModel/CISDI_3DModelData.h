@@ -28,6 +28,13 @@ constexpr Version CISDI_3DModel_VERSION = {0ui8, 4ui8, 2ui16};
  */
 struct CISDI_3DModel {
     /**
+     * @brief 各类转换过程所需临时对象（如导入器）的基类
+     */
+    class TempObject {
+        INTELLI_DS_DEFINE_INTERFACE_CLASS_UNIQUE(TempObject);
+    };
+
+    /**
      * @brief 使用 pmr allocator 构造 CISDI_3DModel 对象
      * @param pMemPool pmr memory resource 指针
      */
@@ -87,10 +94,9 @@ struct CISDI_3DModel {
  * @param pMemPool pmr memory resource 指针
  * @param output 输出文件路径
  */
-CISDI_MODEL_DATA_API void Convert(CISDI_3DModel* model, const char* path,
-                                  bool flipYZ,
-                                  ::std::pmr::memory_resource* pMemPool,
-                                  const char* output = nullptr);
+CISDI_MODEL_DATA_API CISDI_3DModel::TempObject::Type_PInstance Convert(
+    CISDI_3DModel* model, const char* path, bool flipYZ,
+    ::std::pmr::memory_resource* pMemPool, const char* output = nullptr);
 
 /**
  * @brief 加载 .cisdi 文件，返回 CISDI_3DModel 对象

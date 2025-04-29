@@ -12,11 +12,13 @@ CombinedImporter::CombinedImporter(std::pmr::memory_resource* pMemPool,
                                    Type_Indices& outIndices) {
     ModelData::CISDI_3DModel tmpAssimpData {pMemPool};
 
-    mFBXImporter = MakeUnique<FBXSDK::Importer>(pMemPool, path, flipYZ, outData,
-                                                tmpVertices, outIndices, false);
+    mFBXImporter = CMP_NS::New_Unique<FBXSDK::Importer>(
+        pMemPool, pMemPool, path, flipYZ, outData, tmpVertices, outIndices,
+        false);
     tmpVertices.clear();
-    mAssimpImporter = MakeUnique<Assimp::Importer>(
-        pMemPool, path, flipYZ, tmpAssimpData, tmpVertices, outIndices);
+    mAssimpImporter = CMP_NS::New_Unique<Assimp::Importer>(
+        pMemPool, pMemPool, path, flipYZ, tmpAssimpData, tmpVertices,
+        outIndices);
 
     outData.header.meshCount = (uint32_t)tmpVertices.size();
     outData.meshes.resize(outData.header.meshCount);
@@ -25,6 +27,10 @@ CombinedImporter::CombinedImporter(std::pmr::memory_resource* pMemPool,
 }
 
 CombinedImporter::~CombinedImporter() = default;
+
+FBXSDK::Importer::Type_PInstance CombinedImporter::ExtractFBXImporter() {
+    return ::std::move(mFBXImporter);
+}
 
 void CombinedImporter::ProcessNode(
     ModelData::CISDI_3DModel& outData,
