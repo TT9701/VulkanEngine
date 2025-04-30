@@ -373,12 +373,14 @@ void Generate_CISDIModel_PackedVertices(
 CISDI_3DModel::CISDI_3DModel(std::pmr::memory_resource* pMemPool)
     : name(pMemPool), nodes(pMemPool), meshes(pMemPool), materials(pMemPool) {}
 
-void Convert(CISDI_3DModel* model, const char* path, bool flipYZ,
-             ::std::pmr::memory_resource* pMemPool, const char* output) {
+CISDI_3DModel::TempObject::Type_PInstance Convert(
+    CISDI_3DModel* model, const char* path, bool flipYZ,
+    ::std::pmr::memory_resource* pMemPool, const char* output) {
     auto outputPath = ProcessOutputPath(path, output);
 
     auto& data = *model;
 
+    CISDI_3DModel::TempObject::Type_PInstance pFBXImporter {nullptr};
     // process input model file
     {
         Type_STLVector<InternalMeshData> tmpVertices {pMemPool};
@@ -390,11 +392,12 @@ void Convert(CISDI_3DModel* model, const char* path, bool flipYZ,
             if (bUseCombinedImport) {
                 IntelliDesign_NS::ModelImporter::CombinedImporter importer {
                     pMemPool, path, flipYZ, data, tmpVertices, tmpIndices};
+                pFBXImporter = importer.ExtractFBXImporter();
             } else {
-                IntelliDesign_NS::ModelImporter::FBXSDK::Importer
-                    fbxSDKImporter {pMemPool, path,        flipYZ,
-                                    data,     tmpVertices, tmpIndices};
-
+                pFBXImporter =
+                    CMP_NS::New_Unique<ModelImporter::FBXSDK::Importer>(
+                        pMemPool, pMemPool, path, flipYZ, data, tmpVertices,
+                        tmpIndices);
                 RemapIndex(tmpVertices, tmpIndices);
             }
         } else {
@@ -416,6 +419,8 @@ void Convert(CISDI_3DModel* model, const char* path, bool flipYZ,
     }
 
     Write_CISDI_File(outputPath.c_str(), data);
+
+    return pFBXImporter;
 }
 
 void Load(CISDI_3DModel* model, const char* path,

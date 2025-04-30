@@ -1,3 +1,19 @@
+get_filename_component(INTELLIGENDESIGN_CODE_PATH
+    "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository"
+    ABSOLUTE
+)
+get_filename_component(INTELLIGENDESIGN_LIB_PATH
+    "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository/LibraryOutputs/x64"
+    ABSOLUTE
+)
+get_filename_component(_INTELLI_DS_EXTERNAL_BIN_PATH_
+    "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsBinaries/Repository/3rdParty/x64"
+    ABSOLUTE
+)
+set(_INTELLI_DS_CMAKE_TOOLS_PATH_ "${INTELLIGENDESIGN_CODE_PATH}/CMakeTools")
+##############################################################
+include("${_INTELLI_DS_CMAKE_TOOLS_PATH_}/VisualStudioCommon.cmake")
+##############################################################
 add_executable (CISDIModel_Generator 
     CISDIModel_Generator.cpp
 )
@@ -20,9 +36,6 @@ add_executable(CISDIModel_BatchGenerator
     CISDIModel_BatchGenerator.cpp
     CISDIModel_BatchGenerator.h
 )
-
-set (INTELLIGENDESIGN_CODE_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository")
-set (INTELLIGENDESIGN_LIB_PATH "${PROJECT_SOURCE_DIR}/../IntelligenDesign/Git-IntelligenDesignToolsCode/Repository/LibraryOutputs/x64")
 
 target_include_directories (CISDIModel_BatchGenerator
     PUBLIC
@@ -51,4 +64,11 @@ set_target_properties (INTELLI_DS_MemoryPool
 
 target_link_libraries (CISDIModel_BatchGenerator
         PUBLIC
-        INTELLI_DS_MemoryPool)
+        INTELLI_DS_MemoryPool
+)
+##############################################################
+set(_INTELLI_DS_TARGET_NAME_ CISDIModel_BatchGenerator)
+INTELLI_DS_SET_VS_DBG_ENV(
+    "PATH=%PATH%"
+    "${_INTELLI_DS_EXTERNAL_BIN_PATH_}"
+)

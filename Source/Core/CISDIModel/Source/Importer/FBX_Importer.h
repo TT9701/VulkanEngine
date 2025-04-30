@@ -26,7 +26,9 @@ namespace FBXSDK {
  * @brief 使用 FBX SDK 导入 FBX 文件
  *
  */
-class Importer {
+class Importer : public ModelData::CISDI_3DModel::TempObject {
+    INTELLI_DS_DEFINE_STANDARD_CLASS_UNIQUE(Importer);
+
     using Type_InternalMeshDatas =
         ModelData::Type_STLVector<ModelData::InternalMeshData>;
     using Type_Indices =

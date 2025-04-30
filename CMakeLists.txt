@@ -38,6 +38,7 @@ if (${CMAKE_CXX_COMPILER} MATCHES "cl")
     cmake_host_system_information (RESULT CPU_NUMBER_OF_LOGICAL_CORES QUERY NUMBER_OF_LOGICAL_CORES)
     add_compile_options ($<$<C_COMPILER_ID:MSVC>:/MP${CPU_NUMBER_OF_LOGICAL_CORES}>)
     add_compile_options ($<$<CXX_COMPILER_ID:MSVC>:/MP${CPU_NUMBER_OF_LOGICAL_CORES}>)
+    add_compile_options ($<$<CXX_COMPILER_ID:MSVC>:/openmp>)
 endif ()
 
 set (LIB_FOLDER_NAME "Libs")

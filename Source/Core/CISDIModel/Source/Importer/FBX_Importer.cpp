@@ -1,5 +1,7 @@
 ﻿#include "FBX_Importer.h"
 
+#include <Core/System/GameTimer.h>
+
 #include <cassert>
 
 #include <codecvt>
@@ -43,8 +45,10 @@ Importer::Importer(std::pmr::memory_resource* pMemPool, const char* path,
     InitializeSdkObjects();
 
     ImportScene(path);
+
     if (meshData)
         ModifyGeometry();
+
     InitializeData(outData, path);
     ExtractMaterials(outData);
     ProcessNode(outData, mScene->GetRootNode(), -1, flipYZ, meshData);
@@ -91,6 +95,7 @@ void Importer::ImportScene(const char* path) {
         FbxArray<FbxString*> details;
         FbxSceneCheckUtility sceneCheck(FbxCast<FbxScene>(mScene), &status,
                                         &details);
+
         bool lNotify =
             (!sceneCheck.Validate(FbxSceneCheckUtility::eCkeckData)
              && details.GetCount() > 0)

@@ -11,16 +11,18 @@
 
 #pragma once
 
+#include "Assimp_Importer.h"
 #include "CISDI_3DModelData.h"
+#include "FBX_Importer.h"
 #include "Source/Common/Common.h"
 
-template <class T>
-using UniquePtr = ::std::unique_ptr<T>;
-
-template <typename T, typename... Types>
-UniquePtr<T> MakeUnique(Types&&... val) {
-    return ::std::make_unique<T>(::std::forward<Types>(val)...);
-}
+//template <class T>
+//using UniquePtr = ::std::unique_ptr<T>;
+//
+//template <typename T, typename... Types>
+//UniquePtr<T> MakeUnique(Types&&... val) {
+//    return ::std::make_unique<T>(::std::forward<Types>(val)...);
+//}
 
 namespace IntelliDesign_NS::ModelImporter {
 
@@ -59,6 +61,9 @@ public:
 
     ~CombinedImporter();
 
+public:
+    FBXSDK::Importer::Type_PInstance ExtractFBXImporter();
+
 private:
     /**
      * @brief 处理 FBX SDK 导入的 Node 与 Assimp 导入的 Node 的对应关系
@@ -73,8 +78,8 @@ private:
                      Type_Indices& outIndices);
 
 private:
-    UniquePtr<FBXSDK::Importer> mFBXImporter;     ///<- FBX SDK Importer
-    UniquePtr<Assimp::Importer> mAssimpImporter;  ////<- Assimp Importer
+    FBXSDK::Importer::Type_PInstance mFBXImporter;     ///<- FBX SDK Importer
+    Assimp::Importer::Type_PInstance mAssimpImporter;  ////<- Assimp Importer
 };
 
 }  // namespace IntelliDesign_NS::ModelImporter
