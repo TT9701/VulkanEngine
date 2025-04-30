@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 
+#include <Core/System/GameTimer.h>
 #include <Core/System/MemoryPool/MemoryPool.h>
 #include <Win32/DbgMemLeak.h>
 #include <Core/System/StringHelper.hpp>
@@ -172,42 +173,35 @@ int main(int argc, char* argv[]) {
 
     ::std::atomic<size_t> numTsksFetched {0};
     ::std::atomic<size_t> numTsksCompleted {0};
+
+    GameTimer timer0 {};
+    INTELLI_DS_MEASURE_DURATION_MS_START(timer0) {
 #pragma omp parallel for
-    for (int i = 0; i < processCount; ++i) {
-        while (true) {
-            size_t idxTsk = numTsksFetched++;
-            if (idxTsk < numTsksTotal) {
-                auto commandLine = Type_STLString {GENERATOR_EXECUTABLE_NAME}
-                                 + " \"" + modelPathes[idxTsk] + "\"" + " \""
-                                 + outModelPath + "\"";
-                CISDIModel_GeneratorProcess {commandLine.c_str()};
-                auto idxTskCompleted = numTsksCompleted++;
-                printf("Conversion completed (%zu/%zu): %s\n",
-                       idxTskCompleted + 1, numTsksTotal,
-                       modelPathes[idxTsk].c_str());
-            } else
-                break;
+        for (int i = 0; i < processCount; ++i) {
+            while (true) {
+                size_t idxTsk = numTsksFetched++;
+                if (idxTsk < numTsksTotal) {
+                    auto commandLine =
+                        Type_STLString {GENERATOR_EXECUTABLE_NAME} + " \""
+                        + modelPathes[idxTsk] + "\"" + " \"" + outModelPath
+                        + "\"";
+                    CISDIModel_GeneratorProcess {commandLine.c_str()};
+
+                    auto modelFileName =
+                        ::std::filesystem::path {modelPathes[idxTsk].c_str()}
+                            .filename()
+                            .string();
+                    auto idxTskCompleted = numTsksCompleted++;
+
+                    printf("Conversion completed (%zu/%zu): %s\n",
+                           idxTskCompleted + 1, numTsksTotal,
+                           modelFileName.c_str());
+                } else
+                    break;
+            }
         }
     }
-
-    /*::std::vector<::std::vector<Type_STLString>> modelPathesList(processCount);
-
-    for (int i = 0; i < modelPathes.size(); ++i) {
-        modelPathesList[i % processCount].push_back(modelPathes[i]);
-    }
-
-    ::std::vector<CISDIModel_GeneratorProcess> processes;
-
-    for (int i = 0; i < processCount; ++i) {
-        Type_STLString commandLine = GENERATOR_EXECUTABLE_NAME;
-        for (auto&& path : modelPathesList[i]) {
-            commandLine = commandLine + " ";
-            commandLine += "\"" + path + "\"";
-        }
-        commandLine = commandLine + " ";
-        commandLine += "\"" + outModelPath + "\"";
-        processes.emplace_back(commandLine.c_str());
-    }*/
+    INTELLI_DS_MEASURE_DURATION_MS_END_PRINT(timer0, "FBX conversion");
 
     return 0;
 }

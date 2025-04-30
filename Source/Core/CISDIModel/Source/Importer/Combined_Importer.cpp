@@ -1,5 +1,7 @@
 #include "Combined_Importer.h"
 
+#include <Core/System/GameTimer.h>
+
 #include "Assimp_Importer.h"
 #include "FBX_Importer.h"
 
@@ -16,6 +18,7 @@ CombinedImporter::CombinedImporter(std::pmr::memory_resource* pMemPool,
         pMemPool, pMemPool, path, flipYZ, outData, tmpVertices, outIndices,
         false);
     tmpVertices.clear();
+
     mAssimpImporter = CMP_NS::New_Unique<Assimp::Importer>(
         pMemPool, pMemPool, path, flipYZ, tmpAssimpData, tmpVertices,
         outIndices);

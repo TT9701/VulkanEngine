@@ -1,13 +1,13 @@
 #include "Assimp_Importer.h"
 
 #include <cassert>
-
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 
 #include <assimp/postprocess.h>
 
+#include <Core/System/GameTimer.h>
 #include "CISDI_3DModelData.h"
 #include "Source/Common/Common.h"
 
