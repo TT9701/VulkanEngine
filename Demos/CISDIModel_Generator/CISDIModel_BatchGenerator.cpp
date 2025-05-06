@@ -111,6 +111,27 @@ DWORD CISDIModel_GeneratorProcess::Wait() const {
     return retCode;
 }
 
+static constexpr int ProgressWidth = 30;
+static constexpr const char* ProgressStr = "##############################";
+
+void PrintProgress(int offset, int total, const char* msg) {
+
+    int val = offset * 100 / total;
+
+    int lpad = offset * ProgressWidth / total;
+
+    int rpad = ProgressWidth - lpad;
+
+    printf("\r\033[K");
+
+    printf("\r%3d%% [%.*s%*s] [%d/%d]", val, lpad, ProgressStr, rpad, "",
+           offset, total);
+
+    printf(": %s.\r", msg);
+
+    fflush(stdout);
+}
+
 int main(int argc, char* argv[]) {
     INTELLI_DS_SetDbgFlag();
 
@@ -193,14 +214,21 @@ int main(int argc, char* argv[]) {
                             .string();
                     auto idxTskCompleted = numTsksCompleted++;
 
-                    printf("Conversion completed (%zu/%zu): %s\n",
-                           idxTskCompleted + 1, numTsksTotal,
-                           modelFileName.c_str());
+                    // printf("Conversion completed (%zu/%zu): %s\n",
+                    //        idxTskCompleted + 1, numTsksTotal,
+                    //        modelFileName.c_str());
+
+                    PrintProgress(static_cast<int>(idxTskCompleted + 1),
+                                  static_cast<int>(numTsksTotal),
+                                  modelFileName.c_str());
+
                 } else
                     break;
             }
         }
     }
+
+    printf("\r\033[K");
     INTELLI_DS_MEASURE_DURATION_MS_END_PRINT(timer0, "FBX conversion");
 
     return 0;
