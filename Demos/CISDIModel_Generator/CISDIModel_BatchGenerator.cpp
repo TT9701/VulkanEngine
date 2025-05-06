@@ -40,7 +40,10 @@ void WaitSingleProcess(HANDLE hProc) {
 void ReadModelNameFromDirectory(const ::std::filesystem::path& path,
                                 ::std::vector<Type_STLString>& modelPathes) {
     for (const auto& entry : ::std::filesystem::directory_iterator(path)) {
-        if (entry.path().extension() == ".fbx") {
+        IntelliDesign_NS::CMP_NS::Type_STLString extension {
+            entry.path().extension().u8string()};
+        IntelliDesign_NS::Core::StringHelper::StringToLower(&extension);
+        if (extension == ".fbx") {
             modelPathes.push_back(entry.path().string().c_str());
         }
     }
